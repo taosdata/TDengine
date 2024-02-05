@@ -786,10 +786,10 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
         (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
         code = code_file;
         qDebug("===stream===1 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey, pWinKey->win.ekey, code_file);
+        streamStateFreeCur(pCur);
         goto _end;
-      } else {
-        taosMemoryFree(p);
       }
+      taosMemoryFree(p);
       streamStateFreeCur(pCur);
     }
   }

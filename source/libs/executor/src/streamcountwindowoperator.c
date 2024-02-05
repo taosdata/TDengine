@@ -117,6 +117,7 @@ void setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId,
 
 int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs, int32_t start, int32_t rows, int32_t maxRows,
                               SSHashObj* pStDeleted, bool* pRebuild) {
+  SSessionKey sWinKey = pWinInfo->winInfo.sessionWin;
   int32_t num = 0;
   for (int32_t i = start; i < rows; i++) {
     if (pTs[i] < pWinInfo->winInfo.sessionWin.win.ekey) {
@@ -148,7 +149,7 @@ int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pW
   if (needDelState) {
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
     if (pWinInfo->winInfo.pStatePos->needFree) {
-      pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pWinInfo->winInfo.sessionWin);
+      pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &sWinKey);
     }
   }
 
@@ -576,7 +577,15 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
 }
 
 void streamCountReleaseState(SOperatorInfo* pOperator) {
-  //nothing
+  SStreamEventAggOperatorInfo* pInfo = pOperator->info;
+  int32_t                      resSize = sizeof(TSKEY);
+  char*                        pBuff = taosMemoryCalloc(1, resSize);
+  memcpy(pBuff, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
+  qDebug("===stream=== count window operator relase state. ");
+  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_STATE_NAME,
+                                                     strlen(STREAM_COUNT_OP_STATE_NAME), pBuff, resSize);
+  pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
+  taosMemoryFreeClear(pBuff);
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {
     downstream->fpSet.releaseStreamStateFn(downstream);
@@ -584,11 +593,22 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
 }
 
 void streamCountReloadState(SOperatorInfo* pOperator) {
-  // nothing
+  SStreamCountAggOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
+  int32_t                      size = 0;
+  void*                        pBuf = NULL;
+
+  int32_t code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_COUNT_OP_STATE_NAME,
+                                                        strlen(STREAM_COUNT_OP_STATE_NAME), &pBuf, &size);
+  TSKEY ts = *(TSKEY*)pBuf;
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  taosMemoryFree(pBuf);
+
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
