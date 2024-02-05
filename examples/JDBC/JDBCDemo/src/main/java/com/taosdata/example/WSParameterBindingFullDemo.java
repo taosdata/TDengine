@@ -5,7 +5,8 @@ import com.taosdata.jdbc.ws.TSWSPreparedStatement;
 import java.sql.*;
 import java.util.Random;
 
-public class WSParameterBindingDemo {
+// ANCHOR: para_bind
+public class WSParameterBindingFullDemo {
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
     private static final int BINARY_COLUMN_SIZE = 30;
@@ -168,3 +169,4 @@ public class WSParameterBindingDemo {
         }
     }
 }
+// ANCHOR_END: para_bind

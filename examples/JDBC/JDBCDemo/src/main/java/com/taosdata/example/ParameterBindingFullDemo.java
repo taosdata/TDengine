@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class ParameterBindingDemo {
+// ANCHOR: para_bind
+public class ParameterBindingFullDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
@@ -314,3 +315,4 @@ public class ParameterBindingDemo {
         }
     }
 }
+// ANCHOR_END: para_bind
