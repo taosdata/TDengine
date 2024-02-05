@@ -203,7 +203,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
       int32_t *index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -213,7 +213,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
         int32_t size = (int32_t)taosArrayGetSize(pReq->aSubmitTbData) - 1;
         taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
       } else {
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }

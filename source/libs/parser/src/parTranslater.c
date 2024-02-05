@@ -8123,27 +8123,27 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
   tstrncpy(col->colName, pMeta->schema[0].name, tListLen(col->colName));
-  SNodeList* pParamterList = nodesMakeList();
-  if (NULL == pParamterList) {
+  SNodeList* pParameterList = nodesMakeList();
+  if (NULL == pParameterList) {
     nodesDestroyNode((SNode*)col);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = nodesListStrictAppend(pParamterList, (SNode*)col);
+  int32_t code = nodesListStrictAppend(pParameterList, (SNode*)col);
   if (code) {
-    nodesDestroyList(pParamterList);
+    nodesDestroyList(pParameterList);
     return code;
   }
 
-  SNode* pFunc = (SNode*)createFunction("last", pParamterList);
+  SNode* pFunc = (SNode*)createFunction("last", pParameterList);
   if (NULL == pFunc) {
-    nodesDestroyList(pParamterList);
+    nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SNodeList* pProjectionList = nodesMakeList();
   if (NULL == pProjectionList) {
-    nodesDestroyList(pParamterList);
+    nodesDestroyNode(pFunc);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -8155,7 +8155,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   SFunctionNode* pFunc1 = createFunction("_vgid", NULL);
   if (NULL == pFunc1) {
-    nodesDestroyList(pParamterList);
+    nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -8168,7 +8168,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   SFunctionNode* pFunc2 = createFunction("_vgver", NULL);
   if (NULL == pFunc2) {
-    nodesDestroyList(pParamterList);
+    nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -8185,24 +8185,54 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return code;
   }
 
-  // todo add the group by statement
   SSelectStmt** pSelect1 = (SSelectStmt**)pQuery;
   (*pSelect1)->pGroupByList = nodesMakeList();
+  if (NULL == (*pSelect1)->pGroupByList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SGroupingSetNode* pNode1 = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  if (NULL == pNode1) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pNode1->groupingSetType = GP_TYPE_NORMAL;
   pNode1->pParameterList = nodesMakeList();
-  nodesListAppend(pNode1->pParameterList, (SNode*)pFunc1);
+  if (NULL == pNode1->pParameterList) {
+    nodesDestroyNode((SNode*)pNode1);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
+  code = nodesListAppend(pNode1->pParameterList, (SNode*)pFunc1);
+  if (code) {
+    nodesDestroyNode((SNode*)pNode1);
+    return code;
+  }
+
+  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
+  if (code) {
+    return code;
+  }
 
   SGroupingSetNode* pNode2 = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  if (NULL == pNode2) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pNode2->groupingSetType = GP_TYPE_NORMAL;
   pNode2->pParameterList = nodesMakeList();
-  nodesListAppend(pNode2->pParameterList, (SNode*)pFunc2);
+  if (NULL == pNode2->pParameterList) {
+    nodesDestroyNode((SNode*)pNode1);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
+  code = nodesListAppend(pNode2->pParameterList, (SNode*)pFunc2);
+  if (code) {
+    nodesDestroyNode((SNode*)pNode2);
+    return code;
+  }
 
+  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
   return code;
 }
 

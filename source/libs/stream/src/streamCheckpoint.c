@@ -158,7 +158,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 
   pTask->chkInfo.transId = pReq->transId;
   pTask->chkInfo.checkpointingId = pReq->checkpointId;
-  pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+  pTask->chkInfo.numOfNotReady = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
   pTask->execInfo.checkpoint += 1;
 
@@ -214,7 +214,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
-      atomic_add_fetch_32(&pTask->chkInfo.checkpointNotReadyTasks, 1);
+      atomic_add_fetch_32(&pTask->chkInfo.numOfNotReady, 1);
       streamProcessCheckpointReadyMsg(pTask);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
@@ -249,7 +249,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 
       // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this task
       // can start local checkpoint procedure
-      pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+      pTask->chkInfo.numOfNotReady = streamTaskGetNumOfDownstream(pTask);
 
       // Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
       // already. And then, dispatch check point msg to all downstream tasks
@@ -268,7 +268,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG);
 
   // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
-  int32_t notReady = atomic_sub_fetch_32(&pTask->chkInfo.checkpointNotReadyTasks, 1);
+  int32_t notReady = atomic_sub_fetch_32(&pTask->chkInfo.numOfNotReady, 1);
   ASSERT(notReady >= 0);
 
   if (notReady == 0) {
@@ -287,7 +287,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.checkpointingId = 0;  // clear the checkpoint id
   pTask->chkInfo.failedId = 0;
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-  pTask->chkInfo.checkpointNotReadyTasks = 0;
+  pTask->chkInfo.numOfNotReady = 0;
   pTask->chkInfo.transId = 0;
   pTask->chkInfo.dispatchCheckpointTrigger = false;
 

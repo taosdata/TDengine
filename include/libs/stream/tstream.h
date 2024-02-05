@@ -313,7 +313,7 @@ typedef struct SCheckpointInfo {
   int64_t failedId;        // record the latest failed checkpoint id
   int64_t checkpointingId;
   int32_t downstreamAlignNum;
-  int32_t checkpointNotReadyTasks;
+  int32_t numOfNotReady;
   bool    dispatchCheckpointTrigger;
   int64_t msgVer;
   int32_t transId;
