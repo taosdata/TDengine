@@ -103,8 +103,11 @@ void setTask(SStreamTask* pTask, int32_t nodeId, int64_t streamId, int32_t taskI
   pTask->id.taskId = taskId;
   pTask->info.nodeId = nodeId;
 
-  STaskId          id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-  STaskStatusEntry entry = {0};
+  STaskId id;
+  id.streamId = pTask->id.streamId;
+  id.taskId = pTask->id.taskId;
+
+  STaskStatusEntry entry;
   streamTaskStatusInit(&entry, pTask);
 
   entry.stage = 1;
