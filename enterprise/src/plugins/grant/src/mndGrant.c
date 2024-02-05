@@ -389,15 +389,11 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
     RETURN_WITH_CODE(tDecodeI64v(&decoder, &active->u0) < 0, code);
     RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &active->active[0]) < 0, code);
   }
-  if (pObj->nActives > 0) {
-    assert(strlen(pObj->actives[0].active) == 30);
-  }
   int32_t activeLen = 0;
   RETURN_WITH_CODE(tDecodeI32v(&decoder, &activeLen) < 0, code);
   if (activeLen > 0) {
     if (!(pObj->active = taosMemoryMalloc(activeLen + 1))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+      RETURN_WITH_CODE(true, TSDB_CODE_OUT_OF_MEMORY);
     }
     RETURN_WITH_CODE(tDecodeCStrTo(&decoder, pObj->active) < 0, code);
   }
@@ -406,21 +402,16 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
     goto _return;
   }
   if (nMachines > 0) {
-    if (!(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+    if (!pObj->pMachines && !(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+      RETURN_WITH_CODE(true, TSDB_CODE_OUT_OF_MEMORY);
     }
-    if (!taosArrayPush(pObj->pMachines, &(SGrantMachine){0})) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+    for (int32_t i = 0; i < nMachines; ++i) {
+      taosArrayPush(pObj->pMachines, &(SGrantMachine){0});
+      SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
+      RETURN_WITH_CODE(tDecodeI64v(&decoder, &pLast->u0) < 0, code);
+      RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pLast->machine[0]) < 0, code);
     }
-    SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
-    if (tDecodeI64v(&decoder, &pLast->u0) < 0) {
-      goto _return;
-    };
-    RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pLast->machine[0]) < 0, code);
   }
-
   code = 0;
 _return:
   tEndDecode(&decoder);

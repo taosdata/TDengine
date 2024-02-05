@@ -178,6 +178,7 @@
 #define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS)
 #define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? grantHandle.nDiskCfg > 1 : 0))
 #define GRANT_TS_SEC_LEN 20
+#define GRANT_LOG_MAX_MACHINE 300
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6", "td3.0"};
@@ -610,24 +611,16 @@ _exit:
   return code;
 }
 
-static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash, bool *pLegacy) {
+static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
   SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
-
-  if (pLegacy) *pLegacy = false;
 
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
     // machineCode
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
       tSimpleHashPut(pMachineHash, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
-    }
-    // legacy
-    if (pLegacy && (false == *pLegacy)) {
-      if (pDnode->active[0] != 0 || pDnode->connActive[0] != 0) {
-        *pLegacy = true;
-      }
     }
     // nDiskCfg
     if (pDnode->numOfDiskCfg > grantHandle.nDiskCfg) {
@@ -734,14 +727,14 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
   if (nMachines < nDnodeLimit) {
     // append if not exist in SGrantLogObj, transfer to revoked state if exceeded
     int32_t idx = 0;
-    void   *machines[128];
-    int32_t dnodeIds[128];
+    void   *machines[GRANT_LOG_MAX_MACHINE];
+    int32_t dnodeIds[GRANT_LOG_MAX_MACHINE];
     while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
       if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
         machines[idx] = key;
         dnodeIds[idx] = *(int32_t *)pe;
-        if (++idx >= 128) break;
+        if (++idx >= GRANT_LOG_MAX_MACHINE) break;
       }
     }
     int32_t num = idx;
@@ -751,6 +744,10 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     }
     if (num > 0) {
       *pGrantMachines = taosArrayInit(num, sizeof(SGrantMachine));
+      if (NULL == *pGrantMachines) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
       int64_t curTime = taosGetTimestampMs() / 1000;
       for (int32_t i = 0; i < num; ++i) {
         taosArrayPush(*pGrantMachines, &(SGrantMachine){.id = dnodeIds[i], .ts = curTime});
@@ -758,7 +755,6 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
         memcpy(&pLastMachine->machine[0], machines[i], TSDB_MACHINE_ID_LEN);
       }
     }
-
   } else if (nMachines == nDnodeLimit) {
     // if dnode machines all exist in cluster, it's ok; otherwise transfer to revoked state
     while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
@@ -844,7 +840,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantObj.active[0] = 0;
   }
 
-  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash, &legacy);
+  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash);
 
   if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
@@ -854,13 +850,11 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       code = fillGrantStatusFromObj(&gStatus, &grantObj, gStatus.grantState);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-  } else if (legacy) {
-    if (pGrant->upgradeTime <= 0) {
+  } else {
+    if (pGrant->upgradeTime == 0) {
       pGrant->upgradeTime = curTime;
     }
     grantResetMaster(pMnode, pGrant->upgradeTime);
-  } else {
-    grantResetMaster(pMnode, 0);
   }
 
   if (pLastState->state == GRANT_STATE_REVOKED) {
@@ -1684,7 +1678,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  grantGetDnodesMiscInfo(pMnode, pMachineHash, NULL);
+  grantGetDnodesMiscInfo(pMnode, pMachineHash);
 
   // step 2: parse new
   memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);

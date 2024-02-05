@@ -503,7 +503,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   SDbObj   *pDb = NULL;
   char* dbFName = pCreateView->dbFName;
 
-  if ((code = grantCheck(TSDB_GRANT_VIEW)) != 0) {
+  if ((terrno = grantCheck(TSDB_GRANT_VIEW)) != 0) {
     goto _OVER;
   }
 
