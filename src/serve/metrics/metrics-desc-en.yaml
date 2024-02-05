@@ -10,10 +10,10 @@ taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
 total_execute_time: Total execute time in milliseconds
 total_written_rows: Total rows written to TDengine.(may greater than actual value when there are duplicate records)
-total_written_points: Total points written successfully. (equal to total_written_rows multiplied by the number of columns in the data block)
+total_written_points: Total points written successfully, may greater than actual value. When using the write_block interface, it is equal to the number of rows contained in the data block multiplied by the number of columns in the data block. When using SQL to write, it is equal to the number of affected rows multiplied by the number of columns in the target table.
 total_rows_per_second: Average number of rows written per second
 total_points_per_second: Average number of points written per second
-start_time: Task start time (reset each time the task is restarted), in milliseconds
+start_time: Task start time (reset each time the task is restarted)
 written_rows: Total rows written to TDengine in this task run. (may greater than actual value when there are duplicate records)
 written_points: Total points written successfully in this task run (equal to written_rows multiplied by the number of columns in the data block)
 execute_time: Task execute time in milliseconds for this task run

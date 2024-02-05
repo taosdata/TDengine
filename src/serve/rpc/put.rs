@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use anyhow::bail;
 use arrow_flight::{error::FlightError, FlightData, PutResult};
@@ -97,7 +97,8 @@ impl PutStream {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
         // data channel
-        let (tx, rx) = flume::bounded(1000000);
+        let (tx, rx) = flume::bounded(4096);
+        let tx = Arc::new(tx);
         // response channel
         let schema = stream
             .try_next()
@@ -111,7 +112,7 @@ impl PutStream {
         };
 
         debug!(schema = ?schema, "parsing put stream schema");
-        let tx_cloned = tx.clone();
+        let tx_cloned = Arc::downgrade(&tx);
         let taos = pool.get().await?;
         let from_dsn: Dsn = task.from.parse()?;
         let to_dsn: Dsn = task.to.parse()?;
@@ -173,7 +174,7 @@ impl PutStream {
             pool: &taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: flume::Sender<(arrow::record_batch::RecordBatch, u64)>,
+            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, u64)>>,
             rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
@@ -266,10 +267,13 @@ impl PutStream {
                         )?;
                         bail!("{err:#}");
                     }
-                    tx.send_async((record, trace_id)).await?;
+                    if let Some(tx) = tx.upgrade() {
+                        tx.send_async((record, trace_id)).await?;
+                    }
                 } else {
                     metrics.add_processed_batches(1);
                 }
+                tracing::info!("Writing batch {} success", get_data_trace_id_str(trace_id));
                 Ok(())
             }).await?;
 
@@ -305,7 +309,7 @@ impl PutStream {
                 .in_current_span()
                 .await
                 {
-                    tracing::warn!("IPC stream writer stopped, err:{:?}", err);
+                    tracing::warn!("IPC stream writer stopped, err:{:#?}", err);
                 }
 
                 tracing::info!("IPC stream writer stopped successfully");

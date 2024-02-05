@@ -16,9 +16,6 @@ groups:
     display_order: 1
     description: CSV 读取选项
     params:
-      # - name: sep
-      #   display: 分隔符
-      #   hint: str
       - name: skip
         display: 忽略前 N 行
         description: 忽略 CSV 文件的前 N 行。
@@ -26,6 +23,38 @@ groups:
         hint:
           type: integer
           min: 0
+      - name: delimiter
+        display: Delimiter Char
+        description: CSV 字段之间的分隔符。
+        value: ","
+        required: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - ","
+            - ";"
+      - name: quote
+        display: Quote Char
+        description: 当 CSV 字段中包含分隔符或换行符时，用于包围字段内容，以确保整个字段被正确识别。
+        value: '"'
+        required: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - '"'
+            - "'"
+      - name: comment
+        display: Comment Prefix
+        description: 当 CSV 文件中某行以此处指定的字符开头，则忽略该行
+        value: "#"
+        required: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - "#"
 
 advanced:
   name: 高级选项

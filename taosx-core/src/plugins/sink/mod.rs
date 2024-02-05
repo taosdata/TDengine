@@ -1453,10 +1453,15 @@ async fn consume_flat_record(
                     // dbg!(&views);
                     let schema = records.records.schema();
                     let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
-                    let table_name = records.table.name.as_str();
+
+                    // replace dot in table_name
+                    let table_name = records
+                        .opts
+                        .canonical_table_name(records.table.name.as_str());
 
                     let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
-                    raw.with_field_names(&columns).with_table_name(table_name);
+                    raw.with_field_names(&columns)
+                        .with_table_name(table_name.clone());
 
                     let mut write_retries = 0;
                     loop {
@@ -1474,7 +1479,7 @@ async fn consume_flat_record(
                                     }
                                 }
                                 loop {
-                                    let res = taos.as_ref().unwrap().describe(table_name).await;
+                                    let res = taos.as_ref().unwrap().describe(&table_name).await;
                                     match res {
                                         Ok(desc) => {
                                             if let Some(col) =
@@ -1486,7 +1491,7 @@ async fn consume_flat_record(
                                                         .table
                                                         .using
                                                         .as_deref()
-                                                        .unwrap_or(table_name);
+                                                        .unwrap_or(&table_name);
                                                     let sql = format!(
                                                         "alter table `{table}` modify column `{}` {}({})",
                                                         name,
@@ -1795,8 +1800,8 @@ async fn consume_flat_record(
                             } else if err_str.contains("[0x2605]") {
                                 // container length is too short.
                                 let desc =
-                                    taos.as_ref().unwrap().describe(table_name).await.unwrap();
-                                let table = records.table.using.as_deref().unwrap_or(table_name);
+                                    taos.as_ref().unwrap().describe(&table_name).await.unwrap();
+                                let table = records.table.using.as_deref().unwrap_or(&table_name);
                                 for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
                                 {
                                     let sql = format!(
@@ -1817,7 +1822,7 @@ async fn consume_flat_record(
                                 while index < columns.len() {
                                     // let column_view = views.get(index).unwrap();
                                     let column_name = columns.get(index).unwrap().as_str();
-                                    let desc = taos.as_ref().unwrap().describe(table_name).await?;
+                                    let desc = taos.as_ref().unwrap().describe(&table_name).await?;
                                     let mut need_add = true;
                                     desc.into_iter().for_each(|column_meta| {
                                         if column_meta.field() == column_name {
@@ -1864,7 +1869,7 @@ async fn consume_flat_record(
                                 taos.replace(pool.get().await?);
                                 continue;
                             } else {
-                                error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
+                                error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                                 metrics.add_failed_raw_blocks(1);
                                 metrics.add_failed_rows(raw.nrows() as u64);
                                 metrics.add_failed_points(

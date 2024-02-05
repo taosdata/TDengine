@@ -287,6 +287,7 @@ impl TaskControllerRef {
             .bind(Status::Failed)
             .bind(Status::Stopped)
             .bind(Status::Created)
+            .bind(Status::Stopping)
             .fetch_all(&self.pool)
             .await?;
         for mut task in tasks {
@@ -2215,7 +2216,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: format!("Wait for next tick in schedule."),
-            status: "tick".to_string(),
+            status: "ticked".to_string(),
             context: Some(json!({"jid": jid}).into()),
         }
     }

@@ -57,7 +57,7 @@ taosx-core = { path = "../taosx-core" }
 taosx-metrics = { path = "../taosx-metrics" }
 
 time = { version = "0.3", features = ["formatting", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time"] }
+tracing-subscriber = { version = "0.3", features = ["time", "local-time", "env-filter"] }
 tracing-appender = "0.2"
 
 file-rotate = "0.7.5"
