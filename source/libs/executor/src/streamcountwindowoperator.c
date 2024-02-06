@@ -115,7 +115,7 @@ void setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId,
   }
 }
 
-int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs, int32_t start, int32_t rows, int32_t maxRows,
+static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs, int32_t start, int32_t rows, int32_t maxRows,
                               SSHashObj* pStDeleted, bool* pRebuild) {
   SSessionKey sWinKey = pWinInfo->winInfo.sessionWin;
   int32_t num = 0;
@@ -290,7 +290,6 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
         buffInfo.winBuffOp = MOVE_NEXT_WINDOW;
         winRows = 0;
       }
-      slidingRows = (slidingRows + winRows) % pAggSup->windowSliding;
     }
     i += winRows;
   }
