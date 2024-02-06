@@ -3768,6 +3768,7 @@ typedef struct {
   int32_t      vgId;
   STqOffsetVal offset;
   int64_t      rows;
+  int64_t      ever;
 } OffsetRows;
 
 typedef struct {

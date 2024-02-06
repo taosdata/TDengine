@@ -6252,6 +6252,7 @@ int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
       if (tEncodeI32(&encoder, offRows->vgId) < 0) return -1;
       if (tEncodeI64(&encoder, offRows->rows) < 0) return -1;
       if (tEncodeSTqOffsetVal(&encoder, &offRows->offset) < 0) return -1;
+      if (tEncodeI64(&encoder, offRows->ever) < 0) return -1;
     }
   }
 
@@ -6289,6 +6290,7 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
           if (tDecodeI32(&decoder, &offRows->vgId) < 0) return -1;
           if (tDecodeI64(&decoder, &offRows->rows) < 0) return -1;
           if (tDecodeSTqOffsetVal(&decoder, &offRows->offset) < 0) return -1;
+          if (tDecodeI64(&decoder, &offRows->ever) < 0) return -1;
         }
       }
     }
