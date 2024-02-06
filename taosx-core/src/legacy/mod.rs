@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use anyhow::{bail, Context};
@@ -1515,7 +1515,7 @@ async fn sync_specified_tables_with_workers(
     scheduler: &Scheduler,
     from: &TaosPool,
     mut opts: QueryOpts,
-    todo: Arc<LegacyTodo>,
+    todo: &Arc<LegacyTodo>,
     target_opts: TargetOpts,
     workers: usize,
     task_id: &Option<String>,
@@ -1570,6 +1570,7 @@ async fn sync_specified_tables_with_workers(
     });
     let from = from.get().await?;
     let (items_rx, items_tx) = flume::bounded(0);
+    let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
         todo.tables.scan(|item| {
             let _ = items_rx.send(item.clone());
@@ -1701,6 +1702,8 @@ pub struct SourceOpts {
     sparse: bool,
     /// Retrieve schema per interval.
     schema_polling_interval: Duration,
+    /// Sleep before stop polling schema.
+    schema_polling_wait_before_end: Option<Duration>,
 }
 
 impl SourceOpts {
@@ -1799,6 +1802,7 @@ impl SourceOpts {
             opts.sparse = value != "false";
         }
 
+        // schema_polling_interval
         if let Some(value) = dsn.remove("schema-polling-interval") {
             let value = parse_duration::parse(&value).map_err(|err| {
                 anyhow::format_err!(
@@ -1810,6 +1814,17 @@ impl SourceOpts {
             // default 1m=60s
             opts.schema_polling_interval = Duration::from_secs(60);
         }
+        // schema_polling_wait_before_end
+        if let Some(value) = dsn.remove("schema-polling-wait-before-end") {
+            let value = parse_duration::parse(&value).map_err(|err| {
+                anyhow::format_err!(
+                    "Can not parse duration for `schema-polling-wait-before-end` from value: {value} (Error: {err})"
+                )
+            })?;
+            opts.schema_polling_wait_before_end.replace(value);
+        }
+
+        // stables
         if let Some(value) = dsn.remove("stables") {
             let (files, mut tables): (Vec<_>, Vec<_>) = value
                 .split(",")
@@ -2498,8 +2513,9 @@ pub async fn update_todo_list(
             if opts.shuffle {
                 tables.shuffle(&mut rand::thread_rng());
             }
-
-            tracing::info!("Try to synchronize {} tables in {} tables", tables.len(), 0);
+            if tables.len() > 0 {
+                tracing::info!("Try to synchronize {} tables in {} tables", tables.len(), 0);
+            }
             Ok(LegacyTodo {
                 stables: tables_from_vec(stables),
                 tables: tables_from_vec(tables),
@@ -2516,374 +2532,6 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
         tables: Default::default(),
     });
     update_todo_list(pool, opts, todo).await
-    // // let version =
-    // let taos = pool
-    //     .get()
-    //     .await
-    //     .context("Connect to data source error with timeout")?;
-    // let version = taos.server_version().await?;
-    // let is_v2 = version.starts_with('2');
-    // info!(version = version.as_ref(), "Retrieving table list...");
-    // // dbg!(&opts.stables);
-    // if let Some(stables) = opts.stables.as_ref() {
-    //     const MAX_DISPLAY_STABLES: usize = 5;
-    //     let list = if stables.len() > MAX_DISPLAY_STABLES {
-    //         format!("{},...", stables.iter().take(MAX_DISPLAY_STABLES).join(","))
-    //     } else {
-    //         stables.iter().take(MAX_DISPLAY_STABLES).join(",")
-    //     };
-    //     tracing::info!("Use stables list in data source parameters: {list}");
-
-    //     let stables = stables
-    //         .iter()
-    //         .map(|s| Arc::new(s.to_string()))
-    //         .collect_vec();
-
-    //     if opts.sparse {
-    //         return Ok(LegacyTodo {
-    //             tables: stables
-    //                 .iter()
-    //                 .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
-    //                 .collect_vec(),
-    //             stables,
-    //         });
-    //     }
-    //     // let mut tables = vec![];
-    //     let mut tables: Vec<_>;
-    //     if is_v2 {
-    //         if opts.shuffle {
-    //             tables = taos
-    //                 .query("show tables")
-    //                 .await?
-    //                 .deserialize::<TableRecord>()
-    //                 .try_filter_map(|x| {
-    //                     let filter = if let Some(stable_name) = &x.stable_name {
-    //                         stables
-    //                             .iter()
-    //                             .find(|x| x.as_str() == stable_name)
-    //                             .map(|item| {
-    //                                 LegacyTableItem::new(
-    //                                     x.vgroup_id,
-    //                                     Some(item.clone()),
-    //                                     Arc::new(x.table_name),
-    //                                 )
-    //                             })
-    //                     } else {
-    //                         None
-    //                     };
-    //                     futures::future::ready(Ok(filter))
-    //                 })
-    //                 .try_collect()
-    //                 .await
-    //                 .context("Deserialize stable list from source error")?;
-
-    //             let mut rng = rand::thread_rng();
-    //             tables.shuffle(&mut rng);
-    //         } else {
-    //             tables = Vec::new();
-    //             for stable in &stables {
-    //                 let mut res = taos
-    //                     .query(format!("select tbname from `{}`", stable))
-    //                     .await?;
-    //                 tables.extend(
-    //                     res.deserialize()
-    //                         .map_ok(|table_name| {
-    //                             LegacyTableItem::new(0, Some(stable.clone()), Arc::new(table_name))
-    //                         })
-    //                         .try_collect::<Vec<_>>()
-    //                         .await?,
-    //                 );
-    //             }
-    //         }
-    //     } else {
-    //         // is v3
-    //         let database: String = taos.query_one("SELECT database()").await?.unwrap();
-    //         // note!: to make sure the information_schema is updated.
-    //         taos.exec("use information_schema").await?;
-    //         taos.exec(format!("use `{database}`")).await?;
-    //         tables = Vec::new();
-    //         for stable in &stables {
-    //             let mut res = taos.query(format!("select vgroup_id, table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await?;
-    //             tables.extend(
-    //                 res.deserialize()
-    //                     .map_ok(|(vgroup_id, name)| {
-    //                         LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(name))
-    //                     })
-    //                     .try_collect::<Vec<_>>()
-    //                     .await?,
-    //             );
-    //         }
-    //         if opts.shuffle {
-    //             tables.shuffle(&mut rand::thread_rng());
-    //         }
-    //     }
-    //     tracing::info!(
-    //         "Try to synchronize {} tables in {} stables",
-    //         tables.len(),
-    //         stables.len()
-    //     );
-
-    //     Ok(LegacyTodo { stables, tables })
-    // } else if let Some(tables) = opts.tables.as_ref() {
-    //     let mut stable_set = BTreeMap::new();
-    //     let mut stables = vec![];
-
-    //     let mut tables: Vec<_> = tables
-    //         .iter()
-    //         .map(|s| {
-    //             if let Some((stable_name, table)) = s.split_once('.') {
-    //                 if stable_set.contains_key(stable_name) {
-    //                     let stable: &Arc<String> = stable_set.get(stable_name).unwrap();
-    //                     LegacyTableItem::new(0, Some(stable.clone()), Arc::new(table.to_string()))
-    //                 } else {
-    //                     let stable = Arc::new(stable_name.to_string());
-    //                     stables.push(stable.clone());
-    //                     stable_set.insert(stable_name, stable.clone());
-    //                     LegacyTableItem::new(0, Some(stable.clone()), Arc::new(table.to_string()))
-    //                 }
-    //             } else {
-    //                 LegacyTableItem::new(0, None, Arc::new(s.to_string()))
-    //             }
-    //         })
-    //         .collect();
-
-    //     for LegacyTableItem { stable, table, .. } in
-    //         &mut tables.iter_mut().filter(|s| s.is_ordinary_table())
-    //     {
-    //         if is_v2 {
-    //             let table_record: Option<TableRecord> = taos
-    //                 .query_one(format!("show tables like '{table}'"))
-    //                 .await?;
-    //             if let Some(record) = table_record {
-    //                 *stable = record.stable_name.map(Arc::new);
-    //             } else {
-    //                 tracing::warn!("Table todo not found: {table}");
-    //             }
-    //         } else {
-    //             let database: String = taos.query_one("SELECT database()").await?.unwrap();
-    //             // note!: to make sure the information_schema is updated.
-    //             taos.exec("use information_schema").await?;
-    //             taos.exec(format!("use `{database}`")).await?;
-    //             if let Some(stable_name) = taos.query_one::<_, Option<String>>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{table}'")).await? {
-    //                 if let Some(stable_name) = stable_name {
-    //                     if let Some(arc) = stable_set.get(stable_name.as_str()) {
-    //                         stable.replace(arc.clone());
-    //                     } else {
-    //                         stable.replace(Arc::new(stable_name));
-    //                     }
-    //                 }
-    //             } else {
-    //                 tracing::warn!("Table todo not found: {table}");
-    //             }
-    //         }
-    //     }
-    //     if opts.shuffle {
-    //         tables.shuffle(&mut rand::thread_rng());
-    //     }
-    //     tracing::info!(
-    //         "Try to synchronize {} tables in {} stables",
-    //         tables.len(),
-    //         stables.len()
-    //     );
-    //     Ok(LegacyTodo { stables, tables })
-    // } else {
-    //     if version.starts_with('2') {
-    //         let mut res = taos
-    //             .query("SHOW STABLES")
-    //             .await
-    //             .context("Get stable list from source")?;
-    //         let stables: Vec<Arc<String>> = res
-    //             .deserialize()
-    //             .map_ok(|stable: STableRecord| Arc::new(stable.name))
-    //             .try_collect()
-    //             .await
-    //             .context("Deserialize stable list from source error")?;
-
-    //         let mut tables = if opts.sparse {
-    //             // Sparse stables
-    //             let mut tables = stables
-    //                 .iter()
-    //                 .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
-    //                 .collect_vec();
-
-    //             // Ordinary tables
-    //             let ordinary_tables: Vec<_> = taos
-    //                 .query("show tables")
-    //                 .await?
-    //                 .deserialize::<TableRecord>()
-    //                 .try_filter_map(
-    //                     |TableRecord {
-    //                          table_name,
-    //                          stable_name,
-    //                          vgroup_id,
-    //                      }| {
-    //                         let filter = if stable_name.is_some() {
-    //                             None
-    //                         } else {
-    //                             Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table_name)))
-    //                         };
-    //                         futures::future::ready(Ok(filter))
-    //                     },
-    //                 )
-    //                 .try_collect()
-    //                 .await
-    //                 .context("Deserialize stable list from source error")?;
-    //             tables.extend(ordinary_tables);
-
-    //             tables
-    //         } else {
-    //             // vec![]
-
-    //             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
-    //             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
-
-    //             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
-
-    //             let tables: Vec<_> = taos
-    //                 .query("show tables")
-    //                 .await?
-    //                 .deserialize::<TableRecord>()
-    //                 .map_ok(
-    //                     |TableRecord {
-    //                          table_name,
-    //                          stable_name,
-    //                          vgroup_id,
-    //                      }| {
-    //                         if let Some(stable_name) = stable_name {
-    //                             if let Some(stable) = stable_set.get(&stable_name) {
-    //                                 LegacyTableItem::new(
-    //                                     vgroup_id,
-    //                                     Some(stable.clone()),
-    //                                     Arc::new(table_name),
-    //                                 )
-    //                             } else {
-    //                                 let stable = Arc::new(stable_name.clone());
-    //                                 // stables.push(stable.clone());
-    //                                 stable_set.insert(stable_name, stable.clone());
-    //                                 LegacyTableItem::new(
-    //                                     vgroup_id,
-    //                                     Some(stable),
-    //                                     Arc::new(table_name),
-    //                                 )
-    //                             }
-    //                         } else {
-    //                             LegacyTableItem::new(vgroup_id, None, Arc::new(table_name))
-    //                         }
-    //                     },
-    //                 )
-    //                 .try_collect()
-    //                 .await
-    //                 .context("Deserialize stable list from source error")?;
-    //             tables
-    //         };
-
-    //         if opts.shuffle {
-    //             tables.shuffle(&mut rand::thread_rng());
-    //         }
-
-    //         info!(
-    //             version = version.as_ref(),
-    //             tables = tables.len(),
-    //             stables = stables.len(),
-    //             "Try to synchronize {} tables in {} stables and {} ordinary tables",
-    //             tables.len(),
-    //             stables.len(),
-    //             0
-    //         );
-    //         Ok(LegacyTodo { stables, tables })
-    //     } else {
-    //         let database: String = taos.query_one("SELECT database()").await?.unwrap();
-    //         // note!: to make sure the information_schema is updated.
-    //         taos.exec("use information_schema").await?;
-    //         taos.exec(format!("use `{database}`")).await?;
-
-    //         // let mut stables = vec![];
-    //         let mut stables: Vec<Arc<String>> = taos
-    //             .query("show stables")
-    //             .await?
-    //             .deserialize()
-    //             .map_ok(|stable: String| Arc::new(stable))
-    //             .try_collect()
-    //             .await
-    //             .context("Deserialize stable list from source error")?;
-
-    //         let mut tables = if opts.sparse {
-    //             // Sparse stables
-    //             let mut tables = stables
-    //                 .iter()
-    //                 .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
-    //                 .collect_vec();
-
-    //             // Ordinary tables
-    //             let ordinary_tables: Vec<_> = taos
-    //             .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
-    //             .await
-    //             .context("Get stable list from source error")?
-    //                 .deserialize::<(u32, Option<String>, String)>()
-    //                 .try_filter_map(
-    //                     |(vgroup_id, stable, table)| {
-    //                         let filter = if stable.is_some() {
-    //                             None
-    //                         } else {
-    //                             Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table)))
-    //                         };
-    //                         futures::future::ready(Ok(filter))
-    //                     },
-    //                 )
-    //                 .try_collect()
-    //                 .await
-    //                 .context("Deserialize stable list from source error")?;
-    //             tables.extend(ordinary_tables);
-
-    //             tables
-    //         } else {
-    //             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
-    //             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
-
-    //             // get stable list.
-    //             let mut res = taos
-    //             .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
-    //             .await
-    //             .context("Get stable list from source error")?;
-    //             let tables: Vec<_> = res
-    //                 .deserialize::<(u32, Option<String>, String)>()
-    //                 .map_ok(|(vgroup_id, stable, table)| {
-    //                     if let Some(stable_name) = stable {
-    //                         if let Some(stable) = stable_set.get(&stable_name) {
-    //                             LegacyTableItem::new(
-    //                                 vgroup_id,
-    //                                 Some(stable.clone()),
-    //                                 Arc::new(table),
-    //                             )
-    //                         } else {
-    //                             let stable = Arc::new(stable_name.clone());
-    //                             stables.push(stable.clone());
-    //                             stable_set.insert(stable_name, stable.clone());
-    //                             LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table))
-    //                         }
-    //                     } else {
-    //                         LegacyTableItem::new(vgroup_id, None, Arc::new(table))
-    //                     }
-    //                 })
-    //                 .try_collect()
-    //                 .await
-    //                 .context("Deserialize stable list from source error")?;
-
-    //             tables
-    //         };
-    //         if opts.shuffle {
-    //             tables.shuffle(&mut rand::thread_rng());
-    //         }
-
-    //         tracing::info!(
-    //             "Try to synchronize {} tables in {} stables and {} tables",
-    //             tables.len(),
-    //             stables.len(),
-    //             0
-    //         );
-    //         Ok(LegacyTodo { stables, tables })
-    //     }
-    // }
 }
 
 async fn realtime(
@@ -3202,371 +2850,187 @@ async fn legacy_to_taos_impl(
         );
     });
 
-    match (source_opts.mode, source_opts.schema) {
-        (_, SchemaMode::Only) => {
-            sync_schema(
-                &scheduler,
-                &from_pool,
-                &to_pool,
-                connect_timeout,
-                source_opts.clone(),
-                target_opts.clone(),
-                todo.clone(),
-                &actions,
-                source_opts.workers as _,
-                source_is_v3,
-                target_is_v3,
-            )
-            .await?
-        }
-        (SyncMode::AsIs, SchemaMode::None) => {
-            let schema_polling_scheduler = scheduler.clone();
-            let schema_polling_todo = todo.clone();
-            let schema_polling_source_opts = source_opts.clone();
-            let schema_polling_target_opts = target_opts.clone();
-            let schema_polling_pool = from_pool.clone();
-            let schema_polling_task_id = task_id.clone();
-            let schema_polling_file_mutex = file_mutex.clone();
-            let schema_polling_metrics = metrics_arc.clone();
-            let (schema_polling_done, schema_polling_waiter) =
-                tokio::sync::oneshot::channel::<()>();
-            let schema_polling_task = tokio::spawn(async move {
-                let handle = async move {
-                    let mut interval =
-                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                    loop {
-                        interval.tick().await;
-                        let updates = update_todo_list(
-                            &schema_polling_pool,
-                            &schema_polling_source_opts,
-                            schema_polling_todo.clone(),
-                        )
-                        .await?;
-                        if updates.tables.is_empty() {
-                            continue;
-                        }
-                        tracing::info!(
-                            "Schema updated, spawning sync schema task for {} tables",
-                            updates.tables.len()
-                        );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            Arc::new(updates),
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
-                            schema_polling_file_mutex.clone(),
-                        )
-                        .await?;
-                    }
-                    #[allow(unreachable_code)]
-                    anyhow::Ok(())
-                };
-                tokio::select! {
-                    _ = schema_polling_waiter => {}
-                    res = handle => {
-                        res?;
-                    }
-                }
-                anyhow::Ok(())
-            });
-            sync_specified_tables_with_workers(
-                &scheduler,
-                &from_pool,
-                source_opts.query,
-                todo,
-                target_opts,
-                source_opts.workers as _,
-                &task_id,
-                file_mutex.clone(),
-            )
-            .await?;
-            schema_polling_done.send(()).unwrap();
-            schema_polling_task.await??;
-        }
-        (SyncMode::AsIs, SchemaMode::Always) => {
-            sync_schema(
-                &scheduler,
-                &from_pool,
-                &to_pool,
-                connect_timeout,
-                source_opts.clone(),
-                target_opts.clone(),
-                todo.clone(),
-                &actions,
-                source_opts.workers as _,
-                source_is_v3,
-                target_is_v3,
-            )
-            .await?;
-            tracing::info!("synchronize all tables");
-
-            let schema_polling_scheduler = scheduler.clone();
-            let schema_polling_todo = todo.clone();
-            let schema_polling_source_opts = source_opts.clone();
-            let schema_polling_target_opts = target_opts.clone();
-            let schema_polling_pool = from_pool.clone();
-            let schema_polling_task_id = task_id.clone();
-            let schema_polling_file_mutex = file_mutex.clone();
-            let schema_polling_metrics = metrics_arc.clone();
-            let (schema_polling_done, schema_polling_waiter) =
-                tokio::sync::oneshot::channel::<()>();
-            let schema_polling_task = tokio::spawn(async move {
-                let handle = async move {
-                    let mut interval =
-                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                    loop {
-                        interval.tick().await;
-                        let updates = update_todo_list(
-                            &schema_polling_pool,
-                            &schema_polling_source_opts,
-                            schema_polling_todo.clone(),
-                        )
-                        .await?;
-                        if updates.tables.is_empty() {
-                            continue;
-                        }
-                        tracing::info!(
-                            "Schema updated, spawning sync task for {} tables",
-                            updates.tables.len()
-                        );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            Arc::new(updates),
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
-                            schema_polling_file_mutex.clone(),
-                        )
-                        .await?;
-                    }
-                    #[allow(unreachable_code)]
-                    anyhow::Ok(())
-                };
-                tokio::select! {
-                    _ = schema_polling_waiter => {}
-                    res = handle => {
-                        res?;
-                    }
-                }
-                anyhow::Ok(())
-            });
-            // sync_tables_only(&from, &to, source_opts.query).await?;
-            sync_specified_tables_with_workers(
-                &scheduler,
-                &from_pool,
-                source_opts.query,
-                todo,
-                target_opts,
-                source_opts.workers as _,
-                &task_id,
-                file_mutex.clone(),
-            )
-            .await?;
-            schema_polling_done.send(()).unwrap();
-            schema_polling_task.await??;
-            tracing::info!("synchronize finished.");
-        }
-        (SyncMode::Realtime, _) => {
-            let schema_polling_scheduler = scheduler.clone();
-            let schema_polling_todo = todo.clone();
-            let schema_polling_source_opts = source_opts.clone();
-            let schema_polling_target_opts = target_opts.clone();
-            let schema_polling_pool = from_pool.clone();
-            let schema_polling_task_id = task_id.clone();
-            let schema_polling_file_mutex = file_mutex.clone();
-            let schema_polling_metrics = metrics_arc.clone();
-            let (schema_polling_done, schema_polling_waiter) =
-                tokio::sync::oneshot::channel::<()>();
-            let schema_polling_task = tokio::spawn(async move {
-                let handle = async move {
-                    let mut interval =
-                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                    loop {
-                        interval.tick().await;
-                        let updates = update_todo_list(
-                            &schema_polling_pool,
-                            &schema_polling_source_opts,
-                            schema_polling_todo.clone(),
-                        )
-                        .await?;
-                        if updates.tables.is_empty() {
-                            continue;
-                        }
-                        tracing::info!(
-                            "Schema updated, spawning sync schema task for {} tables",
-                            updates.tables.len()
-                        );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            Arc::new(updates),
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
-                            schema_polling_file_mutex.clone(),
-                        )
-                        .await?;
-                    }
-                    #[allow(unreachable_code)]
-                    anyhow::Ok(())
-                };
-                tokio::select! {
-                    _ = schema_polling_waiter => {}res = handle => {
-                        res?;
-                    }
-                }
-                anyhow::Ok(())
-            });
-            realtime(
-                &scheduler,
-                Utc::now(),
-                &source_taos,
-                &target_taos,
-                &source_opts.table,
-                source_is_v3,
-                target_is_v3,
-                &todo,
-            )
-            .await?;
-            schema_polling_done.send(()).unwrap();
-            schema_polling_task.await??;
-        }
-        (SyncMode::All, schema) => {
-            match schema {
-                SchemaMode::None => (),
-                _ => {
-                    sync_schema(
-                        &scheduler,
-                        &from_pool,
-                        &to_pool,
-                        connect_timeout,
-                        source_opts.clone(),
-                        target_opts.clone(),
-                        todo.clone(),
-                        &actions,
-                        source_opts.workers as _,
-                        source_is_v3,
-                        target_is_v3,
-                    )
-                    .await?
-                }
-            }
-            let restro_mark = Instant::now();
-
-            let schema_polling_scheduler = scheduler.clone();
-            let schema_polling_todo = todo.clone();
-            let schema_polling_source_opts = source_opts.clone();
-            let schema_polling_target_opts = target_opts.clone();
-            let schema_polling_pool = from_pool.clone();
-            let schema_polling_task_id = task_id.clone();
-            let schema_polling_file_mutex = file_mutex.clone();
-            let schema_polling_metrics = metrics_arc.clone();
-            let (schema_polling_done, schema_polling_waiter) =
-                tokio::sync::oneshot::channel::<()>();
-            let schema_polling_task = tokio::spawn(async move {
-                let handle = async move {
-                    let mut interval =
-                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                    loop {
-                        interval.tick().await;
-                        let updates = update_todo_list(
-                            &schema_polling_pool,
-                            &schema_polling_source_opts,
-                            schema_polling_todo.clone(),
-                        )
-                        .await?;
-                        if updates.tables.is_empty() {
-                            continue;
-                        }
-                        tracing::info!(
-                            "Schema updated, spawning sync task for {} tables",
-                            updates.tables.len()
-                        );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            Arc::new(updates),
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
-                            schema_polling_file_mutex.clone(),
-                        )
-                        .await?;
-                    }
-                    #[allow(unreachable_code)]
-                    anyhow::Ok(())
-                };
-                tokio::select! {
-                    _ = schema_polling_waiter => {}
-                    res = handle => {
-                        res?;
-                    }
-                }
-                anyhow::Ok(())
-            });
-
-            sync_specified_tables_with_workers(
-                &scheduler,
-                &from_pool,
-                source_opts.query.clone(),
-                todo.clone(),
-                target_opts.clone(),
-                source_opts.workers as _,
-                &task_id,
-                file_mutex.clone(),
-            )
-            .await?;
-            // sync_tables_only(&from, &to, source_opts.query, target_opts.clone()).await?;
-
-            if source_opts.table.restro.is_zero() {
-                source_opts.table.restro = restro_mark.elapsed();
-                tracing::info!(
-                    "Override restro duration to {:?} for historical data sync",
-                    source_opts.table.restro
-                );
-            }
-            realtime(
-                &scheduler,
-                Utc::now(),
-                &source_taos,
-                &target_taos,
-                &source_opts.table,
-                source_is_v3,
-                target_is_v3,
-                &todo,
-            )
-            .await?;
-            schema_polling_done.send(()).unwrap();
-            schema_polling_task.await??;
-        }
+    if !matches!(source_opts.schema, SchemaMode::None) {
+        tracing::info!("synchronize schemas");
+        sync_schema(
+            &scheduler,
+            &from_pool,
+            &to_pool,
+            connect_timeout,
+            source_opts.clone(),
+            target_opts.clone(),
+            todo.clone(),
+            &actions,
+            source_opts.workers as _,
+            source_is_v3,
+            target_is_v3,
+        )
+        .await?;
     }
+
+    if matches!(source_opts.schema, SchemaMode::Only) {
+        return Ok(());
+    }
+
+    let restro_mark = std::time::Instant::now();
+
+    tracing::info!("monitoring for schema changes");
+    let now = Utc::now();
+    let schema_polling_scheduler = scheduler.clone();
+    let schema_polling_todo = todo.clone();
+    let schema_polling_source_opts = source_opts.clone();
+    let schema_polling_target_opts = target_opts.clone();
+    let schema_polling_pool = from_pool.clone();
+    let schema_polling_task_id = task_id.clone();
+    let schema_polling_file_mutex = file_mutex.clone();
+    let schema_polling_metrics = metrics_arc.clone();
+    let (schema_polling_done, schema_polling_waiter) = tokio::sync::oneshot::channel::<()>();
+
+    let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
+        let schema_polling_task = tokio::spawn(async move {
+            let handle = async move {
+                let mut interval =
+                    tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
+                loop {
+                    interval.tick().await;
+                    let updates = update_todo_list(
+                        &schema_polling_pool,
+                        &schema_polling_source_opts,
+                        schema_polling_todo.clone(),
+                    )
+                    .await?;
+                    if updates.tables.is_empty() {
+                        continue;
+                    }
+                    tracing::info!(
+                        "Schema updated, spawning sync schema task for {} tables",
+                        updates.tables.len()
+                    );
+                    schema_polling_metrics
+                        .as_ref()
+                        .legacy()
+                        .total_tables
+                        .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+                    sync_specified_tables_with_workers(
+                        &schema_polling_scheduler,
+                        &schema_polling_pool,
+                        schema_polling_source_opts.query.clone(),
+                        &Arc::new(updates),
+                        schema_polling_target_opts.clone(),
+                        schema_polling_source_opts.workers as _,
+                        &schema_polling_task_id,
+                        schema_polling_file_mutex.clone(),
+                    )
+                    .await?;
+                }
+                #[allow(unreachable_code)]
+                anyhow::Ok(())
+            };
+            tokio::select! {
+                _ = schema_polling_waiter => {}
+                res = handle => {
+                    res?;
+                }
+            }
+            anyhow::Ok(())
+        });
+
+        tracing::info!("synchronize all tables");
+
+        // sync all tables
+        sync_specified_tables_with_workers(
+            &scheduler,
+            &from_pool,
+            source_opts.query,
+            &todo,
+            target_opts,
+            source_opts.workers as _,
+            &task_id,
+            file_mutex.clone(),
+        )
+        .await?;
+
+        schema_polling_task
+    } else {
+        let schema_polling_task = tokio::spawn(async move {
+            let handle = async move {
+                let mut interval =
+                    tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
+                loop {
+                    interval.tick().await;
+                    let updates = update_todo_list(
+                        &schema_polling_pool,
+                        &schema_polling_source_opts,
+                        schema_polling_todo.clone(),
+                    )
+                    .await?;
+                    if updates.tables.is_empty() {
+                        continue;
+                    }
+                    tracing::info!(
+                        "Schema updated, spawning sync schema task for {} tables",
+                        updates.tables.len()
+                    );
+                    schema_polling_metrics
+                        .as_ref()
+                        .legacy()
+                        .total_tables
+                        .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+                    sync_specified_tables_with_workers(
+                        &schema_polling_scheduler,
+                        &schema_polling_pool,
+                        schema_polling_source_opts.query.clone(),
+                        &Arc::new(updates),
+                        schema_polling_target_opts.clone(),
+                        schema_polling_source_opts.workers as _,
+                        &schema_polling_task_id,
+                        schema_polling_file_mutex.clone(),
+                    )
+                    .await?;
+                }
+                #[allow(unreachable_code)]
+                anyhow::Ok(())
+            };
+            tokio::select! {
+                _ = schema_polling_waiter => (),
+                res = handle => {
+                    res?;
+                }
+            }
+            anyhow::Ok(())
+        });
+        schema_polling_task
+    };
+
+    if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
+        if source_opts.table.restro.is_zero() {
+            source_opts.table.restro = restro_mark.elapsed();
+            tracing::info!(
+                "Override restro duration to {:?} for historical data sync",
+                source_opts.table.restro
+            );
+        };
+        tracing::info!("monitoring for data changes");
+        realtime(
+            &scheduler,
+            now,
+            &source_taos,
+            &target_taos,
+            &source_opts.table,
+            source_is_v3,
+            target_is_v3,
+            &todo,
+        )
+        .await?;
+        return Ok(());
+    }
+
+    tracing::info!("close schema monitoring task");
+    if let Some(duration) = source_opts.schema_polling_wait_before_end {
+        tokio::time::sleep(duration).await;
+    }
+    schema_polling_done.send(()).unwrap();
+    schema_polling_task.await??;
 
     info!("syncing done, wait to release resources");
     rc.store(true, Ordering::Relaxed);
