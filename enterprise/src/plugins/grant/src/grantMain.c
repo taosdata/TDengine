@@ -883,8 +883,13 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     if (toRevoked) {
       state.state = GRANT_STATE_REVOKED;
       state.reason = GRANT_STATE_REASON_MISMATCH;
+      // The revoked state in only set in grantLog, gStatus.grantState is not updated in current HB loop.
       code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
       TSDB_CHECK_CODE(code, lino, _exit);
+      // Since gStatus.grantState is only set according to grantLog.lastState(to ensure the state is persisted in
+      // grantLog), the next HB is triggered immediately to update the expired state according to
+      // gStatus.revokedExpireSec.
+      tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
     } else {
       int8_t oldState = pLastState->state;
       bool   appendState = false;
