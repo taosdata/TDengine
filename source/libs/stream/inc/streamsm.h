@@ -23,11 +23,6 @@ extern "C" {
 #endif
 
 // moore finite state machine for stream task
-typedef struct SStreamTaskState {
-  ETaskStatus state;
-  char*       name;
-} SStreamTaskState;
-
 typedef int32_t (*__state_trans_fn)(SStreamTask*);
 typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
@@ -61,13 +56,6 @@ struct SStreamTaskSM {
   SArray* pWaitingEventList;
 };
 
-typedef struct SStreamEventInfo {
-  EStreamTaskEvent event;
-  const char*      name;
-} SStreamEventInfo;
-
-// SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
-// void* streamDestroyStateMachine(SStreamTaskSM* pSM);
 #ifdef __cplusplus
 }
 #endif

@@ -646,10 +646,6 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     }
   }
 
-  if (initRemainGroups) {
-    pTableListInfo->numOfOuputGroups = taosHashGetSize(pTableListInfo->remainGroups);
-  }
-
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
     pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest),
@@ -1343,7 +1339,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
-      c.dataType = pColNode->node.resType;
       taosArrayPush(pList, &c);
     }
   }
@@ -1838,7 +1833,7 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {0};
 
   w.skey = taosTimeTruncate(ts, pInterval);
-  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
   return w;
 }
 
@@ -1863,7 +1858,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
     return w;
   }
 
@@ -1887,31 +1882,17 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 }
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  int64_t slidingStart = 0;
+  if (pInterval->offset > 0) {
+    slidingStart = taosTimeAdd(tw->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  } else {
+    slidingStart = tw->skey;
+  }
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  if (!IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
-    tw->skey += pInterval->sliding * factor;
-    tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    return;
-  }
-
-  // convert key to second
-  int64_t key = convertTimePrecision(tw->skey, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
-
-  int64_t duration = pInterval->sliding;
-  if (pInterval->slidingUnit == 'y') {
-    duration *= 12;
-  }
-
-  struct tm tm;
-  time_t    t = (time_t)key;
-  taosLocalTime(&t, &tm, NULL);
-
-  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + duration * factor);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-
-  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  slidingStart = taosTimeAdd(slidingStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+  tw->skey = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+  int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  tw->ekey = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
@@ -2157,6 +2138,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else if (groupByTbname && pScanNode->groupOrderScan){
       pTableListInfo->numOfOuputGroups = numOfTables;
+    } else if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+      pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;
     }
@@ -2173,6 +2156,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    if (pScanNode->groupOrderScan) pTableListInfo->numOfOuputGroups = taosArrayGetSize(pTableListInfo->pTableList);
 
     if (groupSort || pScanNode->groupOrderScan) {
       code = sortTableGroup(pTableListInfo);
@@ -2274,10 +2259,10 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
 
 void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
   if (!pBlock) {
-    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
+    qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
   } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s: Block is Empty. type:%d", taskIdStr, flag, pBlock->info.type);
+    qDebug("%s===stream===%s %s: Block is Empty. block type %d", taskIdStr, flag, opStr, pBlock->info.type);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {

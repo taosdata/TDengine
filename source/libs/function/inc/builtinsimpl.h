@@ -59,12 +59,19 @@ int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t           countFunction(SqlFunctionCtx* pCtx);
+
+#ifdef BUILD_NO_CALL
 int32_t           countInvertFunction(SqlFunctionCtx* pCtx);
+#endif
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
+
+#ifdef BUILD_NO_CALL
 int32_t           sumInvertFunction(SqlFunctionCtx* pCtx);
+#endif
+
 int32_t           sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool    minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -81,7 +88,11 @@ int32_t avgFunction(SqlFunctionCtx* pCtx);
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+#ifdef BUILD_NO_CALL
 int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
+#endif
+
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getAvgInfoSize();
 
@@ -91,7 +102,11 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx);
 int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stddevPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+#ifdef BUILD_NO_CALL
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
+#endif
+
 int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getStddevInfoSize();
 
@@ -99,7 +114,6 @@ bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t leastSQRFunction(SqlFunctionCtx* pCtx);
 int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t leastSQRInvertFunction(SqlFunctionCtx* pCtx);
 int32_t leastSQRCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool    getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);

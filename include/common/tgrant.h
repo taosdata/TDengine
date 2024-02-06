@@ -22,15 +22,17 @@ extern "C" {
 
 #include "os.h"
 #include "taoserror.h"
-#ifdef GRANTS_CFG
-#include "tgrantCfg.h"
-#endif
+#include "tdef.h"
 
 #ifndef GRANTS_COL_MAX_LEN
 #define GRANTS_COL_MAX_LEN 196
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
+#define GRANT_ACTIVE_CODE    "activeCode"
+#define GRANT_FLAG_ALL       (0x01)
+#define GRANT_FLAG_AUDIT     (0x02)
+#define GRANT_FLAG_VIEW      (0x04)
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -48,13 +50,36 @@ typedef enum {
   TSDB_GRANT_CPU_CORES,
   TSDB_GRANT_STABLE,
   TSDB_GRANT_TABLE,
+  TSDB_GRANT_SUBSCRIPTION,
+  TSDB_GRANT_AUDIT,
+  TSDB_GRANT_CSV,
+  TSDB_GRANT_VIEW,
+  TSDB_GRANT_MULTI_TIER,
+  TSDB_GRANT_BACKUP_RESTORE,
 } EGrantType;
 
-int32_t grantCheck(EGrantType grant);
+int32_t grantCheck(EGrantType grant);    // less
+int32_t grantCheckLE(EGrantType grant);  // less or equal
+char*   tGetMachineId();
+#ifndef TD_UNIQ_GRANT
 int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
+#endif
 
-#ifndef GRANTS_CFG
+// #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
+#ifdef TD_UNIQ_GRANT
+#define GRANTS_SCHEMA                                                                             \
+  static const SSysDbTableSchema grantsSchema[] = {                                               \
+      {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "expire_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},  \
+      {.name = "service_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR}, \
+      {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "state", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+      {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},   \
+      {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "cpu_cores", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    \
+  }
+#else
 #define GRANTS_SCHEMA                                                                                         \
   static const SSysDbTableSchema grantsSchema[] = {                                                           \
       {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                   \
@@ -78,33 +103,28 @@ int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, ch
       {.name = "influxdb", .bytes = GRANTS_COL_MAX_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR}, \
       {.name = "mqtt", .bytes = GRANTS_COL_MAX_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},     \
   }
+#endif
 #else
-#define GRANTS_SCHEMA                                                                                         \
-  static const SSysDbTableSchema grantsSchema[] = {                                                           \
-      {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                   \
-      {.name = "expire_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},              \
-      {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                   \
-      {.name = "storage", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                  \
-      {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},               \
-      {.name = "databases", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                \
-      {.name = "users", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                    \
-      {.name = "accounts", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                 \
-      {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                   \
-      {.name = "connections", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},              \
-      {.name = "streams", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                   \
-      {.name = "cpu_cores", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                 \
-      {.name = "speed", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                     \
-      {.name = "querytime", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},                 \
+#define GRANTS_SCHEMA                                                                             \
+  static const SSysDbTableSchema grantsSchema[] = {                                               \
+      {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "expire_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},  \
+      {.name = "service_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR}, \
+      {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "state", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+      {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},   \
+      {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+      {.name = "cpu_cores", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    \
   }
 #endif
-#define GRANT_CFG_ADD
-#define GRANT_CFG_SET
-#define GRANT_CFG_GET
-#define GRANT_CFG_CHECK
-#define GRANT_CFG_SKIP
-#define GRANT_CFG_DECLARE
-#define GRANT_CFG_EXTERN
-#endif
+// #define GRANT_CFG_ADD
+// #define GRANT_CFG_SET
+// #define GRANT_CFG_GET
+// #define GRANT_CFG_CHECK
+// #define GRANT_CFG_SKIP
+// #define GRANT_CFG_DECLARE
+// #define GRANT_CFG_EXTERN
+// #endif
 
 #ifdef __cplusplus
 }

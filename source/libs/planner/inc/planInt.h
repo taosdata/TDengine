@@ -47,6 +47,7 @@ int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
+bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
 int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);

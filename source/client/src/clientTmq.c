@@ -155,6 +155,7 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   SArray*        vgs;  // SArray<SMqClientVg>
   SSchemaWrapper schema;
+  int8_t         noPrivilege;
 } SMqClientTopic;
 
 typedef struct {
@@ -739,6 +740,30 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
+    SMqHbRsp rsp = {0};
+    tDeserializeSMqHbRsp(pMsg->pData, pMsg->len, &rsp);
+
+    int64_t refId = *(int64_t*)param;
+    tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+    if (tmq != NULL) {
+      taosWLockLatch(&tmq->lock);
+      for(int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++){
+        STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
+        if(privilege->noPrivilege == 1){
+          int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+          for (int32_t j = 0; j < topicNumCur; j++) {
+            SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+            if(strcmp(pTopicCur->topicName, privilege->topic) == 0){
+              tscInfo("consumer:0x%" PRIx64 ", has no privilege, topic:%s", tmq->consumerId, privilege->topic);
+              pTopicCur->noPrivilege = 1;
+            }
+          }
+        }
+      }
+      taosWUnLockLatch(&tmq->lock);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
+    }
+    tDeatroySMqHbRsp(&rsp);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
@@ -809,7 +834,9 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
-  sendInfo->param = NULL;
+  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->param = taosMemoryMalloc(sizeof(int64_t));
+  *(int64_t *)sendInfo->param = refId;
   sendInfo->fp = tmqHbCb;
   sendInfo->msgType = TDMT_MND_TMQ_HB;
 
@@ -1577,16 +1604,24 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg,
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
 
-  if (!pWrapper->dataRsp.withSchema) {
-    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
+  bool needTransformSchema = !pRspObj->rsp.withSchema;
+  if (!pRspObj->rsp.withSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
+    pRspObj->rsp.withSchema = true;
+    pRspObj->rsp.blockSchema = taosArrayInit(pRspObj->rsp.blockNum, sizeof(void*));
   }
-
-  // extract the rows in this data packet
+    // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, i);
+    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
     int64_t            rows = htobe64(pRetrieve->numOfRows);
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
+
+    if (needTransformSchema) { //withSchema is false if subscribe subquery, true if subscribe db or stable
+      SSchemaWrapper *schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
+      if(schema){
+        taosArrayPush(pRspObj->rsp.blockSchema, &schema);
+      }
+    }
   }
 
   return pRspObj;
@@ -1603,13 +1638,10 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClie
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-  if (!pWrapper->taosxRsp.withSchema) {
-    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
-  }
 
   // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, i);
+    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
     int64_t            rows = htobe64(pRetrieve->numOfRows);
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
@@ -1700,7 +1732,10 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
   for (int i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     int32_t         numOfVg = taosArrayGetSize(pTopic->vgs);
-
+    if(pTopic->noPrivilege){
+      tscDebug("consumer:0x%" PRIx64 " has no privilegr for topic:%s", tmq->consumerId, pTopic->topicName);
+      continue;
+    }
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (taosGetTimestampMs() - pVg->emptyBlockReceiveTs < EMPTY_BLOCK_POLL_IDLE_DURATION) {  // less than 10ms
@@ -1968,7 +2003,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   void*   rspObj = NULL;
   int64_t startTime = taosGetTimestampMs();
 
-  tscInfo("consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, tmq->consumerId, startTime,
+  tscDebug("consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, tmq->consumerId, startTime,
            timeout);
 
   // in no topic status, delayed task also need to be processed
@@ -2015,7 +2050,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
       if (elapsedTime > timeout) {
-        tscInfo("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
+        tscDebug("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
                  tmq->consumerId, tmq->epoch, startTime, currentTime);
         return NULL;
       }
@@ -2548,7 +2583,7 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
   pRspObj->resIter++;
 
   if (pRspObj->resIter < pRspObj->rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
+    SRetrieveTableRspForTmq* pRetrieveTmq = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
     if (pRspObj->rsp.withSchema) {
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
       setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
@@ -2559,7 +2594,16 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
       taosMemoryFreeClear(pRspObj->resInfo.convertJson);
     }
 
-    setQueryResultFromRsp(&pRspObj->resInfo, pRetrieve, convertUcs4, false);
+    pRspObj->resInfo.pData = (void*)pRetrieveTmq->data;
+    pRspObj->resInfo.numOfRows = htobe64(pRetrieveTmq->numOfRows);
+    pRspObj->resInfo.current = 0;
+    pRspObj->resInfo.precision = pRetrieveTmq->precision;
+
+    // TODO handle the compressed case
+    pRspObj->resInfo.totalRows += pRspObj->resInfo.numOfRows;
+    setResultDataPtr(&pRspObj->resInfo, pRspObj->resInfo.fields, pRspObj->resInfo.numOfCols, pRspObj->resInfo.numOfRows,
+                            convertUcs4);
+
     return &pRspObj->resInfo;
   }
 

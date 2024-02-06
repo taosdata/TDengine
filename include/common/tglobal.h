@@ -74,6 +74,7 @@ extern int64_t tsRpcQueueMemoryAllowed;
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
+extern int32_t tsSnapReplMaxWaitN;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
@@ -235,7 +236,7 @@ struct SConfig *taosGetCfg();
 void    taosSetAllDebugFlag(int32_t flag);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted();
+int8_t  taosGranted(int8_t type);
 
 #ifdef __cplusplus
 }

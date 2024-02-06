@@ -407,12 +407,8 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   if (tWWorkerInit(pFPool) != 0) return -1;
 
   SSingleWorkerCfg mgmtCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "vnode-mgmt",
-      .fp = (FItem)vmProcessMgmtQueue,
-      .param = pMgmt,
-  };
+      .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
   dDebug("vnode workers are initialized");

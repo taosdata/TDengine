@@ -599,6 +599,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     pTrans->originRpcType = pReq->msgType;
   }
 
+  mInfo("trans:%d, create transaction:%s, origin:%s", pTrans->id, pTrans->opername, opername);
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
@@ -845,6 +847,8 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if(pTrans == NULL) return -1;
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
@@ -1119,7 +1123,10 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
-  if (mndCannotExecuteTransAction(pMnode, topHalf)) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) {
+    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  }
 
   int64_t signature = pTrans->id;
   signature = (signature << 32);

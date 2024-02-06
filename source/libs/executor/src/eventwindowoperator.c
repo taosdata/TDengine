@@ -220,7 +220,6 @@ static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWi
 
   (*pResult)->win = *win;
 
-  clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
   setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
@@ -262,6 +261,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   } else if (pInfo->groupId != gid) {
     // this is a new group, reset the info
     pInfo->inWindow = false;
+    pInfo->groupId = gid;
   }
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
@@ -319,6 +319,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           doKeepNewWindowStartInfo(pRowSup, tsList, rowIndex, gid);
           pInfo->inWindow = true;
           startIndex = rowIndex;
+          if (pInfo->pRow != NULL) {
+            clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+          }
           break;
         }
       }

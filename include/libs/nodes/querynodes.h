@@ -89,6 +89,7 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
+  SDataType resType;
   char      colName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
@@ -126,6 +127,7 @@ typedef enum EHintOption {
   HINT_NO_BATCH_SCAN = 1,
   HINT_BATCH_SCAN,
   HINT_SORT_FOR_GROUP,
+  HINT_PARTITION_FIRST,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -531,6 +533,7 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs);
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs);
 
 int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes);
 

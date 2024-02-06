@@ -498,7 +498,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
-  pWal->writeHead.head.ingestTs = 0;
+  pWal->writeHead.head.ingestTs = taosGetTimestampUs();
 
   // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;

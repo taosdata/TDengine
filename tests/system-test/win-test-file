@@ -1,4 +1,5 @@
 python3 ./test.py -f 2-query/tbname_vgroup.py
+python3 ./test.py -f 2-query/compact-col.py
 python3 ./test.py -f 2-query/stbJoin.py
 python3 ./test.py -f 2-query/stbJoin.py -Q 2
 python3 ./test.py -f 2-query/stbJoin.py -Q 3
@@ -205,8 +206,10 @@ python3 ./test.py -f 0-others/test_show_table_distributed.py
 python3 ./test.py -f 0-others/compatibility.py
 python3 ./test.py -f 0-others/tag_index_basic.py
 python3 ./test.py -N 3 -f 0-others/walRetention.py
-python3 ./test.py -f 0-others/splitVGroupRep1.py -N 3
-python3 ./test.py -f 0-others/splitVGroupRep3.py -N 3
+python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
+python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
+python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
+python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 python3 ./test.py -f 0-others/delete_check.py
 python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
@@ -467,6 +470,7 @@ python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/json_tag.py
 python3 ./test.py -f 2-query/nestedQueryInterval.py
 python3 ./test.py -f 2-query/systable_func.py
+python3 ./test.py -f 2-query/test_ts4382.py
 python3 ./test.py -f 2-query/stablity.py
 python3 ./test.py -f 2-query/stablity_1.py
 python3 ./test.py -f 2-query/elapsed.py

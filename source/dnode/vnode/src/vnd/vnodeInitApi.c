@@ -91,7 +91,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTypeByName = metaGetTableTypeByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
-  pMeta->getTableSchema = tsdbGetTableSchema;  // todo refactor
+  pMeta->getTableSchema = vnodeGetTableSchema;
   pMeta->storeGetTableList = vnodeGetTableList;
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
@@ -135,7 +135,9 @@ void initTqAPI(SStoreTqReader* pTq) {
 
   pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
-}
+
+  pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
+  }
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;

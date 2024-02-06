@@ -45,7 +45,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
-  void               *pHead = rpcMallocCont(contLen);
+  void *              pHead = rpcMallocCont(contLen);
   tSerializeRetrieveIpWhite(pHead, contLen, &req);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -114,9 +114,15 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.updateTime = pMgmt->pData->updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
+  req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
   req.memAvail = req.memTotal - tsRpcQueueMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
+  char *machine = tGetMachineId();
+  if (machine) {
+    tstrncpy(req.machineId, machine, TSDB_MACHINE_ID_LEN + 1);
+    taosMemoryFreeClear(machine);
+  }
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -144,7 +150,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void   *pHead = rpcMallocCont(contLen);
+  void *  pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -159,13 +165,18 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
   SEpSet epSet = {0};
+  int8_t epUpdated = 0;
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
-    char tbuf[256];
+    char tbuf[512];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
     dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+  } else {
+    if (epUpdated == 1) {
+      dmSetMnodeEpSet(pMgmt->pData, &epSet);
+    }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
@@ -184,7 +195,7 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
   req.pVloads = vinfo.pVloads;
 
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
-  void   *pHead = rpcMallocCont(contLen);
+  void *  pHead = rpcMallocCont(contLen);
   tSerializeSNotifyReq(pHead, contLen, &req);
   tFreeSNotifyReq(&req);
 
@@ -279,7 +290,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 SSDataBlock *dmBuildVariablesBlock(void) {
-  SSDataBlock         *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SSDataBlock *        pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   size_t               size = 0;
   const SSysTableMeta *pMeta = NULL;
   getInfosDbMeta(&pMeta, &size);
@@ -314,7 +325,7 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
-    GRANT_CFG_SKIP;
+    // GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
@@ -424,7 +435,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

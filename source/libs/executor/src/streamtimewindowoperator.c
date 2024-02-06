@@ -427,6 +427,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+#ifdef BUILD_NO_CALL
 static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
   for (int32_t i = 0; i < numOfCols; i++) {
     if (fmIsUserDefinedFunc(pFCtx[i].functionId) || !fmIsInvertible(pFCtx[i].functionId)) {
@@ -435,6 +436,7 @@ static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
   }
   return true;
 }
+#endif
 
 void reloadFromDownStream(SOperatorInfo* downstream, SStreamIntervalOperatorInfo* pInfo) {
   SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
@@ -2081,6 +2083,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
       }
     }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+      winInfo.pStatePos->beUpdated = true;
       SSessionKey key = {0};
       getSessionHashKey(&winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
@@ -2284,6 +2287,10 @@ int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated) {
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
     SResultWindowInfo* pWinInfo = pIte;
+    if (!pWinInfo->pStatePos->beUpdated) {
+      continue;
+    }
+    pWinInfo->pStatePos->beUpdated = false;
     saveResult(*pWinInfo, pStUpdated);
   }
   return TSDB_CODE_SUCCESS;
@@ -2891,19 +2898,20 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
     goto _error;
   }
 
+  pInfo->twAggSup = (STimeWindowAggSupp){
+      .waterMark = pSessionNode->window.watermark,
+      .calTrigger = pSessionNode->window.triggerType,
+      .maxTs = INT64_MIN,
+      .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pSessionNode->window, 0),
+  };
+
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, pSessionNode->gap,
                                 pTaskInfo->streamInfo.pState, 0, 0, &pTaskInfo->storageAPI.stateStore, pHandle,
                                 &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
-  pInfo->twAggSup = (STimeWindowAggSupp){
-      .waterMark = pSessionNode->window.watermark,
-      .calTrigger = pSessionNode->window.triggerType,
-      .maxTs = INT64_MIN,
-      .minTs = INT64_MAX,
-  };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
@@ -3422,6 +3430,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+      curWin.winInfo.pStatePos->beUpdated = true;
       SSessionKey key = {0};
       getSessionHashKey(&curWin.winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
@@ -3773,6 +3782,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .calTrigger = pStateNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pStateNode->window, 0),
   };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -3846,6 +3856,7 @@ _error:
   return NULL;
 }
 
+#ifdef BUILD_NO_CALL
 static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
   for (int i = 0; i < num; i++) {
     if (type == STREAM_INVERT) {
@@ -3855,6 +3866,7 @@ static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type
     }
   }
 }
+#endif
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
@@ -3947,9 +3959,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     // caller. Note that all the time window are not close till now.
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+#ifdef BUILD_NO_CALL
     if (pInfo->invertible) {
       setInverFunction(pSup->pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.type);
     }
+#endif
 
     doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
