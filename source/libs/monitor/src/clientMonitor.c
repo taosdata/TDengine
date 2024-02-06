@@ -80,7 +80,7 @@ void createMonitorClient(const char* clusterKey, SEpSet epSet, void* pTransporte
     snprintf(pMonitor->clusterKey, sizeof(pMonitor->clusterKey), "%s", clusterKey);
     pMonitor->registry = taos_collector_registry_new(clusterKey);
     pMonitor->colector = taos_collector_new(clusterKey);
-    pMonitor->epSet = epSet;
+    epsetAssign(&pMonitor->epSet, &epSet);
     pMonitor->pTransporter = pTransporter;
 
     taos_collector_registry_register_collector(pMonitor->registry, pMonitor->colector);
@@ -97,6 +97,10 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   if (TSDB_CODE_SUCCESS != code) {
     uError("found error in monitorReport send callback, code:%d, please check the network.", code);
+  }
+  if (pMsg) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
   }
   return code;
 }
@@ -174,7 +178,7 @@ int taosClusterCounterInc(const char* clusterKey, const char* counterName, const
     ClientMonitor*   pMonitor = *ppMonitor;
     taos_counter_t** ppCounter = (taos_counter_t**)taosHashGet(pMonitor->counters, counterName, strlen(counterName));
     if (ppCounter != NULL && *ppCounter != NULL) {
-      int res = taos_counter_inc(*ppCounter, label_values);
+      taos_counter_inc(*ppCounter, label_values);
     } else {
       uError("taosClusterCounterInc not found pCounter %s:%s.", clusterKey, counterName);
     }

@@ -59,7 +59,8 @@ TEST(clientMonitorTest, monitorTest) {
   while (i < 12) {
       taosMsleep(10);
       ++i;
-  }  clusterMonitorClose(cluster1);
+  }
+  clusterMonitorClose(cluster1);
   clusterMonitorClose(cluster2);
 }
 

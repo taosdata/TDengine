@@ -437,6 +437,8 @@ void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 void clientSQLReqMonitorInit(const char* clusterKey);
 void sqlReqLog(int64_t rid,  bool killed, int32_t code);
 
+void clientMonitorClose(const char* clusterKey);
+
 #ifdef __cplusplus
 }
 #endif
