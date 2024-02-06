@@ -22,6 +22,7 @@ mod format;
 mod generator;
 mod join;
 mod sum;
+mod timestamp;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map(LinkedHashMap<String, FieldValue>);
