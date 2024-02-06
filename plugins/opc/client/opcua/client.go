@@ -103,30 +103,23 @@ func createUAConn(connectConfig config.UaConnectConfig) (*opcua.Client, error) {
 	var opts []opcua.Option
 	opts = append(opts, opcua.RequestTimeout(time.Duration(connectConfig.RequestTimeout)*time.Second))
 	if len(connectConfig.Certificate) != 0 && len(connectConfig.PrivateKey) != 0 {
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
+		cert, key, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, certOpt, keyOpt)
-	}
-	if len(connectConfig.Certificate) != 0 && len(connectConfig.PrivateKey) != 0 {
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, certOpt, keyOpt)
+		opts = append(opts, opcua.Certificate(cert), opcua.PrivateKey(key))
 	}
 	var authType ua.UserTokenType
 	switch strings.ToLower(connectConfig.AuthMethod) {
 	case "certificate":
-		if len(connectConfig.Certificate) == 0 || len(connectConfig.PrivateKey) == 0 {
+		if len(connectConfig.AuthCertificate) == 0 || len(connectConfig.AuthPrivateKey) == 0 {
 			return nil, fmt.Errorf("certificate and privateKey is required if auth method is `certificate`")
 		}
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
+		cert, key, err := tlsOpts(connectConfig.AuthCertificate, connectConfig.AuthPrivateKey)
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, certOpt, keyOpt)
+		opts = append(opts, opcua.AuthCertificate(cert), opcua.AuthPrivateKey(key))
 		authType = ua.UserTokenTypeCertificate
 	case "username":
 		if len(connectConfig.Username) == 0 || len(connectConfig.Password) == 0 {
@@ -163,7 +156,7 @@ func createUAConn(connectConfig config.UaConnectConfig) (*opcua.Client, error) {
 	return opcua.NewClient(connectConfig.Endpoint, opts...)
 }
 
-func tlsOpts(certFile, keyFile string) (opcua.Option, opcua.Option, error) {
+func tlsOpts(certFile, keyFile string) ([]byte, *rsa.PrivateKey, error) {
 	var cert []byte
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -174,7 +167,7 @@ func tlsOpts(certFile, keyFile string) (opcua.Option, opcua.Option, error) {
 		return nil, nil, fmt.Errorf("invalid private key")
 	}
 	cert = certificate.Certificate[0]
-	return opcua.Certificate(cert), opcua.PrivateKey(privateKey), nil
+	return cert, privateKey, nil
 }
 
 func getServerEndpoint(endpoints []*ua.EndpointDescription, securityPolicy string, securityMode ua.MessageSecurityMode) (endpoint *ua.EndpointDescription, err error) {
@@ -220,7 +213,7 @@ func (c *UAClient) getServerLimit() error {
 	if err != nil {
 		return err
 	}
-	if resp.Results[0].Status == ua.StatusOK {
+	if errors.Is(resp.Results[0].Status, ua.StatusOK) {
 		c.maxNodesPerRead = resp.Results[0].Value.Uint()
 		if c.maxNodesPerRead == 0 {
 			c.maxNodesPerRead = uint64(resp.Results[0].Value.Int())
@@ -234,7 +227,8 @@ func (c *UAClient) getServerLimit() error {
 		c.logger.Warn("get max node per read 0, set to 1")
 		c.maxNodesPerRead = 1
 	}
-	if resp.Results[1].Status == ua.StatusOK {
+
+	if errors.Is(resp.Results[1].Status, ua.StatusOK) {
 		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
 		if c.maxMonitoredItemsPerCall == 0 {
 			c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
@@ -249,7 +243,7 @@ func (c *UAClient) getServerLimit() error {
 		c.maxMonitoredItemsPerCall = 1
 	}
 
-	if resp.Results[2].Status == ua.StatusOK {
+	if errors.Is(resp.Results[2].Status, ua.StatusOK) {
 		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
 		if c.maxNodesPerBrowse == 0 {
 			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
@@ -349,10 +343,9 @@ func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) {
 		return
 	}
 	for i, r := range resp.Results {
-		if r.Status != ua.StatusOK {
+		if !errors.Is(r.Status, ua.StatusOK) {
 			c.logger.WithError(err).Error("read names error")
 			continue
-			//return fmt.Errorf("read names for node %s failed: %w", nodes[uint(i)].String(), r.Status)
 		}
 		c.dataCache[base+i].Name = r.Value.String()
 	}
@@ -373,7 +366,7 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 	end := time.Now()
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
-		if r.Status != ua.StatusOK {
+		if !errors.Is(r.Status, ua.StatusOK) {
 			c.logger.WithField("id", c.dataCache[base+i].Identifier).WithError(r.Status).Error("read value batch status error")
 			c.dataCache[base+i].Value = nil
 		} else {
@@ -432,7 +425,7 @@ func (c *UAClient) observe() error {
 					if data.Name == "" {
 						continue
 					}
-					if ua.StatusCode(data.Status) != ua.StatusOK {
+					if !errors.Is(ua.StatusCode(data.Status), ua.StatusOK) {
 						c.logger.WithField("id", data.Identifier).WithField("status", ua.StatusCode(data.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
 							continue
@@ -534,7 +527,7 @@ func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscript
 	}
 	var errs []error
 	for index, r := range resp.Results {
-		if r.StatusCode != ua.StatusOK {
+		if !errors.Is(r.StatusCode, ua.StatusOK) {
 			c.logger.WithError(err).Error("monitor item error")
 			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", nodes[uint(index)].String(), r.StatusCode))
 		}
@@ -600,7 +593,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						c.dataCache[handle].FinishTime = now
 						c.dataCache[handle].StartTime = now
 						c.dataCache[handle].Status = int64(item.Value.Status)
-						if item.Value.Status != ua.StatusOK {
+						if !errors.Is(item.Value.Status, ua.StatusOK) {
 							c.logger.WithField("status", item.Value.Status).WithField("identifier", identifier).Warn("read value status is not ok")
 							if !c.containsBad {
 								continue
