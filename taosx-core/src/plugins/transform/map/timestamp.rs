@@ -30,30 +30,30 @@ impl<'de> serde::de::Deserialize<'de> for TimestampExpr {
 
 impl TimestampExpr {
     pub fn try_new(expr: String) -> Result<Self, String> {
-        let trimed = expr.trim();
-        if trimed.is_empty() {
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
             return Err("timestamp expr is empty".to_string());
         }
-        let plus_sigin = trimed.find('+');
-        let minus_sigin = trimed.find('-');
+        let plus_sigin = trimmed.find('+');
+        let minus_sigin = trimmed.find('-');
         let mut delta = 0i64;
         let is_add = match (plus_sigin, minus_sigin) {
             (None, None) => {
                 // 假设此时表达式只包含列名
                 return Ok(TimestampExpr {
-                    from_col_name: trimed.to_string(),
+                    from_col_name: trimmed.to_string(),
                     delta,
                 });
             }
             (Some(_), None) => true,
             (None, Some(_)) => false,
-            _ => return Err("Invalid expression".to_string()),
+            _ => return Err(format!("Invalid expression: {trimmed}")),
         };
 
         let parts: Vec<&str> = if is_add {
-            trimed.split('+').collect::<Vec<&str>>()
+            trimmed.split('+').collect::<Vec<&str>>()
         } else {
-            trimed.split(r"-").collect::<Vec<&str>>()
+            trimmed.split("-").collect::<Vec<&str>>()
         };
 
         if parts.len() != 2 {
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_time_expr_to_ms() {
-        let time_expr_to_ms = TimestampExpr::time_expr_to_ms;
+        let time_expr_to_ms: fn(&str) -> Result<i64, String> = TimestampExpr::time_expr_to_ms;
         assert_eq!(time_expr_to_ms("1h").unwrap(), 3600000);
         assert_eq!(time_expr_to_ms("1hour").unwrap(), 3600000);
         assert_eq!(time_expr_to_ms("1s").unwrap(), 1000);
@@ -195,6 +195,16 @@ mod tests {
         assert_eq!(time_expr_to_ms("1ms").unwrap(), 1);
         assert_eq!(time_expr_to_ms("10:00:00").unwrap(), 36000000);
         assert_eq!(time_expr_to_ms("10:00").unwrap(), 36000000);
+    }
+
+    #[test]
+    fn test_time_expr_parser() {
+        let expr1 = TimestampExpr::try_new("ts - 1h".to_string()).unwrap();
+        assert_eq!(expr1.from_col_name, "ts");
+        assert_eq!(expr1.delta, -3600000);
+        let expr2 = TimestampExpr::try_new("ts_col+1:00".to_string()).unwrap();
+        assert_eq!(expr2.from_col_name, "ts_col");
+        assert_eq!(expr2.delta, 3600000);
     }
 
     #[test]
