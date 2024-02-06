@@ -506,13 +506,70 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    return code;
   }
 
   if(tsMonitorLogProtocol){
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
+  SJson* pJson = tjsonParse(statisReq.pCont);
+
+  int32_t ts_size = tjsonGetArraySize(pJson);
+
+  for(int32_t i = 0; i < ts_size; i++){
+    SJson* item = tjsonGetArrayItem(pJson, i);
+
+    SJson* tables = tjsonGetObjectItem(item, "tables");
+
+    int32_t tableSize = tjsonGetArraySize(tables);
+    for(int32_t i = 0; i < tableSize; i++){
+      SJson* table = tjsonGetArrayItem(tables, i);
+
+      char tableName[MONITOR_TABLENAME_LEN] = {0};
+      tjsonGetStringValue(table, "name", tableName);
+
+      SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
+
+      int32_t size = tjsonGetArraySize(metricGroups);
+      for(int32_t i = 0; i < size; i++){
+        SJson* item = tjsonGetArrayItem(metricGroups, i);
+
+        SJson* arrayTag = tjsonGetObjectItem(item, "tags");
+
+        int32_t tagSize = tjsonGetArraySize(arrayTag);
+        for(int32_t j = 0; j < tagSize; j++){
+          SJson* item = tjsonGetArrayItem(arrayTag, j);
+
+          char tagName[MONITOR_TAG_NAME_LEN] = {0};
+          tjsonGetStringValue(item, "name", tagName);
+
+          if(strncmp(tagName, "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
+            tjsonDeleteItemFromObject(item, "value");
+            tjsonAddStringToObject(item, "value", strClusterId);
+          }
+        }
+      }
+    }
+  }
+
+  char *pCont = tjsonToString(pJson);
+  monSendContent(pCont);
+
+  if(pJson != NULL){
+    tjsonDelete(pJson);
+    pJson = NULL;
+  }
+
+  if(pCont != NULL){
+    taosMemoryFree(pCont);
+    pCont = NULL;
+  }
+
+  tFreeSStatisReq(&statisReq);
+  return 0;
+
+/*
   SJson* pJson = tjsonParse(statisReq.pCont);
 
   int32_t ts_size = tjsonGetArraySize(pJson);
@@ -554,16 +611,6 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
             strncpy(*(sample_labels + j), strClusterId, MONITOR_TAG_VALUE_LEN);
           }
         }
-
-        /*
-        *(labels + tagSize) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
-        strncpy(*(labels + tagSize), "cluster_id", MONITOR_TAG_NAME_LEN); 
-
-        *(sample_labels + tagSize) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
-        strncpy(*(sample_labels + tagSize), strClusterId, MONITOR_TAG_VALUE_LEN); 
-
-        tagSize++;
-        */
 
         SJson* metrics = tjsonGetObjectItem(item, "metrics");
 
@@ -647,6 +694,7 @@ _OVER:
 
   tFreeSStatisReq(&statisReq);
   return code;
+  */
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {

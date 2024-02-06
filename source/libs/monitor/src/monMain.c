@@ -629,3 +629,18 @@ void monGenAndSendReportBasic() {
 
   monCleanupMonitorInfo(pMonitor);
 }
+
+void monSendContent(char *pCont) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if(tsMonitorLogProtocol){
+    if (pCont != NULL){
+      uInfoL("report client cont:\n%s\n", pCont);
+    }
+  }
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+      uError("failed to send monitor msg");
+    }
+  }
+}
