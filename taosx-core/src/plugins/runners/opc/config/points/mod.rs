@@ -26,7 +26,7 @@ impl PointsConfig {
         let opc_type = OpcType::from_dsn(dsn);
         let mut points_config = Self {
             limit: 0,
-            regex: dsn.params.get("regex").map(|v| v.to_string()),
+            regex: dsn.params.get("pattern").map(|v| v.to_string()),
             ua: None,
             da: None,
         };
@@ -42,7 +42,7 @@ impl PointsConfig {
                 points_config.ua = Some(PointUaConfig { root, namespaces });
             }
             OpcType::OPCDA => {
-                let access_path = dsn.params.get("access_path").map(|v| v.to_string());
+                let access_path = dsn.params.get("root").map(|v| v.to_string());
                 points_config.da = Some(PointDaConfig { access_path });
             }
             OpcType::FAKE => {
