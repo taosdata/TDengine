@@ -226,41 +226,38 @@ export default {
       };
     },
     rules() {
+     const requireRule = [
+        {
+          required: true,
+          message: this.$t("required", [
+            this.config.label ?? this.config.field,
+          ]),
+        },
+      ]
+
+      const patternRule = [
+        {
+          pattern: this.config.pattern,
+          trigger: 'change',
+          message: this.config.patternMsg
+        }
+      ]
+
       if (typeof this.config.required === "function") {
         return this.config.required(
           this.data,
           this.sourceParent.sourceForm.data,
           this.sourceParent.currentDefinition
         )
-          ? [
-              {
-                required: true,
-                message: this.$t("required", [
-                  this.config.label ?? this.config.field,
-                ]),
-              },
-              {
-                pattern: this.config.pattern,
-                trigger: 'change',
-                message: this.config.patternMsg
-              }
-            ]
+          ? this.config.pattern 
+            ? [requireRule,...patternRule] 
+            : requireRule
           : [];
       }
       return this.config.required
-        ? [
-            {
-              required: true,
-              message: this.$t("required", [
-                this.config.label ?? this.config.field,
-              ]),
-            },
-            {
-              pattern: this.config.pattern,
-              trigger: 'change',
-              message: this.config.patternMsg
-            }
-          ]
+        ? this.config.pattern 
+          ? [requireRule,...patternRule] 
+          : requireRule
         : [];
     },
     timeRules() {
