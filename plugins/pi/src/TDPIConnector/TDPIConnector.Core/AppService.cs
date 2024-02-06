@@ -178,7 +178,7 @@ namespace TDPIConnector.Core
                 }
             }
 
-            if (piSystemManager != null)
+            if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
             {
                 try
                 {
