@@ -22,7 +22,7 @@
 #if !defined(WINDOWS)
 #define C11_ATOMIC
 #else
-//#define DOUBLE_ATOMIC
+#define DOUBLE_ATOMIC
 #endif 
 
 #ifdef C11_ATOMIC
