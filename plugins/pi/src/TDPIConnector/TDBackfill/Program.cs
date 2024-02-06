@@ -201,7 +201,7 @@ namespace TDBackfill
 
                 try
                 {
-                    if (piSystemManager != null)
+                    if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
                     {
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
