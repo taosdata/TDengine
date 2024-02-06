@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_H_
+#define _STREAM_H_
+
 #include "os.h"
 #include "streamState.h"
 #include "tdatablock.h"
@@ -25,9 +28,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_H_
-#define _STREAM_H_
 
 #define ONE_MiB_F       (1048576.0)
 #define ONE_KiB_F       (1024.0)
@@ -313,7 +313,7 @@ typedef struct SCheckpointInfo {
   int64_t failedId;        // record the latest failed checkpoint id
   int64_t checkpointingId;
   int32_t downstreamAlignNum;
-  int32_t checkpointNotReadyTasks;
+  int32_t numOfNotReady;
   bool    dispatchCheckpointTrigger;
   int64_t msgVer;
   int32_t transId;
@@ -531,7 +531,7 @@ typedef struct SStreamMeta {
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory, int64_t triggerParam,
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);

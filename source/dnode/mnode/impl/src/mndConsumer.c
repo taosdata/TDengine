@@ -101,9 +101,14 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
       goto FAILED;
     }
 
-    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIBE) < 0) {
+    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
       code = TSDB_CODE_MND_NO_RIGHTS;
       terrno = TSDB_CODE_MND_NO_RIGHTS;
+      goto FAILED;
+    }
+
+    if ((terrno = grantCheckLE(TSDB_GRANT_SUBSCRIPTION)) < 0) {
+      code = terrno;
       goto FAILED;
     }
 
@@ -235,9 +240,10 @@ static int32_t checkPrivilege(SMnode  *pMnode, SMqConsumerObj *pConsumer, SMqHbR
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
     strcpy(data->topic, topic);
-    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIBE) < 0) {
+    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
+        grantCheckLE(TSDB_GRANT_SUBSCRIPTION) < 0) {
       data->noPrivilege = 1;
-    } else{
+    } else {
       data->noPrivilege = 0;
     }
     mndReleaseTopic(pMnode, pTopic);
@@ -544,10 +550,11 @@ static void freeItem(void *param) {
 int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   char   *msgStr = pMsg->pCont;
+  int32_t code = -1;
 
-  if(grantCheck(TSDB_GRANT_SUBSCRIBE) < 0){
-    terrno = TSDB_CODE_GRANT_EXPIRED;
-    return -1;
+  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
+    code = terrno;
+    return code;
   }
 
   SCMSubscribeReq subscribe = {0};
@@ -559,7 +566,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans       = NULL;
 
-  int32_t code = -1;
+  
   SArray *pTopicList = subscribe.topicNames;
   taosArraySort(pTopicList, taosArrayCompareString);
   taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);

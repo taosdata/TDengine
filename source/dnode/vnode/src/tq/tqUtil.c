@@ -388,7 +388,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   return 0;
 }
 
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
+int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
@@ -445,6 +445,76 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** 
     *pRefBlock = pDelBlock;
   } else {
     ASSERTS(0, "unknown type:%d", type);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, bool* fhFinished) {
+  SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pDelay != NULL) {
+    *pDelay = 0;
+  }
+
+  *fhFinished = false;
+
+  if (numOfTasks <= 0) {
+    return code;
+  }
+
+  // extract the required source task for a given stream, identified by streamId
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    if (pId->streamId != streamId) {
+      continue;
+    }
+
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    if (ppTask == NULL) {
+      tqError("vgId:%d failed to acquire task:0x%" PRIx64 " in retrieving progress", pMeta->vgId, pId->taskId);
+      continue;
+    }
+
+    if ((*ppTask)->info.taskLevel != TASK_LEVEL__SOURCE) {
+      continue;
+    }
+
+    // here we get the required stream source task
+    SStreamTask* pTask = *ppTask;
+    *fhFinished = !HAS_RELATED_FILLHISTORY_TASK(pTask);
+
+    int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
+
+    SVersionRange verRange = {0};
+    walReaderValidVersionRange(pTask->exec.pWalReader, &verRange.minVer, &verRange.maxVer);
+
+    SWalReader* pReader = walOpenReader(pTask->exec.pWalReader->pWal, NULL, 0);
+    if (pReader == NULL) {
+      tqError("failed to open wal reader to extract exec progress, vgId:%d", pMeta->vgId);
+      continue;
+    }
+
+    int64_t cur = 0;
+    int64_t latest = 0;
+
+    code = walFetchHead(pReader, ver);
+    if (code != TSDB_CODE_SUCCESS) {
+      cur = pReader->pHead->head.ingestTs;
+    }
+
+    code = walFetchHead(pReader, verRange.maxVer);
+    if (code != TSDB_CODE_SUCCESS) {
+      latest = pReader->pHead->head.ingestTs;
+    }
+
+    if (pDelay != NULL) {  // delay in ms
+      *pDelay = (latest - cur) / 1000;
+    }
+
+    walCloseReader(pReader);
   }
 
   return TSDB_CODE_SUCCESS;

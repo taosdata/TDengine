@@ -1455,28 +1455,25 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
   SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
   SScanLogicNode* pScan = NULL;
+  SLogicNode* pChild = NULL;
+  SNode** pChildPos = NULL;
+  EOrder targetOrder = 0;
+  SSHashObj* pTables = NULL;
   
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) && ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
     pScan = (SScanLogicNode*)pLeft;
+    pChild = pRight;
+    pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    targetOrder = pScan->node.outputTsOrder;
   } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) && ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
     pScan = (SScanLogicNode*)pRight;
-  }
-
-  if (NULL != pScan) {
-    switch (pScan->node.outputTsOrder) {
-      case SCAN_ORDER_ASC:
-        pScan->scanSeq[0] = 0;
-        pScan->scanSeq[1] = 1;
-        pScan->node.outputTsOrder = ORDER_DESC;
-        goto _return;
-      case SCAN_ORDER_DESC:
-        pScan->scanSeq[0] = 1;
-        pScan->scanSeq[1] = 0;
-        pScan->node.outputTsOrder = ORDER_ASC;
-        goto _return;
-      default:
-        break;
-    }
+    pChild = pLeft;
+    pChildPos = &pJoin->node.pChildren->pHead->pNode;
+    targetOrder = pScan->node.outputTsOrder;
+  } else {
+    pChild = pRight;
+    pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    targetOrder = pLeft->outputTsOrder;
   }
 
   if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
@@ -1490,16 +1487,15 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
 
   SNode* pOrderByNode = NULL;
-  SSHashObj* pLeftTables = NULL;
-  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
-  
-  if (NULL != tSimpleHashGet(pLeftTables, ((SColumnNode*)pOp->pLeft)->tableAlias, strlen(((SColumnNode*)pOp->pLeft)->tableAlias))) {
+
+  collectTableAliasFromNodes((SNode*)pChild, &pTables);  
+  if (NULL != tSimpleHashGet(pTables, ((SColumnNode*)pOp->pLeft)->tableAlias, strlen(((SColumnNode*)pOp->pLeft)->tableAlias))) {
     pOrderByNode = pOp->pLeft;
-  } else if (NULL != tSimpleHashGet(pLeftTables, ((SColumnNode*)pOp->pRight)->tableAlias, strlen(((SColumnNode*)pOp->pRight)->tableAlias))) {
+  } else if (NULL != tSimpleHashGet(pTables, ((SColumnNode*)pOp->pRight)->tableAlias, strlen(((SColumnNode*)pOp->pRight)->tableAlias))) {
     pOrderByNode = pOp->pRight;
   }
 
-  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pTables);
 
   if (NULL == pOrderByNode) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -1510,7 +1506,13 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pSort->node.outputTsOrder = (ORDER_ASC == pLeft->outputTsOrder) ? ORDER_DESC : ORDER_ASC;
+  pSort->node.outputTsOrder = targetOrder;
+  pSort->node.pTargets = nodesCloneList(pChild->pTargets);
+  if (NULL == pSort->node.pTargets) {
+    nodesDestroyNode((SNode *)pSort);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
   pSort->groupSort = false;
   SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
   if (NULL == pOrder) {
@@ -1519,7 +1521,7 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
 
   nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
-  pOrder->order = (ORDER_ASC == pLeft->outputTsOrder) ? ORDER_DESC : ORDER_ASC;
+  pOrder->order = targetOrder;
   pOrder->pExpr = nodesCloneNode(pOrderByNode);
   pOrder->nullOrder = (ORDER_ASC == pOrder->order) ? NULL_ORDER_FIRST : NULL_ORDER_LAST;
   if (!pOrder->pExpr) {
@@ -1527,9 +1529,9 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pLeft->pParent = (SLogicNode*)pSort;
-  nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pLeft);
-  pJoin->node.pChildren->pHead->pNode = (SNode*)pSort;
+  pChild->pParent = (SLogicNode*)pSort;
+  nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pChild);
+  *pChildPos = (SNode*)pSort;
   pSort->node.pParent = (SLogicNode*)pJoin;;
 
 _return:
@@ -2975,6 +2977,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     }
     nodesClearList(cxt.pLastCols);
   }
+  nodesClearList(cxt.pOtherCols);
 
   pAgg->hasLastRow = false;
   pAgg->hasLast = false;

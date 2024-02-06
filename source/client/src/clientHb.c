@@ -843,7 +843,7 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
     view->version = htonl(view->version);
   }
 
-  tscDebug("hb got %d expired view, valueLen:%lu", viewNum, sizeof(SViewVersion) * viewNum);
+  tscDebug("hb got %u expired view, valueLen:%lu", viewNum, sizeof(SViewVersion) * viewNum);
 
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);

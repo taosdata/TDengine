@@ -147,6 +147,9 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_VIEWS,
   TSDB_MGMT_TABLE_COMPACT,
   TSDB_MGMT_TABLE_COMPACT_DETAIL,
+  TSDB_MGMT_TABLE_GRANTS_FULL,
+  TSDB_MGMT_TABLE_GRANTS_LOGS,
+  TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -298,7 +301,8 @@ typedef enum ENodeType {
   QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
-  // placeholder for [152, 180]
+  QUERY_NODE_ALTER_CLUSTER_STMT,
+  // placeholder for [153, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -359,6 +363,9 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_VIEWS_STMT,
   QUERY_NODE_SHOW_COMPACTS_STMT,
   QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,
+  QUERY_NODE_SHOW_GRANTS_FULL_STMT,
+  QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
+  QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1557,9 +1564,11 @@ typedef struct {
   int64_t     updateTime;
   float       numOfCores;
   int32_t     numOfSupportVnodes;
+  int32_t     numOfDiskCfg;
   int64_t     memTotal;
   int64_t     memAvail;
   char        dnodeEp[TSDB_EP_LEN];
+  char        machineId[TSDB_MACHINE_ID_LEN + 1];
   SMnodeLoad  mload;
   SQnodeLoad  qload;
   SClusterCfg clusterCfg;
@@ -1600,6 +1609,7 @@ typedef struct {
   SEp     ep;
   char    active[TSDB_ACTIVE_KEY_LEN];
   char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeInfo;
 
 typedef struct {
@@ -2032,6 +2042,17 @@ int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 void    tFreeSExplainRsp(SExplainRsp* pRsp);
 
 typedef struct {
+  char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_CLUSTER_VALUE_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SMCfgClusterReq;
+
+int32_t tSerializeSMCfgClusterReq(void* buf, int32_t bufLen, SMCfgClusterReq* pReq);
+int32_t tDeserializeSMCfgClusterReq(void* buf, int32_t bufLen, SMCfgClusterReq* pReq);
+void    tFreeSMCfgClusterReq(SMCfgClusterReq* pReq);
+
+typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
   int32_t sqlLen;
@@ -2408,6 +2429,11 @@ typedef struct SColLocation {
   int8_t   type;
 } SColLocation;
 
+typedef struct SVgroupVer {
+  int32_t vgId;
+  int64_t ver;
+} SVgroupVer;
+
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
@@ -2431,6 +2457,7 @@ typedef struct {
   int64_t  deleteMark;
   int8_t   igUpdate;
   int64_t  lastTs;
+  SArray*  pVgroupVerList;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -3896,6 +3923,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
+#define SUBMIT_REQ_FROM_FILE          0x4
 
 #define  SOURCE_NULL  0
 #define  SOURCE_TAOSX 1
