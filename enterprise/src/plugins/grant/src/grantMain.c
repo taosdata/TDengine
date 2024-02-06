@@ -247,6 +247,7 @@ static void    grantResetMaster(SMnode *pMnode, int64_t upgradeSec);
 static void    grantSetClusterInfo(SMnode *pMnode);
 static void    grantObjInit(SGrantUniqObj *pObj, bool official);
 static void    grantStatusInit(SGrantStatus *pStatus);
+static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel);
 static int64_t grantGetClusterCreateTime(SMnode *pMnode);
 static int32_t mndProcessGrantHB(SRpcMsg *pReq);
 static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, int64_t clusterTime);
@@ -512,7 +513,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (grantCheckLE(TSDB_GRANT_VIEW) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheckViews(true, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
@@ -573,11 +574,10 @@ void mndProcessGrantStatusCheck() {
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (grantCheckLE(TSDB_GRANT_VIEW) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheckViews(true, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
-    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
 }
 
@@ -638,7 +638,11 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 
   gStatus.officialVersion = grantObj.officialVersion;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireDay);
-  GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 1, grantClusterEpoch);
+  if (GRANT_UNIQ_UNDEFINED == grantObj.expireDays[GRANT_OPT_SERVICE]) {
+    GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 1, grantClusterEpoch);
+  } else {
+    GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, dftExpireDay);
+  }
   GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
   GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
   GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
@@ -714,6 +718,12 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 }
 
 static int32_t grantMachineCmprFn(const void *p1, const void *p2) {
+  const void *m1 = &((SGrantMachine *)p1)->machine[0];
+  const void *m2 = &((SGrantMachine *)p2)->machine[0];
+  return memcmp(m1, m2, TSDB_MACHINE_ID_LEN);
+}
+
+static int32_t grantMachineKeyCmprFn(const void *p1, const void *p2) {
   const void *m2 = &((SGrantMachine *)p2)->machine[0];
   return memcmp(p1, m2, TSDB_MACHINE_ID_LEN);
 }
@@ -731,7 +741,7 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     int32_t dnodeIds[GRANT_LOG_MAX_MACHINE];
     while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
-      if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
+      if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineKeyCmprFn, TD_EQ)) {
         machines[idx] = key;
         dnodeIds[idx] = *(int32_t *)pe;
         if (++idx >= GRANT_LOG_MAX_MACHINE) break;
@@ -873,8 +883,12 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     if (toRevoked) {
       state.state = GRANT_STATE_REVOKED;
       state.reason = GRANT_STATE_REASON_MISMATCH;
+      // The revoked state in only set in grantLog, gStatus.grantState is not updated in current HB loop.
       code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
       TSDB_CHECK_CODE(code, lino, _exit);
+      // Since gStatus.grantState is only set according to grantLog.lastState(to ensure the state is persisted in
+      // grantLog), the next HB is triggered immediately to update the expired state according to
+      // gStatus.revokedExpireSec.
       tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
     } else {
       int8_t oldState = pLastState->state;
@@ -1459,14 +1473,20 @@ static int32_t grantCheckSubscriptions(bool allowEqual) {
   return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
 }
 
-static int32_t grantCheckViews(bool allowEqual) {
+static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel) {
   if (!gStatus.expired && !gStatus.viewExpired &&
       (gStatus.limitViews == GRANT_UNIQ_UNLIMITED ||
        (allowEqual ? gStatus.curViews <= gStatus.limitViews : gStatus.curViews < gStatus.limitViews))) {
     return 0;
   }
-  uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited", (int64_t)gStatus.viewExpireSec,
-         (int32_t)gStatus.curViews);
+  if (DEBUG_ERROR == traceLevel) {
+    uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
+           (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
+  } else {
+    uDebug("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
+           (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
+  }
+
   return TSDB_CODE_GRANT_VIEW_LIMITED;
 }
 
@@ -1489,7 +1509,7 @@ int32_t grantCheckLE(EGrantType grant) {
     case TSDB_GRANT_SUBSCRIPTION:
       return grantCheckSubscriptions(true);
     case TSDB_GRANT_VIEW:
-      return grantCheckViews(true);
+      return grantCheckViews(true, DEBUG_ERROR);
     default:
       ASSERTS(0, "undefined grant check le:%d", grant);
       break;
@@ -1526,7 +1546,7 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_SUBSCRIPTION:
       return grantCheckSubscriptions(false);
     case TSDB_GRANT_VIEW:
-      return grantCheckViews(false);
+      return grantCheckViews(false, DEBUG_ERROR);
     case TSDB_GRANT_AUDIT:
       return GRANT_EXPIRED(gStatus.expired || gStatus.auditExpired);
     case TSDB_GRANT_CSV:
@@ -1628,6 +1648,20 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
 
 _exit:
   return code;
+}
+
+static int32_t grantCheckBasicItems(SMnode *pMnode, SGrantUniqObj *pObj) {
+  if ((pObj->limitTimeSeries > GRANT_UNIQ_UNLIMITED) &&
+      (grantGetClusterCurTimeSeries(pMnode) > pObj->limitTimeSeries)) {
+    return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
+  }
+  if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurDnodes(pMnode) > pObj->limitDnodes)) {
+    return TSDB_CODE_GRANT_DNODE_LIMITED;
+  }
+  if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurCores(pMnode) > pObj->limitCpuCores)) {
+    return TSDB_CODE_GRANT_CPU_LIMITED;
+  }
+  return 0;
 }
 
 static int32_t machineCmprFn(const void *p1, const void *p2) { return memcmp(p1, p2, TSDB_MACHINE_ID_LEN); }
@@ -1762,22 +1796,9 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   }
 #endif
 
-  grantRetrieveGrantInfo(pMnode);
-  //  check grantItems of basic function
-  if ((newObj.limitTimeSeries > GRANT_UNIQ_UNLIMITED) && (gStatus.curTimeSeries > newObj.limitTimeSeries)) {
-    code = TSDB_CODE_GRANT_TIMESERIES_LIMITED;
+  if (0 != (code = grantCheckBasicItems(pMnode, &newObj))) {
     goto _exit;
   }
-  if ((newObj.limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > newObj.limitDnodes)) {
-    code = TSDB_CODE_GRANT_DNODE_LIMITED;
-    goto _exit;
-  }
-  if ((newObj.limitCpuCores > GRANT_UNIQ_UNLIMITED) && (gStatus.curCpuCores > newObj.limitCpuCores)) {
-    code = TSDB_CODE_GRANT_CPU_LIMITED;
-    goto _exit;
-  }
-
-  // basicExpireDay = newObj.expireDays[GRANT_OPT_BASIC];
 
   // step 3: parse old
   memcpy(oldObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
