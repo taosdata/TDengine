@@ -62,7 +62,7 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Error("Error starting the application.Connect PI System failed!", e);
+                log.Error("panic: error starting the application.Connect PI System failed!", e);
                 throw new Exception($"PI System connect faied, please check config.");
             }
         }
@@ -99,7 +99,7 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Fatal("Error starting the application.", e);
+                log.Fatal("panic: error starting the application.", e);
                 throw e;
             }
             ConfigureMonitoringTDEngine();
@@ -109,7 +109,7 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Fatal("Error starting the application. Connect TDEngine failed!", e);
+                log.Fatal("panic: error starting the application. Connect TDEngine failed!", e);
                 throw e;
             }
         }
@@ -214,7 +214,12 @@ namespace TDPIConnector.Core
         }
         private void StartTemplateObserve()
         {
-            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            if (this.piSystemManager == null) {
+                log.Info("Working on only point mode.");
+                return;
+            }
+            if (AppSettings.tomlConfig.TemplateForAFElement == null ||
+                AppSettings.tomlConfig.TemplateForAFElement.Count == 0)
             {
                 log.Info("No ElementTemplates to watch.");
                 return;

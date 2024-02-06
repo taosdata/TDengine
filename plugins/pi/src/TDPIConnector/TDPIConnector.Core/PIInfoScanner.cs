@@ -24,11 +24,14 @@ namespace TDPIConnector.Core
         internal string GetInfo(string pointFilter)
         {
             var points = piServerManager.FindPIPoints(pointFilter);
-            var templates = pISystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName);
+
             var piInfo = new PIInfo();
             piInfo.pointsName = points.Select(p => p.Name).ToList();
-            piInfo.templateName = templates.Select(t => t.Name).ToList();
-
+            piInfo.templateName = new List<string>{ };
+            if (pISystemManager != null) {
+                var templates = pISystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName);
+                piInfo.templateName = templates.Select(t => t.Name).ToList();
+            }
             var json = JsonConvert.SerializeObject(piInfo);
             return json;
         }
