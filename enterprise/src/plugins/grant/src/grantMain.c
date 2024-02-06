@@ -750,6 +750,8 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     int32_t num = idx;
     if (nMachines + idx > nDnodeLimit) {
       if (toRevoked) *toRevoked = true;  // exceeded
+      uWarn("grant check machines, convert to revoked state since number of dnodes:%d,%d exceed the limit:%d",
+            nMachines, idx, nDnodeLimit);
       num = nDnodeLimit - nMachines;
     }
     if (num > 0) {
@@ -771,12 +773,16 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
       void *key = tSimpleHashGetKey(pe, NULL);
       if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
         if (toRevoked) *toRevoked = true;  // mismatch
+        uWarn("grant check machines, convert to revoked state since dnode %s mismatch, limit:%d", (char *)key,
+              nDnodeLimit);
         break;
       }
     }
   } else {
     // transfer to revoked if exceeded
     if (toRevoked) *toRevoked = true;
+    uWarn("grant check machines, convert to revoked state since number of dnodes:%d exceed the limit:%d", nMachines,
+          nDnodeLimit);
   }
 
   return 0;
@@ -883,7 +889,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     if (toRevoked) {
       state.state = GRANT_STATE_REVOKED;
       state.reason = GRANT_STATE_REASON_MISMATCH;
-      // The revoked state in only set in grantLog, gStatus.grantState is not updated in current HB loop.
+      // The revoked state is only set in grantLog, gStatus.grantState is not updated in current HB loop.
       code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
       TSDB_CHECK_CODE(code, lino, _exit);
       // Since gStatus.grantState is only set according to grantLog.lastState(to ensure the state is persisted in
@@ -1814,7 +1820,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     code = grantUniqParseActiveCode(&oldObj, NULL);
     if (code != 0 || !oldObj.granted) {
       code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
-      if ((newObj.flags & 0x40)) {  // skip if old active parse failed
+      if ((newObj.flags & GRANT_ACTIVE_SKIP_FAIL_OLD)) {  // skip if old active parse failed
         uInfo("old active parse failed since %s, continue to alter as new flags is:0x%x", tstrerror(code),
               newObj.flags);
         code = 0;
