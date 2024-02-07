@@ -1043,7 +1043,7 @@ void grantParseParameter() {
     } else {
       fprintf(stdout,
               "failed to generate machine code since invalid flag:%" PRIu8 ", please contact TAOS Data for support\n",
-              flag, key);
+              flag);
     }
     taosMemoryFree(key);
   } else {
