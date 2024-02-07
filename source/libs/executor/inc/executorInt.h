@@ -559,6 +559,8 @@ typedef struct SStreamIntervalOperatorInfo {
   struct SUpdateInfo* pUpdateInfo;
   bool                recvRetrive;
   SSDataBlock*        pMidRetriveRes;
+  bool                recvPullover;
+  SSDataBlock*        pMidPulloverRes;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
