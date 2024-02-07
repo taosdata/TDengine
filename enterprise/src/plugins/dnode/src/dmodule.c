@@ -22,7 +22,7 @@
 #define _TD_DM_SKIP_CHECK
 #endif
 
-#if !defined(ASSERT_NOT_CORE) && !defined(WINDOWS) && !defined(_TD_MIPS)
+#if !defined(ASSERT_NOT_CORE) && !defined(WINDOWS)
 #define _TD_DM_CHECK_OFFSET
 #define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
   do {                                                                         \

@@ -1038,7 +1038,13 @@ void grantParseParameter() {
   char *key = tGetMachineId();  //  grantGetMachineSerials();
   if (key != NULL) {
     uint8_t flag = grantGetMachineFlag(key);
-    fprintf(stdout, "machine code(%" PRIu8 "): %s\n", flag, key);
+    if (flag >= 1 && flag <= 5) {
+      fprintf(stdout, "machine code(%" PRIu8 "): %s\n", flag, key);
+    } else {
+      fprintf(stdout,
+              "failed to generate machine code since invalid flag:%" PRIu8 ", please contact TAOS Data for support\n",
+              flag, key);
+    }
     taosMemoryFree(key);
   } else {
     fprintf(stderr, "failed to generate machine code, please contact TAOS Data for support\n");
