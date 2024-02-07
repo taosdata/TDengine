@@ -10004,6 +10004,11 @@ static int32_t tEncodeTableTSMAInfo(SEncoder* pEncoder, const STableTSMAInfo* pT
   }
 
   if (tEncodeCStr(pEncoder, pTsmaInfo->ast) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTsmaInfo->streamUid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTsmaInfo->reqTs) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTsmaInfo->rspTs) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTsmaInfo->delayDuration) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTsmaInfo->fillHistoryFinished) < 0) return -1;
   return 0;
 }
 
@@ -10056,7 +10061,11 @@ static int32_t tDecodeTableTSMAInfo(SDecoder* pDecoder, STableTSMAInfo* pTsmaInf
     }
   }
   if (tDecodeCStrAlloc(pDecoder, &pTsmaInfo->ast) < 0) return -1;
-
+  if (tDecodeI64(pDecoder, &pTsmaInfo->streamUid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTsmaInfo->reqTs) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTsmaInfo->rspTs) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTsmaInfo->delayDuration) < 0) return -1;
+  if (tDecodeI8(pDecoder, (int8_t*)&pTsmaInfo->fillHistoryFinished) < 0) return -1;
   return 0;
 }
 
@@ -10065,7 +10074,7 @@ static int32_t tEncodeTableTSMAInfoRsp(SEncoder *pEncoder, const STableTSMAInfoR
   if (tEncodeI32(pEncoder, size) < 0) return -1;
   for (int32_t i = 0; i < size; ++i) {
     STableTSMAInfo* pInfo = taosArrayGetP(pRsp->pTsmas, i);
-  if (tEncodeTableTSMAInfo(pEncoder, pInfo) < 0) return -1;
+    if (tEncodeTableTSMAInfo(pEncoder, pInfo) < 0) return -1;
   }
   return 0;
 }
@@ -10165,4 +10174,94 @@ void tFreeTableTSMAInfoRsp(STableTSMAInfoRsp *pRsp) {
   if (pRsp && pRsp->pTsmas) {
     taosArrayDestroyP(pRsp->pTsmas, tFreeAndClearTableTSMAInfo);
   }
+}
+
+static int32_t tEncodeStreamProgressReq(SEncoder *pEncoder, const SStreamProgressReq *pReq) {
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->fetchIdx) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->subFetchIdx) < 0) return -1;
+  return 0;
+}
+
+int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeStreamProgressReq(&encoder, pReq) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+static int32_t tDecodeStreamProgressReq(SDecoder* pDecoder, SStreamProgressReq* pReq) {
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->vgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->fetchIdx) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->subFetchIdx) < 0) return -1;
+  return 0;
+}
+
+int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgressReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeStreamProgressReq(&decoder, pReq) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+static int32_t tEncodeStreamProgressRsp(SEncoder* pEncoder, const SStreamProgressRsp* pRsp) {
+  if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->vgId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->fillHisFinished) < 0) return -1;
+  if (tEncodeI64(pEncoder, pRsp->progressDelay) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->fetchIdx) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->subFetchIdx) < 0) return -1;
+  return 0;
+}
+
+int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeStreamProgressRsp(&encoder, pRsp) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+static int32_t tDecodeStreamProgressRsp(SDecoder* pDecoder, SStreamProgressRsp* pRsp) {
+  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->vgId) < 0) return -1;
+  if (tDecodeI8(pDecoder, (int8_t*)&pRsp->fillHisFinished) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pRsp->progressDelay) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->fetchIdx) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->subFetchIdx) < 0) return -1;
+  return 0;
+}
+
+int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeStreamProgressRsp(&decoder, pRsp) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
 }

@@ -3246,8 +3246,10 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
   CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (!dbCache) {
     ctgDebug("DB %s not in cache", dbFName);
+    // TODO test no db cache, select from another db
     for (int32_t i = 0; i < tbNum; ++i) {
-      ctgAddFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
+      ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
+      //ctgAddTSMAFetch();
       taosArrayPush(pCtx->pResList, &(SMetaData){0});
     }
     return TSDB_CODE_SUCCESS;
@@ -3258,18 +3260,18 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
     pCache = taosHashAcquire(dbCache->tsmaCache, pName->tname, strlen(pName->tname));
     if (!pCache) {
       ctgDebug("tsma for tb: %s.%s not in cache", dbFName, pName->tname);
-      ctgAddFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
+      ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(pCtx->pResList, &(SMetaRes){0});
       CTG_CACHE_NHIT_INC(CTG_CI_TBL_SMA, 1);
       continue;
     }
 
     CTG_LOCK(CTG_READ, &pCache->tsmaLock);
-    if (!pCache->pTsmas || pCache->pTsmas->size == 0) {
+    if (!pCache->pTsmas || pCache->pTsmas->size == 0 || hasOutOfDateTSMACache(pCache->pTsmas)) {
       CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
       taosHashRelease(dbCache->tsmaCache, pCache);
       ctgDebug("tsma for tb: %s.%s not in cache", pName->tname, dbFName);
-      ctgAddFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
+      ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(pCtx->pResList, &(SMetaRes){0});
       CTG_CACHE_NHIT_INC(CTG_CI_TBL_TSMA, 1);
       continue;
