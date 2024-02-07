@@ -69,6 +69,10 @@ extern "C" {
 #define EXPLAIN_EVENT_END_FORMAT "End Cond: "
 #define EXPLAIN_GROUP_CACHE_FORMAT "Group Cache"
 #define EXPLAIN_DYN_QRY_CTRL_FORMAT "Dynamic Query Control for %s"
+#define EXPLAIN_COUNT_FORMAT "Count"
+#define EXPLAIN_COUNT_INFO_FORMAT "Window Count Info"
+#define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%d"
+#define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%d"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
