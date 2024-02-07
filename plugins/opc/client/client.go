@@ -12,5 +12,3 @@ type OPCClient interface {
 	Close() error
 }
 type OnMessage func(message []*common.NodeValue)
-
-var UnrecoverableError = make(chan error, 1)

@@ -80,12 +80,8 @@ func collect() {
 	}
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	select {
-	case <-ch:
-		logger.Info("receive stop signal, stop collect opc data")
-	case err = <-client.UnrecoverableError:
-		logger.WithError(err).Panic("unrecoverable error")
-	}
+	<-ch
+	logger.Info("receive stop signal, stop collect opc data")
 }
 
 func handleMessage(manager *reporter.Manager) client.OnMessage {
@@ -100,7 +96,7 @@ func handleMessage(manager *reporter.Manager) client.OnMessage {
 			}
 			r, err := manager.GetReporter(v.Identifier, v.ValueType)
 			if err != nil {
-				logger.WithError(err).Error("get reporter error")
+				logger.WithField("identifier", v.Identifier).WithError(err).Error("get reporter error")
 				continue
 			}
 			m[r] = append(m[r], v)
