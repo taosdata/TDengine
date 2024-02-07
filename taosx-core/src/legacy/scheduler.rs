@@ -709,6 +709,10 @@ impl Scheduler {
         self.sender.send_async(todo).await
     }
 
+    pub fn send_blocking(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
+        self.sender.send(todo)
+    }
+
     // pub fn abort(&self) {
     //     for h in self.handles.iter() {
     //         h.abort();
