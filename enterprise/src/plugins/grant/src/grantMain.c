@@ -29,6 +29,7 @@
 #include "mnode.h"
 #include "os.h"
 #include "sdb.h"
+#include "tbase64.h"
 #include "tchecksum.h"
 #include "tdataformat.h"
 #include "tglobal.h"
@@ -1022,18 +1023,26 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   return mndProcessGrantHBImpl(pMnode, 0);
 }
 
+static uint8_t grantGetMachineFlag(const char *machineCode) {
+  uint8_t  flag = 0;
+  int32_t  outlen = 0;
+  uint8_t *machine = base64_decode(machineCode, TSDB_MACHINE_ID_LEN, &outlen);
+  if (machine) {
+    flag = machine[0];
+    taosMemoryFree(machine);
+  }
+  return flag;
+}
+
 void grantParseParameter() {
-#ifdef _TD_MIPS
-  fprintf(stderr, "the MIPS platform does not support machine code currently!\n");
-#else
   char *key = tGetMachineId();  //  grantGetMachineSerials();
   if (key != NULL) {
-    fprintf(stdout, "machine code: %s \n", key);
+    uint8_t flag = grantGetMachineFlag(key);
+    fprintf(stdout, "machine code(%" PRIu8 "): %s\n", flag, key);
     taosMemoryFree(key);
   } else {
-    fprintf(stderr, "should generate machine code under root authority!\n");
+    fprintf(stderr, "failed to generate machine code, please contact TAOS Data for support\n");
   }
-#endif
   exit(EXIT_SUCCESS);
 }
 
@@ -2072,7 +2081,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   }
 
   nMachines = taosArrayGetSize(pGrant->pMachines);
-  bufLen = nMachines * 50;  // max len of machine(19+1+4+1+24+1 = 50)
+  bufLen = nMachines * 52;  // max len of machine(19+1+4+1+24+2+1 = 52)
   if (bufLen < 1470) {
     bufLen = 1470;  // max len of state: (19+1+8+1+9+1+9+1) 49*30=1470
   } else if (bufLen > TSDB_GRANT_LOG_COL_LEN) {
@@ -2138,9 +2147,11 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
       grantSecondsToString(pMachine->ts, ts);
       if (i == 0) {
-        snprintf(tmp, 70, "%s,%d,%s", ts, pMachine->id, pMachine->machine);
+        snprintf(tmp, 70, "%s,%d,%s,%" PRIu8, ts, pMachine->id, pMachine->machine,
+                 grantGetMachineFlag(pMachine->machine));
       } else {
-        snprintf(tmp, 70, ";%s,%d,%s", ts, pMachine->id, pMachine->machine);
+        snprintf(tmp, 70, ";%s,%d,%s,%" PRIu8, ts, pMachine->id, pMachine->machine,
+                 grantGetMachineFlag(pMachine->machine));
       }
       tmpLen = strlen(tmp);
       memcpy(qBuf, tmp, tmpLen);
