@@ -1566,6 +1566,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->recvRetrive = false;
   pInfo->pMidRetriveRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
   pInfo->pMidPulloverRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
+  pInfo->clearState = false;
 
   pOperator->operatorType = pPhyNode->type;
   if (!IS_FINAL_INTERVAL_OP(pOperator) || numOfChild == 0) {
@@ -4287,6 +4288,11 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pDelRes;
     }
+    if (pInfo->clearState) {
+      pInfo->clearState = false;
+      clearFunctionContext(&pOperator->exprSupp);
+      clearStreamIntervalOperator(pInfo);
+    }
   }
 
   if (!pInfo->pUpdated) {
@@ -4341,6 +4347,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
         } else {
           pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
         }
+        pInfo->clearState = true;
         return pInfo->pDelRes;
       }
       continue;
@@ -4351,6 +4358,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
                                             pInfo->pPullWins, pInfo->numOfChild, pOperator);
       if (pInfo->recvPullover) {
         copyDataBlock(pInfo->pMidPulloverRes, pBlock);
+        pInfo->clearState = true;
         break;
       }
       continue;
