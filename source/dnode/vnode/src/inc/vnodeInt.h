@@ -293,6 +293,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaInit();

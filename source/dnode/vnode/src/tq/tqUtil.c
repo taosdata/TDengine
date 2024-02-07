@@ -536,12 +536,12 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     int64_t latest = 0;
 
     code = walFetchHead(pReader, ver);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS) {
       cur = pReader->pHead->head.ingestTs;
     }
 
     code = walFetchHead(pReader, verRange.maxVer);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS) {
       latest = pReader->pHead->head.ingestTs;
     }
 

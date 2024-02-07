@@ -446,7 +446,7 @@ class TDTestCase:
         self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
         ## why need 5s, calculation not finished yet.
         time.sleep(5)
-        time.sleep(9999999)
+        #time.sleep(9999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
 
