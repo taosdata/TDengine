@@ -12,6 +12,7 @@ namespace TDPIConnector.Core
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         public class TomlConfig {
+            public string LogLevel { get; set; }
             public int MaxWaitLen { get; set; } = 1000;
             public int UpdateInterval { get; set; } = 10000;
             public int MaxBackfillRangeDays { get; set; } = 1;
@@ -155,6 +156,15 @@ namespace TDPIConnector.Core
             if (TDEnginePITablesPrefix == null)
             {
                 TDEnginePITablesPrefix = string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(tomlConfig.LogLevel)) {
+                log4net.Repository.ILoggerRepository repository = log4net.LogManager.GetRepository();
+                log4net.Repository.Hierarchy.Hierarchy hier = (log4net.Repository.Hierarchy.Hierarchy)repository;
+                hier.Root.Level = hier.LevelMap[tomlConfig.LogLevel];
+                ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).RaiseConfigurationChanged(EventArgs.Empty);
+
+                log.Info($"Reset log level to {tomlConfig.LogLevel}.");
             }
         }
         public static string TDEngineHost { get; internal set; }
