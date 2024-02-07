@@ -14,30 +14,30 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class ConsumerLoop {
+// ANCHOR: consumer_demo
+public abstract class AbsConsumerLoopFull {
     private final TaosConsumer<ResultBean> consumer;
     private final List<String> topics;
     private final AtomicBoolean shutdown;
     private final CountDownLatch shutdownLatch;
 
-    public ConsumerLoop() throws SQLException {
+    public AbsConsumerLoopFull() throws SQLException {
+
         Properties config = new Properties();
         config.setProperty("td.connect.type", "jni");
         config.setProperty("bootstrap.servers", "localhost:6030");
-        config.setProperty("td.connect.user", "root");
-        config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
         config.setProperty("client.id", "1");
-        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
-        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
-        this.topics = Collections.singletonList("topic_speed");
+
+        this.topics = Collections.singletonList("topic_meters");
         this.shutdown = new AtomicBoolean(false);
         this.shutdownLatch = new CountDownLatch(1);
     }
@@ -47,7 +47,6 @@ public abstract class ConsumerLoop {
     public void pollData() throws SQLException {
         try {
             consumer.subscribe(topics);
-
             while (!shutdown.get()) {
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord<ResultBean> record : records) {
@@ -73,7 +72,11 @@ public abstract class ConsumerLoop {
 
     public static class ResultBean {
         private Timestamp ts;
-        private int speed;
+        private double current;
+        private int voltage;
+        private double phase;
+        private int groupid;
+        private String location;
 
         public Timestamp getTs() {
             return ts;
@@ -83,12 +86,45 @@ public abstract class ConsumerLoop {
             this.ts = ts;
         }
 
-        public int getSpeed() {
-            return speed;
+        public double getCurrent() {
+            return current;
         }
 
-        public void setSpeed(int speed) {
-            this.speed = speed;
+        public void setCurrent(double current) {
+            this.current = current;
+        }
+
+        public int getVoltage() {
+            return voltage;
+        }
+
+        public void setVoltage(int voltage) {
+            this.voltage = voltage;
+        }
+
+        public double getPhase() {
+            return phase;
+        }
+
+        public void setPhase(double phase) {
+            this.phase = phase;
+        }
+
+        public int getGroupid() {
+            return groupid;
+        }
+
+        public void setGroupid(int groupid) {
+            this.groupid = groupid;
+        }
+
+        public String getLocation() {
+            return location;
+        }
+
+        public void setLocation(String location) {
+            this.location = location;
         }
     }
 }
+// ANCHOR_END: consumer_demo
