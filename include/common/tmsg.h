@@ -4176,6 +4176,12 @@ typedef struct {
   SArray*  pTags; // SArray<SSchema>
   SArray*  pUsedCols; // SArray<SSchema>
   char*    ast;
+
+  int64_t streamUid;
+  int64_t reqTs;
+  int64_t rspTs;
+  int64_t delayDuration;
+  bool    fillHistoryFinished;
 } STableTSMAInfo;
 
 typedef struct {
@@ -4183,7 +4189,7 @@ typedef struct {
 } STableTSMAInfoRsp;
 
 int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);
-int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pReq);
+int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pRsp);
 int32_t tCloneTbTSMAInfo(STableTSMAInfo* pInfo, STableTSMAInfo** pRes);
 void    tFreeTableTSMAInfo(void* p);
 void    tFreeAndClearTableTSMAInfo(void* p);
@@ -4193,6 +4199,28 @@ void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
 #define tSerializeTSMAHbRsp tSerializeTableTSMAInfoRsp
 #define tDeserializeTSMAHbRsp tDeserializeTableTSMAInfoRsp
 #define tFreeTSMAHbRsp tFreeTableTSMAInfoRsp
+
+typedef struct SStreamProgressReq {
+  int64_t streamId;
+  int32_t vgId;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressReq;
+
+int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq);
+int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgressReq* pReq);
+
+typedef struct SStreamProgressRsp {
+  int64_t streamId;
+  int32_t vgId;
+  bool    fillHisFinished;
+  int64_t progressDelay;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressRsp;
+
+int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
+int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
 
 #pragma pack(pop)
 

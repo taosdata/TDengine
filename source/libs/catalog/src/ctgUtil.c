@@ -2392,3 +2392,36 @@ uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
   //TODO
   return 0;
 }
+
+bool hasOutOfDateTSMACache(SArray* pTsmas) {
+  if (!pTsmas || pTsmas->size == 0) {
+    return false;
+  }
+  for (int32_t i = 0; i < pTsmas->size; ++i) {
+    STSMACache* pTsmaInfo = taosArrayGetP(pTsmas, i);
+    if (isCtgTSMACacheOutOfDate(pTsmaInfo)) return true;
+  }
+  return false;
+}
+
+bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
+  int64_t now = taosGetTimestampMs();
+  return !pTsmaCache->fillHistoryFinished || (30 * 1000 - pTsmaCache->delayDuration)  < (now - pTsmaCache->reqTs);
+}
+
+int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx,
+                        int32_t flag) {
+  if (NULL == (*pFetchs)) {
+    *pFetchs = taosArrayInit(CTG_DEFAULT_FETCH_NUM, sizeof(SCtgTSMAFetch));
+  }
+
+  SCtgTSMAFetch fetch = {0};
+  fetch.dbIdx = dbIdx;
+  fetch.tbIdx = tbIdx;
+  fetch.fetchIdx = (*fetchIdx)++;
+  fetch.resIdx = resIdx;
+
+  taosArrayPush(*pFetchs, &fetch);
+
+  return TSDB_CODE_SUCCESS;
+}

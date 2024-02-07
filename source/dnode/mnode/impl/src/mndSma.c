@@ -2035,8 +2035,8 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
   SSmaObj *      pSma = NULL;
   SSdb *         pSdb = pMnode->pSdb;
   void *         pIter = NULL;
-
-  SStbObj *pStb = NULL;
+  SStreamObj *   pStreamObj = NULL;
+  SStbObj *      pStb = NULL;
   /*
   SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (NULL == pStb) {
@@ -2060,6 +2060,19 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
       continue;
     }
 
+    SName smaName;
+    char streamName[TSDB_TABLE_FNAME_LEN] = {0};
+    tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
+    pStreamObj = mndAcquireStream(pMnode, streamName);
+    if (!pStreamObj) {
+      sdbRelease(pSdb, pSma);
+      continue;
+    }
+
+    int64_t streamId = pStreamObj->uid;
+    mndReleaseStream(pMnode, pStreamObj);
+
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2068,6 +2081,7 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
       return code;
     }
     terrno = dumpTSMAInfoFromSmaObj(pSma, pStb, pTsma);
+    pTsma->streamUid = streamId;
     mndReleaseStb(pMnode, pStb);
     sdbRelease(pSdb, pSma);
     if (terrno) return code;

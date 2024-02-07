@@ -262,9 +262,25 @@ typedef struct SCtgViewsCtx {
   SArray* pFetchs;
 } SCtgViewsCtx;
 
+typedef enum {
+  FETCH_TSMA_FOR_TB,
+  FETCH_PROGRESS_FOR_TSMA,
+} CTG_TSMA_FETCH_TYPE;
+
+typedef struct SCtgTSMAFetch {
+  CTG_TSMA_FETCH_TYPE fetchType;
+  int32_t             dbIdx;
+  int32_t             tbIdx;
+  int32_t             fetchIdx;
+  int32_t             resIdx;
+  int32_t             subFetchNum;
+  int32_t             finishedSubFetchNum;
+  int32_t             vgNum;
+} SCtgTSMAFetch;
+
 typedef struct SCtgTbTSMACtx {
   int32_t fetchNum;
-  SArray* pNames;
+  SArray* pNames; // SArray<STablesReq>
   SArray* pResList;
   SArray* pFetches;
 } SCtgTbTSMACtx;
@@ -1128,6 +1144,13 @@ int32_t ctgOpDropTbTSMA(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation* operation);
 uint64_t ctgGetTbTSMACacheSize(STSMACache* pTsmaInfo);
 void     ctgFreeTbTSMAInfo(void* p);
+bool     hasOutOfDateTSMACache(SArray* pTsmas);
+bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
+int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
+                                       SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
+                                       void* bInput);
+int32_t  ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx,
+                         int32_t flag);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;
