@@ -977,6 +977,7 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
 }
 #endif
 
+#ifdef BUILD_NO_CALL
 /*************************************************************************
  *                  STREAM COMPRESSION
  *************************************************************************/
@@ -2120,7 +2121,7 @@ int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppOut, int32_t *nOut
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData) {
   return DATA_TYPE_INFO[pCmprsor->type].cmprFn(pCmprsor, pData, nData);
 }
-
+#endif
 /*************************************************************************
  *                  REGULAR COMPRESSION
  *************************************************************************/
