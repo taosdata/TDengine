@@ -1616,7 +1616,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
-  if(grantCheckLE(TSDB_GRANT_STREAMS) < 0){
+  if(grantCheckExpire(TSDB_GRANT_STREAMS) < 0){
     terrno = TSDB_CODE_GRANT_EXPIRED;
     return -1;
   }
