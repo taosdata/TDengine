@@ -516,7 +516,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (grantCheckViews(true, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
@@ -577,7 +577,7 @@ static void mndProcessGrantStatusCheck() {
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (grantCheckViews(true, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
@@ -933,7 +933,6 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   }
 
   if ((terrno = grantCheckClusterInfo(pMnode)) != 0) {
-    assert(0);
     return TSDB_CODE_FAILED;
   }
 
@@ -1473,11 +1472,10 @@ static int32_t grantCheckDnodes() {
 static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckQueryTime() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
-static int32_t grantCheckStreams(bool allowEqual) {
+static int32_t grantCheckStreams(bool checkNum) {
   if (!gStatus.expired && !gStatus.streamExpired &&
-      (gStatus.limitStreams == GRANT_UNIQ_UNLIMITED ||
-       (allowEqual ? gStatus.curStreams <= gStatus.limitStreams
-                   : (gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode)) < gStatus.limitStreams))) {
+      (!checkNum || (gStatus.limitStreams == GRANT_UNIQ_UNLIMITED ||
+                     (gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode)) < gStatus.limitStreams))) {
     return 0;
   }
 
@@ -1485,11 +1483,10 @@ static int32_t grantCheckStreams(bool allowEqual) {
          (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
   return TSDB_CODE_GRANT_STREAM_LIMITED;
 }
-static int32_t grantCheckSubscriptions(bool allowEqual) {
+static int32_t grantCheckSubscriptions(bool checkNum) {
   if (!gStatus.expired && !gStatus.subscriptionExpired &&
-      (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED ||
-       (allowEqual ? gStatus.curSubscriptions <= gStatus.limitSubscriptions
-                   : (gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode)) <
+      (!checkNum || (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED ||
+                     (gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode)) <
                          gStatus.limitSubscriptions))) {
     return 0;
   }
@@ -1498,11 +1495,10 @@ static int32_t grantCheckSubscriptions(bool allowEqual) {
   return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
 }
 
-static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel) {
+static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
   if (!gStatus.expired && !gStatus.viewExpired &&
-      (gStatus.limitViews == GRANT_UNIQ_UNLIMITED ||
-       (allowEqual ? gStatus.curViews <= gStatus.limitViews
-                   : (gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode)) < gStatus.limitViews))) {
+      (!checkNum || (gStatus.limitViews == GRANT_UNIQ_UNLIMITED ||
+                     (gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode)) < gStatus.limitViews))) {
     return 0;
   }
   if (DEBUG_ERROR == traceLevel) {
@@ -1525,14 +1521,14 @@ static int32_t grantCheckCpuCores() {
   return TSDB_CODE_GRANT_CPU_LIMITED;
 }
 
-int32_t grantCheckLE(EGrantType grant) {
+int32_t grantCheckExpire(EGrantType grant) {
   switch (grant) {
     case TSDB_GRANT_STREAMS:
-      return grantCheckStreams(true);
+      return grantCheckStreams(false);
     case TSDB_GRANT_SUBSCRIPTION:
-      return grantCheckSubscriptions(true);
+      return grantCheckSubscriptions(false);
     case TSDB_GRANT_VIEW:
-      return grantCheckViews(true, DEBUG_ERROR);
+      return grantCheckViews(false, DEBUG_ERROR);
     default:
       ASSERTS(0, "undefined grant check le:%d", grant);
       break;
@@ -1563,13 +1559,13 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_CONNS:
       return grantCheckConns();
     case TSDB_GRANT_STREAMS:
-      return grantCheckStreams(false);
+      return grantCheckStreams(true);
     case TSDB_GRANT_CPU_CORES:
       return grantCheckCpuCores();
     case TSDB_GRANT_SUBSCRIPTION:
-      return grantCheckSubscriptions(false);
+      return grantCheckSubscriptions(true);
     case TSDB_GRANT_VIEW:
-      return grantCheckViews(false, DEBUG_ERROR);
+      return grantCheckViews(true, DEBUG_ERROR);
     case TSDB_GRANT_AUDIT:
       return GRANT_EXPIRED(gStatus.expired || gStatus.auditExpired);
     case TSDB_GRANT_CSV:
