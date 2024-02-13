@@ -114,12 +114,13 @@
 #define GRANT_UNIQ_KNOWN_DATAIN_VALS     30
 #define GRANT_UNIQ_TOKEN_NUM 2
 
-#define GRANT_MACHINE_FLAG_CPU           0x01
-#define GRANT_MACHINE_FLAG_SYS           0x02
-#define GRANT_MACHINE_FLAG_MAC           0x04
+#define GRANT_MACHINE_FLG_CPU             0x01
+#define GRANT_MACHINE_FLG_SYS             0x02
+#define GRANT_MACHINE_FLG_MAC             0x04
 
-#define GRANT_ACTIVE_SKIP_FAIL_OLD       0x01
-#define GRANT_ACTIVE_CHECK_MACHINE       0x02
+#define GRANT_ACTIVE_FLG_SKIP_FAIL_OLD    0x01
+#define GRANT_ACTIVE_FLG_CHECK_MACHINE    0x02
+#define GRANT_ACTIVE_FLG_CHECK_UPTIME     0x04
 
 #ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_EXPIRE_DAY
@@ -260,6 +261,12 @@ typedef enum {
 } SGrantOpt;
 
 typedef struct {
+  int32_t number;
+  int32_t speed;
+  int64_t expireSec;
+} SGrantDataIn;
+
+typedef struct {
   char    name[GRANT_ITEM_NAME_LEN];
   int32_t number;  // number of connections
   int32_t speed;   // transfer speed, unit: MB
@@ -309,7 +316,6 @@ typedef struct {
 
   // variant fields
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem32;   // SGrantItem32
   SArray *pItem64;   // SGrantItem64
 } SGrantUniqObj;
 
@@ -401,12 +407,12 @@ typedef struct {
   int32_t curCpuCores;
   int32_t limitViews;
   int32_t curViews;
-  int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
   int64_t revokedExpireSec;
+  // fixed dataIns
+  SGrantDataIn dataIns[CONN_TYPE_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem32;
-  SArray *pItem64;
+  SArray *pItem64;   // SGrantItem64
 } SGrantStatus;
 
 typedef struct {

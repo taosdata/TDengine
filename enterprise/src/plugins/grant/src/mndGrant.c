@@ -21,8 +21,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-extern SGrantStatus gStatus;
-
 #define MND_GRANT_VER_NUMBER 1
 
 #define RETURN_WITH_CODE(cond, v) \
