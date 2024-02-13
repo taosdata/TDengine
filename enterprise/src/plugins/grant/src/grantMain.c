@@ -269,17 +269,17 @@ static void    mndCancelGetNextGrantLogs(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextMachines(SMnode *pMnode, void *pIter);
 
-// static int32_t tSerializeGrantDataIns(SEncoder *encoder, int32_t *pIns);
-// static int32_t tDeserializeGrantDataIns(SDecoder *decoder, int32_t *pIns);
-// static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns);
-// static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns);
+static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *pIns);
+static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *pIns);
+static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns);
+static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns);
 
 typedef struct {
-  SSHashObj     *pMachineHash;
-  SArray        *pDnodeInfo;
-  SMnode        *pMnode;
-  int32_t        nDiskCfg;
-  TdThreadRwlock rwLock;
+  SSHashObj *pMachineHash;
+  SArray    *pDnodeInfo;
+  SMnode    *pMnode;
+  int32_t    nDiskCfg;
+  SRWLatch   rwLock;
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -329,8 +329,6 @@ int32_t mndInitGrant(SMnode *pMnode) {
     goto _exit;
   }
 
-  taosThreadRwlockInit(&grantHandle.rwLock, NULL);
-
 _exit:
   if (terrno != 0) {
     uError("grant data initialize failed since %s", tstrerror(terrno));
@@ -360,7 +358,6 @@ static void tDestroyGrantStatus(SGrantStatus *pStatus) {
 void mndCleanupGrant() {
   tSimpleHashCleanup(grantHandle.pMachineHash);
   taosArrayDestroy(grantHandle.pDnodeInfo);
-  taosThreadRwlockDestroy(&grantHandle.rwLock);
   grantHandle.pMachineHash = NULL;
   grantHandle.pDnodeInfo = NULL;
   grantHandle.pMnode = NULL;
@@ -509,9 +506,11 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   }
 
   // step 2: set local dnode grant status
+  taosWLockLatch(&grantHandle.rwLock);
   SArray *pDataIns = gStatus.pDataIns;
   gStatus = grantStatusReq;  // assign directly
   taosArrayDestroy(pDataIns);
+  taosWUnLockLatch(&grantHandle.rwLock);
 
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   int8_t tsGrantVal = 0;
@@ -647,16 +646,16 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
   GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
   GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 1, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 86400, dftExpireSec);
   GRANT_VALUE_CONVERT(grantObj.limitStreams, gStatus.limitStreams, 1, GRANT_UNIQ_DFT_STREAM_NUM);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SUBSCRIPTION], gStatus.subscriptionExpireSec, 1, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SUBSCRIPTION], gStatus.subscriptionExpireSec, 86400, dftExpireSec);
   GRANT_VALUE_CONVERT(grantObj.limitSubscriptions, gStatus.limitSubscriptions, 1, GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
   GRANT_VALUE_CONVERT(grantObj.limitViews, gStatus.limitViews, 1, GRANT_UNIQ_DFT_VIEW_NUM);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 1, dftExpireSec);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 1, dftExpireSec);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 1, dftExpireSec);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 1, dftExpireSec);
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 1, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireSec);
 
   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; i += 3) {
     GRANT_EXPIRE_CONVERT(grantObj.dataIns[i], gStatus.dataIns[i].expireSec, 86400, dftExpireSec);            // expire
@@ -667,7 +666,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   int64_t curTime = taosGetTimestampMs() / 1000;
   char    ts[GRANT_TS_SEC_LEN] = {0};
   int64_t grantCurTime = grantGetCurTime(curTime, grantObj.flags & GRANT_ACTIVE_FLG_CHECK_UPTIME);
-  int64_t expireSec = state == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
+  int64_t expireSec = revoked ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
   if (expireSec == GRANT_UNIQ_UNLIMITED || expireSec > grantCurTime) {
     COMPARE_SET_VAL(gStatus.expired, 0, !=);
   } else {
@@ -684,7 +683,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
 
   // add rwlock since retrieve would access simultaneously
-  taosThreadRwlockWrlock(&grantHandle.rwLock);
+  taosWLockLatch(&grantHandle.rwLock);
   int32_t nDataIn = taosArrayGetSize(pObj->pDataIns);
   if (nDataIn > 0) {
     void *tmp = pStatus->pDataIns;
@@ -702,7 +701,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   } else {
     taosArrayClear(pStatus->pItem64);
   }
-  taosThreadRwlockUnlock(&grantHandle.rwLock);
+  taosWUnLockLatch(&grantHandle.rwLock);
 
   return 0;
 }
@@ -1351,6 +1350,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
   int64_t grantCurTime = grantGetCurTime(curTime, true);
   int64_t baseSeconds = upgradeSec;
   int64_t clusterCreateTime = 0;
+  bool    revoked = gStatus.grantState == GRANT_STATE_REVOKED;
 
   if (baseSeconds == 0) {
     if (grantClusterEpoch == 0) {
@@ -1364,8 +1364,8 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     gStatus.basicExpireSec = baseSeconds + GRANT_DEFAULT;
 
     // basic item
-    int64_t expireSec = gStatus.grantState == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
-    gStatus.expired = expireSec > grantCurTime ? false : true;
+    int64_t expireSec = revoked ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
+    gStatus.expired = expireSec > grantCurTime ? 0 : 1;
     if (gStatus.expired) {
       char ts[GRANT_TS_SEC_LEN] = {0};
       grantSecondsToString(expireSec, ts);
@@ -1374,10 +1374,9 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     gStatus.serviceExpireSec = grantClusterEpoch;
 
     // optional items
-    int64_t optExpireSec = gStatus.grantState == GRANT_STATE_REVOKED
-                               ? TMIN(gStatus.revokedExpireSec, (int64_t)gStatus.basicExpireSec)
-                               : gStatus.basicExpireSec;
-    bool    optExpired = expireSec > grantCurTime ? false : true;
+    int64_t optExpireSec =
+        revoked ? TMIN(gStatus.revokedExpireSec, (int64_t)gStatus.basicExpireSec) : gStatus.basicExpireSec;
+    int8_t  optExpired = expireSec > grantCurTime ? 0 : 1;
     gStatus.multiTierExpireSec = optExpireSec;
     gStatus.multiTierExpired = optExpired;
     gStatus.streamExpireSec = optExpireSec;
@@ -1673,7 +1672,8 @@ _exit:
   return code;
 }
 
-static int32_t grantCheckBasicItems(SMnode *pMnode, SGrantUniqObj *pObj) {
+static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
+  // basic
   if ((pObj->limitTimeSeries > GRANT_UNIQ_UNLIMITED) &&
       (grantGetClusterCurTimeSeries(pMnode) > pObj->limitTimeSeries)) {
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
@@ -1684,6 +1684,19 @@ static int32_t grantCheckBasicItems(SMnode *pMnode, SGrantUniqObj *pObj) {
   if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurCores(pMnode) > pObj->limitCpuCores)) {
     return TSDB_CODE_GRANT_CPU_LIMITED;
   }
+
+  // optional
+  if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurStreams(pMnode) > pObj->limitStreams)) {
+    return TSDB_CODE_GRANT_STREAM_LIMITED;
+  }
+  if ((pObj->limitSubscriptions > GRANT_UNIQ_UNLIMITED) &&
+      (grantGetClusterCurSubscriptions(pMnode) > pObj->limitSubscriptions)) {
+    return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
+  }
+  if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurViews(pMnode) > pObj->limitViews)) {
+    return TSDB_CODE_GRANT_VIEW_LIMITED;
+  }
+
   return 0;
 }
 
@@ -1819,7 +1832,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   }
 #endif
 
-  if (0 != (code = grantCheckBasicItems(pMnode, &newObj))) {
+  if (0 != (code = grantCheckGrantItems(pMnode, &newObj))) {
     goto _exit;
   }
 
@@ -2027,7 +2040,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                              gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->bakRstExpireSec, 0, GRANT_UNIQ_UNUTILIZED,
                              false);
 
-    taosThreadRwlockRdlock(&grantHandle.rwLock);
+    taosRLockLatch(&grantHandle.rwLock);
 
     // dynamic grantItem64
     int32_t nDynamic = taosArrayGetSize(pStatus->pItem64);
@@ -2050,7 +2063,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                                pDataIn->expire * 86400, pDataIn->number, pDataIn->speed, true);
     }
 
-    taosThreadRwlockUnlock(&grantHandle.rwLock);
+    taosRUnLockLatch(&grantHandle.rwLock);
   }
 
   pShow->numOfRows += numOfRows;
@@ -2289,8 +2302,8 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
 
   if (tEncodeI64v(&encoder, clusterTime) < 0) goto _exit;
 
-  // if (tSerializeGrantDataIns(&encoder, pStatus->dataIns) < 0) goto _exit;
-  // if (tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns) < 0) goto _exit;
+  if (tSerializeGrantDataIns(&encoder, pStatus->dataIns) < 0) goto _exit;
+  if (tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns) < 0) goto _exit;
 
   tEndEncode(&encoder);
 
@@ -2330,8 +2343,8 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
 
   // variants
   if (tDecodeI64v(&decoder, clusterTime) < 0) goto _exit;
-  // if (tDeserializeGrantDataIns(&decoder, &pStatus->dataIns[0]) < 0) goto _exit;
-  // if (tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns) < 0) goto _exit;
+  if (tDeserializeGrantDataIns(&decoder, pStatus->dataIns) < 0) goto _exit;
+  if (tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns) < 0) goto _exit;
 
   code = 0;
 _exit:
@@ -2340,48 +2353,52 @@ _exit:
   return code;
 }
 
-// static int32_t tSerializeGrantDataIns(SEncoder *encoder, int32_t *dataIn) {
-//   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; ++i) {
-//     if (tEncodeI32v(encoder, dataIn[i]) < 0) return -1;
-//   }
-//   return 0;
-// }
+static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *dataIn) {
+  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    if (tEncodeI32v(encoder, dataIn[i].number) < 0) return -1;
+    if (tEncodeI32v(encoder, dataIn[i].speed) < 0) return -1;
+    if (tEncodeI64v(encoder, dataIn[i].expireSec) < 0) return -1;
+  }
+  return 0;
+}
 
-// static int32_t tDeserializeGrantDataIns(SDecoder *decoder, int32_t *dataIn) {
-//   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; ++i) {
-//     if (tDecodeI32v(decoder, &dataIn[i]) < 0) return -1;
-//   }
-//   return 0;
-// }
+static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *dataIn) {
+  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    if (tDecodeI32v(decoder, &dataIn[i].number) < 0) return -1;
+    if (tDecodeI32v(decoder, &dataIn[i].speed) < 0) return -1;
+    if (tDecodeI64v(decoder, &dataIn[i].expireSec) < 0) return -1;
+  }
+  return 0;
+}
 
-// static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns) {
-//   int16_t nDataIns = taosArrayGetSize(pIns);
-//   if (tEncodeI16v(encoder, nDataIns) < 0) return -1;
-//   for (int32_t i = 0; i < nDataIns; ++i) {
-//     SGrantDataIns *pIn = TARRAY_GET_ELEM(pIns, i);
-//     if (tEncodeCStr(encoder, pIn->name) < 0) return -1;
-//     if (tEncodeI32v(encoder, pIn->number) < 0) return -1;
-//     if (tEncodeI32v(encoder, pIn->speed) < 0) return -1;
-//     if (tEncodeI32v(encoder, pIn->expire) < 0) return -1;
-//   }
-//   return 0;
-// }
+static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns) {
+  int16_t nDataIns = taosArrayGetSize(pIns);
+  if (tEncodeI16v(encoder, nDataIns) < 0) return -1;
+  for (int32_t i = 0; i < nDataIns; ++i) {
+    SGrantDataIns *pIn = TARRAY_GET_ELEM(pIns, i);
+    if (tEncodeCStr(encoder, pIn->name) < 0) return -1;
+    if (tEncodeI32v(encoder, pIn->number) < 0) return -1;
+    if (tEncodeI32v(encoder, pIn->speed) < 0) return -1;
+    if (tEncodeI32v(encoder, pIn->expire) < 0) return -1;
+  }
+  return 0;
+}
 
-// static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
-//   int16_t nIns = 0;
-//   if (tDecodeI16v(decoder, &nIns) < 0) return -1;
-//   if (nIns <= 0) return 0;
-//   if (!pIns && !(pIns = taosArrayInit(nIns, sizeof(SGrantDataIns)))) {
-//     terrno = TSDB_CODE_OUT_OF_MEMORY;
-//     return -1;
-//   }
+static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
+  int16_t nIns = 0;
+  if (tDecodeI16v(decoder, &nIns) < 0) return -1;
+  if (nIns <= 0) return 0;
+  if (!pIns && !(pIns = taosArrayInit(nIns, sizeof(SGrantDataIns)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
-//   for (int32_t i = 0; i < nIns; ++i) {
-//     SGrantDataIns *pIn = TARRAY_GET_ELEM(pIns, i);
-//     if (tDecodeCStrTo(decoder, &pIn->name[0]) < 0) return -1;
-//     if (tDecodeI32v(decoder, &pIn->number) < 0) return -1;
-//     if (tDecodeI32v(decoder, &pIn->speed) < 0) return -1;
-//     if (tDecodeI32v(decoder, &pIn->expire) < 0) return -1;
-//   }
-//   return 0;
-// }
+  for (int32_t i = 0; i < nIns; ++i) {
+    SGrantDataIns *pIn = TARRAY_GET_ELEM(pIns, i);
+    if (tDecodeCStrTo(decoder, &pIn->name[0]) < 0) return -1;
+    if (tDecodeI32v(decoder, &pIn->number) < 0) return -1;
+    if (tDecodeI32v(decoder, &pIn->speed) < 0) return -1;
+    if (tDecodeI32v(decoder, &pIn->expire) < 0) return -1;
+  }
+  return 0;
+}
