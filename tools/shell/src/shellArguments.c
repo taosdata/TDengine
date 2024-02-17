@@ -244,7 +244,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   }
   return 0;
 }
-
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64)
 int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
@@ -302,6 +302,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
 
   return 0;
 }
+#endif
 
 static void shellInitArgs(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {

@@ -33,3 +33,8 @@ add_test(
   NAME streamUpdateTest
   COMMAND streamUpdateTest
 )
+
+# add_test(
+#   NAME checkpointTest
+#   COMMAND checkpointTest
+# )
