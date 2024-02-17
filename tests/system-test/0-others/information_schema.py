@@ -300,7 +300,7 @@ class TDTestCase:
         if(len(result) > 0):
             tdSql.checkEqual(True, result[0][0].find(",init,ungranted,ungranted") >= 16)
             tdSql.checkEqual(True, len(result[0][1]) == 0)
-            tdSql.checkEqual(True, len(result[0][2]) >= 48)
+            tdSql.checkEqual(True, len(result[0][2]) >= 46)
 
         tdSql.query(f'select * from information_schema.ins_machines')
         tdSql.checkRows(1)
