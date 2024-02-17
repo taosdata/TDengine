@@ -763,8 +763,8 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
       void *key = tSimpleHashGetKey(pe, NULL);
       if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineKeyCmprFn, TD_EQ)) {
         if (toRevoked) *toRevoked = true;  // mismatch
-        uWarn("grant check machines, convert to revoked state since dnode %s mismatch, limit:%d", (char *)key,
-              nDnodeLimit);
+        uWarn("grant check machines, convert to revoked state since dnode:%d, %s mismatch, limit:%d", *(int32_t *)pe,
+              (char *)key, nDnodeLimit);
         break;
       }
     }
@@ -1312,7 +1312,7 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
 
 #ifndef GRANTS_CFG
-  if (gStatus.curTimeSeries > gStatus.limitTimeSeries) {
+  if (gStatus.curTimeSeries >= gStatus.limitTimeSeries) {
     if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
       mndProcessGrantNotify(pReq);
     }
