@@ -180,7 +180,7 @@
 #endif
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
 #define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS)
-#define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? grantHandle.nDiskCfg > 1 : 0))
+#define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0))
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
 
@@ -939,10 +939,12 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
   grantClusterTime = grantClusterEpoch + mndGetClusterUpTime(pMnode);
   mndProcessGrantHBSyncInfo(pMnode, type);
+  gStatus.nDiskCfg = grantHandle.nDiskCfg;
 
   // reset grantHandle and send gStatus to all dnodes, no resp needed
   taosArrayClear(grantHandle.pDnodeInfo);
   tSimpleHashClear(grantHandle.pMachineHash);
+  grantHandle.nDiskCfg = 0;
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
 
