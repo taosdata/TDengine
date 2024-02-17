@@ -939,8 +939,8 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
   grantClusterTime = grantClusterEpoch + mndGetClusterUpTime(pMnode);
   mndProcessGrantHBSyncInfo(pMnode, type);
-  gStatus.nDiskCfg = grantHandle.nDiskCfg;
-
+  COMPARE_SET_VAL(gStatus.nDiskCfg, grantHandle.nDiskCfg, !=);
+  
   // reset grantHandle and send gStatus to all dnodes, no resp needed
   taosArrayClear(grantHandle.pDnodeInfo);
   tSimpleHashClear(grantHandle.pMachineHash);
@@ -1941,7 +1941,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = (gStatus.expired || (gStatus.multiTierExpired && tsDiskCfgNum > 1)) ? "true" : "false";
+    src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
