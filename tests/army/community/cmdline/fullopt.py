@@ -31,8 +31,8 @@ class TDTestCase(TBase):
         'queryMaxConcurrentTables': '2K', 
         'streamMax': '1M', 
         'totalMemoryKB': '1G',
-        'rpcQueueMemoryAllowed': '1T',
-        'mndLogRetention': '1P',
+        #'rpcQueueMemoryAllowed': '1T',
+        #'mndLogRetention': '1P',
         'streamBufferSize':'2G'
     }    
 
