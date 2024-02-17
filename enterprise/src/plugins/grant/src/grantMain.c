@@ -973,10 +973,10 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
         continue;
       }
 
-      // if (tsServerPort == info->ep.port && 0 == strncmp(tsLocalFqdn, info->ep.fqdn, TSDB_FQDN_LEN)) {
-      //   uDebug("not send grant status to dnode:%d since duplicated node", info->id);
-      //   continue;
-      // }
+      if (tsServerPort == info->ep.port && 0 == strncmp(tsLocalFqdn, info->ep.fqdn, TSDB_FQDN_LEN)) {
+        uDebug("not send grant status to dnode:%d since duplicated node", info->id);
+        continue;
+      }
 
       if (i < dnodeSize - 1) {
         qCont = rpcMallocCont(contLen);
@@ -1170,12 +1170,11 @@ static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
 }
 
 static int32_t grantGetClusterCurCores(SMnode *pMnode) {
-  SSdb      *pSdb = pMnode ? pMnode->pSdb : NULL;
+  SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
   int32_t    numOfCores = 0;
 
-  if (!pSdb) return numOfCores;
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
     numOfCores += (int32_t)pDnode->numOfCores;
     sdbRelease(pSdb, pDnode);
@@ -1528,9 +1527,13 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
 }
 
 static int32_t grantCheckCpuCores() {
-  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) return 0;
+  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) {
+    return 0;
+  }
   if (grantHandle.pMnode) gStatus.curCpuCores = grantGetClusterCurCores(grantHandle.pMnode);
-  if (gStatus.curCpuCores < gStatus.limitCpuCores) return 0;
+  if (gStatus.curCpuCores < gStatus.limitCpuCores) {
+    return 0;
+  }
 
   uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant cpu cores limited", gStatus.curCpuCores);
   return TSDB_CODE_GRANT_CPU_LIMITED;
