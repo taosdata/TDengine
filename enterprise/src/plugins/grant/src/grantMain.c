@@ -1185,12 +1185,11 @@ static int32_t grantGetClusterCurCores(SMnode *pMnode) {
 }
 
 static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
-  SSdb       *pSdb = pMnode ? pMnode->pSdb : NULL;
+  SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
   int16_t     numOfStreams = 0;
 
-  if (!pSdb) return numOfStreams;
   while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream))) {
     ++numOfStreams;
     sdbRelease(pSdb, pStream);
@@ -1200,12 +1199,11 @@ static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
 }
 
 static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
-  SSdb            *pSdb = pMnode ? pMnode->pSdb : NULL;
+  SSdb            *pSdb = pMnode->pSdb;
   SMqSubscribeObj *pSubscribe = NULL;
   void            *pIter = NULL;
   int16_t          numOfSubscriptions = 0;
 
-  if (!pSdb) return numOfSubscriptions;
   while ((pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSubscribe))) {
     ++numOfSubscriptions;
     sdbRelease(pSdb, pSubscribe);
@@ -1215,12 +1213,11 @@ static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
 }
 
 static int32_t grantGetClusterCurViews(SMnode *pMnode) {
-  SSdb     *pSdb = pMnode ? pMnode->pSdb : NULL;
+  SSdb     *pSdb = pMnode->pSdb;
   SViewObj *pView = NULL;
   void     *pIter = NULL;
   int32_t   numOfViews = 0;
 
-  if (!pSdb) return numOfViews;
   while ((pIter = sdbFetch(pSdb, SDB_VIEW, pIter, (void **)&pView))) {
     ++numOfViews;
     sdbRelease(pSdb, pView);
@@ -1478,16 +1475,15 @@ static int32_t grantCheckStreams(bool checkNum) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.streamExpired) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (checkNum &&
-             (gStatus.limitStreams != GRANT_UNIQ_UNLIMITED &&
-              (gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode)) >= gStatus.limitStreams)) {
-    code = TSDB_CODE_GRANT_STREAM_LIMITED;
-  } else {
-    return code;
+  } else if (checkNum && gStatus.limitStreams != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode);
+    if (gStatus.curStreams >= gStatus.limitStreams) code = TSDB_CODE_GRANT_STREAM_LIMITED;
   }
 
-  uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
-         (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
+  if (code != 0) {
+    uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
+           (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
+  }
 
   return code;
 }
@@ -1496,17 +1492,15 @@ static int32_t grantCheckSubscriptions(bool checkNum) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.subscriptionExpired) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (checkNum && (gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED &&
-                          (gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode)) >=
-                              gStatus.limitSubscriptions)) {
-    code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
-
-  } else {
-    return code;
+  } else if (checkNum && gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode);
+    if (gStatus.curSubscriptions >= gStatus.limitSubscriptions) code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
 
-  uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
-         (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
+  if (code != 0) {
+    uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
+           (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
+  }
 
   return code;
 }
@@ -1515,29 +1509,29 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.viewExpired) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (checkNum && (gStatus.limitViews != GRANT_UNIQ_UNLIMITED &&
-                          (gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode)) >= gStatus.limitViews)) {
-    code = TSDB_CODE_GRANT_VIEW_LIMITED;
-  } else {
-    return code;
+  } else if (checkNum && gStatus.limitViews != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode);
+    if (gStatus.curViews >= gStatus.limitViews) code = TSDB_CODE_GRANT_VIEW_LIMITED;
   }
 
-  if (DEBUG_ERROR == traceLevel) {
-    uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
-           (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
-  } else {
-    uDebug("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
-           (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
+  if (code != 0) {
+    if (DEBUG_ERROR == traceLevel) {
+      uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
+             (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
+    } else {
+      uDebug("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
+             (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
+    }
   }
 
   return code;
 }
 
 static int32_t grantCheckCpuCores() {
-  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED ||
-      ((gStatus.curCpuCores = grantGetClusterCurCores(grantHandle.pMnode)) < gStatus.limitCpuCores)) {
-    return 0;
-  }
+  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) return 0;
+  if (grantHandle.pMnode) gStatus.curCpuCores = grantGetClusterCurCores(grantHandle.pMnode);
+  if (gStatus.curCpuCores < gStatus.limitCpuCores) return 0;
+
   uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant cpu cores limited", gStatus.curCpuCores);
   return TSDB_CODE_GRANT_CPU_LIMITED;
 }
