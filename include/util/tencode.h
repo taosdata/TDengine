@@ -490,33 +490,33 @@ static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
     return sizeof(TYPE);                              \
   } while (0)
 
-#define TPUTV(BUF, VAL, FORWARD)                   \
-  do {                                             \
-    int32_t n = 0;                                 \
-    for (;;) {                                     \
-      if ((VAL) < 0x80) {                          \
-        if (BUF) {                                 \
-          if (FORWARD) {                           \
-            (BUF)[n] = (VAL);                      \
-          } else {                                 \
-            (BUF)[-(n + 1)] = (VAL);               \
-          }                                        \
-        }                                          \
-        n++;                                       \
-        break;                                     \
-      } else {                                     \
-        if (BUF) {                                 \
-          if (FORWARD) {                           \
-            (BUF)[n] = ((VAL)&0x7f) | 0x80;        \
-          } else {                                 \
-            (BUF)[-(n + 1)] = ((VAL)&0x7f) | 0x80; \
-          }                                        \
-        }                                          \
-        n++;                                       \
-        (VAL) >>= 7;                               \
-      }                                            \
-    }                                              \
-    return n;                                      \
+#define TPUTV(BUF, VAL, FORWARD)                     \
+  do {                                               \
+    int32_t n = 0;                                   \
+    for (;;) {                                       \
+      if ((VAL) < 0x80) {                            \
+        if (BUF) {                                   \
+          if (FORWARD) {                             \
+            (BUF)[n] = (VAL);                        \
+          } else {                                   \
+            (BUF)[-(n + 1)] = (VAL);                 \
+          }                                          \
+        }                                            \
+        n++;                                         \
+        break;                                       \
+      } else {                                       \
+        if (BUF) {                                   \
+          if (FORWARD) {                             \
+            (BUF)[n] = ((VAL) & 0x7f) | 0x80;        \
+          } else {                                   \
+            (BUF)[-(n + 1)] = ((VAL) & 0x7f) | 0x80; \
+          }                                          \
+        }                                            \
+        n++;                                         \
+        (VAL) >>= 7;                                 \
+      }                                              \
+    }                                                \
+    return n;                                        \
   } while (0)
 
 #define TGETV(BUF, VAL, FORWARD)                           \
