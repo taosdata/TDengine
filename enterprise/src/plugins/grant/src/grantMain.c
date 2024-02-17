@@ -1376,7 +1376,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     // optional items
     int64_t optExpireSec =
         revoked ? TMIN(gStatus.revokedExpireSec, (int64_t)gStatus.basicExpireSec) : gStatus.basicExpireSec;
-    int8_t  optExpired = expireSec > grantCurTime ? 0 : 1;
+    int8_t optExpired = expireSec > grantCurTime ? 0 : 1;
     gStatus.multiTierExpireSec = optExpireSec;
     gStatus.multiTierExpired = optExpired;
     gStatus.streamExpireSec = optExpireSec;
@@ -1473,35 +1473,55 @@ static int32_t grantCheckDnodes() {
 static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckQueryTime() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
+
 static int32_t grantCheckStreams(bool checkNum) {
-  if (!gStatus.expired && !gStatus.streamExpired &&
-      (!checkNum || (gStatus.limitStreams == GRANT_UNIQ_UNLIMITED ||
-                     (gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode)) < gStatus.limitStreams))) {
-    return 0;
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.streamExpired) {
+    code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (checkNum &&
+             (gStatus.limitStreams != GRANT_UNIQ_UNLIMITED &&
+              (gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode)) >= gStatus.limitStreams)) {
+    code = TSDB_CODE_GRANT_STREAM_LIMITED;
+  } else {
+    return code;
   }
 
   uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
          (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
-  return TSDB_CODE_GRANT_STREAM_LIMITED;
+
+  return code;
 }
+
 static int32_t grantCheckSubscriptions(bool checkNum) {
-  if (!gStatus.expired && !gStatus.subscriptionExpired &&
-      (!checkNum || (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED ||
-                     (gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode)) <
-                         gStatus.limitSubscriptions))) {
-    return 0;
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.subscriptionExpired) {
+    code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (checkNum && (gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED &&
+                          (gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode)) >=
+                              gStatus.limitSubscriptions)) {
+    code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
+
+  } else {
+    return code;
   }
+
   uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
          (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
-  return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
+
+  return code;
 }
 
 static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
-  if (!gStatus.expired && !gStatus.viewExpired &&
-      (!checkNum || (gStatus.limitViews == GRANT_UNIQ_UNLIMITED ||
-                     (gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode)) < gStatus.limitViews))) {
-    return 0;
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.viewExpired) {
+    code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (checkNum && (gStatus.limitViews != GRANT_UNIQ_UNLIMITED &&
+                          (gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode)) >= gStatus.limitViews)) {
+    code = TSDB_CODE_GRANT_VIEW_LIMITED;
+  } else {
+    return code;
   }
+
   if (DEBUG_ERROR == traceLevel) {
     uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
            (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
@@ -1510,7 +1530,7 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
            (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
   }
 
-  return TSDB_CODE_GRANT_VIEW_LIMITED;
+  return code;
 }
 
 static int32_t grantCheckCpuCores() {
@@ -1623,7 +1643,7 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
 
   if (basicExpireDay == GRANT_UNIQ_UNDEFINED) {
     code = TSDB_CODE_GRANT_LACK_OF_BASIC;
-    TSDB_CHECK_CODE(code, lino, _exit); 
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else if (basicExpireDay == GRANT_UNIQ_UNLIMITED) {
     goto _exit;
   }
