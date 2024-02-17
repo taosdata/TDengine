@@ -255,8 +255,8 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  GRANT_OPT_FUTURE_EXPIRE,
-  GRANT_OPT_FUTURE_EXPIRE_NUM,
+  // GRANT_OPT_FUTURE_EXPIRE,
+  // GRANT_OPT_FUTURE_EXPIRE_NUM,
   GRANT_OPT_DYN_MAX,
 } SGrantOpt;
 

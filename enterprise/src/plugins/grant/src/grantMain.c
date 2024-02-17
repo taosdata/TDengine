@@ -657,10 +657,11 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireSec);
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireSec);
 
-  for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; i += 3) {
-    GRANT_EXPIRE_CONVERT(grantObj.dataIns[i], gStatus.dataIns[i].expireSec, 86400, dftExpireSec);            // expire
-    GRANT_VALUE_CONVERT(grantObj.dataIns[i + 1], gStatus.dataIns[i].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
-    GRANT_VALUE_CONVERT(grantObj.dataIns[i + 2], gStatus.dataIns[i].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);   // number
+  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    int32_t j = i * 3;
+    GRANT_EXPIRE_CONVERT(grantObj.dataIns[j], gStatus.dataIns[i].expireSec, 86400, dftExpireSec);            // expire
+    GRANT_VALUE_CONVERT(grantObj.dataIns[j + 1], gStatus.dataIns[i].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
+    GRANT_VALUE_CONVERT(grantObj.dataIns[j + 2], gStatus.dataIns[i].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);   // number
   }
 
   int64_t curTime = taosGetTimestampMs() / 1000;
