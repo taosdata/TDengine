@@ -29,7 +29,7 @@ extern char* tsMonFwUri;
 
 #define CLUSTER_TABLE "taosd_cluster_info"
 
-#define MASTER_UPTIME  CLUSTER_TABLE":master_uptime"
+#define MASTER_UPTIME  CLUSTER_TABLE":cluster_uptime"
 #define DBS_TOTAL CLUSTER_TABLE":dbs_total"
 #define TBS_TOTAL CLUSTER_TABLE":tbs_total"
 #define STBS_TOTAL CLUSTER_TABLE":stbs_total"
@@ -39,12 +39,14 @@ extern char* tsMonFwUri;
 #define VNODES_ALIVE CLUSTER_TABLE":vnodes_alive"
 #define DNODES_TOTAL CLUSTER_TABLE":dnodes_total"
 #define DNODES_ALIVE CLUSTER_TABLE":dnodes_alive"
+#define MNODES_TOTAL CLUSTER_TABLE":mnodes_total"
+#define MNODES_ALIVE CLUSTER_TABLE":mnodes_alive"
 #define CONNECTIONS_TOTAL CLUSTER_TABLE":connections_total"
 #define TOPICS_TOTAL CLUSTER_TABLE":topics_total"
 #define STREAMS_TOTAL CLUSTER_TABLE":streams_total"
-#define EXPIRE_TIME  CLUSTER_TABLE":expire_time"
-#define TIMESERIES_USED CLUSTER_TABLE":timeseries_used"
-#define TIMESERIES_TOTAL CLUSTER_TABLE":timeseries_total"
+#define EXPIRE_TIME  CLUSTER_TABLE":grants_expire_time"
+#define TIMESERIES_USED CLUSTER_TABLE":grants_timeseries_used"
+#define TIMESERIES_TOTAL CLUSTER_TABLE":grants_timeseries_total"
 
 #define VGROUP_TABLE "taosd_vgroups_info"
 
@@ -106,10 +108,11 @@ void monInitMonitorFW(){
   int32_t label_count =1;
   const char *sample_labels[] = {"cluster_id"};
   char *metric[] = {MASTER_UPTIME, DBS_TOTAL, TBS_TOTAL, STBS_TOTAL, VGROUPS_TOTAL,
-                VGROUPS_ALIVE, VNODES_TOTAL, VNODES_ALIVE, CONNECTIONS_TOTAL, TOPICS_TOTAL, STREAMS_TOTAL,
+                    VGROUPS_ALIVE, VNODES_TOTAL, VNODES_ALIVE, MNODES_TOTAL, MNODES_ALIVE,
+                    CONNECTIONS_TOTAL, TOPICS_TOTAL, STREAMS_TOTAL,
                     DNODES_TOTAL, DNODES_ALIVE, EXPIRE_TIME, TIMESERIES_USED,
                     TIMESERIES_TOTAL};
-  for(int32_t i = 0; i < 16; i++){
+  for(int32_t i = 0; i < 18; i++){
     gauge= taos_gauge_new(metric[i], "",  label_count, sample_labels);
     if(taos_collector_registry_register_metric(gauge) == 1){
       taos_counter_destroy(gauge);
@@ -262,6 +265,25 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
 
   metric = taosHashGet(tsMonitor.metrics, DNODES_ALIVE, strlen(DNODES_ALIVE));
   taos_gauge_set(*metric, dnode_alive, sample_labels);
+
+  //mnodes number 
+  int32_t mnode_total = taosArrayGetSize(pInfo->mnodes);
+  int32_t mnode_alive = 0;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->mnodes); ++i) {
+
+    SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->mnodes, i);
+
+    if(pMnodeDesc->syncState != 0){
+        mnode_alive++;
+    }
+  }
+
+  metric = taosHashGet(tsMonitor.metrics, MNODES_TOTAL, strlen(MNODES_TOTAL));
+  taos_gauge_set(*metric, mnode_total, sample_labels);
+
+  metric = taosHashGet(tsMonitor.metrics, MNODES_ALIVE, strlen(MNODES_ALIVE));
+  taos_gauge_set(*metric, mnode_alive, sample_labels);
 
   //grant info
   metric = taosHashGet(tsMonitor.metrics, EXPIRE_TIME, strlen(EXPIRE_TIME));
