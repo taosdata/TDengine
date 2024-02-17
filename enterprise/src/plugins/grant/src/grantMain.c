@@ -761,7 +761,7 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     // if dnode machines all exist in cluster, it's ok; otherwise transfer to revoked state
     while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
-      if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
+      if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineKeyCmprFn, TD_EQ)) {
         if (toRevoked) *toRevoked = true;  // mismatch
         uWarn("grant check machines, convert to revoked state since dnode %s mismatch, limit:%d", (char *)key,
               nDnodeLimit);
