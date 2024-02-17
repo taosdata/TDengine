@@ -623,7 +623,7 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
     // machineCode
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
-      tSimpleHashPut(pMachineHash, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
+      tSimpleHashPut(pMachineHash, pDnode->machineId, klen + 1, &pDnode->id, sizeof(pDnode->id));
     }
     // nDiskCfg
     if (pDnode->numOfDiskCfg > grantHandle.nDiskCfg) {
