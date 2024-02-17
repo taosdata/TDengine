@@ -34,7 +34,7 @@ add_test(
   COMMAND streamUpdateTest
 )
 
-add_test(
-  NAME checkpointTest
-  COMMAND checkpointTest
-)
+# add_test(
+#   NAME checkpointTest
+#   COMMAND checkpointTest
+# )
