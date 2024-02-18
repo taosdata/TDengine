@@ -33,8 +33,13 @@ class TDTestCase(TBase):
         "lossyColumns"           : "float,double",
         "fPrecision"             : "0.000000001",
         "dPrecision"             : "0.00000000000000001",
-        "ifAdtFse"               : "1"
+        "ifAdtFse"               : "1",
+        'slowLogScope'           : "insert"
     }
+    updatecfgDict = {
+        
+    }
+
 
     def insertData(self):
         tdLog.info(f"insert data.")
