@@ -88,6 +88,14 @@ groups:
         hint:
           type: bool
         description: 启用此模式以提升多表低频场景下的性能。
+      - name: schema-polling-interval
+        display: 元数据轮询间隔
+        value: 5s
+        hint:
+          type: duration
+        description: |-
+          元数据轮询间隔，用于同步过程中的元数据变更检测。
+        placeholder: "时间: 5s"
 
   - name: 表
     display_order: 2
