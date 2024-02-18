@@ -12,7 +12,7 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::influxdb::influxdb_datasets;
-use crate::runners::opc::config::OpcTableConfig;
+use crate::runners::opc::config::model::OpcModelConfig;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
@@ -104,7 +104,7 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,

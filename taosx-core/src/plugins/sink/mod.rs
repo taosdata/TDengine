@@ -39,8 +39,10 @@ use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
 };
-use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};
-use crate::{plugins::runners::opc::config::OpcTableConfig, sink::flat::flat_write_with_sql};
+use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
+use crate::{
+    plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
+};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
@@ -61,14 +63,6 @@ use super::*;
 pub mod flat;
 pub mod ipc_metric;
 
-// mod rpc_client;
-
-// #[derive(Debug)]
-// pub enum XMessageBatch {
-//     Tables(Vec<(String, Option<String>, Vec<(taos::Field, taos::Value)>)>),
-//     Records(Vec<(String, Vec<ColumnView>)>),
-// }
-
 #[instrument(skip_all, fields(task.id=task_id))]
 async fn ipc_tcp_forward(
     client: String,
@@ -77,7 +71,7 @@ async fn ipc_tcp_forward(
     remote: String, // "http://127.0.0.1:6051"
     token: String,
     task_id: i64,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
 ) -> anyhow::Result<()> {
     use md5;
     let stream_trace_id = create_stream_trace_id();
@@ -254,7 +248,7 @@ async fn ipc_tcp_read(
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
     lock: Arc<Mutex<()>>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     _cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
@@ -706,7 +700,7 @@ async fn consume_point_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &PointMessage,
     count: &mut usize,
-    config: &OpcTableConfig,
+    config: &OpcModelConfig,
     target_precision: taos::Precision,
     data_trace_id: u64,
     trace_id_str: &str,
@@ -715,10 +709,10 @@ async fn consume_point_record(
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
-        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
-            message.record(),
-            target_precision,
-        );
+        // todo: handle value_transform, ts_transform, rts_transform
+        // let message = handle_transform(message);
+
+        let cv_vec = record_batch_to_column_view(message.record(), target_precision);
         // process id, name, ts, value, status
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
@@ -735,11 +729,12 @@ async fn consume_point_record(
         let value_cv = cv_vec.get(value_index).unwrap();
         let status_cv = cv_vec.get(status_index).unwrap();
 
-        let id_code_map = &config.id_code_map;
+        let id_code_map = &config.point_config_map;
         let table_config = &config.table_config;
         let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
 
         let stable_prefix = table_config.stable_prefix.clone();
+        // 如果 stable_prefix 存在，那么 stable_name 用 stable_prefix 拼接 value_type
         let stable_name = if stable_prefix.is_some() {
             let mut stable_prefix = stable_prefix.unwrap();
             if value_type.contains("varchar") {
@@ -760,9 +755,9 @@ async fn consume_point_record(
         let mut value_column = None;
         for column_config in &table_config.column_configs {
             if column_config.is_primary_key {
-                let primary_key_column_name = column_config.column_name.clone();
+                let primary_key_column_name = column_config.name.clone();
                 let prinmary_key_column_alias = column_config
-                    .column_alias
+                    .alias
                     .clone()
                     .unwrap_or(primary_key_column_name.clone());
                 columns_insert.insert(
@@ -774,22 +769,22 @@ async fn consume_point_record(
                     format!("`{prinmary_key_column_alias}` TIMESTAMP,").as_str(),
                 );
             } else {
-                let primary_key_column_name = column_config.column_name.clone();
-                let prinmary_key_column_alias = column_config
-                    .column_alias
+                let primary_key_column_name = column_config.name.clone();
+                let primary_key_column_alias = column_config
+                    .alias
                     .clone()
                     .unwrap_or(primary_key_column_name.clone());
-                columns_insert.push((primary_key_column_name, prinmary_key_column_alias.clone()));
-                let column_type = if column_config.column_type.is_some() {
-                    column_config.column_type.unwrap().to_string()
+                columns_insert.push((primary_key_column_name, primary_key_column_alias.clone()));
+                let column_type = if column_config.r#type.is_some() {
+                    column_config.r#type.unwrap().to_string()
                 } else {
                     value_type.clone()
                 };
-                if column_config.column_name == "value" {
+                if column_config.name == "value" {
                     value_column = Some(column_config.clone());
                 } else {
                     columns.push_str(
-                        format!("`{prinmary_key_column_alias}` {},", column_type).as_str(),
+                        format!("`{primary_key_column_alias}` {},", column_type).as_str(),
                     );
                 }
             }
@@ -800,9 +795,7 @@ async fn consume_point_record(
         if table_config.tag_configs.is_some() {
             let tag_configs = table_config.tag_configs.clone().unwrap();
             for tag in tag_configs {
-                tags.push_str(
-                    format!(" ,`{}` {}", tag.column_name, tag.column_type.sql_repr()).as_str(),
-                );
+                tags.push_str(format!(" ,`{}` {}", tag.name, tag.r#type.sql_repr()).as_str());
             }
         }
         // stable, Vec<insert_sql, sql length overflow?, value_column_type>
@@ -905,7 +898,7 @@ async fn consume_point_record(
             if table_config.tag_configs.is_some() {
                 // let mut index = 0;
                 for ele in table_config.tag_configs.as_ref().unwrap() {
-                    let tag_name = ele.column_name.clone();
+                    let tag_name = ele.name.clone();
                     tag_names.push_str(format!("`{}`,", tag_name).as_str());
                     let value = point_config
                         .tag_values
@@ -913,7 +906,7 @@ async fn consume_point_record(
                         .unwrap()
                         .get(&tag_name)
                         .unwrap();
-                    let value = match ele.column_type {
+                    let value = match ele.r#type {
                         IpcDataType::VarChar(_) | IpcDataType::NChar(_) | IpcDataType::Json => {
                             format!("\"{value}\"")
                         }
@@ -1058,10 +1051,9 @@ async fn consume_point_record(
                                 // stable not exists
                                 // should be some
                                 let value_column_config = value_column.as_ref().unwrap();
-                                let primary_key_column_name =
-                                    value_column_config.column_name.clone();
+                                let primary_key_column_name = value_column_config.name.clone();
                                 let prinmary_key_column_alias = value_column_config
-                                    .column_alias
+                                    .alias
                                     .clone()
                                     .unwrap_or(primary_key_column_name.clone());
                                 let mut temp_conlumns = columns.clone();
@@ -1197,7 +1189,7 @@ async fn consume_point_record(
                                     });
                                     if need_add {
                                         let column_real_name = get_real_column_name(column_config);
-                                        if column_config.column_type.is_none() {
+                                        if column_config.r#type.is_none() {
                                             // shouldn't happen if normal
                                             // encounter when rename value column
                                             tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
@@ -1206,7 +1198,7 @@ async fn consume_point_record(
                                         let add_column_sql = format!(
                                             "alter table `{stable_name}` ADD COLUMN {} {}",
                                             column_real_name,
-                                            column_config.column_type.unwrap()
+                                            column_config.r#type.unwrap()
                                         );
                                         tracing::info!("add_column_sql: {}", add_column_sql);
                                         let res = taos
@@ -1250,9 +1242,7 @@ async fn consume_point_record(
                                         .as_ref()
                                         .unwrap()
                                         .iter()
-                                        .map(|config| {
-                                            (config.column_name.clone(), config.column_type.clone())
-                                        })
+                                        .map(|config| (config.name.clone(), config.r#type.clone()))
                                         .collect_vec();
                                     let sqls = generate_alter_sql_diff_desc(
                                         &stable_name,
@@ -1317,8 +1307,7 @@ async fn consume_point_record(
                                 ));
                                 if table_config.tag_configs.is_some() {
                                     for tag_conf in table_config.tag_configs.clone().unwrap() {
-                                        tags_for_diff
-                                            .push((tag_conf.column_name, tag_conf.column_type));
+                                        tags_for_diff.push((tag_conf.name, tag_conf.r#type));
                                     }
                                 }
                                 let sqls = generate_alter_sql_diff_desc(
@@ -1381,10 +1370,7 @@ async fn consume_point_record(
 
 #[inline]
 fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    &column_config
-        .column_alias
-        .as_ref()
-        .unwrap_or(&column_config.column_name)
+    &column_config.alias.as_ref().unwrap_or(&column_config.name)
 }
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
@@ -2009,7 +1995,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     _license: Option<&ConnectorLicense>,
     _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
@@ -2023,7 +2009,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     #[derive(Clone)]
     struct WriterContext {
         pool: TaosPool,
-        config: Option<Arc<OpcTableConfig>>,
+        config: Option<Arc<OpcModelConfig>>,
         target_precision: taos::Precision,
     }
 
@@ -2331,7 +2317,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     _lock: Arc<Mutex<()>>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     parser: Option<Parser>,
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
@@ -2527,7 +2513,7 @@ pub struct IpcStreamWorker {
     task: Option<i64>,
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
-    opc_table_config: OnceCell<OpcTableConfig>,
+    opc_table_config: OnceCell<OpcModelConfig>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     span: tracing::Span,
@@ -2549,7 +2535,7 @@ impl IpcStreamWorker {
         if let Some(config) = schema.metadata().get("config") {
             opc_table_config
                 .get_or_try_init(|| async {
-                    serde_json::from_str::<OpcTableConfig>(config).context("config error")
+                    serde_json::from_str::<OpcModelConfig>(config).context("config error")
                 })
                 .await?;
         }
@@ -2683,7 +2669,7 @@ pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
 ) -> anyhow::Result<IpcHandler> {
     let addr = socket.as_ref();
 
@@ -2836,7 +2822,7 @@ pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
     // sender: Sender<String>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
