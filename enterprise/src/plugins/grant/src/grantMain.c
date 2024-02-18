@@ -1282,6 +1282,13 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
 static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   int32_t dnodeSize = mndGetDnodeSize(pMnode);
+  int64_t notifyTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
+
+  if (dnodeSize <= 1) {
+    atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
+    return 0;
+  }
+
   SArray *pDnodeInfo = taosArrayInit(dnodeSize, sizeof(SDnodeInfo));
   if (!pDnodeInfo) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1291,12 +1298,20 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
   mndGetDnodeData(pMnode, pDnodeInfo);
 
-  int64_t notifyTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
+  int32_t dInfoSize = taosArrayGetSize(pDnodeInfo);
   atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
-
   SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
-  for (int32_t i = 0; i < taosArrayGetSize(pDnodeInfo); ++i) {
-    SDnodeInfo *info = (SDnodeInfo *)taosArrayGet(pDnodeInfo, i);
+  for (int32_t i = 0; i < dInfoSize; ++i) {
+    SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(pDnodeInfo, i);
+    if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT || info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+      uDebug("not send grant notify to dnode:%d since offline state:%d", info->id, info->offlineReason);
+      continue;
+    }
+
+    if (tsServerPort == info->ep.port && 0 == strncmp(tsLocalFqdn, info->ep.fqdn, TSDB_FQDN_LEN)) {
+      uDebug("not send grant notify to dnode:%d since duplicated node", info->id);
+      continue;
+    }
     mndSendGrantNotifyToDnode(pMnode, info, &notify);
   }
 
