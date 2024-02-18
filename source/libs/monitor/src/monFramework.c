@@ -77,10 +77,10 @@ extern char* tsMonFwUri;
 #define HAS_MNODE DNODE_TABLE":has_mnode"
 #define HAS_QNODE DNODE_TABLE":has_qnode"
 #define HAS_SNODE DNODE_TABLE":has_snode"
-#define DNODE_LOG_ERROR DNODE_TABLE":ERROR"
-#define DNODE_LOG_INFO DNODE_TABLE":INFO"
-#define DNODE_LOG_DEBUG DNODE_TABLE":DEBUG"
-#define DNODE_LOG_TRACE DNODE_TABLE":TRACE"
+#define DNODE_LOG_ERROR DNODE_TABLE":error_log_count"
+#define DNODE_LOG_INFO DNODE_TABLE":info_log_count"
+#define DNODE_LOG_DEBUG DNODE_TABLE":debug_log_count"
+#define DNODE_LOG_TRACE DNODE_TABLE":trace_log_count"
 
 #define DNODE_STATUS "taosd_dnodes_status:status"
 
