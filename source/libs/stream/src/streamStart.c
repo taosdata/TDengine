@@ -385,7 +385,7 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-  streamTaskOnHandleEventSuccess(pTask->status.pSM, event);
+  streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
 
   int64_t initTs = pTask->execInfo.init;
   int64_t startTs = pTask->execInfo.start;
