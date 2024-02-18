@@ -749,16 +749,17 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
       num = nDnodeLimit - nMachines;
     }
     if (num > 0) {
-      *pGrantMachines = taosArrayInit(num, sizeof(SGrantMachine));
+      *pGrantMachines = taosArrayInit_s(sizeof(SGrantMachine), num);
       if (NULL == *pGrantMachines) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
       int64_t curTime = taosGetTimestampMs() / 1000;
       for (int32_t i = 0; i < num; ++i) {
-        taosArrayPush(*pGrantMachines, &(SGrantMachine){.id = dnodeIds[i], .ts = curTime});
-        SGrantMachine *pLastMachine = taosArrayGetLast(*pGrantMachines);
-        memcpy(&pLastMachine->machine[0], machines[i], TSDB_MACHINE_ID_LEN);
+        SGrantMachine *pMachine = TARRAY_GET_ELEM(*pGrantMachines, i);
+        pMachine->id = dnodeIds[i];
+        pMachine->ts = curTime;
+        memcpy(&pMachine->machine[0], machines[i], TSDB_MACHINE_ID_LEN);
       }
     }
   } else if (nMachines == nDnodeLimit) {
@@ -769,6 +770,11 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
         if (toRevoked) *toRevoked = true;  // mismatch
         uWarn("grant check machines, convert to revoked state since dnode:%d, %s mismatch, limit:%d", *(int32_t *)pe,
               (char *)key, nDnodeLimit);
+        for (int32_t i = 0; i < nMachines; ++i) {
+          SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
+          uWarn("grant check machines, ts:%" PRIi64 ", id:%d, machine:%s", (int64_t)pMachine->ts, (int32_t)pMachine->id,
+                pMachine->machine);
+        }
         break;
       }
     }
@@ -2423,7 +2429,7 @@ static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
   int16_t nIns = 0;
   if (tDecodeI16v(decoder, &nIns) < 0) return -1;
   if (nIns <= 0) return 0;
-  if (!pIns && !(pIns = taosArrayInit(nIns, sizeof(SGrantDataIns)))) {
+  if (!pIns && !(pIns = taosArrayInit_s(sizeof(SGrantDataIns), nIns))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

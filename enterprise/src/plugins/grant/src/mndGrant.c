@@ -400,14 +400,13 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
     goto _return;
   }
   if (nMachines > 0) {
-    if (!pObj->pMachines && !(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+    if (!pObj->pMachines && !(pObj->pMachines = taosArrayInit_s(sizeof(SGrantMachine), nMachines))) {
       RETURN_WITH_CODE(true, TSDB_CODE_OUT_OF_MEMORY);
     }
     for (int32_t i = 0; i < nMachines; ++i) {
-      taosArrayPush(pObj->pMachines, &(SGrantMachine){0});
-      SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
-      RETURN_WITH_CODE(tDecodeI64v(&decoder, &pLast->u0) < 0, code);
-      RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pLast->machine[0]) < 0, code);
+      SGrantMachine *pMachine = TARRAY_GET_ELEM(pObj->pMachines, i);
+      RETURN_WITH_CODE(tDecodeI64v(&decoder, &pMachine->u0) < 0, code);
+      RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pMachine->machine[0]) < 0, code);
     }
   }
   code = 0;
