@@ -720,6 +720,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  // add into buffer firstly
+  // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
+  taosThreadMutexLock(&execInfo.lock);
+  mDebug("stream tasks register into node list");
+  saveStreamTasksInfo(&streamObj, &execInfo);
+  taosThreadMutexUnlock(&execInfo.lock);
+
   // execute creation
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -728,12 +735,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   mndTransDrop(pTrans);
-
-  taosThreadMutexLock(&execInfo.lock);
-
-  mDebug("stream tasks register into node list");
-  saveStreamTasksInfo(&streamObj, &execInfo);
-  taosThreadMutexUnlock(&execInfo.lock);
 
   SName dbname = {0};
   tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
