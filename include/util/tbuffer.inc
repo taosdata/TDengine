@@ -112,16 +112,14 @@ static FORCE_INLINE int32_t tBufferPutU64(SBufferWriter *writer, uint64_t value)
   return tBufferPutFixed(writer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI16v(SBufferWriter *writer, int16_t value) {
-  return tBufferPutU16v(writer, ZIGZAGE(int16_t, value));
-}
-
-static FORCE_INLINE int32_t tBufferPutI32v(SBufferWriter *writer, int32_t value) {
-  return tBufferPutU32v(writer, ZIGZAGE(int32_t, value));
-}
-
-static FORCE_INLINE int32_t tBufferPutI64v(SBufferWriter *writer, int64_t value) {
-  return tBufferPutU64v(writer, ZIGZAGE(int64_t, value));
+static FORCE_INLINE int32_t tBufferPutU64v(SBufferWriter *writer, uint64_t value) {
+  int32_t code;
+  while (value >= 0x80) {
+    code = tBufferPutU8(writer, (value & 0x7F) | 0x80);
+    if (code) return code;
+    value >>= 7;
+  }
+  return tBufferPutU8(writer, value);
 }
 
 static FORCE_INLINE int32_t tBufferPutU16v(SBufferWriter *writer, uint16_t value) {
@@ -132,13 +130,16 @@ static FORCE_INLINE int32_t tBufferPutU32v(SBufferWriter *writer, uint32_t value
   return tBufferPutU64v(writer, value);
 }
 
-static FORCE_INLINE int32_t tBufferPutU64v(SBufferWriter *writer, uint64_t value) {
-  int32_t code;
-  while (value < 0x80) {
-    code = tBufferPutU8(writer, (value & 0x7F) | 0x80);
-    if (code) return code;
-  }
-  return tBufferPutU8(writer, value);
+static FORCE_INLINE int32_t tBufferPutI16v(SBufferWriter *writer, int16_t value) {
+  return tBufferPutU16v(writer, ZIGZAGE(int16_t, value));
+}
+
+static FORCE_INLINE int32_t tBufferPutI32v(SBufferWriter *writer, int32_t value) {
+  return tBufferPutU32v(writer, ZIGZAGE(int32_t, value));
+}
+
+static FORCE_INLINE int32_t tBufferPutI64v(SBufferWriter *writer, int64_t value) {
+  return tBufferPutU64v(writer, ZIGZAGE(int64_t, value));
 }
 
 static FORCE_INLINE int32_t tBufferPutBinary(SBufferWriter *writer, const void *data, uint32_t size) {
@@ -218,33 +219,27 @@ static int32_t tBufferGetU64(SBufferReader *reader, uint64_t *value) {
   return tBufferGetFixed(reader, value, sizeof(*value));
 }
 
-static int32_t tBufferGetI16v(SBufferReader *reader, int16_t *value) {
-  uint16_t u16;
-  int32_t  code = tBufferGetU16v(reader, &u16);
-  if (code) return code;
-  if (value) {
-    *value = ZIGZAGE(int16_t, u16);
-  }
-  return 0;
-}
+static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
+  uint8_t byte;
+  int32_t code;
 
-static int32_t tBufferGetI32v(SBufferReader *reader, int32_t *value) {
-  uint32_t u32;
-  int32_t  code = tBufferGetU32v(reader, &u32);
-  if (code) return code;
   if (value) {
-    *value = ZIGZAGE(int32_t, u32);
+    *value = 0;
   }
-  return 0;
-}
 
-static int32_t tBufferGetI64v(SBufferReader *reader, int64_t *value) {
-  uint64_t u64;
-  int32_t  code = tBufferGetU64v(reader, &u64);
-  if (code) return code;
-  if (value) {
-    *value = ZIGZAGE(int64_t, u64);
+  for (int32_t i = 0;; i++) {
+    code = tBufferGetU8(reader, &byte);
+    if (code) return code;
+
+    if (value) {
+      *value |= ((uint64_t)(byte & 0x7F)) << (i * 7);
+    }
+
+    if (byte < 0x80) {
+      break;
+    }
   }
+
   return 0;
 }
 
@@ -268,27 +263,33 @@ static int32_t tBufferGetU32v(SBufferReader *reader, uint32_t *value) {
   return 0;
 }
 
-static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
-  uint8_t byte;
-  int32_t code;
-
+static int32_t tBufferGetI16v(SBufferReader *reader, int16_t *value) {
+  uint16_t u16;
+  int32_t  code = tBufferGetU16v(reader, &u16);
+  if (code) return code;
   if (value) {
-    *value = 0;
+    *value = ZIGZAGD(int16_t, u16);
   }
+  return 0;
+}
 
-  for (;;) {
-    code = tBufferGetU8(reader, &byte);
-    if (code) return code;
-
-    if (value) {
-      *value = (uint64_t)((byte & 0x7F) | (*value << 7));
-    }
-
-    if (byte < 0x80) {
-      break;
-    }
+static int32_t tBufferGetI32v(SBufferReader *reader, int32_t *value) {
+  uint32_t u32;
+  int32_t  code = tBufferGetU32v(reader, &u32);
+  if (code) return code;
+  if (value) {
+    *value = ZIGZAGD(int32_t, u32);
   }
+  return 0;
+}
 
+static int32_t tBufferGetI64v(SBufferReader *reader, int64_t *value) {
+  uint64_t u64;
+  int32_t  code = tBufferGetU64v(reader, &u64);
+  if (code) return code;
+  if (value) {
+    *value = ZIGZAGD(int64_t, u64);
+  }
   return 0;
 }
 
