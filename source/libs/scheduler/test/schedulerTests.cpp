@@ -1010,9 +1010,9 @@ TEST(otherTest, otherCase) {
   schReleaseJob(0);
   schFreeRpcCtx(NULL);
 
-  EXPECT_EQ(schDumpEpSet(NULL), NULL);
-  EXPECT_EQ(schGetOpStr(SCH_OP_NULL), "NULL");
-  EXPECT_EQ(schGetOpStr((SCH_OP_TYPE)100, "UNKNOWN");
+  ASSERT_EQ(schDumpEpSet(NULL), (char*)NULL);
+  ASSERT_EQ(strcmp(schGetOpStr(SCH_OP_NULL), "NULL"), 0);
+  ASSERT_EQ(strcmp(schGetOpStr((SCH_OP_TYPE)100), "UNKNOWN"), 0);
 }
 
 int main(int argc, char **argv) {
