@@ -69,6 +69,19 @@ typedef pthread_key_t        TdThreadKey;
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
+#if !defined(WINDOWS)
+#if defined(_TD_DARWIN_64)  // MACOS
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#else  // LINUX
+#if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L
+#define taosThreadRwlockAttrSetKindNP(A, B) pthread_rwlockattr_setkind_np(A, B)
+#else
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#endif
+#endif
+#else  // WINDOWS
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#endif
 
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
 #define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER_FORBID
