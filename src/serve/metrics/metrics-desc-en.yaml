@@ -33,14 +33,14 @@ updated_tags: Number of updated tags in this task run
 total_messages: Total number of messages received via TMQ
 total_messages_of_meta: Total number of messages with type "Meta" received via TMQ
 total_messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ
-total_write_raw_fails: Total number of "Meta" messages failed to deal with
+total_write_raw_fails: Total times of failed to write TMQ messages
 total_success_blocks: Total number of data blocks successfully written
 topics: Total number of topics subscribed to via TMQ
 consumers: Total number of consumers created via TMQ
 messages: Total number of messages received via TMQ in this task run
 messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
 messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
-write_raw_fails: Total number of "Meta" messages failed to deal with in this task runs
+write_raw_fails: Total times of failed to write TMQ messages in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
