@@ -250,13 +250,13 @@ export default {
           this.sourceParent.currentDefinition
         )
           ? this.config.pattern 
-            ? [requireRule,...patternRule] 
+            ? [...requireRule,...patternRule] 
             : requireRule
           : [];
       }
       return this.config.required
         ? this.config.pattern 
-          ? [requireRule,...patternRule] 
+          ? [...requireRule,...patternRule] 
           : requireRule
         : [];
     },
