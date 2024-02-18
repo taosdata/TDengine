@@ -540,12 +540,14 @@ int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj 
 
 static void *topicNameDup(void *p) { return taosStrdup((char *)p); }
 
+#ifdef BUILD_NO_CALL
 static void freeItem(void *param) {
   void *pItem = *(void **)param;
   if (pItem != NULL) {
     taosMemoryFree(pItem);
   }
 }
+#endif
 
 int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
