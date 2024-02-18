@@ -415,7 +415,6 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
 
       stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
-      ASSERT(0);
       taosMsleep(100);
     } else {
       // no active event trans exists, handle this event directly
@@ -485,6 +484,9 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   // on success callback, add into lock if necessary, or maybe we should add an option for this?
   pTrans->pSuccAction(pTask);
 
+  taosThreadMutexUnlock(&pTask->lock);
+
+  // todo: add parameter to control lock
   // after handling the callback function assigned by invoker, go on handling the waiting tasks
   if (callbackFn != NULL) {
     stDebug("s-task:%s start to handle user-specified callback fn for event:%s", id, GET_EVT_NAME(pTrans->event));
@@ -492,6 +494,8 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
     stDebug("s-task:%s handle user-specified callback fn for event:%s completed", id, GET_EVT_NAME(pTrans->event));
   }
+
+  taosThreadMutexLock(&pTask->lock);
 
   // tasks in waiting list
   if (taosArrayGetSize(pSM->pWaitingEventList) > 0) {
