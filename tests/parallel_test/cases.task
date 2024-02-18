@@ -4,12 +4,8 @@
 
 #unit-test
 
-archOs=$(arch)
-if [[ $archOs =~ "aarch64" ]]; then
 ,,n,unit-test,bash test.sh
-else
-,,y,unit-test,bash test.sh
-fi
+
 
 #
 # army-test
