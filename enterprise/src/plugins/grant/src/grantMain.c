@@ -85,17 +85,21 @@
     }                                             \
   } while (0)
 
-#define GRANT_OPT_EXPIRE_CHECK(expire)                                          \
-  do {                                                                          \
-    if ((expire) == GRANT_UNIQ_UNDEFINED) {                                     \
-      if (basicLtDefault) {                                                     \
-        code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                            \
-        TSDB_CHECK_CODE(code, lino, _exit);                                     \
-      }                                                                         \
-    } else if ((expire) == GRANT_UNIQ_UNLIMITED || (expire) > basicExpireDay) { \
-      code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                              \
-      TSDB_CHECK_CODE(code, lino, _exit);                                       \
-    }                                                                           \
+#define GRANT_OPT_EXPIRE_CHECK(expire, name)                                                                       \
+  do {                                                                                                             \
+    if ((expire) == GRANT_UNIQ_UNDEFINED) {                                                                        \
+      if (basicLtDefault) {                                                                                        \
+        code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                                                               \
+        uError("grant optional items check failed since %s, basic:%" PRIi64 " < default %s:%" PRIi64 "(second)",   \
+               tstrerror(code), basicExpireSec, (name), defaultExpireSec);                                         \
+        TSDB_CHECK_CODE(code, lino, _exit);                                                                        \
+      }                                                                                                            \
+    } else if ((expire) == GRANT_UNIQ_UNLIMITED || (expire) > basicExpireDay) {                                    \
+      code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                                                                 \
+      uError("grant optional items check failed since %s, basic:%d < %s:%d(day)", tstrerror(code), basicExpireDay, \
+             (name), (expire));                                                                                    \
+      TSDB_CHECK_CODE(code, lino, _exit);                                                                          \
+    }                                                                                                              \
   } while (0)
 
 #define GRANT_ITEM_EXPIRE_CHECK(val, now, expired) \
@@ -1663,7 +1667,7 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
   }
 
   int64_t basicExpireSec = basicExpireDay * 86400;
-  int32_t defaultExpireSec = 0;
+  int64_t defaultExpireSec = 0;
   if (upgradeTime > 0) {
     defaultExpireSec = upgradeTime + GRANT_DEFAULT;
   } else {
@@ -1676,23 +1680,23 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
   if (basicExpireSec < defaultExpireSec) basicLtDefault = true;
 
   for (int32_t i = 1; i < GRANT_OPT_MAX; ++i) {
-    GRANT_OPT_EXPIRE_CHECK(pObj->expireDays[i]);
+    GRANT_OPT_EXPIRE_CHECK(pObj->expireDays[i], gGrantName[i]);
   }
 
   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; i += 3) {
-    GRANT_OPT_EXPIRE_CHECK(pObj->dataIns[i]);
+    GRANT_OPT_EXPIRE_CHECK(pObj->dataIns[i], gConnName[i / 3]);
   }
 
   int32_t size = taosArrayGetSize(pObj->pDataIns);
   for (int32_t i = 0; i < size; ++i) {
     SGrantDataIns *pItem = TARRAY_GET_ELEM(pObj->pDataIns, i);
-    GRANT_OPT_EXPIRE_CHECK(pItem->expire);
+    GRANT_OPT_EXPIRE_CHECK(pItem->expire, pItem->name);
   }
 
   size = taosArrayGetSize(pObj->pItem64);
   for (int32_t i = 0; i < size; ++i) {
     SGrantItem64 *pItem = TARRAY_GET_ELEM(pObj->pItem64, i);
-    GRANT_OPT_EXPIRE_CHECK(pItem->expire);
+    GRANT_OPT_EXPIRE_CHECK(pItem->expire, pItem->name);
   }
   code = 0;
 
