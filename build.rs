@@ -78,8 +78,8 @@ fn labeling(mut file: &File) -> SdResult<()> {
 fn main() {
     #[cfg(windows)]
     {
-        // println!("cargo:rustc-link-arg-bin=taosx=/MANIFEST:EMBED");
-        // println!("cargo:rustc-link-arg-bin=taosx=/MANIFESTUAC:level=\'requireAdministrator\'");
+        println!("cargo:rustc-link-arg-bin=taosx=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-bin=taosx=/MANIFESTUAC:level=\'requireAdministrator\'");
     }
     dotenv::dotenv().ok();
     shadow_rs::new_hook(labeling).unwrap();
