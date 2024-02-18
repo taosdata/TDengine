@@ -17,7 +17,7 @@ groups:
     description: CSV 读取选项
     params:
       - name: has_header
-        display: 包含Header
+        display: 包含 Header
         description: |
           如果包含 Header，则第一行将被视为列信息。
         hint:

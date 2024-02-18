@@ -174,37 +174,37 @@ advanced:
           - debug
           - trace
     - name: read_concurrency
-      hidden: true
+      #hidden: true
       display: Read Concurrency
       description: |
         The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
-      value: 0
+      value: 50
       hint:
         type: integer
-        min: 0
-        max: 1000
+        min: 1
+        max: 100
     - name: write_concurrency
-      hidden: true
+      #hidden: true
       display: Write Concurrency
       description: |
         The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
-      value: 0
+      value: 50
       hint:
         type: integer
-        min: 0
-        max: 1000
+        min: 1
+        max: 500
     - name: batch_size
-      hidden: true
+      #hidden: true
       display: Batch Size
       description: |
         The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
-      value: 1000
+      value: 5000
       hint:
         type: integer
         min: 1
         max: 10000
     - name: batch_timeout
-      hidden: true
+      #hidden: true
       display: Batch Timeout
       description: |
         The maximum time(in milliseconds) to wait before sending a batch of data points. The default value is 1000ms. If the data source is slow to respond, you can increase this value appropriately.
