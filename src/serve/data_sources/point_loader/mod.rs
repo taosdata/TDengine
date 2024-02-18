@@ -178,7 +178,7 @@ pub async fn arrange_point_file_download_task(
     }
 
     tokio::spawn(async move {
-        tracing::debug!("start task: {}", &task_id);
+        tracing::debug!("start async download task: {}", &task_id);
         let (data, point_count) = get_all_points(
             params.from,
             params.via,
