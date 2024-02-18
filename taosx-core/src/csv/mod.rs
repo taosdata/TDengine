@@ -820,22 +820,29 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
-    // TODO(@ypzhang): use mock to test csv source, not user local path.
     use super::*;
 
     #[tokio::test]
     async fn test_read_header() {
-        let path = "/data/ypzhang/files/test_join.csv".to_string();
+        let path = "test.csv".to_string();
+        create_csv_file(&path).await.unwrap();
+
         let header =
             CsvSource::read_header(path.as_ref(), true, Some(b','), Some(b'"'), Some(b'#'))
                 .await
                 .unwrap();
-        dbg!(header);
+
+        assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
+        delete_csv_file(&path).unwrap();
     }
 
-    #[test]
-    fn test_csv_readers() {
-        let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
+    #[tokio::test]
+    async fn test_csv_readers() {
+        let paths = vec!["test.csv".to_string()];
+        for path in &paths {
+            let _ = create_csv_file(path).await.unwrap();
+        }
+
         let headers = vec![];
 
         let mut readers =
@@ -849,21 +856,53 @@ mod tests {
                 .iter()
                 .map(String::from)
                 .collect::<Vec<String>>();
-            dbg!(headers);
+            assert_eq!(headers, vec!["ts".to_string(), "payload".to_string()]);
             let mut record = StringRecord::new();
-            for _ in 0..3 {
+            for _ in 0..1 {
                 let _ = reader.read_record(&mut record);
-                dbg!(&record);
+                assert_eq!(
+                    record,
+                    vec![
+                        "2001-01-01T00:00:00Z".to_string(),
+                        "location,1,2,3".to_string()
+                    ]
+                );
             }
+        }
+
+        for path in &paths {
+            let _ = delete_csv_file(path);
         }
     }
 
-    #[test]
-    fn test_validate() {
-        let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
+    #[tokio::test]
+    async fn test_validate() {
+        let paths = vec!["test.csv".to_string()];
+        for path in &paths {
+            let _ = create_csv_file(path).await.unwrap();
+        }
+
         let headers = vec!["ts".to_string(), "payload".to_string()];
 
-        let _ = CsvSource::validate(&paths, false, &headers, None, b',', Some(b'"'), Some(b'#'))
+        let _ = CsvSource::validate(&paths, true, &headers, None, b',', Some(b'"'), Some(b'#'))
             .unwrap();
+
+        for path in &paths {
+            let _ = delete_csv_file(path);
+        }
+    }
+
+    async fn create_csv_file(path: &String) -> Result<(), csv_async::Error> {
+        let file = tokio::fs::File::create(path).await?;
+        let mut csv = csv_async::AsyncWriter::from_writer(file);
+        csv.write_record(&["ts", "payload"]).await?;
+        csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])
+            .await?;
+        csv.flush().await?;
+        Ok(())
+    }
+
+    fn delete_csv_file(path: &String) -> Result<(), std::io::Error> {
+        std::fs::remove_file(path)
     }
 }
