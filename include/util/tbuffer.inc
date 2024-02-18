@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taoserror.h"
 #include "tcoding.h"
 
 struct SBuffer {
