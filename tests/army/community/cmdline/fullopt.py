@@ -48,7 +48,7 @@ class TDTestCase(TBase):
         etool.benchMark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
 
     def checkQueryOK(self, rets):
-        if rets[-1][:9] != "Query OK,":
+        if rets[-2][:9] != "Query OK,":
             tdLog.exit(f"check taos -s return unecpect: {rets}")
 
     def doTaos(self):
