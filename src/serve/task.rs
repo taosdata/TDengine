@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
-use std::sync::Arc;
 
+use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
     controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
@@ -17,20 +17,12 @@ use actix_web::{
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{Code, Dsn};
-use taosx_core::core_metrics::{try_get_metrics, CoreMetrics};
-use taosx_core::legacy_metric::LegacyToTaosMetrics;
-use taosx_core::sink::ipc_metric::IpcMetrics;
-use taosx_core::tmq::tmq_metric::TmqMetrics;
-use taosx_core::{
-    core_metrics::{self},
-    get_data_dir, get_file_upload_home_dir, runners,
-};
+use taos::Code;
+use taosx_core::{get_data_dir, get_file_upload_home_dir};
 use tracing::instrument;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
-use super::controller::TaskDetail;
 use anyhow::anyhow;
 
 /// Task endpoint error responses
@@ -628,9 +620,8 @@ pub(super) async fn get_task_metrics(
             let metrics = try_get_metrics_from_task_detail(&task);
             match metrics {
                 Some(metrics) => {
-                    let status = task.status();
-                    let running = status == Status::Running || status == Status::Stopping;
-                    core_metrics::get_task_metrics_string(running, metrics)
+                    let status: &Status = task.status();
+                    get_task_metrics_string(status, metrics)
                 }
                 None => "".to_string(),
             }
@@ -640,36 +631,6 @@ pub(super) async fn get_task_metrics(
             tracing::error!("get task metrics error: {}", err);
             "{}".to_string()
         }
-    }
-}
-
-pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
-    let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
-    if parse_dsn_result.is_err() {
-        tracing::error!(
-            "parse dsn error: {}, from={}",
-            parse_dsn_result.unwrap_err(),
-            task.task.from
-        );
-        return None;
-    }
-    let dsn = parse_dsn_result.unwrap();
-    let task_id = task.task.id;
-    match dsn.driver.as_str() {
-        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
-        "tmq" => try_get_metrics::<TmqMetrics>(task_id),
-        "opc"
-        | "opcua"
-        | "opcda"
-        | "pi"
-        | "pibackfill"
-        | "mqtt"
-        | "influxdb"
-        | "opentsdb"
-        | runners::kafka::KAFKA_ID
-        | runners::historian::AVEVA_HISTORIAN_ID
-        | "csv" => try_get_metrics::<IpcMetrics>(task_id),
-        _ => None,
     }
 }
 

@@ -3,7 +3,7 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
-use metrics::{gauge, Label};
+use metrics::gauge;
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
