@@ -1005,6 +1005,16 @@ TEST(multiThread, forceFree) {
   taosSsleep(3);
 }
 
+TEST(otherTest, otherCase) {
+  // excpet test
+  schReleaseJob(0);
+  schFreeRpcCtx(NULL);
+
+  EXPECT_EQ(schDumpEpSet(NULL), NULL);
+  EXPECT_EQ(schGetOpStr(SCH_OP_NULL), "NULL");
+  EXPECT_EQ(schGetOpStr((SCH_OP_TYPE)100, "UNKNOWN");
+}
+
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
