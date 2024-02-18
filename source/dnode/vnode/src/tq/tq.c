@@ -916,6 +916,22 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   }
 }
 
+int32_t handleStep2Async(SStreamTask* pStreamTask, void* param) {
+  STQ* pTq = param;
+
+  SStreamMeta* pMeta = pStreamTask->pMeta;
+  STaskId      hId = pStreamTask->hTaskInfo.id;
+  SStreamTask* pTask = streamMetaAcquireTask(pStreamTask->pMeta, hId.streamId, hId.taskId);
+  if (pTask == NULL) {
+    // todo handle error
+  }
+
+  doStartFillhistoryStep2(pTask, pStreamTask, pTq);
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return 0;
+}
+
 // this function should be executed by only one thread, so we set an sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
@@ -1006,36 +1022,33 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // the following procedure should be executed, no matter status is stop/pause or not
   tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
 
-  if (pTask->info.fillHistory) {
-    SStreamTask* pStreamTask = NULL;
+  ASSERT(pTask->info.fillHistory == 1);
 
-    // 1. get the related stream task
-    pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
-    if (pStreamTask == NULL) {
-      tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
-              pTask->streamTaskId.taskId, pTask->id.idStr);
+  // 1. get the related stream task
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+  if (pStreamTask == NULL) {
+    tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
+            pTask->streamTaskId.taskId, pTask->id.idStr);
 
-      tqDebug("s-task:%s fill-history task set status to be dropping and drop it", id);
-      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    tqDebug("s-task:%s fill-history task set status to be dropping", id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
-      atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
-      streamMetaReleaseTask(pMeta, pTask);
-      return -1;
-    }
-
-    ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-    code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-    if (code == TSDB_CODE_SUCCESS) {
-      doStartFillhistoryStep2(pTask, pStreamTask, pTq);
-    } else {
-      tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
-    }
-
-    streamMetaReleaseTask(pMeta, pStreamTask);
-  } else {
-    ASSERT(0);
+    atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
+    streamMetaReleaseTask(pMeta, pTask);
+    return -1;
   }
+
+  ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
+  //    code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+  code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, handleStep2Async, pTq);
+//  if (code == TSDB_CODE_SUCCESS) {
+//    doStartFillhistoryStep2(pTask, pStreamTask, pTq);
+//  } else {
+//    tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
+//  }
+
+  streamMetaReleaseTask(pMeta, pStreamTask);
 
   atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
   streamMetaReleaseTask(pMeta, pTask);
