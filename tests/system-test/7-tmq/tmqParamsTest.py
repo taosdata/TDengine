@@ -133,13 +133,17 @@ class TDTestCase:
                         if snapshot_value == "true":
                             if offset_value != "earliest" and offset_value != "":
                                 if offset_value == "latest":
-                                    offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
-                                    tdSql.checkEqual(sum(offset_value_list) >= 0, True)
+                                    offset_value_list = list(map(lambda x: (x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
+                                    offset_value_list1 = list(map(lambda x: int(x.split("/")[0]), offset_value_list))
+                                    offset_value_list2 = list(map(lambda x: int(x.split("/")[1]), offset_value_list))
+                                    tdSql.checkEqual(offset_value_list1 == offset_value_list2, True)
+                                    tdSql.checkEqual(sum(offset_value_list1) >= 0, True)
                                     rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                     tdSql.checkEqual(sum(rows_value_list), expected_res)
                                 elif offset_value == "none":
                                     offset_value_list = list(map(lambda x: x[-2], subscription_info))
-                                    tdSql.checkEqual(offset_value_list, ['none']*len(subscription_info))
+                                    offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
+                                    tdSql.checkEqual(offset_value_list1, ['none']*len(subscription_info))
                                     rows_value_list  = list(map(lambda x: x[-1], subscription_info))
                                     tdSql.checkEqual(rows_value_list, [0]*len(subscription_info))
                             else:
@@ -151,18 +155,23 @@ class TDTestCase:
                                     # tdSql.checkEqual(sum(rows_value_list), expected_res)
                                 else:
                                     offset_value_list = list(map(lambda x: x[-2], subscription_info))
-                                    tdSql.checkEqual(offset_value_list, [None]*len(subscription_info))
+                                    offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
+                                    tdSql.checkEqual(offset_value_list1, [None]*len(subscription_info))
                                     rows_value_list  = list(map(lambda x: x[-1], subscription_info))
                                     tdSql.checkEqual(rows_value_list, [None]*len(subscription_info))
                         else:
                             if offset_value != "none":
-                                offset_value_list = list(map(lambda x: int(x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
-                                tdSql.checkEqual(sum(offset_value_list) >= 0, True)
+                                offset_value_list = list(map(lambda x: (x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
+                                offset_value_list1 = list(map(lambda x: int(x.split("/")[0]), offset_value_list))
+                                offset_value_list2 = list(map(lambda x: int(x.split("/")[1]), offset_value_list))
+                                tdSql.checkEqual(offset_value_list1 == offset_value_list2, True)
+                                tdSql.checkEqual(sum(offset_value_list1) >= 0, True)
                                 rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                 tdSql.checkEqual(sum(rows_value_list), expected_res)
                             else:
                                 offset_value_list = list(map(lambda x: x[-2], subscription_info))
-                                tdSql.checkEqual(offset_value_list, ['none']*len(subscription_info))
+                                offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
+                                tdSql.checkEqual(offset_value_list1, ['none']*len(subscription_info))
                                 rows_value_list  = list(map(lambda x: x[-1], subscription_info))
                                 tdSql.checkEqual(rows_value_list, [0]*len(subscription_info))
                         tdSql.execute(f"drop topic if exists {topic_name}")
