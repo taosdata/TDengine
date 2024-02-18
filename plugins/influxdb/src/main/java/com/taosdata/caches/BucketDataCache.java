@@ -3,7 +3,10 @@ package com.taosdata.caches;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import io.netty.channel.Channel;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,12 +39,12 @@ public class BucketDataCache {
      * @param influxdbBucketDataEntity
      * @return
      */
-    public static int addBucketData(InfluxdbBucketDataEntity influxdbBucketDataEntity) {
+    /*public static int addBucketData(InfluxdbBucketDataEntity influxdbBucketDataEntity) {
         // 放入队列中
         bucketDataQueue.add(influxdbBucketDataEntity);
         // 返回当前队列大小
         return bucketDataQueue.size();
-    }
+    }*/
 
     /**
      * 批量添加数据并获取队列大小
@@ -177,7 +180,7 @@ public class BucketDataCache {
      *
      * @return
      */
-    public static Set<String> getBucketDataEmptyKeySet() {
+    /*public static Set<String> getBucketDataEmptyKeySet() {
         Set<String> keySet = new HashSet<>();
         bucketDataQueueMap.forEach((k, v) -> {
             if (v != null && v.size() == 0) {
@@ -185,7 +188,7 @@ public class BucketDataCache {
             }
         });
         return keySet;
-    }
+    }*/
 
     /**
      * 删除指定队列记录

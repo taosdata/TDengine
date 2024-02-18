@@ -63,6 +63,10 @@ pub struct PiConfig {
     backfill_start_time: Option<Datetime>,
     #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
     backfill_end_time: Option<Datetime>,
+
+    // log level
+    #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
+    log_level: Option<String>,
 }
 
 impl PiConfig {
@@ -93,6 +97,7 @@ impl PiConfig {
             to_tdengine_first_time: Self::parse_to_tdengine_first_time(dsn)?,
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
             backfill_end_time: Self::parse_backfill_end_time(dsn)?,
+            log_level: Self::parse_log_level(dsn)?,
         };
 
         Ok(pi_config)
@@ -300,6 +305,8 @@ impl PiConfig {
             ));
         }
 
+        let log_level = Self::parse_log_level(&dsn)?;
+
         Ok(Self {
             server_name,
             system_name,
@@ -319,6 +326,7 @@ impl PiConfig {
             to_tdengine_first_time,
             backfill_start_time,
             backfill_end_time,
+            log_level,
         })
     }
 
@@ -531,6 +539,19 @@ impl PiConfig {
         })?;
 
         Ok(parsed_time)
+    }
+
+    fn parse_log_level(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        dsn.params
+            .get("LogLevel")
+            .or(dsn.params.get("log_level"))
+            .map(|v| match v.trim() {
+                "trace" | "debug" | "info" | "warn" | "error" => Ok(v.trim().to_string()),
+                _ => Err(anyhow::anyhow!(
+                    "invalid log_level, cause: provided `{v}`, but expects one of [trace, debug, info, warn, error]",
+                )),
+            })
+            .transpose()
     }
 }
 

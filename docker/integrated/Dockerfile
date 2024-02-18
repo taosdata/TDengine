@@ -29,6 +29,7 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
 ENV LC_CTYPE=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
+ENV TAOS_MONITOR=1
 
 ENV TAOSX_PLUGINS_HOME=/taosx/plugins/
 ENV TAOSX_DATA_DIR=/data/taosx/
@@ -39,6 +40,7 @@ ENV EXPLORER_CONFIG_FILE=/data/taosx/config/explorer.toml
 VOLUME [ "/etc/taos", "/var/lib/taos", "/var/log/taos", "/corefile", "/data/taosx/" ]
 EXPOSE 6030
 EXPOSE 6041
+EXPOSE 6043
 EXPOSE 6050
 EXPOSE 6055
 EXPOSE 6060

@@ -1,10 +1,7 @@
 package com.taosdata.utils;
 
-import org.springframework.util.ResourceUtils;
-
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 
 /**
  * 文件工具类
@@ -21,12 +18,12 @@ public class FileUtils {
      * @return
      * @throws Exception
      */
-    public static String readResourceFile(String relativePath, String fileName) throws Exception {
+    /*public static String readResourceFile(String relativePath, String fileName) throws Exception {
         // 获取jar同级目录
         String path = ResourceUtils.getURL("classpath:").getPath();
         // 读取并返回内容
         return readAbsoluteFile(path + File.separator + relativePath, fileName);
-    }
+    }*/
 
     /**
      * 读取绝对路径文件
@@ -36,10 +33,10 @@ public class FileUtils {
      * @return
      * @throws Exception
      */
-    public static String readAbsoluteFile(String absolutePath, String fileName) throws Exception {
+    /*public static String readAbsoluteFile(String absolutePath, String fileName) throws Exception {
         // 读取并返回内容
         return readAbsoluteFile(absolutePath + File.separator + fileName);
-    }
+    }*/
 
     /**
      * 读取绝对路径文件
@@ -69,12 +66,12 @@ public class FileUtils {
      * @param content
      * @throws Exception
      */
-    public static void writeResourceFile(String relativePath, String fileName, String content) throws Exception {
+    /*public static void writeResourceFile(String relativePath, String fileName, String content) throws Exception {
         // 获取jar同级目录
         String path = ResourceUtils.getURL("classpath:").getPath();
         // 写入文件
         writeAbsoluteFile(path + File.separator + relativePath, fileName, content);
-    }
+    }*/
 
     /**
      * 写入绝对路径文件
@@ -84,7 +81,7 @@ public class FileUtils {
      * @param content
      * @throws Exception
      */
-    public static void writeAbsoluteFile(String absolutePath, String fileName, String content) throws Exception {
+    /*public static void writeAbsoluteFile(String absolutePath, String fileName, String content) throws Exception {
         // 文件目录
         File dir = new File(absolutePath);
         // 递归创建目录（已存在则默认忽略）
@@ -99,5 +96,5 @@ public class FileUtils {
         FileWriter fileWriter = new FileWriter(file);
         fileWriter.write(content);
         fileWriter.flush();
-    }
+    }*/
 }

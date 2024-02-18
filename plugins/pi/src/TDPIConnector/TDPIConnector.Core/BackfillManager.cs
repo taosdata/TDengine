@@ -182,6 +182,11 @@ namespace TDPIConnector.Core
                 {
                     //check for associated table, create if needed
                     var table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
+                    if (elementLookup.ContainsKey(table.Name))
+                    {
+                        log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
+                        continue;
+                    }
                     tables.Add(table);
                     if (dropTables)
                     {

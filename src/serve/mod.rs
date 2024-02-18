@@ -1,5 +1,3 @@
-use std::{sync::Arc, time::Duration};
-
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
@@ -11,9 +9,8 @@ use actix_web::{
 use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use metrics_tracing_context::TracingContextLayer;
-use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::{Deserialize, Serialize};
+use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -46,6 +43,7 @@ mod controller;
 mod data_sources;
 mod metrics;
 mod middleware;
+pub mod monitor;
 mod routes;
 mod rpc;
 #[allow(unused)]
@@ -131,12 +129,18 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(stop_task)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
+            .service(get_sample)
             .service(data_source_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
             .service(data_source_sample)
             .service(download_all_data_set_file)
+            .service(download_point_template_file)
+            .service(init_download_file_task)
+            .service(check_point_file_ready)
+            .service(download_point_file)
+            .service(page_point_data)
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
@@ -237,6 +241,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
+        monitor: monitor::Monitor,
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
@@ -307,17 +312,19 @@ impl Cli {
                 task::upload_files,
                 task::filemeta,
                 task::download_files,
-
-                metrics::metrics_exporter,
                 metrics::profile,
                 metrics::metrics_desc,
-
                 data_source_is_valid,
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
                 data_source_sample,
                 download_all_data_set_file,
+                init_download_file_task,
+                check_point_file_ready,
+                download_point_file,
+                download_point_template_file,
+                page_point_data,
 
                 agent::create_agent,
                 agent::update_agent,
@@ -339,29 +346,10 @@ impl Cli {
         struct ApiDoc;
 
         let store = Data::new(controller);
-
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
 
         let openapi = ApiDoc::openapi();
-
-        let metrics_recorder = metrics::Metrics::default().init()?;
-        let handle = metrics_recorder.handle();
-
-        let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
-        let snapshotter = Data::new(debugging_recorder.snapshotter());
-
-        let metrics_allowed_labels = ["task.id", "client.address"];
-        let recorder =
-            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
-        let debugging =
-            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(debugging_recorder);
-
-        let fanout = FanoutBuilder::default()
-            .add_recorder(recorder)
-            .add_recorder(debugging)
-            .build();
-        ::metrics::set_boxed_recorder(Box::new(fanout))?;
-
+        let handle = monitor.init();
         let recorder = Data::new(handle);
         let addr = self.get_listen_address();
         let addr = addr.as_str();
@@ -375,7 +363,6 @@ impl Cli {
                 .wrap(cors)
                 .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
                 .app_data(recorder.clone())
-                .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(
                     MultipartFormConfig::default()
@@ -419,6 +406,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
         if let Some(grpc) = self.grpc.as_ref() {
@@ -426,7 +414,9 @@ impl Cli {
             flight.tcp.replace(addr);
         }
 
-        flight.serve_with_controller(controller, channel).await?;
+        flight
+            .serve_with_controller(controller, channel, monitor)
+            .await?;
         Ok(())
     }
 }

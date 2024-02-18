@@ -17,10 +17,11 @@ var logger = log.GetLogger("check")
 var configPath string
 
 type CheckResp struct {
-	Valid      bool        `json:"valid"`
-	Support    interface{} `json:"support"`
-	DataSource string      `json:"data_source"`
-	Message    string      `json:"message,omitempty"`
+	Valid      bool     `json:"valid"`
+	Support    bool     `json:"support"`
+	DataSource string   `json:"data_source"`
+	Message    string   `json:"message,omitempty"`
+	Namespaces []string `json:"namespaces,omitempty"`
 }
 
 var CheckCommand = &cobra.Command{
@@ -92,6 +93,14 @@ func check() CheckResp {
 			Support:    true,
 			DataSource: "opc",
 			Message:    err.Error(),
+		}
+	}
+	if conf.OpcType == config.OpcTypeUA {
+		return CheckResp{
+			Valid:      true,
+			Support:    true,
+			DataSource: "opc",
+			Namespaces: opcClient.(*opcua.UAClient).Namespaces(),
 		}
 	}
 	return CheckResp{

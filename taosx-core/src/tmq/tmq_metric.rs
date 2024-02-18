@@ -1,4 +1,4 @@
-use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use chrono::Utc;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
@@ -11,17 +11,29 @@ use tracing;
 pub struct TmqMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
+    #[serde(default)]
     pub topics: AtomicU16,
+    #[serde(default)]
     pub consumers: AtomicU16,
+    #[serde(default)]
     pub total_messages: AtomicU64,
+    #[serde(default)]
     pub total_messages_of_meta: AtomicU64,
+    #[serde(default)]
     pub total_messages_of_data: AtomicU64,
+    #[serde(default)]
     pub total_write_raw_fails: AtomicU64,
+    #[serde(default)]
     pub total_success_blocks: AtomicU64,
+    #[serde(default)]
     pub messages: AtomicU64,
+    #[serde(default)]
     pub messages_of_meta: AtomicU64,
+    #[serde(default)]
     pub messages_of_data: AtomicU64,
+    #[serde(default)]
     pub write_raw_fails: AtomicU64,
+    #[serde(default)]
     pub success_blocks: AtomicU64,
 }
 
@@ -46,9 +58,9 @@ impl Default for TmqMetrics {
 }
 
 impl TmqMetrics {
-    pub fn new(task_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(task_id),
+            com: CommonMetrics::new(stable, task_id, task_name),
             topics: AtomicU16::new(0),
             consumers: AtomicU16::new(0),
             total_messages: AtomicU64::new(0),
@@ -95,7 +107,7 @@ impl TmqMetrics {
     }
 }
 
-impl TaosXMetrics for TmqMetrics {
+impl TaskMetrics for TmqMetrics {
     fn reset(&self) {
         self.com.reset();
         self.topics.store(0, SeqCst);

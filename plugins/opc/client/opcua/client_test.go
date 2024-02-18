@@ -63,7 +63,43 @@ func TestUAClient_GetAllPoints(t *testing.T) {
 		},
 	}
 	points, err = client.GetAllPoints(pointsConf)
+	t.Log(points)
 	assert.Equal(t, 3, len(points))
+}
+
+func TestUAClient_GetAllPointsNamespaces(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+
+	client, err := NewUAClient(ctx, connectConfig, config.CollectConfig{}, 1, logrus.New().WithField("test", "test"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	pointsConf := config.PointsConfig{
+		Limit: 0,
+		Regex: ".*",
+		Ua: config.UaPointsConfig{
+			Root:       "i=85",
+			Namespaces: []uint16{3},
+		},
+	}
+	points, err := client.GetAllPoints(pointsConf)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(points))
+	assert.Equal(t, "ns=3;i=1001", points[0].ID)
 }
 
 func TestUAClient_Collect_Observer(t *testing.T) {

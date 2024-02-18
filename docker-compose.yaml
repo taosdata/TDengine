@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  build:
+    image: taosx/dev
+    volumes:
+      - $HOME/.cargo/registry:/root/.cargo/registry
+      - $HOME/.cargo/git:/root/.cargo/git
+      - $PWD:$PWD
+      - ./:/app/
+      - ./target/centos7:/app/target
+    command:
+      - cargo
+      - build
+      - --profile production
+      - -p taosx
+      - -p taosx-agent
+      # - --offline
+      # - --features jemallocator
+      # - --features disable-enterprise-only-validation
+

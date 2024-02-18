@@ -33,8 +33,8 @@ task:
 #performance parameters
 performance:
   delay: 10000
-  limitConnect: 2
-  limitBatch: 1000
+  limitConnect: 500
+  limitBatch: 5000
   limitSpeed: 100000
   retryTimes: 3
   # millisecond
@@ -54,7 +54,7 @@ performance:
     pushInterval: 0
     pushEmptyInterval: 10
     # MetricThread线程
-    createMetricInterval: 5
+    createMetricInterval: 1
     createMetricFullInterval: 200
     # MetricDataThread线程
     readMetricBatch: 2000

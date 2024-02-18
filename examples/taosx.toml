@@ -28,3 +28,11 @@
 
 # database url
 #database_url = "sqlite:taosx.db"
+
+[monitor]
+# FQDN of taosKeeper service, no default value
+# fqdn = "localhost"
+# port of taosKeeper service, default 6043
+# port = 6043
+# how often to send metrics to taosKeeper, default every 30 seconds
+# interval = 30

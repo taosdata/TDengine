@@ -42,6 +42,7 @@ namespace TDPIConnector.Core.Tasks
                         await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
                     }
                 }
+                log.Info("Process datapipe, Event sender stop.");
             });
         }
 

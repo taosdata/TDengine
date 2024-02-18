@@ -77,6 +77,16 @@ pub enum DataSourceOptions {
         username: Option<OptionDef>,
         #[serde(skip_serializing_if = "Option::is_none")]
         password: Option<OptionDef>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        security_mode: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        security_policy: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        certificate: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        private_key: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connect_timeout: Option<Param>,
     },
     Uri {
         #[serde(default)]
@@ -94,7 +104,7 @@ pub struct ConflictsWith {
     pub value: Option<String>,
     pub when: Option<String>,
 }
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct Param {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -562,6 +572,11 @@ impl DataSourceDefinition {
                         endpoint,
                         username,
                         password,
+                        security_mode,
+                        security_policy,
+                        certificate,
+                        private_key,
+                        connect_timeout,
                     } => {
                         let mut endpoint_str = String::new();
                         if dsn.driver == "tmq" {
@@ -590,6 +605,37 @@ impl DataSourceDefinition {
                                 endpoint_str.push_str("?");
                                 endpoint_str.push_str("token=");
                                 endpoint_str.push_str(value.as_str());
+                            }
+                        } else if dsn.driver == "opcua" {
+                            if let Some(value) = dsn.get("security_mode") {
+                                security_mode
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.remove("security_policy") {
+                                security_policy
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.get("certificate") {
+                                certificate
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.remove("private_key") {
+                                private_key
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.remove("connect_timeout") {
+                                connect_timeout
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
                             }
                         }
                         endpoint.value.replace(endpoint_str);
@@ -627,6 +673,11 @@ impl DataSourceDefinition {
                                 endpoint: _,
                                 username: _,
                                 password: _,
+                                security_mode: _,
+                                security_policy: _,
+                                certificate: _,
+                                private_key: _,
+                                connect_timeout: _,
                             } => {
                                 panic!("mixed path and uri type of DSN")
                             }
@@ -1019,6 +1070,49 @@ fn test_pi() {
         def.datasets.as_ref().unwrap().value,
         Some("point_file".to_string())
     );
+}
+
+#[test]
+fn test_opc_ua() {
+    let json = include_str!("cn/opcua.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    // dbg!(&def);
+
+    let dsn = "opcua://localhost:53530/OPCUA/SimulationServer?connect_timeout=10&security_mode=Sign&security_policy=Basic128Rsa15&connect_timeout=20";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    let def = def.values_from(dsn);
+    dbg!(&def);
+
+    let ds_options = def.options.unwrap();
+    match ds_options {
+        DataSourceOptions::Endpoint {
+            endpoint,
+            username: _,
+            password: _,
+            security_mode,
+            security_policy,
+            certificate: _,
+            private_key: _,
+            connect_timeout,
+        } => {
+            assert_eq!(
+                endpoint.value,
+                Some("localhost:53530/OPCUA/SimulationServer".to_string())
+            );
+            assert_eq!(security_mode.unwrap().value, Some("Sign".to_string()));
+            assert_eq!(
+                security_policy.unwrap().value,
+                Some("Basic128Rsa15".to_string())
+            );
+            assert_eq!(connect_timeout.unwrap().value, Some("20".to_string()));
+        }
+        _ => panic!("invalid options"),
+    }
+
+    // assert_eq!(
+    //     def.datasets.as_ref().unwrap().value,
+    //     Some("point_file".to_string())
+    // );
 }
 
 #[test]

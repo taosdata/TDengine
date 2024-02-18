@@ -1,4 +1,4 @@
-use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -10,24 +10,34 @@ use std::sync::atomic::Ordering::SeqCst;
 pub struct LegacyToTaosMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
+    #[serde(default)]
     pub read_concurrency: AtomicU32,
+    #[serde(default)]
     pub total_stables: AtomicU32,
+    #[serde(default)]
     pub total_tables: AtomicU32,
+    #[serde(default)]
     pub total_finished_tables: AtomicU32,
+    #[serde(default)]
     pub total_success_blocks: AtomicU64,
+    #[serde(default)]
     pub total_updated_tags: AtomicU32,
+    #[serde(default)]
     pub total_created_tables: AtomicU32,
     #[serde(skip)]
     pub finished_tables: AtomicU32,
+    #[serde(default)]
     pub success_blocks: AtomicU64,
+    #[serde(default)]
     pub updated_tags: AtomicU32,
+    #[serde(default)]
     pub created_tables: AtomicU32,
 }
 
 impl LegacyToTaosMetrics {
-    pub fn new(task_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(task_id),
+            com: CommonMetrics::new(stable, task_id, task_name),
             read_concurrency: Default::default(),
             total_stables: Default::default(),
             total_tables: Default::default(),
@@ -117,7 +127,7 @@ impl Display for LegacyToTaosMetrics {
     }
 }
 
-impl TaosXMetrics for LegacyToTaosMetrics {
+impl TaskMetrics for LegacyToTaosMetrics {
     /// Reset run level metrics
     fn reset(&self) {
         self.com.reset();

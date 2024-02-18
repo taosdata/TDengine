@@ -14,7 +14,6 @@ use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
@@ -30,7 +29,6 @@ use uuid::Uuid;
 
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{
     get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
@@ -289,6 +287,7 @@ impl TaskControllerRef {
             .bind(Status::Failed)
             .bind(Status::Stopped)
             .bind(Status::Created)
+            .bind(Status::Stopping)
             .fetch_all(&self.pool)
             .await?;
         for mut task in tasks {
@@ -671,7 +670,12 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
+            "opcua"
+            | "opcda"
+            | "influxdb"
+            | "pi"
+            | taosx_core::runners::kafka::KAFKA_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -707,8 +711,6 @@ impl TaskController {
 
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
-        counter!("tasks", tasks.len() as u64);
-
         tasks.iter_mut().for_each(|task| {
             task.backport_labels();
         });
@@ -790,8 +792,10 @@ impl TaskController {
             "influxdb" => "influxdb",
             "opentsdb" => "opentsdb",
             "pi" => "pi",
-            "kafka" => "kafka",
-            AVEVA_HISTORIAN_ID => AVEVA_HISTORIAN_ID,
+            taosx_core::runners::kafka::KAFKA_ID => taosx_core::runners::kafka::KAFKA_ID,
+            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
+                taosx_core::runners::historian::AVEVA_HISTORIAN_ID
+            }
             "mqtt" => "mqtt",
             _ => unreachable!(),
         };
@@ -933,7 +937,12 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
+            "opcua"
+            | "opcda"
+            | "influxdb"
+            | "pi"
+            | taosx_core::runners::kafka::KAFKA_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -1226,8 +1235,11 @@ impl TaskController {
         task.backport_labels();
         let task_out = task.clone();
         let pool = self.pool.clone();
+        let scheduler = self.scheduler.clone();
         tokio::spawn(
             async move {
+                scheduler.wait_task(task.id).await;
+                tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
                     let mut dsn: Dsn = task.from.parse()?;
                     let _ = dsn.subject.take();
@@ -1714,6 +1726,48 @@ impl TaskController {
                 .await?;
         Ok(vec)
     }
+
+    #[instrument(skip_all)]
+    pub async fn get_task_summaries(&self, interval: u64) -> (i32, i32, i32) {
+        let interval = Duration::from_secs(interval);
+        let finished_at = Utc::now() - interval;
+        let running_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ?",
+            Status::Running
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count tasks completed in last 10 seconds
+        let completed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Completed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count failed tasks in last 10 seconds
+        let failed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Failed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        tracing::debug!(
+            "running_tasks_count: {}, completed_tasks_count: {}, failed_tasks_count: {}",
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count
+        );
+        (
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count,
+        )
+    }
 }
 
 #[derive(Debug, Default, Serialize, ToSchema, FromRow)]
@@ -1767,7 +1821,6 @@ impl AgentFilter {
     Deserialize,
     ToSchema,
     Clone,
-    Copy,
     Debug,
     PartialEq,
     Eq,
@@ -1778,6 +1831,7 @@ impl AgentFilter {
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Status {
     /// Created by API.
     Created,
@@ -1819,6 +1873,21 @@ pub enum Status {
     Resumed,
     /// Waken
     Waken,
+    /// Task is in unknown state.
+    #[strum(default)]
+    #[serde(untagged)]
+    __NonExhaustive(String),
+}
+
+impl PartialEq<str> for Status {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+impl PartialEq<Status> for &Status {
+    fn eq(&self, other: &Status) -> bool {
+        *self == other
+    }
 }
 
 impl Status {
@@ -1981,7 +2050,7 @@ pub struct Task {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(read_only, example = "null")]
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Task trigger events, default will be oneshot.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2147,7 +2216,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: format!("Wait for next tick in schedule."),
-            status: "tick".to_string(),
+            status: "ticked".to_string(),
             context: Some(json!({"jid": jid}).into()),
         }
     }
@@ -2158,6 +2227,27 @@ impl TaskActivity {
             level: LevelFilter::Info,
             activity: format!("Finished with job id: {jid}."),
             status: "completed".to_string(),
+            context: None,
+        }
+    }
+
+    pub fn ipc_started(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Agent is putting data"),
+            status: "ipc-started".to_string(),
+            context: None,
+        }
+    }
+    pub fn ipc_finished(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("IPC finished"),
+            status: "ipc-finished".to_string(),
             context: None,
         }
     }
@@ -2253,10 +2343,15 @@ lazy_static::lazy_static! {
         macro_rules! include_ds_yaml {
             ($ds:literal) => {
                 let yaml = include_str!(concat!("../data_sources/en/", $ds, ".yaml"));
-                let yaml = yaml
-                    .replace("taosX", crate::build::CUS_APP_NAME)
-                    .replace("TDengine", crate::build::CUS_NAME)
-                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                let yaml = if crate::build::CUS_NAME != "TDengine" {
+                    yaml
+                        .replace("taosX", crate::build::CUS_APP_NAME)
+                        .replace("TDengine", crate::build::CUS_NAME)
+                        .replace("taosdata", crate::build::CUS_PROMPT)
+                        .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"))
+                }else {
+                    yaml.to_string()
+                };
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
         }
@@ -2282,10 +2377,15 @@ lazy_static::lazy_static! {
         macro_rules! include_ds_yaml {
             ($ds:literal) => {
                 let yaml = include_str!(concat!("../data_sources/cn/", $ds, ".yaml"));
-                let yaml = yaml
-                    .replace("taosX", crate::build::CUS_APP_NAME)
-                    .replace("TDengine", crate::build::CUS_NAME)
-                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                let yaml = if crate::build::CUS_NAME != "TDengine" {
+                    yaml
+                        .replace("taosX", crate::build::CUS_APP_NAME)
+                        .replace("TDengine", crate::build::CUS_NAME)
+                        .replace("taosdata", crate::build::CUS_PROMPT)
+                        .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"))
+                } else {
+                    yaml.to_string()
+                };
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
         }
@@ -2416,8 +2516,8 @@ impl TaskDetail {
         }
     }
 
-    pub(super) fn status(&self) -> Status {
-        self.task.status
+    pub(super) fn status(&self) -> &Status {
+        &self.task.status
     }
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {
@@ -3221,6 +3321,14 @@ mod tests {
             .fetch_one(&pool)
             .await?;
         assert_eq!(len, 100);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_task_summaries() -> anyhow::Result<()> {
+        tracing_subscriber_init()?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let _ = controller.get_task_summaries(10).await;
         Ok(())
     }
 }

@@ -1,6 +1,7 @@
 use crate::plugins::config::AdvancedOptions;
 use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use taos::Dsn;
 
@@ -20,6 +21,16 @@ pub enum HistorianTable {
     Live,
 }
 
+impl Display for HistorianTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let to_string = match self {
+            HistorianTable::Live => "Runtime.dbo.Live",
+            HistorianTable::History => "Runtime.dbo.History",
+        };
+        write!(f, "{}", to_string)
+    }
+}
+
 impl FromStr for HistorianTable {
     type Err = anyhow::Error;
 
@@ -32,6 +43,23 @@ impl FromStr for HistorianTable {
                 s
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod test_historian_table {
+    use super::*;
+
+    #[test]
+    fn test_to_string() {
+        assert_eq!(
+            "Runtime.dbo.Live".to_string(),
+            HistorianTable::Live.to_string()
+        );
+        assert_eq!(
+            "Runtime.dbo.History".to_string(),
+            HistorianTable::History.to_string()
+        );
     }
 }
 
@@ -85,7 +113,7 @@ impl TaskConfig {
             .ok_or(anyhow::anyhow!("mode is required"))
     }
 
-    fn parse_table(dsn: &Dsn) -> anyhow::Result<HistorianTable> {
+    pub fn parse_table(dsn: &Dsn) -> anyhow::Result<HistorianTable> {
         let table = dsn
             .params
             .get("table")
@@ -276,7 +304,7 @@ impl TaskConfig {
 }
 
 #[cfg(test)]
-mod tests {
+mod test_historian_task_config {
     use std::str::FromStr;
 
     use super::*;

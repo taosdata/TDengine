@@ -197,10 +197,11 @@ impl AgentWorker {
                                     });
                                 }
                                 AgentNotify::TaskActivity(_, activity) => {
+                                    tracing::info!("Task activity: {:?}", activity);
                                     let agent_tasks = agent_tasks_sender_clone.read().await;
                                     // dbg!(&agent_tasks);
                                     if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
-                                        if let Err(err) = task.sender.send(activity.clone()).await {
+                                        if let Err(err) = task.sender.send(activity).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
                                         }
                                         // scheduler_notify_sender.push_task_activity(activity);

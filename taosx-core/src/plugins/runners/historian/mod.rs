@@ -1,13 +1,21 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use arrow_schema::DataType;
+use arrow_schema::TimeUnit::Nanosecond;
+use chrono::NaiveDateTime;
+use futures_util::TryStreamExt;
+use linked_hash_map::LinkedHashMap;
+use serde_json::{json, Value};
 use taos::Dsn;
+use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
+use crate::runners::historian::appender::column_meta::ColumnMeta;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
@@ -23,6 +31,7 @@ mod worker;
 pub const AVEVA_HISTORIAN_ID: &str = "avevaHistorian";
 pub const AVEVA_HISTORIAN_NAME: &str = "AVEVA Historian";
 
+/// check historian dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
@@ -51,8 +60,85 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-pub async fn get_sample(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
-    todo!()
+/// get sample data from historian
+/// # Arguments
+/// * `dsn` - historian dsn
+/// # Returns
+/// * `DsSampleIn` - {
+///     "input": [{ "col_name": "xxx", ... }],
+///     "parser": {"parse": {
+///         "col_name": { "as": col_type }, ...
+///     }}
+/// }
+pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    let config = TaskConfig::from_dsn(dsn)?;
+    let mut client = HistorianQuery::try_new(config.connect).await?;
+
+    // input: get top N record from table
+    let mut input_sample: Vec<LinkedHashMap<String, Value>> = Vec::new();
+    let mut rows = client
+        .top_n(3, config.table, config.begin_datetime, config.end_datetime)
+        .await?
+        .into_row_stream();
+    while let Some(row) = rows.try_next().await? {
+        let mut sample_map: LinkedHashMap<String, Value> = LinkedHashMap::new();
+        for (idx, col) in row.columns().into_iter().enumerate() {
+            let col_name = col.name();
+            let col_type = col.column_type();
+            let col_val = to_json_value(&row, idx, col_type)?;
+
+            sample_map.insert(col_name.to_string(), col_val);
+        }
+
+        input_sample.push(sample_map);
+    }
+    drop(rows);
+
+    // parser.parse: describe table
+    let mut rows = client.describe_table(config.table).await?.into_row_stream();
+    let mut parse_sample = LinkedHashMap::new();
+    while let Some(row) = rows.try_next().await? {
+        let column_meta = ColumnMeta::try_new(&row)?;
+        let ipc_type = column_meta.get_ipc_type()?;
+        parse_sample.insert(column_meta.column_name, json!({"as": ipc_type}));
+    }
+    drop(rows);
+
+    let sample_json = json!({
+        "input": input_sample,
+        "parser": {
+            "parse": parse_sample,
+        }
+    });
+    let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse sample data, cause: {}, value: {:?}",
+            err.to_string(),
+            sample_json
+        )
+    })?;
+
+    Ok(ds_sample_in)
+}
+
+pub fn to_json_value(
+    row: &Row,
+    idx: usize,
+    col_type: ColumnType,
+) -> anyhow::Result<serde_json::Value> {
+    let col_val = match col_type {
+        ColumnType::Datetime2 => json!(row.try_get::<NaiveDateTime, _>(idx)?),
+        ColumnType::Int1 => json!(row.try_get::<u8, _>(idx)?),
+        ColumnType::Int4 => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Intn => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Floatn => json!(row.try_get::<f64, _>(idx)?),
+        ColumnType::NVarchar => json!(row.try_get::<&str, _>(idx)?),
+        _ => {
+            return Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type));
+        }
+    };
+
+    Ok(col_val)
 }
 
 pub async fn historian_to_taos(
@@ -157,23 +243,25 @@ pub async fn historian_to_taos(
 }
 
 async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
-    let tag_conditions = config.tags.clone();
-    let contains_wildcard = tag_conditions.iter().any(|t| t.contains('*'));
-    let tags = if !contains_wildcard {
-        tag_conditions
-    } else {
-        let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
-        let tag_meta = client.get_tags(tag_conditions).await?;
-        tag_meta
-            .iter()
-            .map(|meta| meta.name.clone())
-            .collect::<Vec<_>>()
-    };
+    let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
 
-    if tags.is_empty() {
-        anyhow::bail!("tags cannot be empty");
+    let conditions = config.tags.clone();
+    let mut rows = client.select_from_tag(conditions).await?.into_row_stream();
+
+    let mut tag_name_list = Vec::new();
+    while let Some(row) = rows.try_next().await? {
+        let tag_name = row
+            .try_get::<&str, _>("TagName")?
+            .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
+        tag_name_list.push(tag_name.to_string());
+    }
+    drop(rows);
+
+    if tag_name_list.is_empty() {
+        anyhow::bail!("valid TagName is None, tags: {:?}", config.tags.clone());
     }
 
+    // keep_raw_data log
     let (logger_tx, logger_rx) = flume::bounded(0);
     let logger = RawDataLogger::new(
         task_id.unwrap_or(0),
@@ -194,11 +282,11 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
 
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
-            config.tags = tags;
+            config.tags = tag_name_list;
             migrate_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
-            config.tags = tags;
+            config.tags = tag_name_list;
             sync_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
@@ -208,6 +296,24 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
     }
 
     Ok(())
+}
+
+pub fn to_arrow_data_type(col_type: ColumnType) -> anyhow::Result<DataType> {
+    let data_type = match col_type {
+        ColumnType::Bit => DataType::Boolean,
+        ColumnType::Int1 => DataType::UInt8,
+        ColumnType::Int4 => DataType::Int32,
+        ColumnType::Int8 => DataType::Int64,
+        ColumnType::Float4 => DataType::Float32,
+        ColumnType::Float8 => DataType::Float64,
+        ColumnType::Intn => DataType::Int32,
+        ColumnType::Floatn => DataType::Float64,
+        ColumnType::Datetime2 => DataType::Timestamp(Nanosecond, None),
+        ColumnType::NVarchar => DataType::Utf8,
+        _ => Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type))?,
+    };
+
+    Ok(data_type)
 }
 
 #[cfg(test)]
@@ -255,8 +361,26 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
+    async fn test_get_sample() {
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.History",
+        )
+            .unwrap();
+        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
+        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
+
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.Live",
+        )
+        .unwrap();
+        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
+        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
+    }
+
     /// generate test data, Only for local test
-    async fn generate_tag_csv() -> anyhow::Result<()> {
+    #[ignore]
+    #[tokio::test]
+    async fn generate_historian_tag_csv() -> anyhow::Result<()> {
         let tag_index = 8;
         let total_records = 10359;
         let gap_sec = 2;

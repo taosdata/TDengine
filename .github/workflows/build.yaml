@@ -18,7 +18,7 @@ env:
 jobs:
   stable:
     name: Stable Channel
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -30,7 +30,7 @@ jobs:
 
   check:
     name: Check
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v3
         with:

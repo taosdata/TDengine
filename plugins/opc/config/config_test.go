@@ -171,6 +171,7 @@ regex = ".*" # regex for point name
 
 [points.ua]
 root = "i=85"
+namespaces = [3,4,5]
 `
 
 func TestDaConnectConfig_Validate(t *testing.T) {

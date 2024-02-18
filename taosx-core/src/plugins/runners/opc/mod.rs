@@ -1,4 +1,4 @@
-use std::{fs, io::prelude::*, path::PathBuf, str::FromStr, sync::Arc};
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -9,14 +9,13 @@ pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
-use taosx_ipc::types::OptionSet;
-
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::table::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::opc_type::OpcType;
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
@@ -178,6 +177,7 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
+    send_sub_process_info(child.id(), task_id);
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
@@ -269,7 +269,7 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         categories: vec![String::from("nodes")],
         via: None,
         offset: 0,
-        pattern: Some(String::from(".*")),
+        pattern: None,
         limit: usize::MAX / 2 - 1,
         lang: None,
     };
@@ -412,12 +412,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let points_config = PointsConfig {
-        limit: req.limit,
-        regex: req.pattern.clone(),
-    };
     let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
-    config.points = Some(points_config);
+    config.points = PointsConfig::from_dsn(&from);
     let toml =
         toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -467,61 +463,32 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     temp_path.close()?;
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    tracing::debug!(
-        "opc datasets : {}",
-        serde_json::to_string(&res).unwrap_or("".to_string())
-    );
-    let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
-        match lang.as_str() {
-            "zh" => ("编码".to_string(), "点位编码".to_string()),
-            _ => ("Code".to_string(), "Point Code".to_string()),
-        }
-    } else {
-        ("Code".to_string(), "Point Code".to_string())
-    };
-    let options = vec![OptionSet {
-        name: "code".to_string(),
-        display: option_set_code_display,
-        description: Some(option_set_code_desc),
-        required: true,
-    }];
-    let format = Some("{id}::{code}".to_string());
-    if let Some(pattern) = req.pattern.as_deref() {
-        let regex = regex::Regex::from_str(pattern)?;
-        // regex.is_match(text)
-        let res = res
-            .into_iter()
-            .filter(|set| {
-                regex.is_match(&set.id)
-                    || set
-                        .name
-                        .as_deref()
-                        .map(|s| regex.is_match(s))
-                        .unwrap_or(false)
-            })
-            .map(|mut set| {
-                set.category = Some(req.categories[0].clone());
-                set.options = Some(options.clone());
-                set.format = format.clone();
-                set
-            })
-            .skip(req.offset)
-            .take(req.limit)
-            .collect_vec();
-        Ok(res)
-    } else {
-        Ok(res
-            .into_iter()
-            .map(|mut set| {
-                set.category = Some(req.categories[0].clone());
-                set.options = Some(options.clone());
-                set.format = format.clone();
-                set
-            })
-            .skip(req.offset)
-            .take(req.limit)
-            .collect())
-    }
+    // tracing::debug!("parse opc dataset successfully, have {} points", res.len());
+    // let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
+    //     match lang.as_str() {
+    //         "zh" => ("编码".to_string(), "点位编码".to_string()),
+    //         _ => ("Code".to_string(), "Point Code".to_string()),
+    //     }
+    // } else {
+    //     ("Code".to_string(), "Point Code".to_string())
+    // };
+    // let options = vec![OptionSet {
+    //     name: "code".to_string(),
+    //     display: option_set_code_display,
+    //     description: Some(option_set_code_desc),
+    //     required: true,
+    // }];
+    // let format = Some("{id}::{code}".to_string());
+    // let res = res
+    //     .into_iter()
+    //     .map(|mut set| {
+    //         set.category = Some(req.categories[0].clone());
+    //         set.options = Some(options.clone());
+    //         set.format = format.clone();
+    //         set
+    //     })
+    //     .collect_vec();
+    Ok(res)
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
@@ -584,6 +551,11 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
             data_source: "opc".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
+            namespaces: result["namespaces"].as_array().map(|v| {
+                v.iter()
+                    .map(|v| v.as_str().unwrap_or("").to_string())
+                    .collect()
+            }),
         })
     } else {
         Ok(DataSourceValidation::invalid(
@@ -599,6 +571,7 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::str::FromStr;
 
     use super::*;
 

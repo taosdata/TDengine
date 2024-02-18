@@ -28,7 +28,11 @@ ulimit -c unlimited
 sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
-# startup taosadapter
+if [ "$TAOS_MONITOR" = "1" ]; then
+    export TAOS_MONITOR_FQDN=${TAOS_MONITOR_FQDN:-localhost}
+fi
+
+# startup taosd
 taosd &
 # wait for 6030 port ready
 for _ in $(seq 1 20); do
@@ -71,6 +75,15 @@ else
         sleep 1s
     done
     $@
+fi
+
+# startup taoskeeper
+if [ "$TAOS_MONITOR" = "1" ]; then
+    which taoskeeper >/dev/null && taoskeeper &
+    for _ in $(seq 1 20); do
+        nc -z localhost 6043 && break
+        sleep 0.5
+    done
 fi
 
 # startup taosx

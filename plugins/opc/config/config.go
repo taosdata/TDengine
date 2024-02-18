@@ -33,16 +33,18 @@ type ConnectConfig struct {
 }
 
 type UaConnectConfig struct {
-	Endpoint       string `json:"endpoint,omitempty" yaml:"endpoint" toml:"endpoint"`                      // opc endpoint, such as `opc.tcp://localhost:4840`
-	ConnectTimeout int64  `json:"connect_timeout,omitempty" yaml:"connect_timeout" toml:"connect_timeout"` // timeout for connect to endpoint in second
-	RequestTimeout int64  `json:"request_timeout,omitempty" yaml:"request_timeout" toml:"request_timeout"` // timeout for a request in second
-	SecurityPolicy string `json:"security_policy,omitempty" yaml:"security_policy" toml:"security_policy"` // Security policy, one of `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss`
-	SecurityMode   string `json:"security_mode,omitempty" yaml:"security_mode" toml:"security_mode"`       // Security mode, one of `None`, `Sign`, `SignAndEncrypt`
-	Certificate    string `json:"certificate,omitempty" yaml:"certificate" toml:"certificate"`             // Path to cert.pem. Required when security mode or policy isn't `None`
-	PrivateKey     string `json:"private_key,omitempty" yaml:"private_key" toml:"private_key"`             // Path to private key.pem. Required when security mode or policy isn't `None`
-	AuthMethod     string `json:"auth_method,omitempty" yaml:"auth_method" toml:"auth_method"`             // authentication Method, one of `Certificate`, `Username`, or `Anonymous`
-	Username       string `json:"user_name,omitempty" yaml:"username" toml:"username"`                     // Required for auth_method = "Username"
-	Password       string `json:"password,omitempty" yaml:"password" toml:"password"`                      // Required for auth_method = "Username"
+	Endpoint        string `json:"endpoint,omitempty" yaml:"endpoint" toml:"endpoint"`                         // opc endpoint, such as `opc.tcp://localhost:4840`
+	ConnectTimeout  int64  `json:"connect_timeout,omitempty" yaml:"connect_timeout" toml:"connect_timeout"`    // timeout for connect to endpoint in second
+	RequestTimeout  int64  `json:"request_timeout,omitempty" yaml:"request_timeout" toml:"request_timeout"`    // timeout for a request in second
+	SecurityPolicy  string `json:"security_policy,omitempty" yaml:"security_policy" toml:"security_policy"`    // Security policy, one of `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss`
+	SecurityMode    string `json:"security_mode,omitempty" yaml:"security_mode" toml:"security_mode"`          // Security mode, one of `None`, `Sign`, `SignAndEncrypt`
+	Certificate     string `json:"certificate,omitempty" yaml:"certificate" toml:"certificate"`                // Path to cert.pem. Required when security mode or policy isn't `None`
+	PrivateKey      string `json:"private_key,omitempty" yaml:"private_key" toml:"private_key"`                // Path to private key.pem. Required when security mode or policy isn't `None`
+	AuthMethod      string `json:"auth_method,omitempty" yaml:"auth_method" toml:"auth_method"`                // authentication Method, one of `Certificate`, `Username`, or `Anonymous`
+	Username        string `json:"user_name,omitempty" yaml:"username" toml:"username"`                        // Required for auth_method = "Username"
+	Password        string `json:"password,omitempty" yaml:"password" toml:"password"`                         // Required for auth_method = "Username"
+	AuthCertificate string `json:"auth_certificate,omitempty" yaml:"auth_certificate" toml:"auth_certificate"` // Required for auth_method = "Certificate"
+	AuthPrivateKey  string `json:"auth_private_key,omitempty" yaml:"auth_private_key" toml:"auth_private_key"` // Required for auth_method = "Certificate"
 }
 
 type DaConnectConfig struct {
@@ -55,10 +57,16 @@ type PointsConfig struct {
 	Limit int            `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Regex string         `json:"regex,omitempty" yaml:"regex" toml:"regex"`
 	Ua    UaPointsConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+	Da    DaPointsConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaPointsConfig struct {
-	Root string `json:"root,omitempty" yaml:"root" toml:"root"` // root path for points, default is 'i=85'
+	Root       string   `json:"root,omitempty" yaml:"root" toml:"root"` // root path for points, default is 'i=85'
+	Namespaces []uint16 `json:"namespaces,omitempty" yaml:"namespaces" toml:"namespaces"`
+}
+
+type DaPointsConfig struct {
+	AccessPath []string `json:"access_path,omitempty" yaml:"access_path" toml:"access_path"`
 }
 
 type CollectConfig struct {
@@ -154,9 +162,6 @@ func (c *UaConnectConfig) validateSecurityPolicy() error {
 	if !Contains(policies, c.SecurityPolicy) {
 		return fmt.Errorf("invalid security policy %q", c.SecurityPolicy)
 	}
-	if c.SecurityPolicy != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
-		return errors.New("certificate and privateKey is required if security policy is not `None`")
-	}
 	return nil
 }
 
@@ -167,7 +172,7 @@ func (c *UaConnectConfig) validateSecurityMode() error {
 		return fmt.Errorf("invalid security type %q", c.SecurityMode)
 	}
 	if c.SecurityMode != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
-		return errors.New("certificate and privateKey is required if security mode is not `None`")
+		return errors.New("certificate and private_key is required if security mode is not `None`")
 	}
 	return nil
 }
@@ -180,6 +185,9 @@ func (c *UaConnectConfig) validateAuthMethod() error {
 	}
 	if strings.ToLower(c.AuthMethod) == "username" && (len(c.Username) == 0 || len(c.Password) == 0) {
 		return errors.New("user name and password is required for `Username` auth method")
+	}
+	if strings.ToLower(c.AuthMethod) == "certificate" && (len(c.AuthCertificate) == 0 || len(c.AuthCertificate) == 0) {
+		return errors.New("auth_certificate and auth_private_key is required for `Certificate` auth method")
 	}
 	return nil
 }

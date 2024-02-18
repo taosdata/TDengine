@@ -14,4 +14,8 @@ if __name__ == "__main__":
     main.add_reference(node_bool, ua.ObjectIds.Organizes)
     main.add_reference(node_float64, ua.ObjectIds.Organizes)
 
+    ns3 = server.register_namespace("http://taosdata.com/2")
+    main = server.nodes.objects.add_object(ua.NodeId("main", ns3), "main")
+    node_int32 = main.add_variable(ua.NodeId(1001, ns3), "int32", 32, ua.VariantType.Int32, ua.ObjectIds.Int32)
+
     server.start()

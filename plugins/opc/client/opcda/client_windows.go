@@ -239,7 +239,24 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if err != nil {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}
-	tags := c.browse(tree, reg, conf.Limit)
+	root := tree
+	if len(conf.Da.AccessPath) > 0 {
+		for _, s := range conf.Da.AccessPath {
+			found := false
+			for _, branch := range root.Branches {
+				if branch.Name == s {
+					root = branch
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("get all tags error. access path not found %s", s)
+			}
+		}
+	}
+
+	tags := c.browse(root, reg, conf.Limit)
 	return tags, nil
 }
 

@@ -211,6 +211,7 @@ def init_build_info():
         release_info.CustomEmail = args.cus_email
     if args.upload_agent:
         release_info.UploadAgent = True
+        sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if release_info.Target == "taosx":
         sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
         sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
@@ -221,7 +222,7 @@ def init_build_info():
         release_info.TdengineVersion = get_tdengine_version(args.ver_number)
     release_info.InstallPath = get_install_path()
 
-    sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
+    # sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if args.connector_list:
         for i, arg in enumerate(args.connector_list):
             sub_module.append(SubmoduleBuildInfo(arg, release_info.DefaultBuildMode))
@@ -500,6 +501,10 @@ def init_explorer_code(explorer_path):
     else:
         os.chdir(os.path.join(taosx_dir, ".."))
         os.system('git clone git@github.com:taosdata/explorer.git')
+    
+    if release_info.TdengineVersion is not None and release_info.TdengineVersion != "":
+        os.chdir(explorer_path)
+        os.system(f'git checkout ver-{release_info.TdengineVersion}')
 
 def build_taos_explorer(explorer_path, mode):
     init_explorer_code(explorer_path)
@@ -676,13 +681,13 @@ def test_handle_windows(process):
     elif process == "package":
         print("Calling Package function...")
         package()
-    elif process == "taosx":
+    elif process == "taosx" and release_info.UploadAgent == False:
         print("Calling taosx function...")
         build_and_install_taosx("Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent("Debug")
-    elif process == "explorer":
+    elif process == "explorer" and release_info.UploadAgent == False:
         print("Calling taos-explorer function...")
         build_and_install_taos_explorer("Debug")
     elif process == influxdb_connector:

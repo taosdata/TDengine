@@ -3,7 +3,10 @@ package com.taosdata.caches;
 import com.taosdata.model.entity.OpentsdbDataEntity;
 import io.netty.channel.Channel;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,12 +39,12 @@ public class MetricDataCache {
      * @param opentsdbDataEntity
      * @return
      */
-    public static int addMetricData(OpentsdbDataEntity opentsdbDataEntity) {
+    /*public static int addMetricData(OpentsdbDataEntity opentsdbDataEntity) {
         // 放入队列中
         metricDataQueue.add(opentsdbDataEntity);
         // 返回当前队列大小
         return metricDataQueue.size();
-    }
+    }*/
 
     /**
      * 批量添加数据并获取队列大小
@@ -161,7 +164,7 @@ public class MetricDataCache {
      *
      * @return
      */
-    public static Set<String> getMetricDataEmptyKeySet() {
+    /*public static Set<String> getMetricDataEmptyKeySet() {
         Set<String> keySet = new HashSet<>();
         metricDataQueueMap.forEach((k, v) -> {
             if (v != null && v.size() == 0) {
@@ -169,7 +172,7 @@ public class MetricDataCache {
             }
         });
         return keySet;
-    }
+    }*/
 
     /**
      * 删除指定队列记录

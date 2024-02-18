@@ -3,6 +3,7 @@ package com.taosdata.threads;
 import com.alibaba.fastjson.JSONArray;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.MetricCache;
+import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
@@ -54,9 +55,14 @@ public class MetricThread implements Runnable {
     private OpentsdbService opentsdbService = ApplicationContextProvider.getBean(OpentsdbServiceImpl.class);
 
     /**
+     * 上次查找新加metric的时间（为了减少操作频率）
+     */
+    private long lastFindAdditional = 0L;
+
+    /**
      * 当前已经处理完第几个，结合beginTime与readWindow确定读取时间
      */
-    private int index = 0;
+    private long index = 0;
 
     /**
      * 上次结束时间，当上次窗口不完整时依此进行调整
@@ -91,8 +97,11 @@ public class MetricThread implements Runnable {
                 }
                 // 更新当前时间
                 this.now = new Date(System.currentTimeMillis() - performanceConfig.getDelay() * 1000);
-                // 处理新增的metric
-                additionalMetric();
+                // 处理新增的measurement（每分钟）
+                if (start - this.lastFindAdditional > 60000) {
+                    this.lastFindAdditional = start;
+                    additionalMetric();
+                }
                 // 下一个时间段，英文逗号分割
                 String timeRange = getTimeRange(this.index);
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
@@ -100,10 +109,14 @@ public class MetricThread implements Runnable {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
                     if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.taskEndTime.before(this.now)) {
                         // 判断是否可以退出进程
-                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated // 防止启动时直接退出
+                                && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() // 判断读取任务完成
+                                && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get() // 判断全部推送
+                                && MetricDataCache.socketMap.size() == 0 // 判断连接全部关闭
+                        ) {
                             Thread.sleep(5000L);
-                            logger.info("Task execution completed, normal exit.");
                             logger.info(StatusCache.toPrintString());
+                            logger.info("Task execution completed, normal exit.");
                             System.exit(0);
                         }
                     }
@@ -215,10 +228,14 @@ public class MetricThread implements Runnable {
             if (metric == null || StringUtils.isEmpty(metric.toString())) {
                 return;
             }
+            // 如果任务中指定了metric则过滤
+            if (taskConfig.getMetrics().size() > 0 && !taskConfig.getMetrics().contains(metric)) {
+                return;
+            }
             // 如果不在缓存中
             if (!MetricCache.metricMap.containsKey(metric)) {
                 // 添加从0到index-1的所有时间段
-                for (int i = 0; i < this.index; i++) {
+                for (long i = 0; i < this.index; i++) {
                     try {
                         // 获取时间段
                         String timeRange = getTimeRange(i);
@@ -252,7 +269,7 @@ public class MetricThread implements Runnable {
      * @return
      * @throws Exception
      */
-    private String getTimeRange(int index) throws Exception {
+    private String getTimeRange(long index) throws Exception {
         // 获取配置信息
         String beginTime = this.taskConfig.getBeginTime();
         String endTime = this.taskConfig.getEndTime();
@@ -283,7 +300,7 @@ public class MetricThread implements Runnable {
      * @param index
      * @return
      */
-    private String getTimeRange(Date beginTime, Date endTime, int index, int readWindow) {
+    private String getTimeRange(Date beginTime, Date endTime, long index, int readWindow) {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * (readWindow * 60 * 1000);
         long end = begin + readWindow * 60 * 1000;

@@ -211,7 +211,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 // TODO: clickhouse
                 runners::historian::AVEVA_HISTORIAN_ID => runners::historian::is_valid(&dsn).await,
                 "influxdb" => runners::influxdb::is_valid(&dsn).await,
-                "kafka" => runners::kafka::is_valid(&dsn).await,
+                runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
                 "mqtt" => runners::mqtt::is_valid(&dsn).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
                 "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
@@ -220,6 +220,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "taos" => crate::taoz::is_taos_valid(&dsn).await,
                 "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
                 "csv" => crate::csv::is_csv_valid(&dsn).await,
+                "local" => crate::local_to_taos::is_local_valid(&dsn).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }

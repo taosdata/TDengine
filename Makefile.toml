@@ -309,3 +309,27 @@ docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER} ./docker
 rm -rf ./docker/integrated/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
+
+[tasks.build-docker-dev]
+script = """
+echo use CentOS 7 as dev image with docker/dev/Dockerfile .
+docker build -f docker/dev/Dockerfile -t taosx/dev .
+"""
+
+[tasks.build-centos7-release]
+# dependencies = ["build-docker-dev"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker-compose run build \
+  cargo build --release -p taosx -p taosx-agent
+"""
+
+[tasks.build-centos7-production]
+# dependencies = ["build-docker-dev"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker-compose run build \
+  cargo build --profile production -p taosx -p taosx-agent
+"""

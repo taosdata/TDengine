@@ -93,6 +93,13 @@ groups:
           - `none`: means not migrate schema, but only data into target.
           - `always`: means migrate all stuff.
         placeholder: always
+      - name: sparse
+        display: Sparse
+        value: false
+        hint:
+          type: bool
+        description: Enable this mode to improve performance in case of high-cardinality and low data ingestion frequency.
+
 
   - name: What to migrate
     display_order: 2

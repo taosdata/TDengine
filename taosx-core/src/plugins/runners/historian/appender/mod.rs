@@ -3,360 +3,205 @@ use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
-use arrow::datatypes::TimeUnit::Nanosecond;
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::{Local, NaiveDateTime, TimeZone};
+use futures_util::TryStreamExt;
 use itertools::Itertools;
-use tiberius::Row;
+use tiberius::{ColumnType, QueryItem, QueryStream};
 
-use taosx_ipc::prelude::ArrowDataType;
+use crate::runners::historian::to_arrow_data_type;
 
-use crate::runners::historian::appender::history::History;
-use crate::runners::historian::appender::live::Live;
-use crate::runners::historian::config::HistorianTable;
+pub mod column_meta;
 
-mod history;
-mod live;
-
-pub struct ArrowDataAppender {
-    schema: Schema,
-    data_builders: Vec<Box<dyn ArrayBuilder>>,
+pub async fn to_record_batch(stream: QueryStream<'_>) -> anyhow::Result<RecordBatch> {
+    to_record_batches(stream, usize::MAX)
+        .await
+        .map(|batches| batches[0].clone())
 }
 
-impl ArrowDataAppender {
-    pub fn try_new(table: HistorianTable) -> anyhow::Result<Self> {
-        // fields
-        let fields = match table {
-            HistorianTable::History => Self::history_fields(),
-            HistorianTable::Live => Self::live_fields(),
-        };
+pub async fn to_record_batches(
+    mut stream: QueryStream<'_>,
+    batch_size: usize,
+) -> anyhow::Result<Vec<RecordBatch>> {
+    let mut columns = Vec::new();
+    let mut builders = Vec::new();
+    let mut fields = Vec::new();
+    let mut batches = Vec::new();
 
-        // data builders
-        let data_builders = fields
-            .iter()
-            .map(|f| array::make_builder(f.data_type(), 10))
-            .collect_vec();
+    let mut row_count = 0;
+    while let Some(item) = stream.try_next().await? {
+        match item {
+            QueryItem::Metadata(meta) => {
+                for col in meta.columns() {
+                    let col_name = col.name().to_string();
+                    let col_type = col.column_type();
+                    columns.push((col_name, col_type));
+                }
 
-        // schema
-        let mut metadata = HashMap::new();
-        metadata.insert(String::from("version"), String::from("1.0"));
-        metadata.insert(String::from("stream"), String::from("flat"));
-        metadata.insert(String::from("ack"), String::from("lush"));
-
-        Ok(Self {
-            schema: Schema::new(fields).with_metadata(metadata),
-            data_builders,
-        })
-    }
-
-    fn history_fields() -> Vec<Field> {
-        let mut fields = Vec::new();
-
-        fields.push(Field::new(
-            "DateTime",
-            ArrowDataType::Timestamp(Nanosecond, None),
-            false,
-        ));
-        fields.push(Field::new("TagName", ArrowDataType::Utf8, false));
-        fields.push(Field::new("Value", ArrowDataType::Float64, true));
-        fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
-        fields.push(Field::new("Quality", ArrowDataType::UInt8, false));
-        fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
-        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
-        fields.push(Field::new("wwResolution", ArrowDataType::Int32, true));
-        fields.push(Field::new(
-            "StartDateTime",
-            ArrowDataType::Timestamp(Nanosecond, None),
-            false,
-        ));
-        fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
-        fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
-
-        fields
-    }
-
-    fn live_fields() -> Vec<Field> {
-        let mut fields = Vec::new();
-
-        fields.push(Field::new(
-            "DateTime",
-            ArrowDataType::Timestamp(Nanosecond, None),
-            false,
-        ));
-        fields.push(Field::new("TagName", ArrowDataType::Utf8, false));
-        fields.push(Field::new("Value", ArrowDataType::Float64, true));
-        fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
-        fields.push(Field::new("Quality", ArrowDataType::UInt8, false));
-        fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
-        fields.push(Field::new("OPCQuality", ArrowDataType::Int32, true));
-        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
-        fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
-        fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
-
-        fields
-    }
-
-    pub fn append_history_row(&mut self, row: &Row) -> anyhow::Result<History> {
-        let datetime = self
-            .append_timestamp(row, "DateTime", 0)?
-            .ok_or(anyhow::anyhow!("DateTime cannot be None"))?;
-        let tag_name = self.append_tag_name(row, "TagName", 1)?;
-        let value = self.append_float64(row, "Value", 2)?;
-        let v_value = self.append_string(row, "vValue", 3)?;
-        let quality = self
-            .append_uint8(row, "Quality", 4)?
-            .ok_or(anyhow::anyhow!("Quality cannot be None"))?;
-        let quality_detail = self.append_int32(row, "QualityDetail", 5)?;
-        let ww_tag_key = self
-            .append_int32(row, "wwTagKey", 6)?
-            .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
-        let ww_resolution = self.append_int32(row, "wwResolution", 7)?;
-        let start_datetime = self
-            .append_timestamp(row, "StartDateTime", 8)?
-            .ok_or(anyhow::anyhow!("StartDateTime cannot be None"))?;
-        let source_tag = self.append_string(row, "SourceTag", 9)?;
-        let source_server = self.append_string(row, "SourceServer", 10)?;
-
-        Ok(History {
-            datetime,
-            tag_name,
-            value,
-            v_value,
-            quality,
-            quality_detail,
-            ww_tag_key,
-            ww_resolution,
-            start_datetime,
-            source_tag,
-            source_server,
-        })
-    }
-
-    pub fn append_live_row(&mut self, row: &Row) -> anyhow::Result<Live> {
-        let datetime = self
-            .append_timestamp(row, "DateTime", 0)?
-            .ok_or(anyhow::anyhow!("DateTime cannot be None"))?;
-        let tag_name = self.append_tag_name(row, "TagName", 1)?;
-        let value = self.append_float64(row, "Value", 2)?;
-        let v_value = self.append_string(row, "vValue", 3)?;
-        let quality = self
-            .append_uint8(row, "Quality", 4)?
-            .ok_or(anyhow::anyhow!("Quality cannot be None"))?;
-        let quality_detail = self.append_int32(row, "QualityDetail", 5)?;
-        let opc_quality = self.append_int32(row, "OPCQuality", 6)?;
-        let ww_tag_key = self
-            .append_int32(row, "wwTagKey", 7)?
-            .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
-        let source_tag = self.append_string(row, "SourceTag", 8)?;
-        let source_server = self.append_string(row, "SourceServer", 9)?;
-
-        Ok(Live {
-            datetime,
-            tag_name,
-            value,
-            v_value,
-            quality,
-            quality_detail,
-            opc_quality,
-            ww_tag_key,
-            source_tag,
-            source_server,
-        })
-    }
-
-    fn append_timestamp(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<Option<i64>> {
-        let val = row.try_get::<NaiveDateTime, _>(column_name)?;
-        let ts = match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::TimestampNanosecondBuilder>()
-                    .unwrap()
-                    .append_null();
-                None
+                for (col_name, col_type) in columns.iter() {
+                    let arrow_type = to_arrow_data_type(col_type.clone())?;
+                    fields.push(Field::new(col_name, arrow_type.clone(), true));
+                    builders.push(array::make_builder(&arrow_type, 10));
+                }
             }
-            Some(val) => {
-                let ts = Local::now()
-                    .fixed_offset()
-                    .timezone()
-                    .from_local_datetime(&val)
-                    .unwrap()
-                    .timestamp_nanos_opt()
-                    .unwrap();
+            QueryItem::Row(row) => {
+                for (idx, (_col_name, col_type)) in columns.iter().enumerate() {
+                    match col_type {
+                        ColumnType::Null => {
+                            builders[idx]
+                                .as_any_mut()
+                                .downcast_mut::<array::NullBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        ColumnType::Int1 => {
+                            let val = row.try_get::<u8, _>(idx)?;
+                            match val {
+                                None => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::UInt8Builder>()
+                                        .unwrap()
+                                        .append_null();
+                                }
+                                Some(val) => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::UInt8Builder>()
+                                        .unwrap()
+                                        .append_value(val);
+                                }
+                            }
+                        }
+                        ColumnType::Int2 | ColumnType::Int4 | ColumnType::Intn => {
+                            let val = row.try_get::<i32, _>(idx)?;
+                            match val {
+                                None => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::Int32Builder>()
+                                        .unwrap()
+                                        .append_null();
+                                }
+                                Some(val) => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::Int32Builder>()
+                                        .unwrap()
+                                        .append_value(val);
+                                }
+                            }
+                        }
+                        ColumnType::Float4 | ColumnType::Float8 | ColumnType::Floatn => {
+                            let val = row.try_get::<f64, _>(idx)?;
+                            match val {
+                                None => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::Float64Builder>()
+                                        .unwrap()
+                                        .append_null();
+                                }
+                                Some(val) => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::Float64Builder>()
+                                        .unwrap()
+                                        .append_value(val);
+                                }
+                            }
+                        }
+                        ColumnType::Datetime2 => {
+                            let val = row.try_get::<NaiveDateTime, _>(idx)?;
+                            match val {
+                                None => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                        .unwrap()
+                                        .append_null();
+                                }
+                                Some(val) => {
+                                    let ts = Local::now()
+                                        .fixed_offset()
+                                        .timezone()
+                                        .from_local_datetime(&val)
+                                        .unwrap()
+                                        .timestamp_nanos_opt()
+                                        .unwrap();
 
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::TimestampNanosecondBuilder>()
-                    .unwrap()
-                    .append_value(ts);
-                Some(ts)
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                        .unwrap()
+                                        .append_value(ts);
+                                }
+                            }
+                        }
+                        _ => {
+                            let val = row.try_get::<&str, _>(idx)?;
+                            match val {
+                                None => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::StringBuilder>()
+                                        .unwrap()
+                                        .append_null();
+                                }
+                                Some(val) => {
+                                    builders[idx]
+                                        .as_any_mut()
+                                        .downcast_mut::<array::StringBuilder>()
+                                        .unwrap()
+                                        .append_value(val);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if row_count == batch_size {
+                    let batch = to_batch(fields.clone(), builders).await?;
+                    batches.push(batch);
+
+                    builders = Vec::new();
+                    for (_col_name, col_type) in columns.iter() {
+                        let arrow_type = to_arrow_data_type(col_type.clone())?;
+                        builders.push(array::make_builder(&arrow_type, 10));
+                    }
+                    row_count = 0;
+                }
+
+                row_count += 1;
             }
-        };
-        Ok(ts)
+        }
     }
 
-    fn append_tag_name(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<String> {
-        let val = row.try_get::<&str, _>(column_name)?;
-        let tag_name = match val {
-            None => {
-                return Err(anyhow::anyhow!("TagName cannot be None"));
-            }
-            Some(val) => {
-                let new_tag_name = val.replace(".", "_").replace("`", "_");
+    let batch = to_batch(fields, builders).await?;
+    batches.push(batch);
 
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_value(new_tag_name.clone());
+    Ok(batches)
+}
 
-                new_tag_name
-            }
-        };
+async fn to_batch(
+    fields: Vec<Field>,
+    mut builders: Vec<Box<dyn ArrayBuilder>>,
+) -> anyhow::Result<RecordBatch> {
+    // schema
+    let mut metadata = HashMap::new();
+    metadata.insert(String::from("version"), String::from("1.0"));
+    metadata.insert(String::from("stream"), String::from("flat"));
+    metadata.insert(String::from("ack"), String::from("lush"));
 
-        Ok(tag_name)
-    }
+    let schema = Schema::new(fields).with_metadata(metadata);
+    let array_refs = builders
+        .iter_mut()
+        .map(|builder| Arc::new(builder.finish()) as ArrayRef)
+        .collect_vec();
 
-    fn append_string(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<Option<String>> {
-        let val = row.try_get::<&str, _>(column_name)?;
-        let string_value = match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_null();
-
-                None
-            }
-            Some(val) => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_value(val);
-
-                Some(val.to_string())
-            }
-        };
-        Ok(string_value)
-    }
-
-    fn append_float64(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<Option<f64>> {
-        let val = row.try_get::<f64, _>(column_name)?;
-        let float_value = match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::Float64Builder>()
-                    .unwrap()
-                    .append_null();
-                None
-            }
-            Some(val) => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::Float64Builder>()
-                    .unwrap()
-                    .append_value(val);
-                Some(val)
-            }
-        };
-
-        Ok(float_value)
-    }
-
-    fn append_int32(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<Option<i32>> {
-        let val = row.try_get::<i32, _>(column_name)?;
-        let i32_value = match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::Int32Builder>()
-                    .unwrap()
-                    .append_null();
-                None
-            }
-            Some(val) => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::Int32Builder>()
-                    .unwrap()
-                    .append_value(val);
-                Some(val)
-            }
-        };
-        Ok(i32_value)
-    }
-
-    fn append_uint8(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<Option<u8>> {
-        let val = row.try_get::<u8, _>(column_name)?;
-        let u8_value = match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::UInt8Builder>()
-                    .unwrap()
-                    .append_null();
-                None
-            }
-            Some(val) => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::UInt8Builder>()
-                    .unwrap()
-                    .append_value(val);
-                Some(val)
-            }
-        };
-        Ok(u8_value)
-    }
-
-    pub fn finish(&mut self) -> anyhow::Result<RecordBatch> {
-        let array_refs = self
-            .data_builders
-            .iter_mut()
-            .map(|builder| Arc::new(builder.finish()) as ArrayRef)
-            .collect_vec();
-
-        let batch = RecordBatch::try_new(Arc::new(self.schema.clone()), array_refs)?;
-        Ok(batch)
-    }
-
-    pub fn schema(&self) -> &Schema {
-        &self.schema
-    }
+    let batch = RecordBatch::try_new(Arc::new(schema), array_refs)?;
+    Ok(batch)
 }
 
 #[cfg(test)]

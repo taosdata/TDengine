@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use anyhow::bail;
 use arrow_flight::{error::FlightError, FlightData, PutResult};
@@ -97,7 +97,8 @@ impl PutStream {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
         // data channel
-        let (tx, rx) = flume::bounded(1000000);
+        let (tx, rx) = flume::bounded(4096);
+        let tx = Arc::new(tx);
         // response channel
         let schema = stream
             .try_next()
@@ -111,7 +112,7 @@ impl PutStream {
         };
 
         debug!(schema = ?schema, "parsing put stream schema");
-        let tx_cloned = tx.clone();
+        let tx_cloned = Arc::downgrade(&tx);
         let taos = pool.get().await?;
         let from_dsn: Dsn = task.from.parse()?;
         let to_dsn: Dsn = task.to.parse()?;
@@ -173,7 +174,7 @@ impl PutStream {
             pool: &taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: flume::Sender<(arrow::record_batch::RecordBatch, u64)>,
+            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, u64)>>,
             rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
@@ -184,6 +185,10 @@ impl PutStream {
             stream_trace_id_u64: u64,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
+            notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                agent_id,
+                TaskActivity::ipc_started(task.id),
+            ))?;
             let task_id = task.id;
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
@@ -222,8 +227,8 @@ impl PutStream {
                 .unwrap_or(48);
             stream.map(|(record, trace_id)| {
                 let trace_id_str = get_data_trace_id_str(trace_id);
-                tracing::info!("Writing batch {trace_id_str}");
-                tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
+                tracing::info!(num.rows = record.num_rows(), num.columns = record.num_columns(), "Writing batch {trace_id_str}");
+                tracing::debug!(columns = ?record.columns());
                 anyhow::Ok((record, trace_id, worker.clone(), parser.clone(), notify_sender.clone(), tx.clone(), abort_message_tx.clone()))
             }).try_for_each_concurrent(limit, |(record, trace_id, worker, parser, notify_sender, tx, abort_message_tx)| async move {
                 if let Err(err) = worker
@@ -237,11 +242,11 @@ impl PutStream {
                     .in_current_span()
                     .await
                 {
+                    metrics.add_failed_batches(1);
                     tracing::warn!(
-                        trace_id = %get_data_trace_id_str(trace_id),
                         error = format!("{:#}", err),
                         backtrace = %err.backtrace(),
-                        "Can't write batch {} to database",
+                        "Writing batch {} error",
                         get_data_trace_id_str(trace_id),
                     );
                     let _ = notify_sender.send(
@@ -262,10 +267,20 @@ impl PutStream {
                         )?;
                         bail!("{err:#}");
                     }
-                    tx.send_async((record, trace_id)).await?;
+                    if let Some(tx) = tx.upgrade() {
+                        tx.send_async((record, trace_id)).await?;
+                    }
+                } else {
+                    metrics.add_processed_batches(1);
                 }
+                tracing::info!("Writing batch {} success", get_data_trace_id_str(trace_id));
                 Ok(())
             }).await?;
+
+            notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                agent_id,
+                TaskActivity::ipc_finished(task_id),
+            ))?;
             Ok(())
         }
         let notify_sender = self.notify_sender.clone();
@@ -294,8 +309,10 @@ impl PutStream {
                 .in_current_span()
                 .await
                 {
-                    tracing::warn!("IPC stream writer stopped, err:{:?}", err);
+                    tracing::warn!("IPC stream writer stopped, err:{:#?}", err);
                 }
+
+                tracing::info!("IPC stream writer stopped successfully");
             }
             .in_current_span(),
         );

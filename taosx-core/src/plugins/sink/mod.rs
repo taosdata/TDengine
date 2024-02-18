@@ -36,7 +36,7 @@ use taosx_ipc::{
 };
 
 use crate::{
-    core_metrics::{CoreMetrics, TaosXMetrics},
+    core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
 };
 use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};
@@ -1364,6 +1364,7 @@ async fn consume_point_record(
                                 taos.replace(pool.get().await?);
                                 retry += 1;
                             } else {
+                                metrics.add_failed_sqls(1);
                                 Err(err)?;
                                 break;
                             }
@@ -1415,6 +1416,9 @@ async fn consume_flat_record(
             crate::plugins::transform::Message::Tables(_) => todo!(),
             crate::plugins::transform::Message::ChildTables(_) => todo!(),
             crate::plugins::transform::Message::Records(message) => {
+                if message.len() == 0 {
+                    continue;
+                }
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())
@@ -1449,10 +1453,15 @@ async fn consume_flat_record(
                     // dbg!(&views);
                     let schema = records.records.schema();
                     let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
-                    let table_name = records.table.name.as_str();
+
+                    // replace dot in table_name
+                    let table_name = records
+                        .opts
+                        .canonical_table_name(records.table.name.as_str());
 
                     let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
-                    raw.with_field_names(&columns).with_table_name(table_name);
+                    raw.with_field_names(&columns)
+                        .with_table_name(table_name.clone());
 
                     let mut write_retries = 0;
                     loop {
@@ -1470,7 +1479,7 @@ async fn consume_flat_record(
                                     }
                                 }
                                 loop {
-                                    let res = taos.as_ref().unwrap().describe(table_name).await;
+                                    let res = taos.as_ref().unwrap().describe(&table_name).await;
                                     match res {
                                         Ok(desc) => {
                                             if let Some(col) =
@@ -1482,7 +1491,7 @@ async fn consume_flat_record(
                                                         .table
                                                         .using
                                                         .as_deref()
-                                                        .unwrap_or(table_name);
+                                                        .unwrap_or(&table_name);
                                                     let sql = format!(
                                                         "alter table `{table}` modify column `{}` {}({})",
                                                         name,
@@ -1791,8 +1800,8 @@ async fn consume_flat_record(
                             } else if err_str.contains("[0x2605]") {
                                 // container length is too short.
                                 let desc =
-                                    taos.as_ref().unwrap().describe(table_name).await.unwrap();
-                                let table = records.table.using.as_deref().unwrap_or(table_name);
+                                    taos.as_ref().unwrap().describe(&table_name).await.unwrap();
+                                let table = records.table.using.as_deref().unwrap_or(&table_name);
                                 for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
                                 {
                                     let sql = format!(
@@ -1813,7 +1822,7 @@ async fn consume_flat_record(
                                 while index < columns.len() {
                                     // let column_view = views.get(index).unwrap();
                                     let column_name = columns.get(index).unwrap().as_str();
-                                    let desc = taos.as_ref().unwrap().describe(table_name).await?;
+                                    let desc = taos.as_ref().unwrap().describe(&table_name).await?;
                                     let mut need_add = true;
                                     desc.into_iter().for_each(|column_meta| {
                                         if column_meta.field() == column_name {
@@ -1860,7 +1869,7 @@ async fn consume_flat_record(
                                 taos.replace(pool.get().await?);
                                 continue;
                             } else {
-                                error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
+                                error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                                 metrics.add_failed_raw_blocks(1);
                                 metrics.add_failed_rows(raw.nrows() as u64);
                                 metrics.add_failed_points(
@@ -1928,7 +1937,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!("Start consuming lush record batch {}", data_trace_id_str);
+        info!("Writing batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -1949,9 +1958,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         )
         .await
         {
-            tracing::error!("write batch {data_trace_id_str} error: {err:#}");
+            metrics.add_failed_batches(1);
+            tracing::error!("Writing batch {data_trace_id_str} error: {err:#}");
             let written = count - last;
-
             if ipc_error_strategy.will_stop() {
                 bail!("write batch error: {err:#}");
             }
@@ -2046,7 +2055,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             metrics,
         )
         .await?;
-        metrics.add_processed_batches(1);
         Ok(n)
     }
 
@@ -2067,7 +2075,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
             let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
             let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-            info!("Start writing batch {}", data_trace_id_str);
+            info!("Writing batch {}", data_trace_id_str);
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 let metrics = metrics_arc_clone.ipc();
@@ -2075,11 +2083,13 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                 let n = parse(context, record, data_trace_id, &data_trace_id_str, metrics).await;
                 match n {
                     Ok(n) => {
+                        metrics.add_processed_batches(1);
                         let _ = ipc_ack_writer.lock().await.write_ok();
                         count.fetch_add(n, Ordering::SeqCst);
                     }
                     Err(err) => {
-                        tracing::warn!("Receive IPC item error: {err:#}");
+                        metrics.add_failed_batches(1);
+                        tracing::warn!("Writing batch {} error: {:#}", &data_trace_id_str, err);
                         let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
@@ -2128,10 +2138,8 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         })
         .unwrap();
         info!(
-            trace.id = data_trace_id_str,
-            record.rows = record.num_rows(),
-            batch_id = batches,
-            "Writing batch",
+            num.rows = record.num_rows(),
+            "Writing batch {data_trace_id_str}"
         );
         let last = count;
         if let Err(err) = consume_flat_record(
@@ -2149,7 +2157,8 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         )
         .await
         {
-            error!("write batch {batches} error: {err:#}");
+            metrics.add_failed_batches(1);
+            error!("Writing batch {batches} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0,
@@ -2169,6 +2178,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                 bail!("write batch error: {err:#}");
             }
         } else {
+            metrics.add_processed_batches(1);
             let _ = ipc_ack_writer
                 .ack(LushAck {
                     code: 0,
@@ -2189,7 +2199,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             "IPC write batch finished"
         );
         batches += 1;
-        metrics.add_processed_batches(1);
     }
     // may not reached when the task was stopped by user forcely
     info!("IPC processing done, written totally {count} records");
@@ -2297,7 +2306,9 @@ impl IpcErrorStrategy {
 
     fn from_connector(connector: &str) -> Self {
         match connector {
-            "taos" | "opentsdb" | "influxdb" | "csv" | "kafka" => IpcErrorStrategy::Stop,
+            "taos" | "opentsdb" | "influxdb" | "csv" | runners::kafka::KAFKA_ID => {
+                IpcErrorStrategy::Stop
+            }
             _ => IpcErrorStrategy::Report,
         }
     }
@@ -2602,7 +2613,6 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Lush => {
@@ -2637,7 +2647,6 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Point => {
@@ -2665,7 +2674,6 @@ impl IpcStreamWorker {
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
         }

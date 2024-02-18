@@ -82,6 +82,12 @@ groups:
           - `only`: 仅迁移表结构，不迁移表数据。
           - `none`: 不迁移表结构，仅迁移表数据。
           - `always`: 始终迁移表结构和数据。
+      - name: sparse
+        display: 稀疏模式
+        value: false
+        hint:
+          type: bool
+        description: 启用此模式以提升多表低频场景下的性能。
 
   - name: 表
     display_order: 2

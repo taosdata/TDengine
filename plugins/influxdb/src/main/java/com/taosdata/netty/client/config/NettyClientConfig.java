@@ -1,6 +1,7 @@
 package com.taosdata.netty.client.config;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConfigurationProperties(prefix = "taosx", ignoreInvalidFields = true)
-@Data
+@Getter
+@Setter
 public class NettyClientConfig {
 
     private String host;

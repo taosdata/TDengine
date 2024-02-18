@@ -1,7 +1,8 @@
 package com.taosdata.config;
 
 import com.taosdata.config.dto.ThreadConfig;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +13,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConfigurationProperties(prefix = "performance", ignoreInvalidFields = true)
-@Data
+@Getter
+@Setter
 public class PerformanceConfig {
 
     private int delay = 10000;

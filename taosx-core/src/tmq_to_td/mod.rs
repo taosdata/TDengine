@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
+    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy_metric::LegacyToTaosMetrics,
     sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
@@ -10,7 +10,6 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
@@ -48,7 +47,7 @@ async fn write_data(
                     // fallback to block-by-block method.
                 }
                 _ => {
-                    counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                    metrics.add_write_raw_fails(1);
                     Err(err).context("Write raw data into target error")?;
                 }
             }
@@ -216,10 +215,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }
@@ -260,6 +259,7 @@ async fn write_meta(
             };
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                metrics.add_write_raw_fails(1);
                 let code = *err.code().deref();
                 match code {
                     // Table not exist error codes.
@@ -284,7 +284,7 @@ async fn write_meta(
                                     tag_num: _,
                                 } => {
                                     // Create child table error means stable not exist.
-                                    tracing::warn!("Table does not exist: {using} while create child {table_name}");
+                                    tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
                                     let from = source.get().await?;
                                     sync_super_table_schema(
                                         &from,
@@ -295,11 +295,12 @@ async fn write_meta(
                                         &[],
                                     )
                                     .await?;
-                                    taos.write_raw_meta(&raw_meta).await.map_err(|err| {
-                                        err.context(format!(
+                                    if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                                        metrics.add_write_raw_fails(1);
+                                        Err(err.context(format!(
                                             "Write raw meta error with table {table_name}"
-                                        ))
-                                    })?;
+                                        )))?;
+                                    }
                                 }
                                 MetaCreate::Normal {
                                     table_name,
@@ -320,11 +321,9 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 => {
-                        metrics.add_write_raw_fails(1);
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
-                        metrics.add_write_raw_fails(1);
                         Err(err.context("Write raw meta error"))?;
                     }
                 }
@@ -366,7 +365,7 @@ async fn write_meta(
     Ok(())
 }
 
-#[instrument(skip(sender, consumer, taos, cancel, source_pool, metrics_arc))]
+#[instrument(skip_all, fields(task.id = id, table))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
@@ -377,8 +376,8 @@ async fn sync(
     actions: Vec<Action>,
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    version: String,
+    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    _version: String,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
     let mut stream = consumer.stream();

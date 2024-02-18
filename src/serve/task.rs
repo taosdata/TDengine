@@ -665,7 +665,7 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
         | "mqtt"
         | "influxdb"
         | "opentsdb"
-        | "kafka"
+        | runners::kafka::KAFKA_ID
         | runners::historian::AVEVA_HISTORIAN_ID
         | "csv" => try_get_metrics::<IpcMetrics>(task_id),
         _ => None,
@@ -744,6 +744,9 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
+    delimiter: Option<u8>,
+    quote: Option<u8>,
+    comment: Option<u8>,
     sample: Option<usize>,
 }
 
@@ -777,10 +780,13 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header, sample) = (
+    let (filepath_or_filedir, file_type, has_header, delimiter, quote, comment, sample) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
         filemeta_request.has_header,
+        filemeta_request.delimiter,
+        filemeta_request.quote,
+        filemeta_request.comment,
         filemeta_request.sample.unwrap_or(5),
     );
 
@@ -793,8 +799,15 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .into_iter()
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
-            let csv_header =
-                taosx_core::csv_header(filepath_or_filedir, has_header, sample).await?;
+            let csv_header = taosx_core::csv_header(
+                filepath_or_filedir,
+                has_header,
+                delimiter,
+                quote,
+                comment,
+                sample,
+            )
+            .await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
             }

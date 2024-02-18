@@ -3,15 +3,12 @@ package com.taosdata;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.caches.MetricCache;
-import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
-import com.taosdata.config.LocalConfig;
 import com.taosdata.config.OpentsdbConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
-import com.taosdata.model.entity.OpentsdbDataEntity;
 import com.taosdata.model.entity.OpentsdbMetricEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.config.NettyClientConfig;
@@ -265,7 +262,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理工作模式：普通、恢复
      */
-    private void initMode() {
+    /*private void initMode() {
         // 断点续传，需要本地的“读取记录”与“内存队列持久化”两个文件
         if ("resume".equals(this.taskConfig.getMode())) {
             try {
@@ -292,7 +289,7 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
-    }
+    }*/
 
     /**
      * 获取OpenTSDB版本信息
@@ -422,7 +419,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理退出信号
      */
-    private void processShutdown() {
+    /*private void processShutdown() {
         // 停止MetricThread、ScheduleThread线程（在ScheduleThread中停止所有MetricDataThread）
         LocalConfig.isRunMetricThread = false;
         LocalConfig.isRunScheduleThread = false;
@@ -467,5 +464,5 @@ public class PreLoading implements CommandLineRunner {
             logger.error("Failed to save read records during system security exit.", e);
         }
         logger.info("The system has executed a secure exit.");
-    }
+    }*/
 }

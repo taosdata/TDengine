@@ -1,13 +1,15 @@
 package com.taosdata.model.dto.bum;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Influxdb信息
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class InfluxdbInfo {
 
     /**
