@@ -1,9 +1,22 @@
+use crate::serve::controller::Status;
 use crate::serve::data_sources::LangQuery;
 use actix_web::{get, web::Query, HttpResponse, Responder};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
+use taos::Dsn;
+use taosx_core::{
+    core_metrics::{
+        compute_avg_speed, compute_total_avg_speed, split_to_total_and_current, try_get_metrics,
+        CoreMetrics, TaskMetrics,
+    },
+    legacy_metric::LegacyToTaosMetrics,
+    runners,
+    sink::ipc_metric::IpcMetrics,
+    tmq::tmq_metric::TmqMetrics,
+};
 use taosx_metrics::TaosXRecorderHandle;
 use tracing::instrument;
 
+use super::TaskDetail;
 pub(crate) mod ws;
 
 // use std::time::Duration;
@@ -164,6 +177,59 @@ lazy_static::lazy_static! {
             BTreeMap::new()
         }
     };
+}
+
+pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
+    let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
+    if parse_dsn_result.is_err() {
+        tracing::error!(
+            "parse dsn error: {}, from={}",
+            parse_dsn_result.unwrap_err(),
+            task.task.from
+        );
+        return None;
+    }
+    let dsn = parse_dsn_result.unwrap();
+    let task_id = task.task.id;
+    match dsn.driver.as_str() {
+        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
+        "tmq" => try_get_metrics::<TmqMetrics>(task_id),
+        "opc"
+        | "opcua"
+        | "opcda"
+        | "pi"
+        | "pibackfill"
+        | "mqtt"
+        | "influxdb"
+        | "opentsdb"
+        | runners::kafka::KAFKA_ID
+        | runners::historian::AVEVA_HISTORIAN_ID
+        | "csv" => try_get_metrics::<IpcMetrics>(task_id),
+        _ => None,
+    }
+}
+
+pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> String {
+    // 根据任务的状态判断任务是否正在运行。这里的正在运行的含义是：任务正在被 scheduler 执行。
+    // 这里的 running 更准确的说是任务处于需要被计算运行时间的状态。
+    let running = status == Status::Running
+        || status == Status::Stopping
+        || status == Status::Waiting
+        || status == Status::Interrupted;
+    let (common_metrics, json) = match metrics.as_ref() {
+        CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
+        CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),
+        CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
+    };
+    let mut map =
+        serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
+    map.remove("task_id");
+    map.remove("stable");
+    map.remove("task_name");
+    compute_total_avg_speed(common_metrics, &mut map);
+    compute_avg_speed(common_metrics, &mut map, running);
+    let result = split_to_total_and_current(&map);
+    serde_json::to_string(&result).unwrap()
 }
 
 /// Profile.

@@ -14,8 +14,8 @@ use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::{
-        auto_save_task_metrics, get_metrics, init_task_metrics, save_task_metrics_finally,
-        try_get_metrics, CoreMetrics, TaskMetrics, GLOBAL_METRICS,
+        auto_save_task_metrics, init_task_metrics, save_task_metrics_finally, CoreMetrics,
+        TaskMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
     sink::ipc_metric::IpcMetrics,
@@ -160,7 +160,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     )
     .unwrap();
     let (_sender, close_signal) = oneshot::channel::<()>();
-    auto_save_task_metrics(metrics_arc, close_signal);
+    auto_save_task_metrics(task_id, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -925,7 +925,7 @@ impl TaskJob {
                 let metrics_arc = init_task_metrics(from_dsn, to_dsn, task_id, task_name).unwrap();
                 let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
                 // start save metrics task
-                auto_save_task_metrics(get_metrics(task_id).unwrap(), stop_save_metrics_signal);
+                auto_save_task_metrics(task_id, stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
                 let agent_activities = waiter.agent_activities.clone();

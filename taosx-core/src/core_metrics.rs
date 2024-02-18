@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use taos::Dsn;
 use tokio::sync::oneshot;
-use tracing::Instrument;
+use tracing::{instrument, Instrument};
 
 /// MetricsType is an enum to store all supported metrics data structure.
 pub enum CoreMetrics {
@@ -233,24 +233,7 @@ pub fn load_metrics<T: TaskMetrics>(task_id: &str) -> Option<T> {
     }
 }
 
-pub fn get_task_metrics_string(running: bool, metrics: Arc<CoreMetrics>) -> String {
-    let (common_metrics, json) = match metrics.as_ref() {
-        CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
-        CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),
-        CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
-    };
-    let mut map =
-        serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
-    map.remove("task_id");
-    map.remove("stable");
-    map.remove("task_name");
-    compute_total_avg_speed(common_metrics, &mut map);
-    compute_avg_speed(common_metrics, &mut map, running);
-    let result = split_to_total_and_current(&map);
-    serde_json::to_string(&result).unwrap()
-}
-
-fn split_to_total_and_current(
+pub fn split_to_total_and_current(
     map: &serde_json::Map<String, serde_json::Value>,
 ) -> serde_json::Value {
     let mut total_map = BTreeMap::new();
@@ -269,7 +252,7 @@ fn split_to_total_and_current(
 }
 
 #[inline]
-fn compute_total_avg_speed(
+pub fn compute_total_avg_speed(
     common_metrics: &CommonMetrics,
     map: &mut serde_json::Map<String, serde_json::Value>,
 ) {
@@ -289,7 +272,7 @@ fn compute_total_avg_speed(
 }
 
 #[inline]
-fn compute_avg_speed(
+pub fn compute_avg_speed(
     common_metrics: &CommonMetrics,
     map: &mut serde_json::Map<String, serde_json::Value>,
     running: bool,
@@ -487,10 +470,9 @@ impl Default for TaskStartTime {
 unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
-pub fn auto_save_task_metrics(
-    metrics_arc: Arc<CoreMetrics>,
-    mut close_signal: oneshot::Receiver<()>,
-) {
+#[instrument(skip(close_signal))]
+pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
+    let metrics_arc = get_metrics(task_id).unwrap();
     tokio::spawn(
         async move {
             tracing::info!("auto-save metrics task start");

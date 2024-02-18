@@ -12,15 +12,15 @@ use futures_util::{
     StreamExt as _,
 };
 use taos::Code;
-use taosx_core::core_metrics::{get_task_metrics_string, CoreMetrics};
+use taosx_core::core_metrics::CoreMetrics;
 use tokio::{pin, time::interval};
 use tracing::instrument;
 
-use crate::serve::{
-    controller::{Status, TaskControllerRef},
-    task::{try_get_metrics_from_task_detail, Failed},
-};
+use crate::serve::{controller::TaskControllerRef, Failed};
 use tokio::time::{sleep, Duration};
+
+use super::get_task_metrics_string;
+use super::try_get_metrics_from_task_detail;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 /// How long before lack of client response causes a timeout
@@ -164,9 +164,8 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
         }
         let task = task.unwrap();
         let status = task.status();
-        let running = status == Status::Running || status == Status::Stopping;
         tracing::debug!("task status: {:?}", status);
-        let metrics_string = get_task_metrics_string(running, metrics.clone());
+        let metrics_string = get_task_metrics_string(status, metrics.clone());
         if let Err(Closed) = session.text(metrics_string).await {
             tracing::info!("ws session closed");
             break;
