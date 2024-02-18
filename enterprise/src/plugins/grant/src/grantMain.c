@@ -950,7 +950,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
   int32_t dnodeSize = taosArrayGetSize(grantHandle.pDnodeInfo);
   int32_t contLen = 0;
-  if (dnodeSize >= 1) {
+  if (dnodeSize > 1) {
     void *pCont = NULL;
     void *qCont = NULL;
     contLen = tSerializeGrantStatus(NULL, 0, &gStatus, grantClusterTime);
