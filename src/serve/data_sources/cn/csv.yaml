@@ -16,6 +16,12 @@ groups:
     display_order: 1
     description: CSV 读取选项
     params:
+      - name: has_header
+        display: 包含Header
+        description: |
+          如果包含 Header，则第一行将被视为列信息。
+        hint:
+          type: bool
       - name: skip
         display: 忽略前 N 行
         description: 忽略 CSV 文件的前 N 行。

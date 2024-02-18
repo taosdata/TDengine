@@ -35,6 +35,9 @@ impl PointsConfig {
             OpcType::OPCUA => {
                 let root = dsn.params.get("root").map(|v| v.to_string());
                 let namespaces = dsn.params.get("namespaces").map(|v| {
+                    if v.is_empty() {
+                        return vec![];
+                    }
                     v.split(',')
                         .map(|v| v.parse::<u16>().unwrap())
                         .collect::<Vec<u16>>()

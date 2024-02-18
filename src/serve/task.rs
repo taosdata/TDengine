@@ -23,6 +23,7 @@ use tracing::instrument;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
+use anyhow::anyhow;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -705,9 +706,9 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
-    delimiter: Option<u8>,
-    quote: Option<u8>,
-    comment: Option<u8>,
+    delimiter: Option<String>,
+    quote: Option<String>,
+    comment: Option<String>,
     sample: Option<usize>,
 }
 
@@ -751,6 +752,40 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.sample.unwrap_or(5),
     );
 
+    let delimiter = delimiter.unwrap();
+    let delimiter = delimiter.trim();
+    let delimiter = match delimiter.len() {
+        0 => None,
+        1 => Some(Ok(delimiter.as_bytes()[0])),
+        _ => Some(Err(anyhow!("CSV delimiter should be a single character"))),
+    }
+    .transpose()?
+    .unwrap_or(b',');
+
+    let quote = quote.unwrap();
+    let quote = quote.trim();
+    let quote = match quote.as_bytes() {
+        [] => None,
+        [quote] if *quote == delimiter => Some(Err(anyhow!(
+            "CSV quote should not be the same as delimiter"
+        ))),
+        [quote] => Some(Ok(quote.clone())),
+        _ => Some(Err(anyhow!("CSV quote should be a single character"))),
+    }
+    .transpose()?;
+
+    let comment = comment.unwrap();
+    let comment = comment.trim();
+    let comment = match comment.as_bytes() {
+        [] => None,
+        [comment] if *comment == delimiter => Some(Err(anyhow!(
+            "CSV comment should not be the same as delimiter"
+        ))),
+        [comment] => Some(Ok(comment.clone())),
+        _ => Some(Err(anyhow!("CSV comment should be a single character"))),
+    }
+    .transpose()?;
+
     let data_dir = get_data_dir();
 
     match file_type.as_str() {
@@ -763,7 +798,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
             let csv_header = taosx_core::csv_header(
                 filepath_or_filedir,
                 has_header,
-                delimiter,
+                Some(delimiter),
                 quote,
                 comment,
                 sample,

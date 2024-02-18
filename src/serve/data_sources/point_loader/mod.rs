@@ -178,6 +178,7 @@ pub async fn arrange_point_file_download_task(
     }
 
     tokio::spawn(async move {
+        tracing::debug!("start async download task: {}", &task_id);
         let (data, point_count) = get_all_points(
             params.from,
             params.via,
@@ -240,7 +241,8 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
 
 pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Pagination<OpcPoint>> {
     let map = SHARED_MAP.write().await;
-    let page = params.page.unwrap_or(0);
+    // adjust page to 0-based
+    let page = params.page.unwrap_or(1) - 1;
     let page_size = params.page_size.unwrap_or(1000);
 
     map.get(params.ticket.as_str())
@@ -253,7 +255,7 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let data: Vec<OpcPoint> = reader
                     .records()
                     .into_iter()
-                    .skip(page * page_size + 1)
+                    .skip(page * page_size)
                     .take(page_size)
                     .map(|record| {
                         let record = record.unwrap();
@@ -263,7 +265,8 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                     })
                     .collect();
 
-                Ok(Pagination::new(page, page_size)
+                // return the page data, 1-based
+                Ok(Pagination::new(page + 1, page_size)
                     .with_total(*point_count)
                     .with_list(data))
             }
@@ -294,6 +297,12 @@ async fn get_all_points(
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
+    tracing::debug!(
+        "get_all_points: from: {}, via: {:?}, categories: {}",
+        from,
+        via,
+        categories
+    );
     let from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
@@ -362,7 +371,10 @@ async fn get_all_points(
             };
             Ok((data, point_count))
         }
-        Err(err) => Err(err),
+        Err(err) => {
+            tracing::error!("get_all_points error: {:?}", err);
+            Err(err)
+        }
     }
 }
 
