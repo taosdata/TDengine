@@ -283,6 +283,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
+int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid);
 
 // tsdbMerge.c ==============================================================================================
 typedef struct {
@@ -941,8 +942,6 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
 // #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
-
-int32_t tRowInfoCmprFn(const void *p1, const void *p2);
 
 typedef struct {
   int64_t  suid;

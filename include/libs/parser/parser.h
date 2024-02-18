@@ -86,8 +86,10 @@ typedef struct SParseContext {
   bool             enableSysInfo;
   bool             async;
   bool             hasInvisibleCol;
-  const char*      svrVer;
+  bool             isView;
+  bool             isAudit;
   bool             nodeOffline;
+  const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;

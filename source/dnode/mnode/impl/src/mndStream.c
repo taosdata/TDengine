@@ -62,8 +62,6 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
 static void     removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 static int32_t  removeExpirednodeEntryAndTask(SArray *pNodeSnapshot);
 static int32_t  doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
-static void     freeCheckpointCandEntry(void *);
-static void     freeTaskList(void *param);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
@@ -121,17 +119,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndRetrieveStreamTask);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
 
-  taosThreadMutexInit(&execInfo.lock, NULL);
-  _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
-
-  execInfo.pTaskList = taosArrayInit(4, sizeof(STaskId));
-  execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
-  execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.transMgmt.pWaitingList = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
-
-  taosHashSetFreeFp(execInfo.transMgmt.pWaitingList, freeCheckpointCandEntry);
-  taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
+  mndInitExecInfo();
 
   if (sdbSetTable(pMnode->pSdb, table) != 0) {
     return -1;
@@ -1628,7 +1616,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
-  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+  if(grantCheckExpire(TSDB_GRANT_STREAMS) < 0){
     terrno = TSDB_CODE_GRANT_EXPIRED;
     return -1;
   }
@@ -2115,16 +2103,6 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
 
   destroyStreamTaskIter(pIter);
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
-}
-
-void freeCheckpointCandEntry(void *param) {
-  SCheckpointCandEntry *pEntry = param;
-  taosMemoryFreeClear(pEntry->pName);
-}
-
-void freeTaskList(void* param) {
-  SArray** pList = (SArray **)param;
-  taosArrayDestroy(*pList);
 }
 
 static void doAddTaskId(SArray* pList, int32_t taskId, int64_t uid, int32_t numOfTotal) {

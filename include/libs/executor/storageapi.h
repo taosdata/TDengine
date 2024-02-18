@@ -211,6 +211,7 @@ typedef struct SStoreTqReader {
   bool (*tqNextBlockImpl)();  // todo remove it
   SSDataBlock* (*tqGetResultBlock)();
   int64_t (*tqGetResultBlockTime)();
+  int32_t (*tqGetStreamExecProgress)();
 
   void (*tqReaderSetColIdList)();
   int32_t (*tqReaderSetQueryTableList)();
@@ -266,15 +267,10 @@ typedef struct SStoreMeta {
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
   int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
-  void* storeGetVersionRange;
-  void* storeGetLastTimestamp;
-
-  int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);  // tsdbGetTableSchema
+  int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);
-
-  int64_t (*getNumOfRowsInMem)(void* pVnode);
 
   SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
   int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);

@@ -287,6 +287,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_VALUE_LEN  256
 
 #define TSDB_CLUSTER_VALUE_LEN   1000
+#define TSDB_GRANT_LOG_COL_LEN   15600
 
 #define TSDB_ACTIVE_KEY_LEN      109
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
