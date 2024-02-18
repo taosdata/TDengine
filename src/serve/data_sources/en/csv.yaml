@@ -16,6 +16,12 @@ groups:
     display_order: 1
     description: CSV reading options
     params:
+      - name: has_header
+        display: Include Header 
+        description: |
+          If including header, the first row will be treated as column information.
+        hint:
+          type: bool
       - name: skip
         display: Skip Records
         description: Skip number of records for each CSV file.
