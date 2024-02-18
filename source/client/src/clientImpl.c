@@ -2028,6 +2028,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t rows = *(int32_t*)p;
   p += sizeof(int32_t);
 
+  // bool blankFill = *(bool*)p;
+  p += sizeof(bool);
+
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 

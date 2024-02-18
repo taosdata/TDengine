@@ -660,7 +660,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   }
 
   char* p = (char*)data;
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
+  // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each column
   // length |
   int32_t version = *(int32_t*)data;
   p += sizeof(int32_t);
@@ -668,6 +668,9 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
   int32_t numOfRows = *(int32_t*)p;
   p += sizeof(int32_t);
+
+  // blankFill
+  p += sizeof(bool);
 
   int32_t numOfCols = *(int32_t*)p;
   p += sizeof(int32_t);
