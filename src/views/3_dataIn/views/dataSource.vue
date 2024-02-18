@@ -557,7 +557,7 @@ export default {
           
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
-          let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          let hasheader = data.from.match(/has_header=([^&]*)/)[1];
           let localCols=data.from.match(/(?<=header=).*/)[0]
           if(localCols&&localCols.includes('=')){
             this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));

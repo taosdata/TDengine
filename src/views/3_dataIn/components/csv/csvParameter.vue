@@ -6,7 +6,7 @@
       label-width="100px"
       :rules="rules"
     >
-      <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
+      <!-- <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
         <el-checkbox
           v-model="ruleForm.hasHeader"
           @change="changeHeader"
@@ -21,7 +21,7 @@
         :rules="customcolrule"
       >
         <el-input size="small" v-model="ruleForm.customcol"></el-input>
-      </el-form-item>
+      </el-form-item> -->
     </el-form>
     <slot name="next"></slot>
     

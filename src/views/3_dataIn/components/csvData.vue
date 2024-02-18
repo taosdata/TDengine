@@ -45,6 +45,9 @@
                 }}</span> -->
               <el-input size="small" v-model="fileForm.fileurl"></el-input>
               <!-- </div> -->
+              <DocsContent
+                :content="$t('datasource.csvFileDesc')"
+              />
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -72,13 +75,16 @@
 import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
+import { getDsnData, getFieldClassMarkName } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import CommonTransformer from "./commonTransformer.vue";
+import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn, CommonTransformer },
+  components: { CsvParameter, CsvColumn, CommonTransformer, DocsContent },
+  inject: ['sourceParent'],
   props: {
     isEditable: {
       type: Boolean,
@@ -95,6 +101,13 @@ export default {
     return {
       currentKey: this.currentKey,
     };
+  },
+  computed: {
+    validFieldList() {
+      const result = [];
+      this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
+      return result;
+    },
   },
   filter: {},
   data() {
@@ -161,10 +174,11 @@ export default {
           return item.response[0];
         })
         .join("");
+      let parseParam = this.getCsvParseParam()
       let result = await getCSVColumns(
         this.fileForm.fileurl,
         "csv",
-        this.$refs.param.ruleForm.hasHeader
+        parseParam
       );
       this.csvColumns = result.file_header.column_names;
       this.sample_values = result.sample_values;
@@ -324,15 +338,18 @@ export default {
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
-        if (this.activeName == "first") {
-          if (this.$refs.param.isValid && this.fileList.length > 0) {
-            if (this.$refs.param.ruleForm.hasHeader) {
+        let parseParam = this.getCsvParseParam()
+
+        if (parseParam) {
+          if (this.activeName == "first") {
+            if (this.$refs.param.isValid && this.fileList.length > 0) {
+              // if (this.$refs.param.ruleForm.hasHeader) {
               result = await getCSVColumns(
                 this.fileList.map((item) => {
                   return item.response[0];
                 }),
                 "csv",
-                this.$refs.param.ruleForm.hasHeader
+                parseParam
               );
               if (result && result.message) {
                 Message.error(result.message);
@@ -340,41 +357,43 @@ export default {
               }
               this.csvColumns = result.file_header.column_names;
               this.sample_values = result.sample_values;
-            } else {
-              result = await getCSVColumns(
-                this.fileList.map((item) => {
-                  return item.response[0];
-                }),
-                "csv",
-                this.$refs.param.ruleForm.hasHeader
-              );
+              // } else {
+              //   result = await getCSVColumns(
+              //     this.fileList.map((item) => {
+              //       return item.response[0];
+              //     }),
+              //     "csv",
+              //     this.$refs.param.ruleForm.hasHeader
+              //   );
+              // }
             }
+          } else {
+            result = await getCSVColumns(
+              this.fileForm.fileurl,
+              "csv",
+              parseParam
+            );
+            if (result && result.message) {
+              Message.error(result.message);
+              return;
+            }
+            this.csvColumns = result.file_header.column_names;
+            this.sample_values = result.sample_values;
           }
-        } else {
-          result = await getCSVColumns(
-            this.fileForm.fileurl,
-            "csv",
-            this.$refs.param.ruleForm.hasHeader
-          );
-          if (result && result.message) {
-            Message.error(result.message);
-            return;
-          }
-          this.csvColumns = result.file_header.column_names;
-          this.sample_values = result.sample_values;
         }
-        if (this.$refs.param.ruleForm.customcol) {
-          let apiColumns = result.file_header.column_names;
-          let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
-          if (localcolumns.length != apiColumns.length) {
-            Message.error(this.$t("datasource.transformer.csvtip"));
-            return;
-          }
-          this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
-          this.sample_values = result.sample_values.map((item) => {
-            return item.slice(0, localcolumns.length);
-          });
-        }
+        // 去掉自定义列
+        // if (this.$refs.param.ruleForm.customcol) {
+        //   let apiColumns = result.file_header.column_names;
+        //   let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
+        //   if (localcolumns.length != apiColumns.length) {
+        //     Message.error(this.$t("datasource.transformer.csvtip"));
+        //     return;
+        //   }
+        //   this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
+        //   this.sample_values = result.sample_values.map((item) => {
+        //     return item.slice(0, localcolumns.length);
+        //   });
+        // }
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
 
@@ -475,6 +494,37 @@ export default {
         // error&&error.desc&&Message.error(error.desc)
       }
     },
+    //获取 csv 解析需要的参数
+    getCsvParseParam() {
+      let dsn = ''
+      const errorMsg = [];
+      const validFieldList = this.validFieldList.filter(item => document.querySelector(`.source-ui .left-ui .${getFieldClassMarkName(item)}`));
+      this.sourceParent.$refs.form.validateField(validFieldList, valid => {
+        errorMsg.push(valid);
+        if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
+          dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+          dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0] 
+        } else {
+          this.$nextTick(() => {
+            document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+          });
+          dsn = ''
+        }
+      });
+      return dsn;
+    },
+    getValidFieldList(data, result, parent = 'data') {
+      for (const val of data) {
+        if (val.field == 'read_concurrency') break;
+        if (val.children) {
+          this.getValidFieldList(val.children, result, parent + '.' + val.field);
+        } else {
+          if (val.required) {
+            result.push(parent + '.' + val.field);
+          }
+        }
+      }
+    },
   },
   watch:{
     "$i18n.locale": {
@@ -490,6 +540,12 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+:deep(.markdown-body) {
+  p {
+    font-size: 14px;
+  }
+  color: $color-description;
+}
 .upload-demo {
   display: flex;
   align-items: baseline;

@@ -1863,8 +1863,7 @@ export default {
                   !this.mqttDefaultCols.includes(val.value)
                 ) {
                   return val;
-                }
-                if (
+                } else if (
                   this.$store.state.app.currentDBType == "kafka" &&
                   !this.kafkaDefaultCols.includes(val.value)
                 ) {
@@ -1872,6 +1871,8 @@ export default {
                 } else if (
                   this.$store.state.app.currentDBType == "avevaHistorian"
                 ) {
+                  return val;
+                } else {
                   return val;
                 }
               })
