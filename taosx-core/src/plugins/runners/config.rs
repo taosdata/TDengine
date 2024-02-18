@@ -1,5 +1,7 @@
 use taos::Dsn;
 
+use crate::plugins::config::AdvancedOptions;
+
 #[derive(Debug, serde::Serialize)]
 pub struct PerformanceConfig {
     #[serde(rename = "readWindow")]
@@ -7,7 +9,13 @@ pub struct PerformanceConfig {
     #[serde(rename = "delay")]
     pub(crate) delay: u32,
     #[serde(rename = "maxThread")]
-    pub(crate) max_thread: u32,
+    pub(crate) max_thread: usize,
+    #[serde(rename = "limitConnect")]
+    pub(crate) limit_connect: usize,
+    #[serde(rename = "limitBatch")]
+    pub(crate) limit_batch: usize,
+    #[serde(rename = "limitTimeout")]
+    pub(crate) limit_timeout: usize,
     #[serde(rename = "queueSizeT")]
     pub(crate) queue_size_thread: u32,
     #[serde(rename = "queueSizeD")]
@@ -18,11 +26,12 @@ pub struct PerformanceConfig {
 
 impl PerformanceConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let advanced_options = AdvancedOptions::from_dsn(dsn).unwrap();
         Ok(PerformanceConfig {
             read_window: dsn
                 .params
                 .get("readWindow")
-                .unwrap_or(&"2".to_string())
+                .unwrap_or(&"60".to_string())
                 .parse::<u32>()
                 .map_err(|err| anyhow::anyhow!("invalid readWindow, cause: {:?}", err))?,
             delay: dsn
@@ -31,12 +40,10 @@ impl PerformanceConfig {
                 .unwrap_or(&"10".to_string())
                 .parse::<u32>()
                 .map_err(|err| anyhow::anyhow!("invalid delay, cause: {:?}", err))?,
-            max_thread: dsn
-                .params
-                .get("maxThread")
-                .unwrap_or(&"50".to_string())
-                .parse::<u32>()
-                .map_err(|err| anyhow::anyhow!("invalid maxThread, cause: {:?}", err))?,
+            max_thread: advanced_options.read_concurrency.unwrap_or(50),
+            limit_connect: advanced_options.write_concurrency.unwrap_or(50),
+            limit_batch: advanced_options.batch_size.unwrap_or(5000),
+            limit_timeout: advanced_options.batch_timeout.unwrap_or(1000),
             queue_size_thread: dsn
                 .params
                 .get("queueSizeT")
@@ -69,9 +76,12 @@ mod tests {
     fn test_from_dsn() {
         let dsn = Dsn::from_str("influxdb://").unwrap();
         let config = PerformanceConfig::from_dsn(&dsn).unwrap();
-        assert_eq!(2, config.read_window);
-        assert_eq!(10000, config.delay);
+        assert_eq!(60, config.read_window);
+        assert_eq!(10, config.delay);
         assert_eq!(50, config.max_thread);
+        assert_eq!(50, config.limit_connect);
+        assert_eq!(5000, config.limit_batch);
+        assert_eq!(1000, config.limit_timeout);
         assert_eq!(1000, config.queue_size_thread);
         assert_eq!(200000, config.queue_size_data);
         assert_eq!(100000, config.limit_speed);
@@ -92,13 +102,13 @@ mod tests {
             config.unwrap_err().to_string()
         );
 
-        let dsn = Dsn::from_str("influxdb://?maxThread=abc").unwrap();
-        let config = PerformanceConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "invalid maxThread, cause: ParseIntError { kind: InvalidDigit }",
-            config.unwrap_err().to_string()
-        );
+        // let dsn = Dsn::from_str("influxdb://?maxThread=abc").unwrap();
+        // let config = PerformanceConfig::from_dsn(&dsn);
+        // assert!(config.is_err());
+        // assert_eq!(
+        //     "invalid maxThread, cause: ParseIntError { kind: InvalidDigit }",
+        //     config.unwrap_err().to_string()
+        // );
 
         let dsn = Dsn::from_str("influxdb://?queueSizeT=abc").unwrap();
         let config = PerformanceConfig::from_dsn(&dsn);

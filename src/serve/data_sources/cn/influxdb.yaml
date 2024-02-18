@@ -173,37 +173,37 @@ advanced:
           - debug
           - trace
     - name: read_concurrency
-      hidden: true
+      #hidden: true
       display: 最大读取并发数
       description: |
         数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
-      value: 0
+      value: 50
       hint:
         type: integer
-        min: 0
-        max: 1000
+        min: 1
+        max: 100
     - name: write_concurrency
-      hidden: true
+      #hidden: true
       display: 最大写入并发数
       description: |
         写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
-      value: 0
+      value: 50
       hint:
         type: integer
-        min: 0
-        max: 1000
+        min: 1
+        max: 500
     - name: batch_size
-      hidden: true
+      #hidden: true
       display: 批次大小
       description: |
         单次发送的最大消息数或行数。
-      value: 1000
+      value: 5000
       hint:
         type: integer
         min: 1
         max: 10000
     - name: batch_timeout
-      hidden: true
+      #hidden: true
       display: 批次延时
       description: |
         单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
