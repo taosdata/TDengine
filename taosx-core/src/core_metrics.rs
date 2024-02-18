@@ -426,7 +426,7 @@ pub fn init_task_metrics(
             }
         }
         _ => {
-            tracing::warn!(
+            tracing::trace!(
                 "no metrics defined for datasource from={}, to={}",
                 from.driver,
                 to.driver
@@ -536,7 +536,7 @@ pub fn save_task_metrics_finally(task_id: i64) {
             }
         },
         None => {
-            tracing::error!("finally save metrics failed, metrics not found");
+            tracing::trace!("finally save metrics failed, metrics not found");
         }
     }
 }
