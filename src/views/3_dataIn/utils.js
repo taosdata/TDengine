@@ -985,9 +985,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
-  if(definition.id=='csv'){
-    dsn+=`&has_header=${store.state.hasheader}`
-  }
+  // if(definition.id=='csv'){
+  //   dsn+=`&headers=c0,c1`
+  // }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {

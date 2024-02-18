@@ -81,7 +81,7 @@ export default {
     },
 
     async getDatasetsData() {
-      let res = await getDatasets(this.ticket,this.currentPage-1,this.pageSize)
+      let res = await getDatasets(this.ticket,this.currentPage,this.pageSize)
       if (res?.code == 0) {
         let { page, page_size, list, total} = res?.data
         this.currentPage = page
