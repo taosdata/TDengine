@@ -355,7 +355,7 @@ static int32_t doHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, ST
     // todo handle error code;
 
     if (pTrans->autoInvokeEndFn) {
-      streamTaskOnHandleEventSuccess(pSM, event, NULL, NULL);
+      streamTaskOnHandleEventSuccess(pSM, event, callbackFn, param);
     }
   }
 
