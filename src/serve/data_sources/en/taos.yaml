@@ -99,6 +99,14 @@ groups:
         hint:
           type: bool
         description: Enable this mode to improve performance in case of high-cardinality and low data ingestion frequency.
+      - name: schema-polling-interval
+        display: Schema Polling Interval
+        value: 5s
+        hint:
+          type: duration
+        description: |-
+          Polling interval to query schema.
+        placeholder: "Interval: 5s"
 
 
   - name: What to migrate
