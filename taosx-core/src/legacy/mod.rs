@@ -1401,16 +1401,8 @@ impl TableRecord {
 #[async_backtrace::framed]
 async fn sync_schema(
     scheduler: &Scheduler,
-    _from_pool: &TaosPool,
-    _to_pool: &TaosPool,
-    _connect_timeout: Duration,
-    _opts: SourceOpts,
-    _target_opts: TargetOpts,
-    todo: Arc<LegacyTodo>,
-    _actions: &Vec<Action>,
+    todo: &Arc<LegacyTodo>,
     concurrency: usize,
-    _source_is_v3: bool,
-    _target_is_v3: bool,
 ) -> anyhow::Result<()> {
     // tasks listener
     let mut readers = Vec::new();
@@ -1426,7 +1418,13 @@ async fn sync_schema(
     for (_, reader) in readers.drain(..) {
         reader.await??;
     }
-    info!("STables syncing done");
+    if !todo.stables.is_empty() {
+        info!("STables syncing done");
+    }
+    if todo.tables.is_empty() {
+        tracing::info!("No tables to sync");
+        return Ok(());
+    }
 
     let chunk_size = 400;
     let mut chunks = Vec::with_capacity(chunk_size);
@@ -1438,7 +1436,6 @@ async fn sync_schema(
                 return;
             }
             if stable == table.stable {
-                // TODO: use chunks.drain(..).collect_vec() to avoid clone
                 chunks.push(table.table.as_ref().clone());
                 if chunks.len() == chunk_size {
                     let (sender, reader) = oneshot::channel();
@@ -2162,7 +2159,7 @@ pub async fn update_todo_list(
         .context("Connect to data source error with timeout")?;
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
-    info!(version = version.as_ref(), "Retrieving table list...");
+    info!(version = version.as_ref(), "updating table list...");
     // dbg!(&opts.stables);
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
@@ -2696,7 +2693,7 @@ async fn legacy_to_taos_impl(
     let target_opts = TargetOpts::from_params(&mut to)?;
     verify::verify_dsn(&to)
         .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
-    let connect_timeout = Duration::from_secs(10);
+    // let connect_timeout = Duration::from_secs(10);
     tracing::debug!("Building source connection pool...");
     let from_pool = from_builder
         .pool()
@@ -2852,20 +2849,7 @@ async fn legacy_to_taos_impl(
 
     if !matches!(source_opts.schema, SchemaMode::None) {
         tracing::info!("synchronize schemas");
-        sync_schema(
-            &scheduler,
-            &from_pool,
-            &to_pool,
-            connect_timeout,
-            source_opts.clone(),
-            target_opts.clone(),
-            todo.clone(),
-            &actions,
-            source_opts.workers as _,
-            source_is_v3,
-            target_is_v3,
-        )
-        .await?;
+        sync_schema(&scheduler, &todo, source_opts.workers as _).await?;
     }
 
     if matches!(source_opts.schema, SchemaMode::Only) {
@@ -2899,29 +2883,52 @@ async fn legacy_to_taos_impl(
                         schema_polling_todo.clone(),
                     )
                     .await?;
-                    if updates.tables.is_empty() {
+                    if updates.stables.is_empty() && updates.tables.is_empty() {
                         continue;
                     }
-                    tracing::info!(
-                        "Schema updated, spawning sync schema task for {} tables",
-                        updates.tables.len()
-                    );
-                    schema_polling_metrics
-                        .as_ref()
-                        .legacy()
-                        .total_tables
-                        .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                    sync_specified_tables_with_workers(
-                        &schema_polling_scheduler,
-                        &schema_polling_pool,
-                        schema_polling_source_opts.query.clone(),
-                        &Arc::new(updates),
-                        schema_polling_target_opts.clone(),
-                        schema_polling_source_opts.workers as _,
-                        &schema_polling_task_id,
-                        schema_polling_file_mutex.clone(),
-                    )
-                    .await?;
+                    let updates = Arc::new(updates);
+                    let schema_polling_pool = schema_polling_pool.clone();
+                    let schema_polling_source_opts = schema_polling_source_opts.clone();
+                    let schema_polling_target_opts = schema_polling_target_opts.clone();
+                    let schema_polling_scheduler = schema_polling_scheduler.clone();
+                    let schema_polling_file_mutex = schema_polling_file_mutex.clone();
+                    let schema_polling_task_id = schema_polling_task_id.clone();
+                    let schema_polling_metrics = schema_polling_metrics.clone();
+                    tokio::spawn(async move {
+                        tracing::info!(
+                            "Schema updated, spawning sync schema task for {} tables",
+                            updates.tables.len()
+                        );
+                        schema_polling_metrics
+                            .as_ref()
+                            .legacy()
+                            .total_tables
+                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+
+                        if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
+                            // sync schema of the updated stables.
+                            sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                                .await
+                                .context("Spawn schema syncing of the updated stables error")?;
+                        }
+                        if updates.tables.is_empty() {
+                            return Ok::<_, anyhow::Error>(());
+                        }
+                        // sync data of the updated tables.
+                        sync_specified_tables_with_workers(
+                            &schema_polling_scheduler,
+                            &schema_polling_pool,
+                            schema_polling_source_opts.query.clone(),
+                            &updates,
+                            schema_polling_target_opts.clone(),
+                            schema_polling_source_opts.workers as _,
+                            &schema_polling_task_id,
+                            schema_polling_file_mutex.clone(),
+                        )
+                        .await
+                        .context("Spawn data syncing of the updated tables error")?;
+                        Ok::<_, anyhow::Error>(())
+                    });
                 }
                 #[allow(unreachable_code)]
                 anyhow::Ok(())
@@ -2964,29 +2971,52 @@ async fn legacy_to_taos_impl(
                         schema_polling_todo.clone(),
                     )
                     .await?;
-                    if updates.tables.is_empty() {
+                    if updates.stables.is_empty() && updates.tables.is_empty() {
                         continue;
                     }
-                    tracing::info!(
-                        "Schema updated, spawning sync schema task for {} tables",
-                        updates.tables.len()
-                    );
-                    schema_polling_metrics
-                        .as_ref()
-                        .legacy()
-                        .total_tables
-                        .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-                    sync_specified_tables_with_workers(
-                        &schema_polling_scheduler,
-                        &schema_polling_pool,
-                        schema_polling_source_opts.query.clone(),
-                        &Arc::new(updates),
-                        schema_polling_target_opts.clone(),
-                        schema_polling_source_opts.workers as _,
-                        &schema_polling_task_id,
-                        schema_polling_file_mutex.clone(),
-                    )
-                    .await?;
+                    let updates = Arc::new(updates);
+
+                    let schema_polling_pool = schema_polling_pool.clone();
+                    let schema_polling_source_opts = schema_polling_source_opts.clone();
+                    let schema_polling_target_opts = schema_polling_target_opts.clone();
+                    let schema_polling_scheduler = schema_polling_scheduler.clone();
+                    let schema_polling_file_mutex = schema_polling_file_mutex.clone();
+                    let schema_polling_task_id = schema_polling_task_id.clone();
+                    let schema_polling_metrics = schema_polling_metrics.clone();
+                    tokio::spawn(async move {
+                        tracing::info!(
+                            "Schema updated, spawning sync schema task for {} tables",
+                            updates.tables.len()
+                        );
+                        schema_polling_metrics
+                            .as_ref()
+                            .legacy()
+                            .total_tables
+                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+
+                        if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
+                            // sync schema of the updated tables.
+                            sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                                .await
+                                .context("Spawn schema syncing of the updated tables error")?;
+                        }
+                        if updates.tables.is_empty() {
+                            return Ok::<_, anyhow::Error>(());
+                        }
+
+                        sync_specified_tables_with_workers(
+                            &schema_polling_scheduler,
+                            &schema_polling_pool,
+                            schema_polling_source_opts.query.clone(),
+                            &updates,
+                            schema_polling_target_opts.clone(),
+                            schema_polling_source_opts.workers as _,
+                            &schema_polling_task_id,
+                            schema_polling_file_mutex.clone(),
+                        )
+                        .await?;
+                        Ok::<_, anyhow::Error>(())
+                    });
                 }
                 #[allow(unreachable_code)]
                 anyhow::Ok(())
