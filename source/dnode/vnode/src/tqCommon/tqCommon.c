@@ -49,7 +49,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   return 0;
 }
 
-int32_t tqStreamOneTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
+int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
   int32_t vgId = pMeta->vgId;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -557,7 +557,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   streamMetaWUnLock(pMeta);
 
   if (code < 0) {
-    tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks,
+    tqError("failed to add s-task:0x%x into vgId:%d meta, existed:%d, code:%s", vgId, taskId, numOfTasks,
             tstrerror(code));
     tFreeStreamTask(pTask);
     return code;
@@ -572,9 +572,10 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
 
       if (restored) {
         SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
-        if (p != NULL && (p->info.fillHistory == 0)) {
-          tqStreamOneTaskStartAsync(pMeta, cb, streamId, taskId);
+        if ((p != NULL) && (p->info.fillHistory == 0)) {
+          tqStreamStartOneTaskAsync(pMeta, cb, streamId, taskId);
         }
+
         if (p != NULL) {
           streamMetaReleaseTask(pMeta, p);
         }

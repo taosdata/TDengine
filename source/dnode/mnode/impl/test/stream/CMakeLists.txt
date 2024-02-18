@@ -1,12 +1,13 @@
-aux_source_directory(. MNODE_STREAM_PLAN_TEST_SRC)
-add_executable(streamPlanTest ${MNODE_STREAM_PLAN_TEST_SRC})
+SET(CMAKE_CXX_STANDARD 11)
+
+aux_source_directory(. MNODE_STREAM_TEST_SRC)
+add_executable(streamTest ${MNODE_STREAM_TEST_SRC})
 target_link_libraries(
-    streamPlanTest
-    PUBLIC nodes planner gtest qcom
+        streamTest
+        PRIVATE dnode nodes planner gtest qcom
 )
 
 add_test(
-    NAME streamPlanTest
-    COMMAND streamPlanTest
-
+        NAME streamTest
+        COMMAND streamTest
 )

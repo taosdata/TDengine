@@ -344,7 +344,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
 
-      code = extractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
+      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
           tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
@@ -368,7 +368,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 }
 
 // todo ignore the error in wal?
-bool tqNextBlockInWal(STqReader* pReader, const char* id) {
+bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   SWalReader* pWalReader = pReader->pWalReader;
   SSDataBlock* pDataBlock = NULL;
 
@@ -391,7 +391,10 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
           numOfBlocks, pReader->msg.msgLen, pReader->msg.ver);
 
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-
+      if ((pSubmitTbData->source & sourceExcluded) != 0){
+        pReader->nextBlk += 1;
+        continue;
+      }
       if (pReader->tbIdHash == NULL || taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t)) != NULL) {
         tqTrace("tq reader return submit block, uid:%" PRId64, pSubmitTbData->uid);
         SSDataBlock* pRes = NULL;

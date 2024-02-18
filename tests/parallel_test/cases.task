@@ -4,12 +4,8 @@
 
 #unit-test
 
-archOs=$(arch)
-if [[ $archOs =~ "aarch64" ]]; then
 ,,n,unit-test,bash test.sh
-else
-,,y,unit-test,bash test.sh
-fi
+
 
 #
 # army-test
@@ -23,6 +19,7 @@ fi
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
 
 #
 # system test
@@ -349,6 +346,7 @@ fi
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
@@ -566,7 +564,7 @@ fi
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4382.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4403.py
-
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_td28163.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py

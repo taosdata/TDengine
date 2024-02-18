@@ -265,7 +265,7 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
-int     tsStreamAggCnt = 2;
+int     tsStreamAggCnt = 1000;
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -1806,4 +1806,17 @@ void taosSetAllDebugFlag(int32_t flag) {
   if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
 }
 
-int8_t taosGranted() { return atomic_load_8(&tsGrant); }
+int8_t taosGranted(int8_t type) {
+  switch (type) {
+    case TSDB_GRANT_ALL:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_ALL;
+    case TSDB_GRANT_AUDIT:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_AUDIT;
+    case TSDB_GRANT_VIEW:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
+    default:
+      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      break;
+  }
+  return 0;
+}

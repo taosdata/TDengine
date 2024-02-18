@@ -197,6 +197,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 
+void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
+
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);

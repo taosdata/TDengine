@@ -105,7 +105,7 @@ int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask) {
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     pTask->hTaskInfo.haltVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
     if (pTask->hTaskInfo.haltVer == -1) {
-      pTask->hTaskInfo.haltVer = pTask->dataRange.range.maxVer + 1;
+      pTask->hTaskInfo.haltVer = pTask->dataRange.range.minVer;
     }
   }
 

@@ -746,7 +746,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
   return TDB_CODE_SUCCESS;
 }
 
-int32_t setDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
+int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
                                SSubmitTbData* pTableData, const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
 
@@ -815,13 +815,13 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
           return;
         }
 
-        SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version};
+        SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .source = SOURCE_NULL};
         code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
 
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -859,7 +859,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       pTask->execInfo.sink.numOfBlocks += 1;
       uint64_t groupId = pDataBlock->info.id.groupId;
 
-      SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version};
+      SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .source = SOURCE_NULL};
 
       int32_t* index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
@@ -868,7 +868,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
           continue;
         }
 
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -878,7 +878,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         int32_t size = (int32_t)taosArrayGetSize(submitReq.aSubmitTbData) - 1;
         taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
       } else {
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }

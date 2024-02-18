@@ -719,7 +719,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
 static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCacheRowsReader *pr, int16_t *aCols,
                                int nCols, int16_t *slotIds);
-#if 1
+#ifdef BUILD_NO_CALL
 int32_t tsdbCacheGetSlow(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
   rocksdb_writebatch_t *wb = NULL;
   int32_t               code = 0;
@@ -821,7 +821,6 @@ int32_t tsdbCacheGetSlow(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheR
 
   return code;
 }
-#endif
 
 static SLastCol *tsdbCacheLoadCol(STsdb *pTsdb, SCacheRowsReader *pr, int16_t slotid, tb_uid_t uid, int16_t cid,
                                   int8_t ltype) {
@@ -880,6 +879,7 @@ static SLastCol *tsdbCacheLoadCol(STsdb *pTsdb, SCacheRowsReader *pr, int16_t sl
 
   return pLastCol;
 }
+#endif
 
 static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
                                     SCacheRowsReader *pr, int8_t ltype) {
@@ -1359,6 +1359,7 @@ static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
   *len = sizeof(uint64_t);
 }
 
+#ifdef BUILD_NO_CALL
 static void deleteTableCacheLast(const void *key, size_t keyLen, void *value, void *ud) {
   (void)ud;
   SArray *pLastArray = (SArray *)value;
@@ -1670,6 +1671,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb
 
   return code;
 }
+#endif
 
 static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
   tb_uid_t suid = 0;
@@ -1715,6 +1717,7 @@ static int32_t getTableDelDataFromTbData(STbData *pTbData, SArray *aDelData) {
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx,
                                SArray *aDelData) {
   int32_t code = 0;
@@ -1759,6 +1762,7 @@ _err:
   }
   return code;
 }
+#endif
 
 static void freeTableInfoFunc(void *param) {
   void **p = (void **)param;
@@ -2716,6 +2720,7 @@ _err:
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t initLastColArray(STSchema *pTSchema, SArray **ppColArray) {
   SArray *pColArray = taosArrayInit(pTSchema->numOfCols, sizeof(SLastCol));
   if (NULL == pColArray) {
@@ -2729,6 +2734,7 @@ static int32_t initLastColArray(STSchema *pTSchema, SArray **ppColArray) {
   *ppColArray = pColArray;
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static int32_t initLastColArrayPartial(STSchema *pTSchema, SArray **ppColArray, int16_t *slotIds, int nCols) {
   SArray *pColArray = taosArrayInit(nCols, sizeof(SLastCol));
@@ -3089,7 +3095,9 @@ void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
   taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, capacity);
 }
 
+#ifdef BUILD_NO_CALL
 size_t tsdbCacheGetCapacity(SVnode *pVnode) { return taosLRUCacheGetCapacity(pVnode->pTsdb->lruCache); }
+#endif
 
 size_t tsdbCacheGetUsage(SVnode *pVnode) {
   size_t usage = 0;
@@ -3185,6 +3193,7 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
   int32_t code = 0;
 
@@ -3193,6 +3202,7 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
 
   return code;
 }
+#endif
 
 // block cache
 static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key, int *len) {

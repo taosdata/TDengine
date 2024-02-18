@@ -75,17 +75,10 @@ void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
-// char   *tGetMachineId() { return NULL; };
+char   *tGetMachineId() { return NULL; };
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
-
+int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }
 #endif
 
 void mndGenerateMachineCode() { grantParseParameter(); }
-
-#ifndef TD_UNIQ_GRANT
-#ifdef TD_ENTERPRISE
-int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }
-#endif
-char *tGetMachineId() { return NULL; };
-#endif

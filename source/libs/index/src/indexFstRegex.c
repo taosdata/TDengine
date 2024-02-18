@@ -42,6 +42,7 @@ void regexDestroy(FstRegex *regex) {
   taosMemoryFree(regex);
 }
 
+#ifdef BUILD_NO_CALL
 uint32_t regexAutomStart(FstRegex *regex) {
   ///// no nothing
   return 0;
@@ -65,3 +66,4 @@ bool regexAutomAccept(FstRegex *regex, uint32_t state, uint8_t byte, uint32_t *r
   }
   return dfaAccept(regex->dfa, state, byte, result);
 }
+#endif
