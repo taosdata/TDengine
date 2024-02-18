@@ -1,5 +1,5 @@
 <template>
-  <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight, 'top': defaultTop}">
+  <div class="dataset-result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight, 'top': defaultTop}">
     <div class="title-block">
       <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
     </div>
@@ -9,6 +9,7 @@
       :max-height="defaultHeight-99"
       ref='table'
       :data="tableData"
+      size="medium"
     >
       <el-table-column
         prop="id"
@@ -105,8 +106,8 @@ export default {
 };
 </script>
 
-<style lang="scss" scoped>
-.result-table {
+<style lang="scss">
+.dataset-result-table {
   border: 1px solid #e3e4e6;
   border-radius: 12px;
   padding: 20px;
