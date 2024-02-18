@@ -171,10 +171,6 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:  // 1036
       break;
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
-      return tqStreamTaskProcessScanHistoryFinishReq(pSnode->pMeta, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return tqStreamTaskProcessScanHistoryFinishRsp(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
       return tqStreamTaskProcessCheckReq(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:

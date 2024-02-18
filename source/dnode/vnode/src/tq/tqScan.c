@@ -93,6 +93,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
     return -1;
   }
 
+  qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -249,7 +250,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   return 0;
 }
 
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows) {
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded) {
   STqExecHandle* pExec = &pHandle->execHandle;
   SArray*        pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
   SArray*        pSchemas = taosArrayInit(0, sizeof(void*));
@@ -263,6 +264,10 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
       SSubmitTbData* pSubmitTbDataRet = NULL;
       if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) goto loop_table;
+      }
+
+      if ((pSubmitTbDataRet->source & sourceExcluded) != 0){
+        goto loop_table;
       }
       if (pRsp->withTbName) {
         int64_t uid = pExec->pTqReader->lastBlkUid;
@@ -327,6 +332,10 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
       SSubmitTbData* pSubmitTbDataRet = NULL;
       if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) goto loop_db;
+      }
+
+      if ((pSubmitTbDataRet->source & sourceExcluded) != 0){
+        goto loop_db;
       }
       if (pRsp->withTbName) {
         int64_t uid = pExec->pTqReader->lastBlkUid;

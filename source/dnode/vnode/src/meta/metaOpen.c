@@ -280,7 +280,9 @@ static void metaCleanup(SMeta **ppMeta) {
   if (pMeta) {
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
+#ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+#endif
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);

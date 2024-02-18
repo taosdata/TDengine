@@ -16,6 +16,12 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
+typedef struct SFailedCheckpointInfo {
+  int64_t streamUid;
+  int64_t checkpointId;
+  int32_t transId;
+} SFailedCheckpointInfo;
+
 static void doExtractTasksFromStream(SMnode *pMnode) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
@@ -59,65 +65,24 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
   taosArrayPush(pList, pInfo);
 }
 
-static int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
+int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
 
-  taosWLockLatch(&pStream->lock);
-  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
-
-  for (int32_t j = 0; j < numOfLevels; ++j) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
-
-    int32_t numOfTasks = taosArrayGetSize(pLevel);
-    for (int32_t k = 0; k < numOfTasks; ++k) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, k);
-
-      // todo extract method, with pause stream task
-      SVResetStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamTaskReq));
-      if (pReq == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
-               tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-        taosWUnLockLatch(&pStream->lock);
-        return terrno;
-      }
-
-      pReq->head.vgId = htonl(pTask->info.nodeId);
-      pReq->taskId = pTask->id.taskId;
-      pReq->streamId = pTask->id.streamId;
-
-      SEpSet  epset = {0};
-      bool    hasEpset = false;
-      int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(pReq);
-        continue;
-      }
-
-      if (!hasEpset) {
-        taosMemoryFree(pReq);
-        continue;
-      }
-
-      STransAction action = {0};
-      initTransAction(&action, pReq, sizeof(SVResetStreamTaskReq), TDMT_VND_STREAM_TASK_RESET, &epset, 0);
-      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-        taosMemoryFree(pReq);
-        taosWUnLockLatch(&pStream->lock);
-        mndTransDrop(pTrans);
-        return terrno;
-      }
-    }
+  /*int32_t code = */mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
+  int32_t code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream);
+  if (code != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
   }
 
-  taosWUnLockLatch(&pStream->lock);
-
-  int32_t code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -181,10 +146,90 @@ static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
+  SOrphanTask* pTask = taosArrayGet(pList, 0);
+
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
+  if (conflict) {
+    return -1;
+  }
+
+  SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
+  STrans* pTrans = doCreateTrans(pMnode, &dummyObj, NULL, MND_STREAM_DROP_NAME, "drop stream");
+  if (pTrans == NULL) {
+    mError("failed to create trans to drop orphan tasks since %s", terrstr());
+    return -1;
+  }
+
+  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
+
+  // drop all tasks
+  if (mndStreamSetDropActionFromList(pMnode, pTrans, pList) < 0) {
+    mError("failed to create trans to drop orphan tasks since %s", terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  // drop stream
+  if (mndPersistTransLog(&dummyObj, pTrans, SDB_STATUS_DROPPED) < 0) {
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void* pIter = NULL;
+  while(1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if(pStream->status != STREAM_STATUS__PAUSE){
+      SMPauseStreamReq reqPause = {0};
+      strcpy(reqPause.name, pStream->name);
+      reqPause.igNotExists = 1;
+
+      int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
+      void *  pHead = rpcMallocCont(contLen);
+      tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
+
+      SRpcMsg rpcMsg = {
+          .msgType = TDMT_MND_PAUSE_STREAM,
+          .pCont = pHead,
+          .contLen = contLen,
+          .info = *info,
+      };
+
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      mInfo("receive pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
+    }
+
+    sdbRelease(pSdb, pStream);
+  }
+  return 0;
+}
+
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
-  SArray      *pList = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
+  SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
+  SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
+
+  if(grantCheckExpire(TSDB_GRANT_STREAMS) < 0){
+    if(suspendAllStreams(pMnode, &pReq->info) < 0){
+      return -1;
+    }
+  }
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
@@ -202,8 +247,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   taosThreadMutexLock(&execInfo.lock);
 
   // extract stream task list
-  int32_t numOfExisted = taosHashGetSize(execInfo.pTaskMap);
-  if (numOfExisted == 0) {
+  if (taosHashGetSize(execInfo.pTaskMap) == 0) {
     doExtractTasksFromStream(pMnode);
   }
 
@@ -222,6 +266,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &p->id, sizeof(p->id));
     if (pTaskEntry == NULL) {
       mError("s-task:0x%" PRIx64 " not found in mnode task list", p->id.taskId);
+
+      SOrphanTask oTask = {.streamId = p->id.streamId, .taskId = p->id.taskId, .nodeId = p->nodeId};
+      taosArrayPush(pOrphanTasks, &oTask);
       continue;
     }
 
@@ -244,15 +291,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
 
       streamTaskStatusCopy(pTaskEntry, p);
-      if (p->checkpointId != 0) {
-        if (p->checkpointFailed) {
-          mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
-              p->checkpointId, p->chkpointTransId);
+      if ((p->checkpointId != 0) && p->checkpointFailed) {
+        mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
+               p->checkpointId, p->chkpointTransId);
 
-          SFailedCheckpointInfo info = {
-              .transId = p->chkpointTransId, .checkpointId = p->checkpointId, .streamUid = p->id.streamId};
-          addIntoCheckpointList(pList, &info);
-        }
+        SFailedCheckpointInfo info = {
+            .transId = p->chkpointTransId, .checkpointId = p->checkpointId, .streamUid = p->id.streamId};
+        addIntoCheckpointList(pFailedTasks, &info);
       }
     }
 
@@ -270,17 +315,21 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
-  if (taosArrayGetSize(pList) > 0) {
-    bool    allReady = true;
-    SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
-    taosArrayDestroy(p);
+  if (taosArrayGetSize(pFailedTasks) > 0) {
+    bool allReady = true;
+    if (pMnode != NULL) {
+      SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
+      taosArrayDestroy(p);
+    } else {
+      allReady = false;
+    }
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
-        SFailedCheckpointInfo *pInfo = taosArrayGet(pList, i);
+      for(int32_t i = 0; i < taosArrayGetSize(pFailedTasks); ++i) {
+        SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedTasks, i);
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
-            pInfo->checkpointId, pInfo->transId);
+              pInfo->checkpointId, pInfo->transId);
 
         mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
       }
@@ -289,9 +338,16 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
   }
 
+  // handle the orphan tasks that are invalid but not removed in some vnodes or snode due to some unknown errors.
+  if (taosArrayGetSize(pOrphanTasks) > 0) {
+    mndDropOrphanTasks(pMnode, pOrphanTasks);
+  }
+
   taosThreadMutexUnlock(&execInfo.lock);
   streamMetaClearHbMsg(&req);
 
-  taosArrayDestroy(pList);
+  taosArrayDestroy(pFailedTasks);
+  taosArrayDestroy(pOrphanTasks);
+
   return TSDB_CODE_SUCCESS;
 }

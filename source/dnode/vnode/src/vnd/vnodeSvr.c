@@ -238,6 +238,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  if (submitTbData.flags & SUBMIT_REQ_FROM_FILE) {
+    code = grantCheck(TSDB_GRANT_CSV);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   int64_t uid;
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
@@ -789,10 +794,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
-      return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:
