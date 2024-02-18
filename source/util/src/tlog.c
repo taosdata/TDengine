@@ -576,6 +576,9 @@ void taosPrintSlowLog(const char *format, ...) {
   len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 - len, format, argpointer);
   va_end(argpointer);
 
+  if (len < 0 || len > LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2) {
+    len = LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2;
+  }
   buffer[len++] = '\n';
   buffer[len] = 0;
 

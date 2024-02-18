@@ -26,6 +26,7 @@
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
+#define DEFAULT_HEARTBEAT_INTERVAL     3000
 
 #define OFFSET_IS_RESET_OFFSET(_of)  ((_of) < 0)
 
@@ -163,6 +164,7 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   SArray*        vgs;  // SArray<SMqClientVg>
   SSchemaWrapper schema;
+  int8_t         noPrivilege;
 } SMqClientTopic;
 
 typedef struct {
@@ -766,6 +768,30 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
+    SMqHbRsp rsp = {0};
+    tDeserializeSMqHbRsp(pMsg->pData, pMsg->len, &rsp);
+
+    int64_t refId = *(int64_t*)param;
+    tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+    if (tmq != NULL) {
+      taosWLockLatch(&tmq->lock);
+      for(int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++){
+        STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
+        if(privilege->noPrivilege == 1){
+          int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+          for (int32_t j = 0; j < topicNumCur; j++) {
+            SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+            if(strcmp(pTopicCur->topicName, privilege->topic) == 0){
+              tscInfo("consumer:0x%" PRIx64 ", has no privilege, topic:%s", tmq->consumerId, privilege->topic);
+              pTopicCur->noPrivilege = 1;
+            }
+          }
+        }
+      }
+      taosWUnLockLatch(&tmq->lock);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
+    }
+    tDeatroySMqHbRsp(&rsp);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
@@ -785,27 +811,24 @@ void tmqSendHbReq(void* param, void* tmrId) {
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
   taosRLockLatch(&tmq->lock);
-//  if(tmq->needReportOffsetRows){
-    req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
-    for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
-      SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-      int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
-      TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
-      strcpy(data->topicName, pTopic->topicName);
-      data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
-      for(int j = 0; j < numOfVgroups; j++){
-        SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-        OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
-        offRows->vgId = pVg->vgId;
-        offRows->rows = pVg->numOfRows;
-        offRows->offset = pVg->offsetInfo.beginOffset;
-        char buf[TSDB_OFFSET_LEN] = {0};
-        tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
-        tscInfo("consumer:0x%" PRIx64 ",report offset: vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, offRows->vgId, buf, offRows->rows);
-      }
+  req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
+  for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
+    SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
+    int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
+    TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
+    strcpy(data->topicName, pTopic->topicName);
+    data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
+    for(int j = 0; j < numOfVgroups; j++){
+      SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+      OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
+      offRows->vgId = pVg->vgId;
+      offRows->rows = pVg->numOfRows;
+      offRows->offset = pVg->offsetInfo.beginOffset;
+      char buf[TSDB_OFFSET_LEN] = {0};
+      tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
+      tscInfo("consumer:0x%" PRIx64 ",groupId:%s report offset, vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, tmq->groupId, offRows->vgId, buf, offRows->rows);
     }
-//    tmq->needReportOffsetRows = false;
-//  }
+  }
   taosRUnLockLatch(&tmq->lock);
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
@@ -836,7 +859,9 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
-  sendInfo->param = NULL;
+  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->param = taosMemoryMalloc(sizeof(int64_t));
+  *(int64_t *)sendInfo->param = refId;
   sendInfo->fp = tmqHbCb;
   sendInfo->msgType = TDMT_MND_TMQ_HB;
 
@@ -847,7 +872,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
 OVER:
   tDeatroySMqHbReq(&req);
-  taosTmrReset(tmqSendHbReq, 1000, param, tmqMgmt.timer, &tmq->hbLiveTimer);
+  taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -1144,7 +1169,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq->hbBgEnable) {
     int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
     *pRefId = pTmq->refId;
-    pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, 1000, pRefId, tmqMgmt.timer);
+    pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, pRefId, tmqMgmt.timer);
   }
 
   char         buf[TSDB_OFFSET_LEN] = {0};
@@ -1835,7 +1860,10 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
   for (int i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     int32_t         numOfVg = taosArrayGetSize(pTopic->vgs);
-
+    if(pTopic->noPrivilege){
+      tscDebug("consumer:0x%" PRIx64 " has no privilegr for topic:%s", tmq->consumerId, pTopic->topicName);
+      continue;
+    }
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (taosGetTimestampMs() - pVg->emptyBlockReceiveTs < EMPTY_BLOCK_POLL_IDLE_DURATION) {  // less than 10ms

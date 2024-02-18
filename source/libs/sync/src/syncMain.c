@@ -662,14 +662,14 @@ ESyncRole syncGetRole(int64_t rid) {
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sNError(pSyncNode, "sync propose not leader, type:%s", TMSG_INFO(pMsg->msgType));
+    sNWarn(pSyncNode, "sync propose not leader, type:%s", TMSG_INFO(pMsg->msgType));
     return -1;
   }
 
   if (!pSyncNode->restoreFinish) {
     terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-    sNError(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
-            TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+    sNWarn(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
+           TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
     return -1;
   }
 
@@ -2131,7 +2131,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     if (code != 0) {
       sError("failed to build ping msg");
       rpcFreeCont(rpcMsg.pCont);
-      return;
+      goto _out;
     }
 
     // sTrace("enqueue ping msg");
@@ -2139,9 +2139,10 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
       rpcFreeCont(rpcMsg.pCont);
-      return;
+      goto _out;
     }
 
+  _out:
     taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
   }
 }
@@ -2201,7 +2202,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
       if (code != 0) {
         sError("failed to build heartbeat msg");
-        return;
+        goto _out;
       }
 
       sTrace("vgId:%d, enqueue heartbeat timer", pNode->vgId);
@@ -2209,9 +2210,10 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
         rpcFreeCont(rpcMsg.pCont);
-        return;
+        goto _out;
       }
 
+    _out:
       taosTmrReset(syncNodeEqHeartbeatTimer, pNode->heartbeatTimerMS, pNode, syncEnv()->pTimerManager,
                    &pNode->pHeartbeatTimer);
 

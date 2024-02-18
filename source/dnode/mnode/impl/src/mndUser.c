@@ -1033,6 +1033,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       mndReleaseTopic(pMnode, pTopic);
       goto _OVER;
     }
+    mndReleaseTopic(pMnode, pTopic);
     taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
   }
 
@@ -1043,6 +1044,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       mndReleaseTopic(pMnode, pTopic);
       goto _OVER;
     }
+    mndReleaseTopic(pMnode, pTopic);
     taosHashRemove(newUser.topics, alterReq.objname, len);
   }
 

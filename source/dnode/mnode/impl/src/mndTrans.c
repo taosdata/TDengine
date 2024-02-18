@@ -599,6 +599,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     pTrans->originRpcType = pReq->msgType;
   }
 
+  mInfo("trans:%d, create transaction:%s, origin:%s", pTrans->id, pTrans->opername, opername);
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
@@ -845,6 +847,8 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if(pTrans == NULL) return -1;
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
