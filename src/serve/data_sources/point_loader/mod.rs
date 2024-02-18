@@ -178,6 +178,7 @@ pub async fn arrange_point_file_download_task(
     }
 
     tokio::spawn(async move {
+        tracing::debug!("start task: {}", &task_id);
         let (data, point_count) = get_all_points(
             params.from,
             params.via,
@@ -294,6 +295,12 @@ async fn get_all_points(
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
+    tracing::debug!(
+        "get_all_points: from: {}, via: {:?}, categories: {}",
+        from,
+        via,
+        categories
+    );
     let from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
@@ -362,7 +369,10 @@ async fn get_all_points(
             };
             Ok((data, point_count))
         }
-        Err(err) => Err(err),
+        Err(err) => {
+            tracing::error!("get_all_points error: {:?}", err);
+            Err(err)
+        }
     }
 }
 

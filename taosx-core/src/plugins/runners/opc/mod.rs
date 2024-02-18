@@ -419,7 +419,11 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
+    tracing::info!(
+        "opc_datasets Using opc config file {} \n{}",
+        config_path.display(),
+        toml
+    );
 
     let mut command = tokio::process::Command::new(exe_path()?);
     let output = command
@@ -439,7 +443,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
         .context("writing logs error")?;
 
-    tracing::info!("OPC exit with status {}", output.status);
+    tracing::info!("opc_datasets OPC exit with status {}", output.status);
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         tracing::error!(
