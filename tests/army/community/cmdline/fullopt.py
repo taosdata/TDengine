@@ -31,11 +31,10 @@ class TDTestCase(TBase):
         'queryMaxConcurrentTables': '2K', 
         'streamMax': '1M', 
         'totalMemoryKB': '1G',
-        #'rpcQueueMemoryAllowed': '1T',
-        #'mndLogRetention': '1P',
-        'streamBufferSize':'2G',
-        'slowLogScope':"invalid"
-    }    
+        'streamMax': '1P',
+        'streamBufferSize':'1T',
+        'slowLogScope':"query"
+    }  
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -64,7 +63,6 @@ class TDTestCase(TBase):
                      "locale ENG",
                      "metaCacheMaxSize 10000",
                      "minimalTmpDirGB 5",
-                     "minimalDataDirGB 4",
                      "minimalLogDirGB 1",
                      "secondEp 127.0.0.2",
                      "smlChildTableName smltbname",
@@ -74,8 +72,7 @@ class TDTestCase(TBase):
                      "serverPort 6030",
                      "slowLogScope insert",
                      "timezone tz",
-                     "tempDir /var/tmp",
-                     "telemetryServer telserver"
+                     "tempDir /var/tmp"
                   ]
         # exec
         for option in options:
