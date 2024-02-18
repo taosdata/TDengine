@@ -770,10 +770,18 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
         if (toRevoked) *toRevoked = true;  // mismatch
         uWarn("grant check machines, convert to revoked state since dnode:%d, %s mismatch, limit:%d", *(int32_t *)pe,
               (char *)key, nDnodeLimit);
-        for (int32_t i = 0; i < nMachines; ++i) {
-          SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
-          uWarn("grant check machines, ts:%" PRIi64 ", id:%d, machine:%s", (int64_t)pMachine->ts, (int32_t)pMachine->id,
-                pMachine->machine);
+        char *buf = taosMemoryMalloc(nMachines * 50);
+        if (buf) {
+          char *pBuf = buf;
+          for (int32_t i = 0; i < nMachines; ++i) {
+            SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
+            snprintf(pBuf, 50, "%" PRIi64 ",%d,%s;", (int64_t)pMachine->ts, (int32_t)pMachine->id, pMachine->machine);
+            pBuf += strlen(pBuf);
+          }
+          if (pBuf != buf) --pBuf;
+          pBuf[0] = 0;
+          uWarn("grant check machines, %s", buf);
+          taosMemoryFree(buf);
         }
         break;
       }
