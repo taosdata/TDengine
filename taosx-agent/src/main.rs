@@ -206,7 +206,6 @@ impl Args {
                 .or(verbose.clone().map(|v| v.log_level_filter()))
                 .unwrap_or(log::LevelFilter::Info),
         );
-
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
         Ok(Args {
@@ -463,6 +462,7 @@ fn export_metrics(
 fn print_effictive_config(log_level: Level, log_path: PathBuf, log_keep_days: i64, args: &Args) {
     let w = 18;
     let w2 = 20;
+    let compression = *(AGENT_COMPRESSION.get().unwrap_or(&false));
     tracing::info!("                           global config");
     tracing::info!("================================================================");
     tracing::info!("{:<w$}{:<w2$}{}", ' ', "endpoint",  args.endpoint);
@@ -472,6 +472,7 @@ fn print_effictive_config(log_level: Level, log_path: PathBuf, log_keep_days: i6
     tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_path",  log_path.display());
     tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_level",  log_level);
     tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days);
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "compression",  compression);
     tracing::info!("================================================================");
 }
 
