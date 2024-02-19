@@ -54,7 +54,10 @@ impl Dump {
             .map(|v| v.to_string())
             .or_else(|| {
                 id.map(|id| {
-                    let path = get_data_dir().join(format!("{id}")).join("rawdata");
+                    let path = get_data_dir()
+                        .join("tasks")
+                        .join(format!("{id}"))
+                        .join("rawdata");
                     path.display().to_string()
                 })
             })
