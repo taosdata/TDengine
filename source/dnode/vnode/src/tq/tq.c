@@ -1039,14 +1039,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-  //    code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
   code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, handleStep2Async, pTq);
-//  if (code == TSDB_CODE_SUCCESS) {
-//    doStartFillhistoryStep2(pTask, pStreamTask, pTq);
-//  } else {
-//    tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
-//  }
 
   streamMetaReleaseTask(pMeta, pStreamTask);
 
