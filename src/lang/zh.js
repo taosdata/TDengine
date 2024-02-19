@@ -296,9 +296,10 @@ export default {
     noDsn: '请输入DSN',
   },
   replication: {
-    theTaskWithId: "任务 {id}",
-    backupTip: "你确定{operate}备份任务 {id}?",
-    backupDel: "你确定删除任务 {id}?",
+    taskStop: "确认停止任务 {id} ？",
+    taskStart: "确认开启任务 {id} ？",
+    backupTip: "你确定{operate}备份任务 {id} ?",
+    backupDel: "你确定删除任务 {id} ?",
     stop: "停止",
     start: "开启",
   },

@@ -342,8 +342,15 @@ export default {
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getBackData();
+          }
         });
       } catch (err) {
         return Promise.reject(err);
@@ -352,8 +359,15 @@ export default {
     async stop(val, data) {
       try {
         await excuteStop(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getBackData();
+          }
         });
       } catch (err) {
         return Promise.reject(err);

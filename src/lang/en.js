@@ -687,9 +687,10 @@ export default {
     noDsn: 'Please text the DSN',
   },
   replication: {
-    theTaskWithId: "the task with id {id}",
-    backupTip: "Are you sure to {operate} the {id} backup task?",
-    backupDel: "Are you sure to delete the {id} task?",
+    taskStop: "Are you sure to stop task {id} ?",
+    taskStart: "Are you sure to start task {id} ?",
+    backupTip: "Are you sure to {operate} the {id} backup task ?",
+    backupDel: "Are you sure to delete the {id} task ?",
     title: "Data Replication",
     addNewReplication: "Add New Replication",
     noData: "No any backup or replication",
