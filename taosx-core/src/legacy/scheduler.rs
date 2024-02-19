@@ -379,7 +379,7 @@ async fn worker(
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
                                                 // dbg!(&breakpoint);
-                                                tokio::spawn(async move {
+                                                tokio::task::spawn_blocking(move || {
                                                     let _ = breakpoints::breakpoints_set(
                                                         &task_id,
                                                         &table_inner,
