@@ -184,7 +184,7 @@ def pre_test_build_mac() {
         cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
         make -j10
         cd build/bin
-        ./taosd || exit 7
+        sudo ./taosd || exit 7
     '''
     sh '''
         date
