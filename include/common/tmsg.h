@@ -431,7 +431,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE,
-  QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL
+  QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL
 } ENodeType;
 
 typedef struct {
@@ -3639,6 +3640,7 @@ typedef struct {
   int64_t      timeout;
   STqOffsetVal reqOffset;
   int8_t       enableReplay;
+  int8_t       sourceExcluded;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -3768,6 +3770,7 @@ typedef struct {
   int32_t      vgId;
   STqOffsetVal offset;
   int64_t      rows;
+  int64_t      ever;
 } OffsetRows;
 
 typedef struct {
@@ -3925,6 +3928,9 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
 
+#define  SOURCE_NULL  0
+#define  SOURCE_TAOSX 1
+
 typedef struct {
   int32_t        flags;
   SVCreateTbReq* pCreateTbReq;
@@ -3935,7 +3941,8 @@ typedef struct {
     SArray* aRowP;
     SArray* aCol;
   };
-  int64_t ctimeMs;
+  int64_t       ctimeMs;
+  int8_t        source;
 } SSubmitTbData;
 
 typedef struct {

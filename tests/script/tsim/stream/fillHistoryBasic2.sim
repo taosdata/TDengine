@@ -243,6 +243,8 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create stream stream_t3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;
 
+sleep 1000
+
 sql insert into ts1 values(1648791211000,1,2,3);
 sleep 50
 sql insert into ts1 values(1648791222001,2,2,3);

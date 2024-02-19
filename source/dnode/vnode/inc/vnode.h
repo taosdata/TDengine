@@ -223,7 +223,7 @@ bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
 
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
-bool         tqNextBlockInWal(STqReader *pReader, const char *idstr);
+bool         tqNextBlockInWal(STqReader *pReader, const char *idstr, int sourceExcluded);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
