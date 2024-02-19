@@ -27,7 +27,8 @@ typedef struct SBufferWriter SBufferWriter;
 typedef struct SBufferReader SBufferReader;
 
 // SBuffer
-#define tBufferInit() ((SBuffer){0, 0, NULL})
+#define BUFFER_INITILIZER ((SBuffer){0, 0, NULL})
+static int32_t tBufferInit(SBuffer *buffer);
 static int32_t tBufferDestroy(SBuffer *buffer);
 static int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity);
 #define tBufferGetSize(buffer)     ((buffer)->size)

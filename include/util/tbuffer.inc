@@ -35,6 +35,13 @@ struct SBufferReader {
 };
 
 // SBuffer
+static FORCE_INLINE int32_t tBufferInit(SBuffer *buffer) {
+  buffer->size = 0;
+  buffer->capacity = 0;
+  buffer->data = NULL;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tBufferDestroy(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
