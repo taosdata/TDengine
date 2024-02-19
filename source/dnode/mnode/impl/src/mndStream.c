@@ -297,6 +297,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->updateTime = pObj->createTime;
   pObj->version = 1;
   pObj->smaId = 0;
+  pObj->indexForMultiAggBalance = -1;
 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
 
@@ -1616,7 +1617,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
-  if(grantCheckLE(TSDB_GRANT_STREAMS) < 0){
+  if(grantCheckExpire(TSDB_GRANT_STREAMS) < 0){
     terrno = TSDB_CODE_GRANT_EXPIRED;
     return -1;
   }

@@ -11,6 +11,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
+from taos.tmq import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
 
@@ -310,6 +311,43 @@ class TDTestCase:
 
         return
 
+    def consumeExcluded(self):
+        tdSql.execute(f'create topic topic_excluded as database db_taosx')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "msg.consume.excluded": 1
+        }
+        consumer = Consumer(consumer_dict)
+
+        tdLog.debug("test subscribe topic created by other user")
+        exceptOccured = False
+        try:
+            consumer.subscribe(["topic_excluded"])
+        except TmqError:
+            exceptOccured = True
+
+        if exceptOccured:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+                err = res.error()
+                if err is not None:
+                    raise err
+                val = res.value()
+
+                for block in val:
+                    print(block.fetchall())
+
+        finally:
+            consumer.close()
+
     def run(self):
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
@@ -324,6 +362,8 @@ class TDTestCase:
         self.checkSnapshotMultiVgroups()
 
         self.checkWalMultiVgroupsWithDropTable()
+        # self.consumeExcluded()
+
         self.checkSnapshotMultiVgroupsWithDropTable()
 
     def stop(self):
