@@ -51,7 +51,7 @@ groups:
             - "'"
       - name: comment
         display: 注释前缀符
-        description: 当 CSV 文件中某行以此处指定的字符开头，则忽略该行
+        description: 当 CSV 文件中某行以此处指定的字符开头，则忽略该行。
         value: "#"
         editable: true
         hint:
