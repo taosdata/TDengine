@@ -3,7 +3,7 @@
     <ul class="client-list">
       <li v-for="(item, index) in localDocList" :title="item.name" :key="index">
         
-        <router-link class="client-item" :to="getUrl(item.name, item.icon)">
+        <router-link class="client-item" :to="getUrl(item.name, item.icon, item.path)">
           <h2 class="title">
             
             <img class="image" :src="getImg(item.name, item.icon)" alt="" />
@@ -53,8 +53,8 @@ export default {
     this.localDocList=this.docsList()
   },
   methods: {
-    getUrl(name) {
-      return this.parentUrl + this.urlPre + encodeURIComponent(name);
+    getUrl(name, _, path) {
+      return this.parentUrl + this.urlPre + encodeURIComponent(path ?? name);
     },
     getImg(name, icon) {
       if(name=='REST API'){

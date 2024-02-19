@@ -1652,6 +1652,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     },
     party: {
       prometheus: {
+        title: "Prometheus",
         desc: "Configure Prometheus to write and read data from TDengine .",
         totaldesc1:
           "Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.",
@@ -1686,6 +1687,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
           "TDengine will automatically create unique IDs for sub-table names by the rule.",
       },
       telegraf: {
+        title: "Telegraf",
         desc: "Configure Telegraf to write metrics to TDengine .",
         totaldesc1:
           "Telegraf is an open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.",

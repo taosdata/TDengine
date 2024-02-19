@@ -589,6 +589,7 @@ export default {
     checkFail: "请检查字段名或类型",
     tableNameTip:
       "表名只能由字母、数字和下划线组成，且不能以数字开头，不区分大小写",
+    runSqlTip: "运行第一条或选中的 SQL 语句",
     performanceRelatedParameters: "性能调优相关参数",
     dataPersistenceParameters: "数据持久化存储参数",
     walParameters: "WAL 配置参数",
@@ -1455,6 +1456,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     },
     party: {
       prometheus: {
+        title: "Prometheus",
         desc: "配置 Prometheus 往 TDengine  写入和读取数据。",
         totaldesc1:
           "Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加入了 Cloud Native Computing Foundation （云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。        ",
@@ -1486,6 +1488,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step5desc1: "TDengine 会根据一定规则自动为子表名创建唯一的 IDs。",
       },
       telegraf: {
+        title: "Telegraf",
         desc: "配置 Telegraf 往 TDengine  写入指标。",
         totaldesc1:
           "Telegraf 是一款十分流行的指标采集开源软件。在数据采集和平台监控系统中，Telegraf 可以采集多种组件的运行信息，而不需要自己手写脚本定时采集，降低数据获取的难度。",
