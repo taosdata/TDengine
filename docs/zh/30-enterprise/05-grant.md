@@ -102,10 +102,12 @@ GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type 
 
 任意用户都可以在自己拥有读权限的数据库上创建 topic。超级用户 root 可以在任意数据库上创建 topic。每个 topic 的订阅权限都可以被独立授权给任何用户，不管该用户是否拥有该数据库的访问权限。删除 topic 只能由 root 用户或者该 topic 的创建者进行。topic 只能由超级用户、topic的创建者或者被显式授予 subscribe 权限的用户订阅。
 
-授予订阅权限的语法如下：
+具体的 SQL 语法如下：
 
 ```sql
-GRANT privileges ON priv_level TO user_name  privileges : {  ALL  | priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topic_name } 
+GRANT SUBSCRIBE ON topic_name TO user_name
+
+REVOKE SUBSCRIBE ON topic_name FROM user_name
 ```
 
 ### 基于标签的授权（表级授权）
@@ -117,7 +119,6 @@ GRANT privileges ON priv_level [WITH tag_condition] TO user_name
  
 privileges : {
     ALL
-  | SUBSCRIBE
   | priv_type [, priv_type] ...
 }
  
@@ -130,7 +131,6 @@ priv_level : {
     dbname.tbname
   | dbname.*
   | *.*
-  | topic_name
 }
 
 REVOKE privileges ON priv_level [WITH tag_condition] FROM user_name
