@@ -567,6 +567,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.conf.triggerParam = pCreate->maxDelay;
   streamObj.ast = taosStrdup(smaObj.ast);
   streamObj.indexForMultiAggBalance = -1;
+  streamObj.subTableWithoutMd5 = 1;
 
   // check the maxDelay
   if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
@@ -898,11 +899,11 @@ _OVER:
 }
 
 int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SSmaObj    *pSma = NULL;
-  void       *pIter = NULL;
-  SVgObj     *pVgroup = NULL;
-  int32_t     code = -1;
+  SSdb    *pSdb = pMnode->pSdb;
+  SSmaObj *pSma = NULL;
+  void    *pIter = NULL;
+  SVgObj  *pVgroup = NULL;
+  int32_t  code = -1;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
