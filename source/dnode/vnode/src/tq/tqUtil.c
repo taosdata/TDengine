@@ -217,12 +217,10 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     uint64_t st = taosGetTimestampMs();
     int totalRows = 0;
     while (1) {
-//      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-//      ASSERT (savedEpoch <= pRequest->epoch);
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+        code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
       }
 
@@ -234,7 +232,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (pHead->msgType != TDMT_VND_SUBMIT) {
         if (totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-          code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+          code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
           goto end;
         }
 
@@ -261,7 +259,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         goto end;
       }
 
-      if (totalRows >= 4096 || taosxRsp.createTableNum > 0 || (taosGetTimestampMs() - st > 1000)) {
+      if (totalRows >= 4096 || (taosGetTimestampMs() - st > 1000)) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
