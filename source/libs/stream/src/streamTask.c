@@ -861,8 +861,8 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->chkpointTransId = pSrc->chkpointTransId;
 }
 
-void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
-  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_PAUSE);
+static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
+  SStreamMeta* pMeta = pTask->pMeta;
 
   int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
   stInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
@@ -874,6 +874,10 @@ void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
+}
+
+void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
+  streamTaskHandleEventAsync(pTask->status.pSM, TASK_EVENT_PAUSE, taskPauseCallback, NULL);
 }
 
 void streamTaskResume(SStreamTask* pTask) {

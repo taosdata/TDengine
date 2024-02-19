@@ -405,7 +405,12 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTransferStatePrepare(SStreamTask* pTask) {
+static int32_t haltCallback(SStreamTask* pTask, void* param) {
+  streamTaskOpenAllUpstreamInput(pTask);
+  streamTaskSendCheckpointReq(pTask);
+}
+
+int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   SStreamMeta* pMeta = pTask->pMeta;
 
@@ -413,13 +418,13 @@ int32_t streamTransferStatePrepare(SStreamTask* pTask) {
 
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
-    code = streamTransferStateDoPrepare(pTask);
+    code = streamDoTransferStateToStreamTask(pTask);
   } else {
     // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.
     SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
     if (pStreamTask != NULL) {
       // halt the related stream sink task
-      code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+      code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, haltCallback, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         stError("s-task:%s halt stream task:%s failed, code:%s not transfer state to stream task", pTask->id.idStr,
                 pStreamTask->id.idStr, tstrerror(code));
@@ -428,9 +433,6 @@ int32_t streamTransferStatePrepare(SStreamTask* pTask) {
       } else {
         stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
       }
-
-      streamTaskOpenAllUpstreamInput(pStreamTask);
-      streamTaskSendCheckpointReq(pStreamTask);
       streamMetaReleaseTask(pMeta, pStreamTask);
     }
   }
