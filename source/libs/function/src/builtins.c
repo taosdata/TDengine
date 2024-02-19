@@ -433,6 +433,20 @@ static int32_t translateAvgPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvgMiddle(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (TSDB_DATA_TYPE_BINARY != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -2515,6 +2529,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
+    .pMiddleFunc  = "_avg_middle",
     .pMergeFunc   = "_avg_merge"
   },
   {
@@ -3776,6 +3791,21 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "_avg_middle",
+    .type = FUNCTION_TYPE_AVG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgMiddle,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getAvgFuncEnv,
+    .initFunc     = avgFunctionSetup,
+    .processFunc  = avgFunctionMerge,
+    .finalizeFunc = avgPartialFinalize,
+#ifdef BUILD_NO_CALL
+    .invertFunc   = avgInvertFunction,
+#endif
+    .combineFunc  = avgCombine,
+  },
+  {
     .name = "_vgver",
     .type = FUNCTION_TYPE_VGVER,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
@@ -3785,7 +3815,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
   }
-  
 };
 // clang-format on
 
