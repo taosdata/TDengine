@@ -624,7 +624,7 @@ export default {
     palceholders: {
       taskName: "Task Name",
       agentPlaceholder: "Please select an agent",
-      chooseTargetDbTip: "Please select the target database",
+      chooseTargetDbTip: "Please select database",
       resumePlaceholder: "Please select",
     },
     needAgentTip:
