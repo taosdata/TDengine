@@ -1,7 +1,10 @@
+use std::fmt::Display;
+use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -11,10 +14,9 @@ use tracing::{instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
+use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
-use crate::runners::opc::config::table::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::OPCConfig;
-use crate::runners::opc::opc_type::OpcType;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
@@ -24,7 +26,6 @@ use crate::{
 use super::get_data_dir;
 
 pub mod config;
-mod opc_type;
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -293,43 +294,50 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let mut column_configs = vec![];
 
     column_configs.push(ColumnConfig {
-        column_name: String::from("value"),
-        column_type: None,
-        column_alias: Some(String::from("val")),
+        name: String::from("value"),
+        r#type: None,
+        alias: Some(String::from("val")),
+        transform: None,
         is_primary_key: false,
     });
     column_configs.push(ColumnConfig {
-        column_name: String::from("quality"),
-        column_type: Some(Ty::Int),
-        column_alias: None,
+        name: String::from("quality"),
+        r#type: Some(Ty::Int),
+        alias: None,
+        transform: None,
         is_primary_key: false,
     });
     let opc_table_config = if table_primary_key == "received_ts" {
         column_configs.push(ColumnConfig {
-            column_name: String::from("received_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
+            name: String::from("received_ts"),
+            r#type: Some(Ty::Timestamp),
+            alias: None,
+            transform: None,
             is_primary_key: true,
         });
         column_configs.push(ColumnConfig {
-            column_name: String::from("original_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
+            name: String::from("original_ts"),
+            r#type: Some(Ty::Timestamp),
+            alias: None,
+            transform: None,
             is_primary_key: false,
         });
         TableConfig {
+            enabled: None,
             stable_prefix,
             column_configs,
             tag_configs: None,
         }
     } else {
         column_configs.push(ColumnConfig {
-            column_name: String::from("original_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
+            name: String::from("original_ts"),
+            r#type: Some(Ty::Timestamp),
+            alias: None,
+            transform: None,
             is_primary_key: true,
         });
         TableConfig {
+            enabled: None,
             stable_prefix,
             column_configs,
             tag_configs: None,
@@ -340,6 +348,20 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         serde_json::to_string(&opc_table_config)?,
     );
     Ok(())
+}
+
+fn csv_string_record_from_iter<'a, I>(iter: I) -> String
+where
+    I: IntoIterator<Item = String>,
+{
+    let record = csv_lib::StringRecord::from_iter(iter);
+
+    let mut writer = Vec::new();
+    let mut wtr = csv_lib::Writer::from_writer(&mut writer);
+    wtr.write_record(&record).unwrap();
+    wtr.flush().unwrap();
+    drop(wtr);
+    String::from_utf8_lossy(&writer).trim().to_string()
 }
 
 /// TODO: should support more complicated pattern
@@ -379,31 +401,12 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
         } else {
             &point_id
         };
-        tb_name.replace("{TagName}", tag_name)
+        let tb_name = tb_name.replace("{TagName}", tag_name);
+        let tb_name = tb_name.replace("{tag_name}", tag_name);
+
+        tb_name
     };
     tbname.replace(".", "_").replace("`", "_")
-}
-
-#[test]
-fn test_tbname_pattern() {
-    let cases = [
-        ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
-        ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
-        (
-            "{ns}_{id}",
-            "ns=13;g=00000000-0000-0000-0000-000000009204",
-            "13_00000000-0000-0000-0000-000000009204",
-        ),
-        (
-            "{ns}_{id}",
-            r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
-            r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
-        ),
-    ];
-    for (pattern, point_id, expected) in cases.iter() {
-        let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
-        assert_eq!(tbname, *expected);
-    }
 }
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
@@ -415,7 +418,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
     config.points = PointsConfig::from_dsn(&from);
     let toml =
-        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+        toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -604,260 +607,140 @@ mod tests {
         assert_eq!("2.4.0", dsv.version.unwrap());
     }
 
-    /*
-        #[tokio::test]
-        async fn test_opc_config_to_toml() -> anyhow::Result<()> {
-            let mut map = HashMap::new();
-            map.insert(
-                String::from("123"),
-                PointConfig {
-                    code: "567".to_string(),
-                    stable: None,
-                    tag_values: None,
-                    value_type: None,
-                },
-            );
-            let mut column_configs = Vec::new();
-            let column_config = ColumnConfig {
-                column_name: String::from("received_time"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: Some("ts".to_string()),
-                is_primary_key: true,
-            };
-            column_configs.push(column_config);
-            let column_config = ColumnConfig {
-                column_name: String::from("original_time"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: None,
-                is_primary_key: false,
-            };
-            column_configs.push(column_config);
-            let column_config = ColumnConfig {
-                column_name: String::from("value"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: None,
-                is_primary_key: true,
-            };
-            column_configs.push(column_config);
-            let opc_table_config = TableConfig {
-                stable_prefix: Some("meters".to_string()),
-                column_configs,
-                tag_configs: None,
-            };
-            let config = OPCConfig {
-                opc_type: OpcType::OPCUA,
-                debug: true,
-                points: Some(PointsConfig {
-                    limit: 32,
-                    regex: Some(String::from("123")),
-                }),
-                // use_received_time: true,
-                connect: ConnectConfig {
-                    ua: Some(UaConnectConfig {
-                        endpoint: String::from("endpoint.123"),
-                        connect_timeout: 10,
-                        request_timeout: 20,
-                        security_policy: String::from("None"),
-                        security_mode: String::from("None"),
-                        certificate: None,
-                        private_key: None,
-                        auth_method: AuthMethod::Anonymous,
-                        username: None,
-                        password: None,
-                    }),
-                    da: Some(DaConnectConfig {
-                        server: String::from("server.server"),
-                        nodes: vec![String::from("localhost")],
-                    }),
-                },
-                collect: CollectConfig {
-                    interval: Some(10),
-                    ua: Some(UaCollectConfig {
-                        collect_mode: "observe"
-                            .to_string()
-                            .parse::<CollectMode>()
-                            .map_err(|err| OpcError::ParseError("collect_mode", err))?,
-                        nodes: vec![UANodeConfig {
-                            id: String::from("1"),
-                            // value_type: String::from("DOUBLE"),
-                        }],
-                    }),
-                    da: Some(DaCollectConfig {
-                        tags: vec![DaNodeConfig {
-                            tag: String::from("123"),
-                            // value_type: String::from("VARCHAR"),
-                        }],
-                    }),
-                    dump: Some(DumpConfig {
-                        enable: true,
-                        path: Some("/usr/loacl/taosx/".to_string()),
-                        keep: Some(10 as usize),
-                    }),
-                },
-                report: ReportConfig {
-                    remote: String::from("remote.remote"),
-                    concurrent: Some(10),
-                    batch_size: None,
-                    batch_timeout: Some(100),
-                },
-                param_mapping: map,
-                // table_info: HashMap::new(),
-                opc_table_config: Some(opc_table_config),
-            };
-            let toml = toml::to_string(&config)?;
-            assert_eq!(
-                r#"opc_type = "opcua"
-    debug = true
-
-    [connect.ua]
-    endpoint = "endpoint.123"
-    connect_timeout = 10
-    request_timeout = 20
-    security_policy = "None"
-    security_mode = "None"
-    auth_method = "Anonymous"
-
-    [connect.da]
-    server = "server.server"
-    nodes = ["localhost"]
-
-    [points]
-    limit = 32
-    regex = "123"
-
-    [collect]
-    interval = 10
-
-    [collect.ua]
-    collect_mode = "observe"
-
-    [[collect.ua.nodes]]
-    id = "1"
-
-    [[collect.da.tags]]
-    tag = "123"
-
-    [collect.dump]
-    enable = true
-    path = "/usr/loacl/taosx/"
-    keep = 10
-
-    [report]
-    remote = "remote.remote"
-    concurrent = 10
-    batch_timeout = 100
-    "#,
-                toml
-            );
-            Ok(())
+    #[test]
+    fn test_tbname_pattern() {
+        let cases = [
+            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
+            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
+            (
+                "{ns}_{id}",
+                "ns=13;g=00000000-0000-0000-0000-000000009204",
+                "13_00000000-0000-0000-0000-000000009204",
+            ),
+            (
+                "{ns}_{id}",
+                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
+                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+            ),
+        ];
+        for (pattern, point_id, expected) in cases.iter() {
+            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
+            assert_eq!(tbname, *expected);
         }
+    }
 
-        #[tokio::test]
-        async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
-            use taos::IntoDsn;
-            let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-            let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                .map_err(|s| OpcError::FileParseFound(s))?;
-            assert_eq!(
-                vec_string,
-                vec![
-                    String::from("ns=3;i=1004::ntb1::c0::double"),
-                    String::from("ns=3;i=1008::ntb1::c1::double"),
-                ]
-            );
-            let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-            let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                .map_err(|s| OpcError::FileParseFound(s))?;
-            assert_eq!(
-                vec_string,
-                vec![
-                    String::from("ns=3;i=1004::ntb1::c0::double"),
-                    String::from("ns=3;i=1008::ntb1::c1::double"),
-                    String::from("ns=2;i=2::ntb2::c1::double"),
-                    String::from("ns=2;i=3::ntb3::c2::int"),
-                ]
-            );
-            Ok(())
-        }
+    #[test]
+    fn test_csv_string_record() {
+        let s = r#"ns=3;s=Special_"!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_"!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}"#;
+        let record = csv_lib::StringRecord::from_iter([s]);
+        let line = record.iter().join(",");
+        dbg!(&line);
 
-        #[tokio::test(flavor = "multi_thread")]
-        async fn test_with_agent() -> anyhow::Result<()> {
-            std::env::set_var("RUST_LOG", "debug");
-            pretty_env_logger::init();
-            let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
-        ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
-        concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-            let target = "taos:///opcua";
-            let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-            let (notify, _) = flume::unbounded();
-            opc_to_taos(
-                opc.parse().unwrap(),
-                vec![],
-                target.parse().unwrap(),
-                1,
-                &PortPool::default(),
-                CancellationToken::new(),
-                Some((2, "http://127.0.0.1:6051".into(), "".into())),
-                None,
-                span.clone(),
-                notify,
-            )
-            .await?;
-            Ok(())
-        }
-
-        #[tokio::test(flavor = "multi_thread")]
-        async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
-            std::env::set_var("RUST_LOG", "debug");
-            // tracing_subscriber::fmt::init();
-            let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
-            let target = "taos:///opc";
-            let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-            let (notify, _) = flume::unbounded();
-            opc_to_taos(
-                opc.parse().unwrap(),
-                vec![],
-                target.parse().unwrap(),
-                1,
-                &PortPool::default(),
-                CancellationToken::new(),
-                Some((2, "http://127.0.0.1:6051".into(), "".into())),
-                None,
-                span.clone(),
-                notify,
-            )
-            .await?;
-            Ok(())
-        }
-    */
+        let mut writer = Vec::new();
+        let mut wtr = csv_lib::Writer::from_writer(&mut writer);
+        wtr.write_record(&record).unwrap();
+        wtr.flush().unwrap();
+        drop(wtr);
+        let line = String::from_utf8(writer).unwrap().trim().to_string();
+        dbg!(&line);
+    }
 }
 
-fn csv_string_record_from_iter<'a, I>(iter: I) -> String
-where
-    I: IntoIterator<Item = String>,
-{
-    let record = csv_lib::StringRecord::from_iter(iter);
-
-    let mut writer = Vec::new();
-    let mut wtr = csv_lib::Writer::from_writer(&mut writer);
-    wtr.write_record(&record).unwrap();
-    wtr.flush().unwrap();
-    drop(wtr);
-    String::from_utf8_lossy(&writer).trim().to_string()
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum OpcType {
+    OPCUA,
+    OPCDA,
+    FAKE,
 }
 
-#[test]
-fn test_csv_string_record() {
-    let s = r#"ns=3;s=Special_"!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_"!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}"#;
-    let record = csv_lib::StringRecord::from_iter([s]);
-    let line = record.iter().join(",");
-    dbg!(&line);
+impl OpcType {
+    /// valid dsn driver:
+    /// opcua:// -> OPCUA
+    /// opcda:// -> OPCDA
+    /// fake:// -> FAKE
+    /// opc+ua:// -> OPCUA
+    /// opc+da:// -> OPCDA
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let fake = dsn.params.get("fake").is_some();
+        if fake {
+            return Ok(Self::FAKE);
+        }
 
-    let mut writer = Vec::new();
-    let mut wtr = csv_lib::Writer::from_writer(&mut writer);
-    wtr.write_record(&record).unwrap();
-    wtr.flush().unwrap();
-    drop(wtr);
-    let line = String::from_utf8(writer).unwrap().trim().to_string();
-    dbg!(&line);
+        let opc_type = dsn.driver.as_str();
+        let protocol = dsn.protocol.clone();
+        match opc_type {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            "opc" => match protocol.as_deref() {
+                Some("ua") => Ok(Self::OPCUA),
+                Some("da") => Ok(Self::OPCDA),
+                _ => anyhow::bail!("unknown opc protocol"),
+            },
+            _ => anyhow::bail!("invalid opc type"),
+        }
+    }
+}
+
+impl FromStr for OpcType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            _ => Err(s.to_string()),
+        }
+    }
+}
+
+impl Display for OpcType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::OPCUA => "opcua",
+            Self::OPCDA => "opcda",
+            Self::FAKE => "fake",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[cfg(test)]
+mod opc_type_tests {
+    use super::*;
+    use taos::Dsn;
+
+    #[test]
+    fn test_from_dsn() {
+        let dsn = Dsn::from_str("opcua://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::OPCUA);
+
+        let dsn = Dsn::from_str("opcda://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::OPCDA);
+
+        let dsn = Dsn::from_str("opc+ua://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::OPCUA);
+
+        let dsn = Dsn::from_str("opc+da://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::OPCDA);
+
+        let dsn = Dsn::from_str("fake://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::FAKE);
+
+        let dsn = Dsn::from_str("opc://?fake=true").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn).unwrap();
+        assert_eq!(opc_type, OpcType::FAKE);
+
+        let dsn = Dsn::from_str("opc://").unwrap();
+        let opc_type = OpcType::from_dsn(&dsn);
+        assert!(opc_type.is_err());
+        assert_eq!("unknown opc protocol", opc_type.unwrap_err().to_string());
+    }
 }

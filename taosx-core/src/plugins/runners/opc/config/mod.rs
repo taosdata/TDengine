@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::str::FromStr;
 
@@ -16,17 +16,20 @@ use taosx_ipc::prelude::IpcDataType;
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
+use crate::runners::opc::config::model::{
+    ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
+};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::config::table::{ColumnConfig, TableConfig, TagConfig};
 use crate::runners::opc::generate_tbname_from_pattern;
-use crate::runners::opc::opc_type::OpcType;
+use crate::runners::opc::OpcType;
 
 mod collect;
 mod connect;
+pub mod csv;
+pub mod model;
 pub mod points;
 mod report;
-pub mod table;
 
 #[derive(Debug, Serialize)]
 pub struct OPCConfig {
@@ -142,6 +145,7 @@ impl OPCConfig {
     fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
         dsn.params.get("csv_config_file").map(|v| v.to_string())
     }
+
     async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let csv_config_file = Self::parse_csv_config_file(dsn);
@@ -150,12 +154,12 @@ impl OPCConfig {
             (OpcType::OPCUA, Some(csv)) => {
                 let (opc_table_config, _, _) =
                     generate_config_from_csv("opcua", csv.as_str()).await?;
-                return Ok(opc_table_config.id_code_map.clone());
+                return Ok(opc_table_config.point_config_map.clone());
             }
             (OpcType::OPCDA, Some(csv)) => {
                 let (opc_table_config, _, _) =
                     generate_config_from_csv("opcda", csv.as_str()).await?;
-                return Ok(opc_table_config.id_code_map.clone());
+                return Ok(opc_table_config.point_config_map.clone());
             }
             (OpcType::OPCUA, None) => {
                 let mut param_mapping = HashMap::new();
@@ -227,15 +231,16 @@ impl OPCConfig {
             .unwrap_or(false)
     }
 
-    pub async fn parse_tables_with(&self) -> anyhow::Result<OpcTableConfig> {
+    pub async fn parse_tables_with(&self) -> anyhow::Result<OpcModelConfig> {
         let id_code_map = self
             .param_mapping
             .iter()
             .map(|(id, code)| (id.clone(), code.clone()))
             .collect();
-        let c = OpcTableConfig {
-            id_code_map,
+        let c = OpcModelConfig {
+            point_config_map: id_code_map,
             table_config: self.opc_table_config.clone().unwrap(),
+            table_config_map: HashMap::new(),
         };
         Ok(c)
     }
@@ -249,31 +254,12 @@ pub enum AuthMethod {
     Certificate,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OpcTableConfig {
-    /// id, (code, stable, enabled)
-    /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
-    /// when stable is none stable_prefix will be enabled
-    pub id_code_map: HashMap<String, PointConfig>,
-    pub table_config: TableConfig,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PointConfig {
-    pub code: String,
-    pub stable: Option<String>,
-    pub tag_values: Option<HashMap<String, String>>,
-    pub value_type: Option<IpcDataType>,
-}
-
-const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
-
 /// return opc table config, node_config, tables_to_drop
-#[async_backtrace::framed]
+// #[async_backtrace::framed]
 pub async fn generate_config_from_csv(
     opc_type: &str,
     csv_config_file: &str,
-) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
+) -> anyhow::Result<(OpcModelConfig, Vec<String>, Vec<String>)> {
     let files_or_strings = csv_config_file
         .split(",")
         .map(|s| s.trim())
@@ -287,6 +273,7 @@ pub async fn generate_config_from_csv(
     let mut tables_to_drop = Vec::new();
     let mut current_tag_names = Vec::new();
     let mut stable_prefix = None;
+
     for mut file in files_or_strings {
         tracing::info!(
             "current log: {}",
@@ -306,10 +293,10 @@ pub async fn generate_config_from_csv(
         } else {
             rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
         }
-        // let mut
+        // the header is comment, skip it
         let mut records = rdr.records();
         let header = records.next().await;
-        // skip first line(desc)
+
         if header.is_none() {
             tracing::warn!("file {file} should have 3 lines at least");
             bail!("Config file {file} should not be empty");
@@ -317,15 +304,10 @@ pub async fn generate_config_from_csv(
         let header = header.unwrap()?;
         // header parse
         let mut column_names = Vec::new();
-        let temp_column = CSV_CONFIG_COLUMNS
-            .iter()
-            .map(|s| s.to_string())
-            .collect_vec()
-            .clone();
-        let mut column_set: HashSet<&String> = HashSet::from_iter(temp_column.iter());
+
         for column_name in header.iter() {
             column_names.push(column_name.to_string());
-            if column_name.starts_with("tag") {
+            if column_name.starts_with("tag::") {
                 // is tag config tag::type::name e.g. tag::varchar(123)::unit
                 let split_tag = column_name.split("::").collect_vec();
                 if split_tag.len() != 3 {
@@ -341,18 +323,12 @@ pub async fn generate_config_from_csv(
                 check_duplicated(&current_tag_names, None, &tag_name)?;
                 current_tag_names.push(tag_name.clone());
                 tag_config.push(TagConfig {
-                    column_name: tag_name,
-                    column_type,
+                    name: tag_name,
+                    r#type: column_type,
                 });
             }
-            column_set.remove(&column_name.to_string());
         }
-        if column_set.len() != 0 {
-            bail!(
-                "csv config miss column: {}",
-                column_set.iter().next().unwrap()
-            );
-        }
+
         let mut line = 3;
         let mut column_config_init = false;
         while let Some(record) = records.next().await {
@@ -360,6 +336,7 @@ pub async fn generate_config_from_csv(
                 Ok(record) => {
                     let mut record_map = LinkedHashMap::new();
                     let mut tag_values_map = HashMap::new();
+                    // tags
                     for (index, column_name) in column_names.iter().enumerate() {
                         let data = record.get(index).unwrap();
                         if column_name.starts_with("tag::") {
@@ -377,22 +354,37 @@ pub async fn generate_config_from_csv(
                         }
                     }
 
-                    let point_id = record_map.get_mut("point_id").unwrap();
-                    let pointid = point_id.clone();
+                    // point_id or tag_name
+                    let point_id = record_map
+                        .get("point_id")
+                        .or(record_map.get("tag_name"))
+                        .ok_or(anyhow::anyhow!("point_id or tag_name not found"))?
+                        .clone();
+
                     let tb_name = record_map.get_mut("tbname").unwrap();
                     if tb_name.contains("{") {
-                        // maybe should use pattern match?
-                        *tb_name = generate_tbname_from_pattern(opc_type, tb_name, &pointid);
+                        // replace {tag_name} or {TagName} in tbname
+                        *tb_name = generate_tbname_from_pattern(opc_type, tb_name, &point_id);
                     }
-                    let point_id = record_map.get("point_id").unwrap();
+
+                    // stable
                     let stable = if let Some(stable_name) = record_map.get("stable") {
-                        Some(stable_name.clone())
+                        let val_type = record_map.get("type").unwrap();
+                        let stable = if val_type.is_empty() {
+                            None
+                        } else {
+                            let stable_name = stable_name.replace("{type}", &val_type);
+                            Some(stable_name.clone())
+                        };
+                        stable
                     } else {
                         if stable_prefix.is_none() {
                             stable_prefix = Some(String::from("opc"));
                         }
                         None
                     };
+
+                    // enabled
                     let code = record_map.get("tbname").unwrap();
                     let enabled_column = record_map.get("enabled");
                     if enabled_column.is_some() {
@@ -403,15 +395,23 @@ pub async fn generate_config_from_csv(
                             continue;
                         }
                     }
+
+                    // type
                     let column_type = if let Some(ty) = record_map.get("type") {
-                        Some(
-                            IpcDataType::from_str(ty)
-                                .map_err(|err| anyhow::Error::msg(err.clone()))?,
-                        )
+                        if ty.is_empty() {
+                            None
+                        } else {
+                            Some(
+                                IpcDataType::from_str(ty)
+                                    .map_err(|err| anyhow::Error::msg(err.clone()))?,
+                            )
+                        }
                     } else {
                         None
                     };
-                    let mut current_columns = Vec::new();
+
+                    // value_col
+                    let mut current_columns: Vec<String> = Vec::new();
                     if !column_config_init {
                         let value_column_name = record_map
                             .get("value_col")
@@ -426,9 +426,10 @@ pub async fn generate_config_from_csv(
                         .with_context(|| format!("Config error with {value_column_name}"))?;
                         current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
-                            column_name: "value".to_string(),
-                            column_type: None,
-                            column_alias: Some(value_column_name.clone()),
+                            name: "value".to_string(),
+                            r#type: None,
+                            alias: Some(value_column_name.clone()),
+                            transform: None,
                             is_primary_key: false,
                         });
                         let quality_col_name = record_map
@@ -442,9 +443,10 @@ pub async fn generate_config_from_csv(
                         )?;
                         current_columns.push(quality_col_name.clone());
                         column_config.push(ColumnConfig {
-                            column_name: "quality".to_string(),
-                            column_type: Some(Ty::Int),
-                            column_alias: Some(quality_col_name.clone()),
+                            name: "quality".to_string(),
+                            r#type: Some(Ty::Int),
+                            alias: Some(quality_col_name.clone()),
+                            transform: None,
                             is_primary_key: false,
                         });
 
@@ -456,9 +458,10 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        column_name: "received_ts".to_string(),
-                                        column_type: Some(Ty::Timestamp),
-                                        column_alias: Some(col_data.clone()),
+                                        name: "received_ts".to_string(),
+                                        r#type: Some(Ty::Timestamp),
+                                        alias: Some(col_data.clone()),
+                                        transform: None,
                                         is_primary_key: has_primary_key,
                                     };
                                     column_config.push(col_config);
@@ -468,9 +471,10 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        column_name: "original_ts".to_string(),
-                                        column_type: Some(Ty::Timestamp),
-                                        column_alias: Some(col_data.clone()),
+                                        name: "original_ts".to_string(),
+                                        r#type: Some(Ty::Timestamp),
+                                        alias: Some(col_data.clone()),
+                                        transform: None,
                                         is_primary_key: has_primary_key,
                                     };
                                     column_config.push(col_config);
@@ -481,11 +485,11 @@ pub async fn generate_config_from_csv(
 
                         let rts_col_num = column_config
                             .iter()
-                            .filter(|col| col.column_name == "received_ts")
+                            .filter(|col| col.name == "received_ts")
                             .count();
                         let ts_col_num = column_config
                             .iter()
-                            .filter(|col| col.column_name == "original_ts")
+                            .filter(|col| col.name == "original_ts")
                             .count();
                         if rts_col_num > 1 {
                             bail!("received_ts column exists more than once in csv file");
@@ -496,9 +500,10 @@ pub async fn generate_config_from_csv(
 
                         if rts_col_num == 0 && ts_col_num == 0 {
                             let col_config = ColumnConfig {
-                                column_name: "original_ts".to_string(),
-                                column_type: Some(Ty::Timestamp),
-                                column_alias: Some("ts".to_string()),
+                                name: "original_ts".to_string(),
+                                r#type: Some(Ty::Timestamp),
+                                alias: Some("ts".to_string()),
+                                transform: None,
                                 is_primary_key: true,
                             };
                             column_config.push(col_config);
@@ -512,35 +517,48 @@ pub async fn generate_config_from_csv(
                     } else {
                         Some(tag_values_map)
                     };
+
+                    let point_id = record_map
+                        .get("point_id")
+                        .or(record_map.get("tag_name"))
+                        .ok_or(anyhow::anyhow!("point_id or tag_name not found"))?
+                        .clone();
+
                     id_code_map.insert(
                         point_id.clone(),
                         PointConfig {
                             code: code.clone(),
-                            stable: stable,
+                            stable,
                             tag_values,
                             value_type: column_type,
                         },
                     );
-                    node_config_old.push(format!("{point_id}::{code}"))
+                    node_config_old.push(format!("{}::{}", point_id, code));
                 }
-                Err(_e) => tracing::warn!("line {line} have different with other previous lines ",),
+                Err(_e) => {
+                    tracing::warn!("line {} have different with other previous lines ", line)
+                }
             }
             line += 1;
         }
     }
+
     let tag_configs = if tag_config.len() == 0 {
         None
     } else {
         Some(tag_config)
     };
+
     return Ok((
-        OpcTableConfig {
-            id_code_map,
+        OpcModelConfig {
+            point_config_map: id_code_map,
             table_config: TableConfig {
+                enabled: None,
                 stable_prefix,
                 column_configs: column_config,
                 tag_configs,
             },
+            table_config_map: HashMap::new(),
         },
         node_config_old,
         tables_to_drop,
@@ -650,6 +668,7 @@ mod tests {
         let f = generate_config_from_csv("opcua", "@./tests/opc_table_empty.csv").await;
         assert!(dbg!(f).is_err());
     }
+
     #[tokio::test]
     async fn test_csv_template() {
         tracing_subscriber::fmt::init();
@@ -673,14 +692,14 @@ mod tests {
     #[tokio::test]
     async fn test_generate_config_from_csv() {
         let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@../tests/opc/opcua_rts_ts.csv")
+            generate_config_from_csv("opcua", "@tests/opc/opcua_rts_ts.csv")
                 .await
                 .unwrap();
         let cols = opc_table_config
             .table_config
             .column_configs
             .iter()
-            .map(|col| col.column_name.as_str())
+            .map(|col| col.name.as_str())
             .collect_vec();
         assert_eq!(cols, vec!["value", "quality", "received_ts", "original_ts"]);
         assert_eq!(
@@ -703,14 +722,14 @@ mod tests {
         );
 
         let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@../tests/opc/opcua_ts_rts.csv")
+            generate_config_from_csv("opcua", "@tests/opc/opcua_ts_rts.csv")
                 .await
                 .unwrap();
         let cols = opc_table_config
             .table_config
             .column_configs
             .iter()
-            .map(|col| col.column_name.as_str())
+            .map(|col| col.name.as_str())
             .collect_vec();
         assert_eq!(cols, vec!["value", "quality", "original_ts", "received_ts"]);
         assert_eq!(
@@ -732,15 +751,14 @@ mod tests {
                 .is_primary_key
         );
 
-        let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@../tests/opc/opcua_ts.csv")
-                .await
-                .unwrap();
+        let (opc_table_config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_ts.csv")
+            .await
+            .unwrap();
         let cols = opc_table_config
             .table_config
             .column_configs
             .iter()
-            .map(|col| col.column_name.as_str())
+            .map(|col| col.name.as_str())
             .collect_vec();
         assert_eq!(cols, vec!["value", "quality", "original_ts"]);
         assert_eq!(
@@ -754,14 +772,14 @@ mod tests {
         );
 
         let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@../tests/opc/opcua_rts.csv")
+            generate_config_from_csv("opcua", "@tests/opc/opcua_rts.csv")
                 .await
                 .unwrap();
         let cols = opc_table_config
             .table_config
             .column_configs
             .iter()
-            .map(|col| col.column_name.as_str())
+            .map(|col| col.name.as_str())
             .collect_vec();
         assert_eq!(cols, vec!["value", "quality", "received_ts"]);
         assert_eq!(
@@ -774,15 +792,14 @@ mod tests {
                 .is_primary_key
         );
 
-        let (config, _, _) =
-            generate_config_from_csv("opcua", "@../tests/opc/opcua_without_ts.csv")
-                .await
-                .unwrap();
+        let (config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_without_ts.csv")
+            .await
+            .unwrap();
         let cols = config
             .table_config
             .column_configs
             .iter()
-            .map(|col| col.column_name.as_str())
+            .map(|col| col.name.as_str())
             .collect_vec();
         assert_eq!(cols, vec!["value", "quality", "original_ts"]);
         assert_eq!(
@@ -794,5 +811,20 @@ mod tests {
                 .unwrap()
                 .is_primary_key
         );
+    }
+
+    #[tokio::test]
+    async fn test_new_template() {
+        let (opc_table_config, opc_node_config, tables_to_drop) =
+            generate_config_from_csv("opcua", "@tests/opc/opcua-template-utf8-bom.csv")
+                .await
+                .unwrap();
+        dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
+
+        let (opc_table_config, opc_node_config, tables_to_drop) =
+            generate_config_from_csv("opcda", "@tests/opc/opcda-template-zh-utf8bom.csv")
+                .await
+                .unwrap();
+        dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
     }
 }

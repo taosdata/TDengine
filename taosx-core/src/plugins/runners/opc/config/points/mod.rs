@@ -1,4 +1,4 @@
-use crate::runners::opc::opc_type::OpcType;
+use crate::runners::opc::OpcType;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
