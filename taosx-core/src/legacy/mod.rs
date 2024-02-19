@@ -1566,15 +1566,17 @@ async fn sync_specified_tables_with_workers(
         anyhow::Ok(())
     });
     let from = from.get().await?;
-    let (items_rx, items_tx) = flume::bounded(0);
+    let (items_tx, mut items_rx) = tokio::sync::mpsc::channel(1024);
     let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
+        tracing::info!(tables = todo.tables.len(), "Scanning tables ...");
         todo.tables.scan(|item| {
-            let _ = items_rx.send(item.clone());
+            let _ = items_tx.send(item.clone());
         });
+        tracing::info!(tables = todo.tables.len(), "Scanning tables done");
     });
 
-    while let Ok(item) = items_tx.recv_async().await {
+    while let Some(item) = items_rx.recv().await {
         let stable = &item.stable;
         let table = &item.table;
 
