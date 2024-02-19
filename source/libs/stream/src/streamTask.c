@@ -80,7 +80,7 @@ static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
 }
 
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                            SArray* pTaskList, bool hasFillhistory) {
+                            SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -96,6 +96,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
   pTask->info.triggerParam = triggerParam;
+  pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
   pTask->status.pSM = streamCreateStateMachine(pTask);
   if (pTask->status.pSM == NULL) {
@@ -205,6 +206,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tEncodeI64(pEncoder, pTask->info.triggerParam) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->subtableWithoutMd5) < 0) return -1;
   if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
@@ -287,6 +289,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tDecodeI64(pDecoder, &pTask->info.triggerParam) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
 
   tEndDecode(pDecoder);

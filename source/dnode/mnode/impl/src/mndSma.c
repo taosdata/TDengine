@@ -567,6 +567,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.conf.triggerParam = pCreate->maxDelay;
   streamObj.ast = taosStrdup(smaObj.ast);
   streamObj.indexForMultiAggBalance = -1;
+  streamObj.subTableWithoutMd5 = 1;
 
   // check the maxDelay
   if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {

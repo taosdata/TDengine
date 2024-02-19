@@ -262,7 +262,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
     }
 
     setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid,
-                               pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
+                               pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1);
 
     taosArrayPush(reqs.pArray, pCreateTbReq);
     tqDebug("s-task:%s build create table:%s msg complete", pTask->id.idStr, pCreateTbReq->name);
@@ -374,7 +374,7 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
   SBatchDeleteReq deleteReq = {.suid = suid, .deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq))};
 
   int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr,
-                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
+                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -668,8 +668,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     } else {
-      if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && !isAutoTableName(dstTableName) &&
-          !alreadyAddGroupId(dstTableName) && groupId != 0) {
+      if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1 &&
+          !isAutoTableName(dstTableName) && !alreadyAddGroupId(dstTableName) && groupId != 0) {
         buildCtbNameAddGruopId(dstTableName, groupId);
       }
     }
@@ -712,8 +712,9 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       SArray* pTagArray = taosArrayInit(pTSchema->numOfCols + 1, sizeof(STagVal));
 
       pTableData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
-      pTableData->pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock,
-                                                         pTagArray, pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
+      pTableData->pCreateTbReq =
+          buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock, pTagArray,
+                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1);
       taosArrayDestroy(pTagArray);
 
       if (pTableData->pCreateTbReq == NULL) {

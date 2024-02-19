@@ -463,7 +463,8 @@ struct SStreamTask {
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
   void*               pBackend;
-  char                reserve[256];
+  int8_t              subtableWithoutMd5;
+  char                reserve[255];
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
@@ -532,7 +533,7 @@ int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo)
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                            SArray* pTaskList, bool hasFillhistory);
+                            SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);

@@ -699,6 +699,7 @@ typedef struct {
   int64_t checkpointId;
 
   int32_t indexForMultiAggBalance;
+  int8_t  subTableWithoutMd5;
   char    reserve[256];
 
 } SStreamObj;
