@@ -1,12 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use arrow_schema::DataType;
-use arrow_schema::TimeUnit::Nanosecond;
-use chrono::NaiveDateTime;
+use chrono::{Local, NaiveDateTime};
 use futures_util::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
-use serde_json::{json, Value};
+use serde_json::json;
 use taos::Dsn;
 use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
@@ -75,13 +73,13 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut client = HistorianQuery::try_new(config.connect).await?;
 
     // input: get top N record from table
-    let mut input_sample: Vec<LinkedHashMap<String, Value>> = Vec::new();
+    let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
     let mut rows = client
         .top_n(3, config.table, config.begin_datetime, config.end_datetime)
         .await?
         .into_row_stream();
     while let Some(row) = rows.try_next().await? {
-        let mut sample_map: LinkedHashMap<String, Value> = LinkedHashMap::new();
+        let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
         for (idx, col) in row.columns().into_iter().enumerate() {
             let col_name = col.name();
             let col_type = col.column_type();
@@ -121,11 +119,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     Ok(ds_sample_in)
 }
 
-pub fn to_json_value(
-    row: &Row,
-    idx: usize,
-    col_type: ColumnType,
-) -> anyhow::Result<serde_json::Value> {
+fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<serde_json::Value> {
     let col_val = match col_type {
         ColumnType::Datetime2 => json!(row.try_get::<NaiveDateTime, _>(idx)?),
         ColumnType::Int1 => json!(row.try_get::<u8, _>(idx)?),
@@ -141,6 +135,7 @@ pub fn to_json_value(
     Ok(col_val)
 }
 
+/// migrate or synchronize data from historian to taos
 pub async fn historian_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -156,9 +151,11 @@ pub async fn historian_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = TaskConfig::from_dsn(&from)?;
+    // set task_id
+    config.task_id = task_id;
     tracing::info!(
-        "{AVEVA_HISTORIAN_NAME} task start, id: {}, configuration: {:?}",
-        task_id.unwrap_or(-1),
+        "{AVEVA_HISTORIAN_NAME} task start, id: {:?}, configuration: {:?}",
+        task_id,
         config
     );
 
@@ -167,7 +164,10 @@ pub async fn historian_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
+    // set ipc port
+    config.ipc_port = Some(port);
 
+    // create ipc handler
     let mut ipc = build_ipc(
         &socket,
         parser,
@@ -182,10 +182,9 @@ pub async fn historian_to_taos(
         notify,
     )
     .await?;
-    config.ipc_port = Some(port);
 
     // create worker
-    let worker = tokio::spawn(exec_task(task_id, config));
+    let worker = tokio::spawn(exec_task(config));
 
     let port_pool = port_pool.clone();
     let abort_handle = worker.abort_handle();
@@ -242,7 +241,7 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
+async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
 
     let conditions = config.tags.clone();
@@ -263,8 +262,16 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
 
     // keep_raw_data log
     let (logger_tx, logger_rx) = flume::bounded(0);
+
+    let task_id = config.task_id.unwrap_or_else(|| {
+        tracing::warn!(
+            "task_id is None, this task may be in run mode, use current timestamp as task_id"
+        );
+        Local::now().timestamp()
+    });
+
     let logger = RawDataLogger::new(
-        task_id.unwrap_or(0),
+        task_id,
         config.advanced_options.keep_raw_data.unwrap_or(false),
         config
             .advanced_options
@@ -283,37 +290,19 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
             config.tags = tag_name_list;
-            migrate_history(config.clone(), logger_tx).await?;
+            migrate_history(config, logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
             config.tags = tag_name_list;
-            sync_history(config.clone(), logger_tx).await?;
+            sync_history(config, logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
-            sync_live(config.clone(), logger_tx).await?;
+            sync_live(config, logger_tx).await?;
         }
         _ => {}
     }
 
     Ok(())
-}
-
-pub fn to_arrow_data_type(col_type: ColumnType) -> anyhow::Result<DataType> {
-    let data_type = match col_type {
-        ColumnType::Bit => DataType::Boolean,
-        ColumnType::Int1 => DataType::UInt8,
-        ColumnType::Int4 => DataType::Int32,
-        ColumnType::Int8 => DataType::Int64,
-        ColumnType::Float4 => DataType::Float32,
-        ColumnType::Float8 => DataType::Float64,
-        ColumnType::Intn => DataType::Int32,
-        ColumnType::Floatn => DataType::Float64,
-        ColumnType::Datetime2 => DataType::Timestamp(Nanosecond, None),
-        ColumnType::NVarchar => DataType::Utf8,
-        _ => Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type))?,
-    };
-
-    Ok(data_type)
 }
 
 #[cfg(test)]

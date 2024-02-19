@@ -5,12 +5,12 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
+use arrow_schema::DataType;
+use arrow_schema::TimeUnit::Nanosecond;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use tiberius::{ColumnType, QueryItem, QueryStream};
-
-use crate::runners::historian::to_arrow_data_type;
 
 pub mod column_meta;
 
@@ -202,6 +202,24 @@ async fn to_batch(
 
     let batch = RecordBatch::try_new(Arc::new(schema), array_refs)?;
     Ok(batch)
+}
+
+fn to_arrow_data_type(col_type: ColumnType) -> anyhow::Result<DataType> {
+    let data_type = match col_type {
+        ColumnType::Bit => DataType::Boolean,
+        ColumnType::Int1 => DataType::UInt8,
+        ColumnType::Int4 => DataType::Int32,
+        ColumnType::Int8 => DataType::Int64,
+        ColumnType::Float4 => DataType::Float32,
+        ColumnType::Float8 => DataType::Float64,
+        ColumnType::Intn => DataType::Int32,
+        ColumnType::Floatn => DataType::Float64,
+        ColumnType::Datetime2 => DataType::Timestamp(Nanosecond, None),
+        ColumnType::NVarchar => DataType::Utf8,
+        _ => Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type))?,
+    };
+
+    Ok(data_type)
 }
 
 #[cfg(test)]
