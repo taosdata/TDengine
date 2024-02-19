@@ -88,7 +88,7 @@
 #define GRANT_OPT_EXPIRE_CHECK(expire, name)                                                                       \
   do {                                                                                                             \
     if ((expire) == GRANT_UNIQ_UNDEFINED) {                                                                        \
-      if (basicLtDefault) {                                                                                        \
+      if (basicLtDefault && (0 != strcmp((name), "service"))) {                                                    \
         code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                                                               \
         uError("grant optional items check failed since %s, basic:%" PRIi64 " < default %s:%" PRIi64 "(second)",   \
                tstrerror(code), basicExpireSec, (name), defaultExpireSec);                                         \
