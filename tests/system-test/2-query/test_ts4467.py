@@ -53,7 +53,7 @@ class TDTestCase:
         tdSql.query(sql)
         res2 = tdSql.queryResult
         tdLog.debug("res2: %s" % str(res2))
-        assert(len(res1) == len(res2) and res1[1][0] == res2[4][0])
+        assert(len(res1) == len(res2) and res1[0][0] == res2[4][0])
 
     def stop(self):
         tdSql.close()
