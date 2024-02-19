@@ -211,9 +211,9 @@ Provides information about TDengine users. Users whose SYSINFO attribute is 0 ca
 | #   | **Column**  | **Data Type** | **Description**  |
 | --- | :---------: | ------------- | ---------------- |
 | 1   |    name      | VARCHAR(24)   | User name       |
-| 2   |    super     | TINYINT       | Wether user is super user. 1 means yes; 0 means no |
-| 3   |   enable     | TINYINT       | Wether user is enabled. 1 means yes; 0 means no    |
-| 4   |   sysinfo    | TINYINT       | Wether user can query system info. 1 means yes; 0 means no |
+| 2   |    super     | TINYINT       | Wether user is super user. 1 means yes; 0 means no. |
+| 3   |   enable     | TINYINT       | Wether user is enabled. 1 means yes; 0 means no.    |
+| 4   |   sysinfo    | TINYINT       | Wether user can query system info. 1 means yes; 0 means no. |
 | 5   | create_time  | TIMESTAMP     | Create time     |
 | 6   | allowed_host | VARCHAR(49152)| Whitelist       |
 
