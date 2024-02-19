@@ -287,6 +287,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan->pParents = NULL;
   insertPlan->pNode = NULL;
   insertPlan->pDataSink = (SDataSinkNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT);
+  ((SDataInserterNode*)insertPlan->pDataSink)->size = 1;
+  ((SDataInserterNode*)insertPlan->pDataSink)->pData = taosMemoryCalloc(1, 1);
   insertPlan->msgType = TDMT_VND_SUBMIT;
 
   nodesListAppend(inserta->pNodeList, (SNode *)insertPlan);
@@ -307,6 +309,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan->pParents = NULL;
   insertPlan->pNode = NULL;
   insertPlan->pDataSink = (SDataSinkNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT);
+  ((SDataInserterNode*)insertPlan->pDataSink)->size = 1;
+  ((SDataInserterNode*)insertPlan->pDataSink)->pData = taosMemoryCalloc(1, 1);
   insertPlan->msgType = TDMT_VND_SUBMIT;
 
   nodesListAppend(inserta->pNodeList, (SNode *)insertPlan);
@@ -542,12 +546,13 @@ void *schtRunJobThread(void *aa) {
   while (!schtTestStop) {
     schtBuildQueryDag(dag);
 
-    SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+    SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
-    SEp qnodeAddr = {0};
-    strcpy(qnodeAddr.fqdn, "qnode0.ep");
-    qnodeAddr.port = 6031;
-    taosArrayPush(qnodeList, &qnodeAddr);
+    SQueryNodeLoad load = {0};
+    load.addr.epSet.numOfEps = 1;
+    strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+    load.addr.epSet.eps[0].port = 6031;
+    taosArrayPush(qnodeList, &load);
 
     queryDone = 0;
 
@@ -690,12 +695,13 @@ TEST(queryTest, normalCase) {
   int64_t     job = 0;
   SQueryPlan* dag = (SQueryPlan*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
-  SEp qnodeAddr = {0};
-  strcpy(qnodeAddr.fqdn, "qnode0.ep");
-  qnodeAddr.port = 6031;
-  taosArrayPush(qnodeList, &qnodeAddr);
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  taosArrayPush(qnodeList, &load);
 
   int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -800,12 +806,13 @@ TEST(queryTest, readyFirstCase) {
   int64_t     job = 0;
   SQueryPlan* dag = (SQueryPlan*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
-  SEp qnodeAddr = {0};
-  strcpy(qnodeAddr.fqdn, "qnode0.ep");
-  qnodeAddr.port = 6031;
-  taosArrayPush(qnodeList, &qnodeAddr);
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  taosArrayPush(qnodeList, &load);  
 
   int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -912,12 +919,14 @@ TEST(queryTest, flowCtrlCase) {
 
   taosSeedRand(taosGetTimestampSec());
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
-  SEp qnodeAddr = {0};
-  strcpy(qnodeAddr.fqdn, "qnode0.ep");
-  qnodeAddr.port = 6031;
-  taosArrayPush(qnodeList, &qnodeAddr);
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  taosArrayPush(qnodeList, &load);
+
 
   int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -1000,12 +1009,13 @@ TEST(insertTest, normalCase) {
   SQueryPlan* dag = (SQueryPlan*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
   uint64_t    numOfRows = 0;
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
-  SEp qnodeAddr = {0};
-  strcpy(qnodeAddr.fqdn, "qnode0.ep");
-  qnodeAddr.port = 6031;
-  taosArrayPush(qnodeList, &qnodeAddr);
+  SQueryNodeLoad load = {0};
+  load.addr.epSet.numOfEps = 1;
+  strcpy(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
+  load.addr.epSet.eps[0].port = 6031;
+  taosArrayPush(qnodeList, &load);
 
   int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
