@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "tsdb.h"
 
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
   do {                                                                                                        \
@@ -702,4 +703,8 @@ void *vnodeGetIvtIdx(void *pVnode) {
     return NULL;
   }
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
+}
+
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
+  return tsdbGetTableSchema(((SVnode*)pVnode)->pMeta, uid, pSchema, suid);
 }

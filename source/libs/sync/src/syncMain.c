@@ -413,6 +413,7 @@ int32_t syncEndSnapshot(int64_t rid) {
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -424,6 +425,7 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   syncNodeRelease(pSyncNode);
   return 0;
 }
+#endif
 
 bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
@@ -458,6 +460,7 @@ bool syncIsReadyForRead(int64_t rid) {
   return ready;
 }
 
+#ifdef BUILD_NO_CALL
 bool syncSnapshotSending(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -479,6 +482,7 @@ bool syncSnapshotRecving(int64_t rid) {
   syncNodeRelease(pSyncNode);
   return b;
 }
+#endif
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
@@ -1060,7 +1064,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClockUser, 0);
+#ifdef BUILD_NO_CALL  
   pSyncNode->FpHeartbeatTimerCB = syncNodeEqHeartbeatTimer;
+#endif  
   pSyncNode->heartbeatTimerCounter = 0;
 
   // init peer heartbeat timer
@@ -1151,6 +1157,7 @@ _error:
   return NULL;
 }
 
+#ifdef BUILD_NO_CALL
 void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot = {0};
@@ -1160,6 +1167,7 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
     }
   }
 }
+#endif
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
@@ -1214,6 +1222,7 @@ int32_t syncNodeStart(SSyncNode* pSyncNode) {
   return ret;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
@@ -1235,6 +1244,7 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
   }
   return ret;
 }
+#endif
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode != NULL);
@@ -1401,6 +1411,7 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
           electMS);
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   if (syncIsInit()) {
@@ -1414,6 +1425,7 @@ static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
   sNTrace(pSyncNode, "start heartbeat timer, ms:%d", pSyncNode->heartbeatTimerMS);
   return ret;
 }
+#endif
 
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
@@ -1452,11 +1464,13 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
   syncNodeStartHeartbeatTimer(pSyncNode);
   return 0;
 }
+#endif
 
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg* pMsg) {
   SEpSet* epSet = NULL;
@@ -1700,6 +1714,7 @@ _END:
 }
 
 // raft state change --------------
+#ifdef BUILD_NO_CALL
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > raftStoreGetTerm(pSyncNode)) {
     raftStoreSetTerm(pSyncNode, term);
@@ -1709,6 +1724,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
     raftStoreClearVote(pSyncNode);
   }
 }
+#endif
 
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > raftStoreGetTerm(pSyncNode)) {
@@ -1934,6 +1950,7 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   sNTrace(pSyncNode, "follower to candidate");
 }
 
+#ifdef BUILD_NO_CALL
 void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
   syncNodeBecomeFollower(pSyncNode, "leader to follower");
@@ -1953,6 +1970,7 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
 
   sNTrace(pSyncNode, "candidate to follower");
 }
+#endif
 
 // just called by syncNodeVoteForSelf
 // need assert
@@ -2042,6 +2060,7 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 // return append-entries first try index
 SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
   SyncIndex syncStartIndex = syncNodeGetLastIndex(pSyncNode) + 1;
@@ -2129,6 +2148,7 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
   *pPreTerm = syncNodeGetPreTerm(pSyncNode, index);
   return 0;
 }
+#endif
 
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
@@ -2141,7 +2161,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     if (code != 0) {
       sError("failed to build ping msg");
       rpcFreeCont(rpcMsg.pCont);
-      return;
+      goto _out;
     }
 
     // sTrace("enqueue ping msg");
@@ -2149,9 +2169,10 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     if (code != 0) {
       sError("failed to sync enqueue ping msg since %s", terrstr());
       rpcFreeCont(rpcMsg.pCont);
-      return;
+      goto _out;
     }
 
+  _out:
     taosTmrReset(syncNodeEqPingTimer, pNode->pingTimerMS, pNode, syncEnv()->pTimerManager, &pNode->pPingTimer);
   }
 }
@@ -2199,6 +2220,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   syncNodeRelease(pNode);
 }
 
+#ifdef BUILD_NO_CALL
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
 
@@ -2211,7 +2233,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
       if (code != 0) {
         sError("failed to build heartbeat msg");
-        return;
+        goto _out;
       }
 
       sTrace("vgId:%d, enqueue heartbeat timer", pNode->vgId);
@@ -2219,9 +2241,10 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
       if (code != 0) {
         sError("failed to enqueue heartbeat msg since %s", terrstr());
         rpcFreeCont(rpcMsg.pCont);
-        return;
+        goto _out;
       }
 
+    _out:
       taosTmrReset(syncNodeEqHeartbeatTimer, pNode->heartbeatTimerMS, pNode, syncEnv()->pTimerManager,
                    &pNode->pHeartbeatTimer);
 
@@ -2231,6 +2254,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     }
   }
 }
+#endif
 
 static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   int64_t hbDataRid = (int64_t)param;
@@ -2318,6 +2342,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   syncNodeRelease(pSyncNode);
 }
 
+#ifdef BUILD_NO_CALL
 static void deleteCacheEntry(const void* key, size_t keyLen, void* value, void* ud) {
   (void)ud;
   taosMemoryFree(value);
@@ -2337,6 +2362,7 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
 
   return code;
 }
+#endif
 
 void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TODO SAlterVnodeReplicaReq name is proper?
   cfg->replicaNum = 0;
@@ -2974,6 +3000,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
   int32_t ret = 0;
 
@@ -3002,6 +3029,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 
   return ret;
 }
+#endif
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
@@ -3119,6 +3147,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
 
+#ifdef BUILD_NO_CALL
 int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
@@ -3134,6 +3163,7 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
   return 0;
 }
+#endif
 
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncLocalCmd* pMsg = pRpcMsg->pCont;
@@ -3313,6 +3343,7 @@ SPeerState* syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId) {
   return pState;
 }
 
+#ifdef BUILD_NO_CALL
 bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg) {
   SPeerState* pState = syncNodeGetPeerState(ths, pDestId);
   if (pState == NULL) {
@@ -3354,3 +3385,4 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
 
   return true;
 }
+#endif

@@ -310,6 +310,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
+        pInput->blankFill = pBlock->info.blankFill;
 
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
@@ -324,6 +325,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
           pInput->totalRows = pBlock->info.rows;
           pInput->numOfRows = pBlock->info.rows;
           pInput->startRowIndex = 0;
+          pInput->blankFill = pBlock->info.blankFill;
 
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {

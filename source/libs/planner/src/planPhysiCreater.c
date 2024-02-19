@@ -1759,6 +1759,8 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
     case INTERVAL_ALGO_STREAM_SEMI:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
+    case INTERVAL_ALGO_STREAM_MID:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL;
     case INTERVAL_ALGO_STREAM_SINGLE:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
     case SESSION_ALGO_STREAM_FINAL:
@@ -2306,6 +2308,8 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->level = pLogicSubplan->level;
   pSubplan->rowsThreshold = 4096;
   pSubplan->dynamicRowThreshold = false;
+  pSubplan->isView = pCxt->pPlanCxt->isView;
+  pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }

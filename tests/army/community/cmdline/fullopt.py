@@ -27,6 +27,15 @@ from frame import *
 
 
 class TDTestCase(TBase):
+    updatecfgDict = {
+        'queryMaxConcurrentTables': '2K', 
+        'streamMax': '1M', 
+        'totalMemoryKB': '1G',
+        #'rpcQueueMemoryAllowed': '1T',
+        #'mndLogRetention': '1P',
+        'streamBufferSize':'2G'
+    }    
+
     def insertData(self):
         tdLog.info(f"insert data.")
 
@@ -62,7 +71,7 @@ class TDTestCase(TBase):
 
         # TSDB_FQDN_LEN = 128
         lname = "testhostnamelength"
-        lname.rjust(130, 'a')
+        lname.rjust(230, 'a')
 
         # except test
         sql = f"show vgroups;"
@@ -72,6 +81,9 @@ class TDTestCase(TBase):
         etool.exeBinFile("taos", f'-a {lname} -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-p{lname}  -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-w -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'abc', wait=False)
+        etool.exeBinFile("taos", f'-V', wait=False)
+        etool.exeBinFile("taos", f'-?', wait=False)
 
         # others
         etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
@@ -119,6 +131,11 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
         time.sleep(3)
+        eos.exe("pkill -9 taos")
+
+        # call enter password
+        etool.exeBinFile("taos", f'-p', wait=False)
+        time.sleep(1)
         eos.exe("pkill -9 taos")
 
     # run

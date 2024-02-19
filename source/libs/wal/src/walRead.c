@@ -70,10 +70,9 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", applied index:%" PRId64,
+  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
-  if (fetchVer > appliedVer){
+  if (fetchVer > appliedVer) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
@@ -86,10 +85,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     int32_t type = pReader->pHead->head.msgType;
     if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
         (IS_META_MSG(type) && pReader->cond.scanMeta)) {
-      if (walFetchBody(pReader) < 0) {
-        return -1;
-      }
-      return 0;
+      int32_t code = walFetchBody(pReader);
+      return (code == TSDB_CODE_SUCCESS)? 0:-1;
     } else {
       if (walSkipFetchBody(pReader) < 0) {
         return -1;

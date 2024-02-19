@@ -431,6 +431,20 @@ static int32_t translateAvgPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvgMiddle(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (TSDB_DATA_TYPE_BINARY != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -705,18 +719,20 @@ static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_
 
 static int32_t translateTbUidColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateVgIdColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateVgVerColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -2511,6 +2527,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
+    .pMiddleFunc  = "_avg_middle",
     .pMergeFunc   = "_avg_merge"
   },
   {
@@ -3451,7 +3468,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = qTbnameFunction,
+    .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
   },
   {
@@ -3738,11 +3755,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbUidColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-#ifdef BUILD_NO_CALL
-    .sprocessFunc = qTbUidFunction,
-#else
-    .sprocessFunc = NULL,
-#endif
+    .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
   },
   {
@@ -3752,11 +3765,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateVgIdColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-#ifdef BUILD_NO_CALL
-    .sprocessFunc = qVgIdFunction,
-#else
-    .sprocessFunc = NULL,
-#endif
+    .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
   },
   {
@@ -3779,7 +3788,31 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = toCharFunction,
     .finalizeFunc = NULL
   },
-  
+  {
+    .name = "_avg_middle",
+    .type = FUNCTION_TYPE_AVG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgMiddle,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getAvgFuncEnv,
+    .initFunc     = avgFunctionSetup,
+    .processFunc  = avgFunctionMerge,
+    .finalizeFunc = avgPartialFinalize,
+#ifdef BUILD_NO_CALL
+    .invertFunc   = avgInvertFunction,
+#endif
+    .combineFunc  = avgCombine,
+  },
+  {
+    .name = "_vgver",
+    .type = FUNCTION_TYPE_VGVER,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateVgVerColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = qPseudoTagFunction,
+    .finalizeFunc = NULL
+  }
 };
 // clang-format on
 

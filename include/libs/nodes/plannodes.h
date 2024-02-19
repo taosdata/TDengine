@@ -262,6 +262,7 @@ typedef enum EWindowAlgorithm {
   SESSION_ALGO_STREAM_FINAL,
   SESSION_ALGO_STREAM_SINGLE,
   SESSION_ALGO_MERGE,
+  INTERVAL_ALGO_STREAM_MID,
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
@@ -607,6 +608,7 @@ typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamMidIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
@@ -733,8 +735,10 @@ typedef struct SSubplan {
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
   bool           showRewrite;
-  int32_t        rowsThreshold;
+  bool           isView;
+  bool           isAudit;
   bool           dynamicRowThreshold;
+  int32_t        rowsThreshold;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

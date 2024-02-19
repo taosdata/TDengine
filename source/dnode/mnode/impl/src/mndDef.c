@@ -422,27 +422,12 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   return (void *)buf;
 }
 
-// SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
-//   SMqConsumerEp *pConsumerEpNew = taosMemoryMalloc(sizeof(SMqConsumerEp));
-//   if (pConsumerEpNew == NULL) return NULL;
-//   pConsumerEpNew->consumerId = pConsumerEpOld->consumerId;
-//   pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, NULL);
-//   return pConsumerEpNew;
-// }
-//
-// void tDeleteSMqConsumerEp(void *data) {
-//   SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
-//   taosArrayDestroy(pConsumerEp->vgs);
-// }
-
-int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
+int32_t tEncodeOffRows(void **buf, SArray *offsetRows){
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
-  tlen += taosEncodeArray(buf, pConsumerEp->vgs, (FEncode)tEncodeSMqVgEp);
-  int32_t szVgs = taosArrayGetSize(pConsumerEp->offsetRows);
+  int32_t szVgs = taosArrayGetSize(offsetRows);
   tlen += taosEncodeFixedI32(buf, szVgs);
   for (int32_t j = 0; j < szVgs; ++j) {
-    OffsetRows *offRows = taosArrayGet(pConsumerEp->offsetRows, j);
+    OffsetRows *offRows = taosArrayGet(offsetRows, j);
     tlen += taosEncodeFixedI32(buf, offRows->vgId);
     tlen += taosEncodeFixedI64(buf, offRows->rows);
     tlen += taosEncodeFixedI8(buf, offRows->offset.type);
@@ -454,53 +439,54 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
     } else {
       // do nothing
     }
+    tlen += taosEncodeFixedI64(buf, offRows->ever);
   }
-  // #if 0
-  //   int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
-  //   tlen += taosEncodeFixedI32(buf, sz);
-  //   for (int32_t i = 0; i < sz; i++) {
-  //     SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
-  //     tlen += tEncodeSMqVgEp(buf, pVgEp);
-  //   }
-  // #endif
+
   return tlen;
+}
+
+int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
+  tlen += taosEncodeArray(buf, pConsumerEp->vgs, (FEncode)tEncodeSMqVgEp);
+
+
+  return tlen + tEncodeOffRows(buf, pConsumerEp->offsetRows);
+}
+
+void *tDecodeOffRows(const void *buf, SArray **offsetRows, int8_t sver){
+  int32_t szVgs = 0;
+  buf = taosDecodeFixedI32(buf, &szVgs);
+  if (szVgs > 0) {
+    *offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
+    if (NULL == *offsetRows) return NULL;
+    for (int32_t j = 0; j < szVgs; ++j) {
+      OffsetRows *offRows = taosArrayReserve(*offsetRows, 1);
+      buf = taosDecodeFixedI32(buf, &offRows->vgId);
+      buf = taosDecodeFixedI64(buf, &offRows->rows);
+      buf = taosDecodeFixedI8(buf, &offRows->offset.type);
+      if (offRows->offset.type == TMQ_OFFSET__SNAPSHOT_DATA || offRows->offset.type == TMQ_OFFSET__SNAPSHOT_META) {
+        buf = taosDecodeFixedI64(buf, &offRows->offset.uid);
+        buf = taosDecodeFixedI64(buf, &offRows->offset.ts);
+      } else if (offRows->offset.type == TMQ_OFFSET__LOG) {
+        buf = taosDecodeFixedI64(buf, &offRows->offset.version);
+      } else {
+        // do nothing
+      }
+      if(sver > 2){
+        buf = taosDecodeFixedI64(buf, &offRows->ever);
+      }
+    }
+  }
+  return (void *)buf;
 }
 
 void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t sver) {
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
   buf = taosDecodeArray(buf, &pConsumerEp->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
   if (sver > 1) {
-    int32_t szVgs = 0;
-    buf = taosDecodeFixedI32(buf, &szVgs);
-    if (szVgs > 0) {
-      pConsumerEp->offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
-      if (NULL == pConsumerEp->offsetRows) return NULL;
-      for (int32_t j = 0; j < szVgs; ++j) {
-        OffsetRows *offRows = taosArrayReserve(pConsumerEp->offsetRows, 1);
-        buf = taosDecodeFixedI32(buf, &offRows->vgId);
-        buf = taosDecodeFixedI64(buf, &offRows->rows);
-        buf = taosDecodeFixedI8(buf, &offRows->offset.type);
-        if (offRows->offset.type == TMQ_OFFSET__SNAPSHOT_DATA || offRows->offset.type == TMQ_OFFSET__SNAPSHOT_META) {
-          buf = taosDecodeFixedI64(buf, &offRows->offset.uid);
-          buf = taosDecodeFixedI64(buf, &offRows->offset.ts);
-        } else if (offRows->offset.type == TMQ_OFFSET__LOG) {
-          buf = taosDecodeFixedI64(buf, &offRows->offset.version);
-        } else {
-          // do nothing
-        }
-      }
-    }
+    buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
   }
-  // #if 0
-  //   int32_t sz;
-  //   buf = taosDecodeFixedI32(buf, &sz);
-  //   pConsumerEp->vgs = taosArrayInit(sz, sizeof(void *));
-  //   for (int32_t i = 0; i < sz; i++) {
-  //     SMqVgEp *pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
-  //     buf = tDecodeSMqVgEp(buf, pVgEp);
-  //     taosArrayPush(pConsumerEp->vgs, &pVgEp);
-  //   }
-  // #endif
 
   return (void *)buf;
 }
@@ -596,22 +582,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
   tlen += taosEncodeString(buf, pSub->dbName);
 
-  int32_t szVgs = taosArrayGetSize(pSub->offsetRows);
-  tlen += taosEncodeFixedI32(buf, szVgs);
-  for (int32_t j = 0; j < szVgs; ++j) {
-    OffsetRows *offRows = taosArrayGet(pSub->offsetRows, j);
-    tlen += taosEncodeFixedI32(buf, offRows->vgId);
-    tlen += taosEncodeFixedI64(buf, offRows->rows);
-    tlen += taosEncodeFixedI8(buf, offRows->offset.type);
-    if (offRows->offset.type == TMQ_OFFSET__SNAPSHOT_DATA || offRows->offset.type == TMQ_OFFSET__SNAPSHOT_META) {
-      tlen += taosEncodeFixedI64(buf, offRows->offset.uid);
-      tlen += taosEncodeFixedI64(buf, offRows->offset.ts);
-    } else if (offRows->offset.type == TMQ_OFFSET__LOG) {
-      tlen += taosEncodeFixedI64(buf, offRows->offset.version);
-    } else {
-      // do nothing
-    }
-  }
+  tlen += tEncodeOffRows(buf, pSub->offsetRows);
   tlen += taosEncodeString(buf, pSub->qmsg);
   return tlen;
 }
@@ -639,26 +610,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
   if (sver > 1) {
-    int32_t szVgs = 0;
-    buf = taosDecodeFixedI32(buf, &szVgs);
-    if (szVgs > 0) {
-      pSub->offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
-      if (NULL == pSub->offsetRows) return NULL;
-      for (int32_t j = 0; j < szVgs; ++j) {
-        OffsetRows *offRows = taosArrayReserve(pSub->offsetRows, 1);
-        buf = taosDecodeFixedI32(buf, &offRows->vgId);
-        buf = taosDecodeFixedI64(buf, &offRows->rows);
-        buf = taosDecodeFixedI8(buf, &offRows->offset.type);
-        if (offRows->offset.type == TMQ_OFFSET__SNAPSHOT_DATA || offRows->offset.type == TMQ_OFFSET__SNAPSHOT_META) {
-          buf = taosDecodeFixedI64(buf, &offRows->offset.uid);
-          buf = taosDecodeFixedI64(buf, &offRows->offset.ts);
-        } else if (offRows->offset.type == TMQ_OFFSET__LOG) {
-          buf = taosDecodeFixedI64(buf, &offRows->offset.version);
-        } else {
-          // do nothing
-        }
-      }
-    }
+    buf = tDecodeOffRows(buf, &pSub->offsetRows, sver);
     buf = taosDecodeString(buf, &pSub->qmsg);
   } else {
     pSub->qmsg = taosStrdup("");
