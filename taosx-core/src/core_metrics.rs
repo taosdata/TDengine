@@ -470,12 +470,12 @@ impl Default for TaskStartTime {
 unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
-#[instrument(skip(close_signal))]
+#[instrument(skip_all, fields(task.id = task_id))]
 pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
     let metrics_arc = get_metrics(task_id).unwrap();
     tokio::spawn(
         async move {
-            tracing::info!("auto-save metrics task start");
+            tracing::info!("start");
             loop {
                 match close_signal.try_recv() {
                     Ok(_) => {
@@ -483,16 +483,16 @@ pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<
                     }
                     Err(recv_error) => match recv_error {
                         oneshot::error::TryRecvError::Closed => {
-                            tracing::debug!("auto-save metrics channel closed");
+                            tracing::debug!("channel closed");
                             break;
                         }
                         oneshot::error::TryRecvError::Empty => {
                             match save_metrics(metrics_arc.clone()) {
                                 Ok(_) => {
-                                    tracing::debug!("auto-save metrics success")
+                                    tracing::debug!("success")
                                 }
                                 Err(err) => {
-                                    tracing::error!("auto-save metrics failed. {}", err);
+                                    tracing::error!("failed. {}", err);
                                 }
                             }
                             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
@@ -500,7 +500,7 @@ pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<
                     },
                 }
             }
-            tracing::info!("auto-save metrics task exit");
+            tracing::info!("exit");
         }
         .in_current_span(),
     );

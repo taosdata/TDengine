@@ -212,10 +212,8 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
 pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> String {
     // 根据任务的状态判断任务是否正在运行。这里的正在运行的含义是：任务正在被 scheduler 执行。
     // 这里的 running 更准确的说是任务处于需要被计算运行时间的状态。
-    let running = status == Status::Running
-        || status == Status::Stopping
-        || status == Status::Waiting
-        || status == Status::Interrupted;
+    let running =
+        status == Status::Running || status == Status::Stopping || status == Status::Waiting;
     let (common_metrics, json) = match metrics.as_ref() {
         CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
         CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),

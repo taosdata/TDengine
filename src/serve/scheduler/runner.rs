@@ -152,15 +152,15 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             global_sender.send_task_activity(activity);
         }
     });
-    let metrics_arc = init_task_metrics(
-        opts.from.clone(),
-        opts.to.clone(),
-        task_id,
-        task.name.clone(),
-    )
-    .unwrap();
-    let (_sender, close_signal) = oneshot::channel::<()>();
-    auto_save_task_metrics(task_id, close_signal);
+    // let metrics_arc = init_task_metrics(
+    //     opts.from.clone(),
+    //     opts.to.clone(),
+    //     task_id,
+    //     task.name.clone(),
+    // )
+    // .unwrap();
+    // let (_sender, close_signal) = oneshot::channel::<()>();
+    // auto_save_task_metrics(task_id, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -852,7 +852,7 @@ impl TaskJob {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         if let Some(agent_id) = opts.task.via {
-            let task_name = self.task.task.name.clone();
+            // let task_name = self.task.task.name.clone();
             tokio::spawn(async move {
                 #[derive(Debug)]
                 enum AgentTaskState {
@@ -867,7 +867,7 @@ impl TaskJob {
                 let state = opts;
                 let mut waiting = 0;
                 let cancellation = state.cancellation.clone();
-
+                tracing::debug!(task.id = task_id, job.id = %jid, task.rid=run_id, "spawned new job task");
                 tokio::select! {
                     _ = cancellation.cancelled() => {
                         tracing::info!(agent.id = agent_id, task.id = task_id, job.id = %jid, "task `{task_id}` cancelled");
@@ -920,12 +920,12 @@ impl TaskJob {
                     .push_action(agent_id, AgentAction::Run(task_id, jid, run_id))
                     .await;
                 tracing::debug!("Command run sending ok");
-                let from_dsn: Dsn = state.task.from.parse().unwrap();
-                let to_dsn = state.task.to.parse().unwrap();
-                let metrics_arc = init_task_metrics(from_dsn, to_dsn, task_id, task_name).unwrap();
-                let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
-                // start save metrics task
-                auto_save_task_metrics(task_id, stop_save_metrics_signal);
+                // let from_dsn: Dsn = state.task.from.parse().unwrap();
+                // let to_dsn = state.task.to.parse().unwrap();
+                // let metrics_arc = init_task_metrics(from_dsn, to_dsn, task_id, task_name).unwrap();
+                // let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
+                // // start save metrics task
+                // auto_save_task_metrics(task_id, stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
                 let agent_activities = waiter.agent_activities.clone();
@@ -1273,6 +1273,7 @@ impl TaskJob {
             tokio::spawn(async move {
                 global.send_task_activity(TaskActivity::started(opts.task.id, jid));
                 let runs = opts.runs.load(Ordering::Relaxed);
+                tracing::debug!(task.id = task_id, job.id = %jid, task.rid=runs, "spawned new job task");
                 let span = tracing::info_span!(
                     "run_task",
                     task.id = opts.task.id,
@@ -1418,6 +1419,15 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
 
     let opts_cancellation_handler = opts.clone();
 
+    let from_dsn: Dsn = task.task.from.parse().unwrap();
+    let to_dsn = task.task.to.parse().unwrap();
+    let task_id = task.task.id;
+    let task_name = task.task.name.clone();
+    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name);
+    if metrics.is_some() {
+        let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
+        auto_save_task_metrics(task_id, stop_save_metrics_signal);
+    }
     opts.spawn().await;
 
     let completed = opts.wait().await;
@@ -1437,5 +1447,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             tracing::info!("task finished without state(usually means the job runs on an agent)");
         }
     }
-    save_task_metrics_finally(task.task.id);
+    if metrics.is_some() {
+        save_task_metrics_finally(task.task.id);
+    }
 }
