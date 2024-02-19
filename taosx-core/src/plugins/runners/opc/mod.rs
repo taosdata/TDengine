@@ -178,7 +178,12 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
-    send_sub_process_info(child.id(), task_id);
+    let ds_name = match config.opc_type {
+        OpcType::FAKE => "fake",
+        OpcType::OPCDA => "opcda",
+        OpcType::OPCUA => "opcua",
+    };
+    send_sub_process_info(child.id(), task_id, ds_name);
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

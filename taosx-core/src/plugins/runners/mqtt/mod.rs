@@ -142,7 +142,7 @@ pub async fn mqtt_to_taos(
     let mut child = child
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
-    send_sub_process_info(child.id(), task_id);
+    send_sub_process_info(child.id(), task_id, "mqtt");
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
