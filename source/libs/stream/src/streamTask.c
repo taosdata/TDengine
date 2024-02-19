@@ -860,6 +860,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
