@@ -9457,7 +9457,20 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
 }
 
 static const char* getTbNameColName(ENodeType type) {
-  return (QUERY_NODE_SHOW_STABLES_STMT == type ? "stable_name" : "table_name");
+  const char* colName;
+  switch (type)
+  {
+  case QUERY_NODE_SHOW_VIEWS_STMT:
+    colName = "view_name";
+    break;
+  case QUERY_NODE_SHOW_STABLES_STMT:
+    colName = "stable_name";
+    break;
+  default:
+    colName = "table_name";
+    break;
+  }
+  return colName;
 }
 
 static int32_t createLogicCondNode(SNode* pCond1, SNode* pCond2, SNode** pCond, ELogicConditionType logicCondType) {
