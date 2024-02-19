@@ -292,7 +292,7 @@ impl TaskControllerRef {
             .await?;
         for mut task in tasks {
             let id = task.id;
-            task.load_breakpoints();
+            task.load_breakpoints().await?;
             push_task_activity(
                 &self.pool,
                 &TaskActivity::info(id, format!("Automatically wake up task."), "waken"),
@@ -1188,22 +1188,19 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::get", fields(task.id = id))]
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
+        let task = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
-            .await?;
-
-        Ok(task
-            .map(|mut t| {
+            .await?
+            .map(|mut t: Task| {
                 t.backport_labels();
                 t
-            })
-            // set breakpoints
-            .map(|mut t| {
-                t.load_breakpoints();
-                t
-            })
-            .map(Into::into))
+            });
+        if let Some(mut task) = task {
+            task.load_breakpoints().await?;
+            return Ok(Some(task.into()));
+        }
+        Ok(None)
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
@@ -2630,8 +2627,12 @@ impl Task {
         self.breakpoints = breakpoints;
     }
 
-    pub fn load_breakpoints(&mut self) {
-        load_breakpoints(self.id).map(|s| self.set_breakpoints(Some(s)));
+    pub async fn load_breakpoints(&mut self) -> anyhow::Result<()> {
+        let id = self.id;
+        tokio::task::spawn_blocking(move || load_breakpoints(id))
+            .await?
+            .map(|s| self.set_breakpoints(Some(s)));
+        Ok(())
     }
 }
 
