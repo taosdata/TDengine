@@ -1027,52 +1027,6 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
   return 0;
 }
 
-int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  const char*    id = GET_TASKID(pTaskInfo);
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-
-  while (1) {
-    uint16_t type = pOperator->operatorType;
-    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
-        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-      SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
-      pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("%s restore stream agg executors param for interval: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
-            pInfo->twAggSup.deleteMark);
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
-      SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
-      pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("%s restore stream agg executor param for session: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
-            pInfo->twAggSup.deleteMark);
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
-      SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
-      pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
-      qInfo("%s restore stream agg executor param for state: %d,  %" PRId64, id, pInfo->twAggSup.calTrigger,
-            pInfo->twAggSup.deleteMark);
-    }
-
-    // iterate operator tree
-    if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
-      if (pOperator->numOfDownstream > 1) {
-        qError("unexpected stream, multiple downstream");
-        return -1;
-      }
-      return 0;
-    } else {
-      pOperator = pOperator->pDownstream[0];
-    }
-  }
-}
-
 bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;

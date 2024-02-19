@@ -539,11 +539,6 @@ int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
   return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
 
-int32_t streamRestoreParam(SStreamTask* pTask) {
-  stDebug("s-task:%s restore operator param after scan-history", pTask->id.idStr);
-  return qRestoreStreamOperatorOption(pTask->exec.pExecutor);
-}
-
 // source
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow) {
   return qStreamSourceScanParamForHistoryScanStep1(pTask->exec.pExecutor, pVerRange, pWindow);
