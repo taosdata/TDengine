@@ -212,9 +212,12 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 | #   |  **列名**   | **数据类型** | **说明** |
 | --- | :---------: | ------------ | -------- |
-| 1   |  user_name  | VARCHAR(23)   | 用户名   |
-| 2   |  privilege  | VARCHAR(256)  | 权限     |
-| 3   | create_time | TIMESTAMP    | 创建时间 |
+| 1   |    name      | VARCHAR(24)   | 用户名  |
+| 2   |    super     | TINYINT       | 用户是否为超级用户，1: 是，0: 否 |
+| 3   |   enable     | TINYINT       | 用户是否启用，1: 是，0: 否      |
+| 4   |   sysinfo    | TINYINT       | 用户是否可查看系统信息，1: 是, 0: 否 |
+| 5   | create_time  | TIMESTAMP     | 创建时间 |
+| 6   | allowed_host | VARCHAR(49152)| 白名单   |
 
 ## INS_GRANTS
 
