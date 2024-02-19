@@ -1433,6 +1433,13 @@ async fn sync_schema(
     todo.tables
         .scan_async(|table| {
             if table.stable.is_none() {
+                let (sender, reader) = oneshot::channel();
+                readers.push((1, reader));
+                let _ = scheduler.send_blocking(Todo::Meta(
+                    None,
+                    vec![table.table.as_ref().clone()],
+                    Some(sender),
+                ));
                 return;
             }
             if stable == table.stable {
@@ -1463,7 +1470,9 @@ async fn sync_schema(
         let tables = chunks.drain(..).collect_vec();
         let stable = stable.clone();
         readers.push((tables.len(), reader));
-        let _ = scheduler.send_blocking(Todo::Meta(stable, tables, Some(sender)));
+        let _ = scheduler
+            .send(Todo::Meta(stable, tables, Some(sender)))
+            .await;
     }
     let total = todo.tables.len();
     let mut dot = total / 100;
@@ -1566,17 +1575,19 @@ async fn sync_specified_tables_with_workers(
         anyhow::Ok(())
     });
     let from = from.get().await?;
-    let (items_tx, mut items_rx) = tokio::sync::mpsc::channel(1024);
+    let (items_tx, items_rx) = flume::bounded(1024);
     let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
         tracing::info!(tables = todo.tables.len(), "Scanning tables ...");
         todo.tables.scan(|item| {
-            let _ = items_tx.send(item.clone());
+            if let Err(err) = items_tx.send(item.clone()) {
+                tracing::error!("Send item error: {err:#}",);
+            }
         });
         tracing::info!(tables = todo.tables.len(), "Scanning tables done");
     });
 
-    while let Some(item) = items_rx.recv().await {
+    while let Ok(item) = items_rx.recv_async().await {
         let stable = &item.stable;
         let table = &item.table;
 

@@ -380,11 +380,18 @@ async fn worker(
                                                 let breakpoint = end.to_string();
                                                 // dbg!(&breakpoint);
                                                 tokio::task::spawn_blocking(move || {
-                                                    let _ = breakpoints::breakpoints_set(
+                                                    if let Err(err) = breakpoints::breakpoints_set(
                                                         &task_id,
                                                         &table_inner,
                                                         &breakpoint,
-                                                    );
+                                                    ) {
+                                                        tracing::warn!(
+                                                            task.id = task_id.as_str(),
+                                                            breakpoints.key = table_inner.as_str(),
+                                                            breakpoints.value = breakpoint.as_str(),
+                                                            "set breakpoint failed, err: {err:#}"
+                                                        );
+                                                    };
                                                 });
                                             }
                                         }
