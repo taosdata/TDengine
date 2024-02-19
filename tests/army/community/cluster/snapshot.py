@@ -36,10 +36,6 @@ class TDTestCase(TBase):
         "ifAdtFse"               : "1",
         'slowLogScope'           : "insert"
     }
-    updatecfgDict = {
-        
-    }
-
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -61,7 +57,7 @@ class TDTestCase(TBase):
         sql = f"select * from {self.db}.{self.stb} where fc!=100"
         tdSql.query(sql)
         tdSql.checkRows(0)
-        sql = f"select count(*) from {self.db}.{self.stb} where dc!=200"
+        sql = f"select * from {self.db}.{self.stb} where dc!=200"
         tdSql.query(sql)
         tdSql.checkRows(0)
         sql = f"select avg(fc) from {self.db}.{self.stb}"
