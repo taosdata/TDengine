@@ -217,7 +217,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 3   |   enable     | TINYINT       | 用户是否启用，1：是，0：否      |
 | 4   |   sysinfo    | TINYINT       | 用户是否可查看系统信息，1：是, 0：否 |
 | 5   | create_time  | TIMESTAMP     | 创建时间 |
-| 6   | allowed_host | VARCHAR(49152)| 白名单   |
+| 6   | allowed_host | VARCHAR(49152)| IP 白名单 |
 
 ## INS_GRANTS
 

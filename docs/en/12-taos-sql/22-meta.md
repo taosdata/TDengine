@@ -215,7 +215,7 @@ Provides information about TDengine users. Users whose SYSINFO attribute is 0 ca
 | 3   |   enable     | TINYINT       | Wether user is enabled. 1 means yes; 0 means no.    |
 | 4   |   sysinfo    | TINYINT       | Wether user can query system info. 1 means yes; 0 means no. |
 | 5   | create_time  | TIMESTAMP     | Create time     |
-| 6   | allowed_host | VARCHAR(49152)| Whitelist       |
+| 6   | allowed_host | VARCHAR(49152)| IP whitelist    |
 
 
 ## INS_GRANTS
