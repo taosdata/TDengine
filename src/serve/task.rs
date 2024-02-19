@@ -752,7 +752,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.sample.unwrap_or(5),
     );
 
-    let delimiter = delimiter.unwrap();
+    let delimiter = delimiter.unwrap_or(String::new());
     let delimiter = delimiter.trim();
     let delimiter = match delimiter.len() {
         0 => None,
@@ -762,7 +762,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     .transpose()?
     .unwrap_or(b',');
 
-    let quote = quote.unwrap();
+    let quote = quote.unwrap_or(String::new());
     let quote = quote.trim();
     let quote = match quote.as_bytes() {
         [] => None,
@@ -774,7 +774,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     }
     .transpose()?;
 
-    let comment = comment.unwrap();
+    let comment = comment.unwrap_or(String::new());
     let comment = comment.trim();
     let comment = match comment.as_bytes() {
         [] => None,
