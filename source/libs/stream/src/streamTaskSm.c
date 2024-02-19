@@ -89,11 +89,6 @@ int32_t streamTaskInitStatus(SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t streamTaskDoCheckpoint(SStreamTask* pTask) {
-  stDebug("s-task:%s start to do checkpoint", pTask->id.idStr);
-  return 0;
-}
-
 int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask) {
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     streamTaskSendCheckpointSourceRsp(pTask);
@@ -612,9 +607,9 @@ void doInitStateTransferTable(void) {
   taosArrayPush(streamTaskSMTrans, &trans);
 
   // checkpoint related event
-  trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, streamTaskDoCheckpoint, NULL, true);
+  trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
-  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, streamTaskDoCheckpoint, NULL, true);
+  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__READY, TASK_EVENT_CHECKPOINT_DONE, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
