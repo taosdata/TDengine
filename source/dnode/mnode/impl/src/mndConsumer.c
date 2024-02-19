@@ -552,11 +552,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   char   *msgStr = pMsg->pCont;
   int32_t code = -1;
 
-  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
-    code = terrno;
-    return code;
-  }
-
   SCMSubscribeReq subscribe = {0};
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
 
