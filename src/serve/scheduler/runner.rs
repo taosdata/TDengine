@@ -867,7 +867,11 @@ impl TaskJob {
                 let state = opts;
                 let mut waiting = 0;
                 let cancellation = state.cancellation.clone();
-                tracing::debug!(task.id = task_id, job.id = %jid, task.rid=run_id, "spawned new job task");
+                tracing::debug!(
+                    "spawned new run_task, task.id={} task.rid={}",
+                    task_id,
+                    run_id
+                );
                 tokio::select! {
                     _ = cancellation.cancelled() => {
                         tracing::info!(agent.id = agent_id, task.id = task_id, job.id = %jid, "task `{task_id}` cancelled");
@@ -1273,7 +1277,11 @@ impl TaskJob {
             tokio::spawn(async move {
                 global.send_task_activity(TaskActivity::started(opts.task.id, jid));
                 let runs = opts.runs.load(Ordering::Relaxed);
-                tracing::debug!(task.id = task_id, job.id = %jid, task.rid=runs, "spawned new job task");
+                tracing::debug!(
+                    "spawned new run_task, task.id={} task.rid={}",
+                    task_id,
+                    runs
+                );
                 let span = tracing::info_span!(
                     "run_task",
                     task.id = opts.task.id,
@@ -1424,8 +1432,8 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     let task_id = task.task.id;
     let task_name = task.task.name.clone();
     let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name);
+    let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
     if metrics.is_some() {
-        let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
         auto_save_task_metrics(task_id, stop_save_metrics_signal);
     }
     opts.spawn().await;
