@@ -89,7 +89,7 @@ async fn worker(
     source_is_v3: bool,
     target_is_v3: bool,
     task_id: Option<String>,
-    file_mutex: Arc<std::sync::Mutex<()>>,
+    file_mutex: Arc<tokio::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
@@ -294,7 +294,7 @@ async fn worker(
                     const MAX_RETRIES: usize = 5;
                     let mut retries = MAX_RETRIES;
                     loop {
-                        let _lock = file_mutex.lock().unwrap();
+                        let _lock = file_mutex.lock().await;
                         match breakpoints::breakpoints_get(&task_id, &table).and_then(|bp| {
                             bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
                                 .transpose()
@@ -658,7 +658,7 @@ impl Scheduler {
         target_is_v3: bool,
         task_id: Option<String>,
         cancellation: CancellationToken,
-        file_mutex: Arc<std::sync::Mutex<()>>,
+        file_mutex: Arc<tokio::sync::Mutex<()>>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
