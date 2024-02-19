@@ -1138,6 +1138,7 @@ export default {
       tablenametip: "请输入表名称",
       mapcalculate: "请先计算mapping值",
       calculate: "计算",
+      emptySampleValues: "请至少提供一条示例数据",
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",

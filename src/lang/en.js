@@ -1357,6 +1357,7 @@ export default {
       tablenametip: "Please the table name ",
       mapcalculate: "Please calculate mapping first",
       calculate: "Caculate",
+      emptySampleValues: "Please provide at least one example",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
