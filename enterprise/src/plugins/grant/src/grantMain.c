@@ -1787,7 +1787,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
 
   // check duplicated active
   for (int32_t i = 0; i < pObj->nActives; ++i) {
-    if (0 == memcmp(&pObj->actives[i].active[0], newActive, GRANT_UNIQ_HEAD_LEN)) {
+    if (0 == memcmp(&pObj->actives[i].active[0], newActive, GRANT_ACTIVE_HEAD_LEN)) {
       code = TSDB_CODE_GRANT_DUPLICATED_ACTIVE;
       goto _exit;
     }
