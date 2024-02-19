@@ -413,6 +413,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 static int32_t haltCallback(SStreamTask* pTask, void* param) {
   streamTaskOpenAllUpstreamInput(pTask);
   streamTaskSendCheckpointReq(pTask);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
