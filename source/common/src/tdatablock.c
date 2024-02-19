@@ -2208,10 +2208,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   data += sizeof(int32_t);
   ASSERT(*rows > 0);
 
-  bool* blankFill = (bool*)data;
-  *blankFill = pBlock->info.blankFill;
-  data += sizeof(bool);
-
   int32_t* cols = (int32_t*)data;
   *cols = numOfCols;
   data += sizeof(int32_t);
@@ -2287,6 +2283,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     //    htonl(colSizes[col]), colSizes[col]);
   }
 
+  bool* blankFill = (bool*)data;
+  *blankFill = pBlock->info.blankFill;
+  data += sizeof(bool);
+
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
   ASSERT(dataLen > 0);
@@ -2306,9 +2306,6 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   // total rows sizeof(int32_t)
   int32_t numOfRows = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
-
-  bool blankFill = *(bool*)pStart;
-  pStart += sizeof(bool);
 
   // total columns sizeof(int32_t)
   int32_t numOfCols = *(int32_t*)pStart;
@@ -2382,6 +2379,9 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     pColInfoData->hasNull = true;
     pStart += colLen[i];
   }
+
+  bool blankFill = *(bool*)pStart;
+  pStart += sizeof(bool);
 
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
