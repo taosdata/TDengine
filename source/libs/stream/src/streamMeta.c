@@ -672,6 +672,13 @@ static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamTaskId* i
   }
 }
 
+static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    streamTaskSendCheckpointSourceRsp(pTask);
+  }
+  return 0;
+}
+
 int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   SStreamTask* pTask = NULL;
 
@@ -690,7 +697,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     }
 
     // handle the dropping event
-    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_DROPPING);
+    streamTaskHandleEventAsync(pTask->status.pSM, TASK_EVENT_DROPPING, streamTaskSendTransSuccessMsg, NULL);
   } else {
     stDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
     streamMetaWUnLock(pMeta);
