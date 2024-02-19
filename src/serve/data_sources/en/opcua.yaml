@@ -17,7 +17,7 @@ options:
     display: Server endpoint
     required: true
     description: |
-      OPC-UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
+      OPC UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
   security_mode:
@@ -89,12 +89,12 @@ authentication:
       description: Use username and password.
       username:
         display: Username
-        description: OPC server username.
+        description: OPC UA server username.
         placeholder: username
         required: true
       password:
         display: Password
-        description: OPC server password.
+        description: OPC UA server password.
         placeholder: password
         required: true
 
@@ -136,7 +136,7 @@ datasets:
     target:
       name: select_all_points
       description: |
-        Select data points that meet specified conditions on the OPC server.
+        Select data points that meet specified conditions on the OPC UA server.
       required: true
       multiple: true
       editable: true
@@ -183,7 +183,7 @@ datasets:
 groups:
   - name: Collect
     display_order: 1
-    description: Configurations for collecting data from OPC
+    description: Configurations for collecting data from OPC UA server.
     params:
       - name: interval
         display: Collect interval
