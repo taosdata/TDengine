@@ -649,8 +649,6 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
       stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId,
               buf);
     }
-  } else {
-    // do nothing
   }
 }
 
@@ -883,20 +881,15 @@ void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
 
 void streamTaskResume(SStreamTask* pTask) {
   SStreamTaskState prevState = *streamTaskGetStatus(pTask);
-  SStreamMeta*     pMeta = pTask->pMeta;
 
-  if (prevState.state == TASK_STATUS__PAUSE || prevState.state == TASK_STATUS__HALT) {
-    streamTaskRestoreStatus(pTask);
-
-    char* pNew = streamTaskGetStatus(pTask)->name;
-    if (prevState.state == TASK_STATUS__PAUSE) {
-      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
-    } else {
-      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, prevState.name);
-    }
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      code = streamTaskRestoreStatus(pTask);
+  if (code == TSDB_CODE_SUCCESS) {
+    char*   pNew = streamTaskGetStatus(pTask)->name;
+    int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
+    stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
   } else {
-    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, prevState.name);
+    stInfo("s-task:%s status:%s no need to resume, paused task(s):%d", pTask->id.idStr, prevState.name, pMeta->numOfPausedTasks);
   }
 }
 

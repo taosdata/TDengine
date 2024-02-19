@@ -791,7 +791,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
-void    streamTaskRestoreStatus(SStreamTask* pTask);
+int32_t streamTaskRestoreStatus(SStreamTask* pTask);
 
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
                            SRpcHandleInfo* pRpcInfo, int32_t taskId);
