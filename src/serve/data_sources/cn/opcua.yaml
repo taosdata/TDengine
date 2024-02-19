@@ -3,9 +3,9 @@ name: OPC-UA
 description: |
   OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。
 
-  OPC UA 是经典OPC规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
+  OPC UA 是经典 OPC 规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
 
-  如果想了解更多关于 OPC UA 的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
+  如果想了解更多关于 OPC UA 的信息，可以阅读 OPC Foundation 网站和一些有用的博客，例如：
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/)
 

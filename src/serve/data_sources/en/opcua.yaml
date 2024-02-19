@@ -183,7 +183,7 @@ datasets:
 groups:
   - name: Collect
     display_order: 1
-    description: Configurations for collecting data from OPC.
+    description: Configurations for collecting data from OPC UA server.
     params:
       - name: interval
         display: Collect interval
