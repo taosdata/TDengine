@@ -669,9 +669,6 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   int32_t numOfRows = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  // blankFill
-  p += sizeof(bool);
-
   int32_t numOfCols = *(int32_t*)p;
   p += sizeof(int32_t);
 
