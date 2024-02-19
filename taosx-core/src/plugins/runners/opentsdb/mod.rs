@@ -190,7 +190,7 @@ pub async fn opentsdb_to_taos(
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
-        send_sub_process_info(child.id(), task_id);
+        send_sub_process_info(child.id(), task_id, "opentsdb");
         const ERROR_BUF_SIZE: usize = 2;
         let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
         let error_buf_producer = error_buf.clone();
