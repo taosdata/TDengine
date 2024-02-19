@@ -350,7 +350,7 @@ void taosResetLog() {
 static bool taosCheckFileIsOpen(char *logFileName) {
   TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
   if (pFile == NULL) {
-    if (errno == ENOENT) {
+    if (lastErrorIsFileNotExist()) {
       return false;
     } else {
       printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
