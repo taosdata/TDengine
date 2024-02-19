@@ -522,6 +522,11 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     *fhFinished = !HAS_RELATED_FILLHISTORY_TASK(pTask);
 
     int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
+    if (ver == -1) {
+      ver = pTask->chkInfo.processedVer;
+    } else {
+      ver--;
+    }
 
     SVersionRange verRange = {0};
     walReaderValidVersionRange(pTask->exec.pWalReader, &verRange.minVer, &verRange.maxVer);
@@ -540,9 +545,13 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
       cur = pReader->pHead->head.ingestTs;
     }
 
-    code = walFetchHead(pReader, verRange.maxVer);
-    if (code == TSDB_CODE_SUCCESS) {
-      latest = pReader->pHead->head.ingestTs;
+    if (ver == verRange.maxVer) {
+      latest = cur;
+    } else {
+      code = walFetchHead(pReader, verRange.maxVer);
+      if (code == TSDB_CODE_SUCCESS) {
+        latest = pReader->pHead->head.ingestTs;
+      }
     }
 
     if (pDelay != NULL) {  // delay in ms

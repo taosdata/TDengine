@@ -4447,18 +4447,7 @@ static bool tsmaOptCheckValidInterval(int64_t tsmaInterval, int8_t tsmaIntevalUn
 
 static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQueryFuncs, SArray* pTsmaScanCols) {
   SNode*  pNode;
-  int32_t tsmaColNum = 1;
   bool    failed = false, found = false;
-  int32_t firstFuncId = ((STableTSMAFuncInfo*)taosArrayGet(pTsmaFuncs, 0))->funcId;
-  // find col num
-  for (int32_t i = 1; i < pTsmaFuncs->size; ++i) {
-    STableTSMAFuncInfo* pTsmaFunc = taosArrayGet(pTsmaFuncs, i);
-    if (firstFuncId == pTsmaFunc->funcId) {
-      tsmaColNum++;
-    } else {
-      break;
-    }
-  }
 
   taosArrayClear(pTsmaScanCols);
   FOREACH(pNode, pQueryFuncs) {
@@ -4472,30 +4461,23 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
     }
     int32_t queryColId = ((SColumnNode*)pQueryFunc->pParameterList->pHead->pNode)->colId;
     found = false;
+    int32_t notMyStateFuncId = 0;
     // iterate funcs
-    // TODO if func is count, skip checking cols
-    for (int32_t i = 0; i < pTsmaFuncs->size; i += tsmaColNum) {
+    // TODO if func is count, skip checking cols, test count(*)
+    for (int32_t i = 0; i < pTsmaFuncs->size; i++) {
       STableTSMAFuncInfo* pTsmaFuncInfo = taosArrayGet(pTsmaFuncs, i);
+      if (pTsmaFuncInfo->funcId == notMyStateFuncId) continue;
+
       if (!fmIsMyStateFunc(pQueryFunc->funcId, pTsmaFuncInfo->funcId)) {
+        notMyStateFuncId = pTsmaFuncInfo->funcId;
         continue;
       }
 
-      // iterate cols within a func
-      for (int32_t j = i; j < tsmaColNum + i; ++j) {
-        if (j > i) {
-          pTsmaFuncInfo = taosArrayGet(pTsmaFuncs, j);
-        }
-        if (queryColId < pTsmaFuncInfo->colId) {
-          failed = true;
-          break;
-        }
-        if (queryColId > pTsmaFuncInfo->colId) {
-          continue;
-        }
-        found = true;
-        taosArrayPush(pTsmaScanCols, &j);
-        break;
+      if (queryColId != pTsmaFuncInfo->colId) {
+        continue;
       }
+      found = true;
+      taosArrayPush(pTsmaScanCols, &i);
       break;
     }
     if (failed || !found) {
@@ -4516,6 +4498,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
     }
 
     STableTSMAInfo* pTsma = taosArrayGetP(pTsmaOptCtx->pTsmas, i);
+    if (!pTsma->fillHistoryFinished || 30 * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) continue;
     // filter with interval
     // TODO unit not right
     if (!tsmaOptCheckValidInterval(pTsma->interval, pTsma->unit, pTsmaOptCtx)) {
@@ -5137,6 +5120,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
     }
   }
   clearTSMAOptCtx(&tsmaOptCtx);
+  // TODO if any error occured, we should eat the error, skip the optimization, query with original table
   return code;
 }
 

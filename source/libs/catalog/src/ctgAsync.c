@@ -783,6 +783,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   }
 
   if (tbTsmaNum > 0) {
+    // TODO when create recursive tsma, avoid get tb tsma task
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_TSMA, pReq->pTableTSMAs, NULL));
   }
   if (tsmaNum > 0) {
@@ -2703,6 +2704,10 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
     taosArrayPush(pCtx->pResList, &(SMetaRes){0});
     CTG_ERR_RET(ctgGetTbTSMAFromMnode(pCtg, pConn, pTsmaName, NULL, &tReq, TDMT_MND_GET_TSMA));
+  } else {
+    TSWAP(pTask->res, pCtx->pResList);
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
   }
 
   return 0;
@@ -2783,6 +2788,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   SCtgTSMAFetch*     pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
   SArray*            pTsmas = NULL;
   SMetaRes*          pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx);
+  SHashObj*          pVgHash = NULL;
   SCtgDBCache*       pDbCache = NULL;
   STableTSMAInfo*    pTsma = NULL;
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
@@ -2847,8 +2853,9 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       STableTSMAInfo*     pTsmaInfo = taosArrayGetP(pTsmas, tsmaIdx);
       if (pTsmaInfo->rspTs == 0) pTsmaInfo->fillHistoryFinished = true;
       pTsmaInfo->rspTs = taosGetTimestampMs();
-      pTsmaInfo->delayDuration = MAX(pRsp->progressDelay, pTsmaInfo->delayDuration);
+      pTsmaInfo->delayDuration = TMAX(pRsp->progressDelay, pTsmaInfo->delayDuration);
       pTsmaInfo->fillHistoryFinished = pTsmaInfo->fillHistoryFinished && pRsp->fillHisFinished;
+      qDebug("received stream progress for tsma %s rsp history: %d vnode: %d", pTsmaInfo->name, pRsp->fillHisFinished, pRsp->subFetchIdx);
 
       if (atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) == pFetch->subFetchNum) {
         // subfetch all finished
@@ -2871,19 +2878,20 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       STableTSMAInfoRsp* pTsmas = pRes->pRes;
       int32_t            subFetchIdx = 0;
       pFetch->vgNum = taosHashGetSize(pOut->dbVgroup->vgHash);
+      TSWAP(pOut->dbVgroup->vgHash, pVgHash);
       for (int32_t i = 0; i < taosArrayGetSize(pTsmas->pTsmas); ++i) {
         STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmas->pTsmas, i);
-        SVgroupInfo* pVgInfo = taosHashIterate(pOut->dbVgroup->vgHash, NULL);
+        SVgroupInfo* pVgInfo = taosHashIterate(pVgHash, NULL);
         while (pVgInfo) {
           // make StreamProgressReq, send it
           SStreamProgressReq req = {.fetchIdx = pFetch->fetchIdx,
-                                    .streamId = pTsma->streamUid,
+                                    .streamId = pTsmaInfo->streamUid,
                                     .subFetchIdx = subFetchIdx++,
                                     .vgId = pVgInfo->vgId};
           CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
           pFetch->subFetchNum++;
           hasSubFetch = true;
-          pVgInfo = taosHashIterate(pOut->dbVgroup->vgHash, pVgInfo);
+          pVgInfo = taosHashIterate(pVgHash, pVgInfo);
         }
       }
     } break;
@@ -2898,6 +2906,9 @@ _return:
   if (pTsma) {
     tFreeTableTSMAInfo(pTsma);
     pTsma = NULL;
+  }
+  if (pVgHash) {
+    taosHashCleanup(pVgHash);
   }
   if (code) {
     SMetaRes* pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx);
