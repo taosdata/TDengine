@@ -43,8 +43,8 @@ options:
         - Basic128Rsa15
         - Basic256
         - Basic256Sha256
-        - Aes128Sha256RsaOaep
-        - Aes256Sha256RsaPss
+        - Aes128_Sha256_RsaOaep
+        - Aes256_Sha256_RsaPss
 
   certificate:  
     name: certificate
