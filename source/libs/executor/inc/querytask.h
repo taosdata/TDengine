@@ -59,6 +59,7 @@ typedef struct STaskStopInfo {
 typedef struct {
   STqOffsetVal         currentOffset;  // for tmq
   SMqMetaRsp           metaRsp;        // for tmq fetching meta
+  int8_t               sourceExcluded;
   int64_t              snapshotVer;
   SSchemaWrapper*      schema;
   char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor

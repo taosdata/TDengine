@@ -225,7 +225,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
 
-  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+  if(grantCheckExpire(TSDB_GRANT_STREAMS) < 0){
     if(suspendAllStreams(pMnode, &pReq->info) < 0){
       return -1;
     }
@@ -316,16 +316,20 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
   if (taosArrayGetSize(pFailedTasks) > 0) {
-    bool    allReady = true;
-    SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
-    taosArrayDestroy(p);
+    bool allReady = true;
+    if (pMnode != NULL) {
+      SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
+      taosArrayDestroy(p);
+    } else {
+      allReady = false;
+    }
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
       for(int32_t i = 0; i < taosArrayGetSize(pFailedTasks); ++i) {
         SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedTasks, i);
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
-            pInfo->checkpointId, pInfo->transId);
+              pInfo->checkpointId, pInfo->transId);
 
         mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
       }

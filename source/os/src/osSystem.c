@@ -88,6 +88,7 @@ struct termios oldtio;
 
 typedef struct FILE TdCmd;
 
+#ifdef BUILD_NO_CALL
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
   ASSERT(0);
@@ -140,6 +141,7 @@ void taosCloseDll(void* handle) {
   }
 #endif
 }
+#endif
 
 int taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)

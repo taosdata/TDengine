@@ -556,7 +556,7 @@ typedef struct {
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool delete);
+void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool isDeleted);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
@@ -697,6 +697,8 @@ typedef struct {
 
   // 3.0.5.
   int64_t checkpointId;
+
+  int32_t indexForMultiAggBalance;
   char    reserve[256];
 
 } SStreamObj;

@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_H_
+#define _STREAM_H_
+
 #include "os.h"
 #include "streamState.h"
 #include "tdatablock.h"
@@ -25,9 +28,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_H_
-#define _STREAM_H_
 
 #define ONE_MiB_F       (1048576.0)
 #define ONE_KiB_F       (1024.0)
@@ -313,7 +313,7 @@ typedef struct SCheckpointInfo {
   int64_t failedId;        // record the latest failed checkpoint id
   int64_t checkpointingId;
   int32_t downstreamAlignNum;
-  int32_t checkpointNotReadyTasks;
+  int32_t numOfNotReady;
   bool    dispatchCheckpointTrigger;
   int64_t msgVer;
   int32_t transId;
@@ -747,7 +747,6 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
-void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 typedef struct SStreamTaskCheckpointReq {
@@ -764,7 +763,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
-int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq);
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 
 void    streamTaskInputFail(SStreamTask* pTask);
@@ -890,6 +889,9 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
 void*          streamDestroyStateMachine(SStreamTaskSM* pSM);
+
+int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq *req);
+void    sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp);
 #ifdef __cplusplus
 }
 #endif
