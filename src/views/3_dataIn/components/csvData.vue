@@ -181,6 +181,10 @@ export default {
         parseParam
       );
       this.csvColumns = result.file_header.column_names;
+      if (result && !result.sample_values) {
+        Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        return
+      }
       this.sample_values = result.sample_values ?? [];
       this.formatCsvTransformerData(this.csvColumns, this.sample_values);
     }
@@ -356,6 +360,10 @@ export default {
                 return;
               }
               this.csvColumns = result.file_header.column_names;
+              if (result && !result.sample_values) {
+                Message.error(this.$t('datasource.transformer.emptySampleValues'))
+                return
+              }
               this.sample_values = result.sample_values ?? [];
               // } else {
               //   result = await getCSVColumns(
@@ -378,7 +386,12 @@ export default {
               return;
             }
             this.csvColumns = result.file_header.column_names;
+            if (result && !result.sample_values) {
+              Message.error(this.$t('datasource.transformer.emptySampleValues'))
+              return
+            }
             this.sample_values = result.sample_values ?? [];
+            this.formatCsvTransformerData(this.csvColumns, this.sample_values);
           }
         }
         // 去掉自定义列
