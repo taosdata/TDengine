@@ -776,8 +776,8 @@ typedef enum {
   GRANT_STATE_REASON_MAX,
 } EGrantStateReason;
 
-#define GRANT_STATE_NUM  30
-#define GRANT_ACTIVE_NUM 10
+#define GRANT_STATE_NUM       30
+#define GRANT_ACTIVE_NUM      10
 #define GRANT_ACTIVE_HEAD_LEN 30
 
 typedef struct {
@@ -812,7 +812,7 @@ typedef struct {
       int64_t id : 24;
     };
   };
-  char     machine[TSDB_MACHINE_ID_LEN + 1];
+  char machine[TSDB_MACHINE_ID_LEN + 1];
 } SGrantMachine;
 
 typedef struct {

@@ -482,7 +482,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   pTask->execInfo.created = taosGetTimestampMs();
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
-  SDataRange* pRange = &pTask->dataRange;
+  SDataRange*      pRange = &pTask->dataRange;
 
   // only set the version info for stream tasks without fill-history task
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -756,8 +756,8 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
 }
 
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock) {
-  SStreamMeta*  pMeta = pTask->pMeta;
-  STaskId       sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
+  SStreamMeta* pMeta = pTask->pMeta;
+  STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
     return 0;
   }
@@ -864,7 +864,7 @@ void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
 
 void streamTaskResume(SStreamTask* pTask) {
   SStreamTaskState prevState = *streamTaskGetStatus(pTask);
-  SStreamMeta* pMeta = pTask->pMeta;
+  SStreamMeta*     pMeta = pTask->pMeta;
 
   if (prevState.state == TASK_STATUS__PAUSE || prevState.state == TASK_STATUS__HALT) {
     streamTaskRestoreStatus(pTask);
@@ -881,9 +881,7 @@ void streamTaskResume(SStreamTask* pTask) {
   }
 }
 
-bool streamTaskIsSinkTask(const SStreamTask* pTask) {
-  return pTask->info.taskLevel == TASK_LEVEL__SINK;
-}
+bool streamTaskIsSinkTask(const SStreamTask* pTask) { return pTask->info.taskLevel == TASK_LEVEL__SINK; }
 
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   int32_t     code;
