@@ -196,30 +196,61 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
   return code;
 }
 
-void streamTaskRestoreStatus(SStreamTask* pTask) {
+static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent event) {
   SStreamTaskSM* pSM = pTask->status.pSM;
 
+  bool removed = false;
   taosThreadMutexLock(&pTask->lock);
 
-  ASSERT(pSM->pActiveTrans == NULL);
-  ASSERT(pSM->current.state == TASK_STATUS__PAUSE || pSM->current.state == TASK_STATUS__HALT);
+  int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
+  for (int32_t i = 0; i < num; ++i) {
+    SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
+    if (pInfo->event == event) {
+      taosArrayRemove(pSM->pWaitingEventList, i);
+      stDebug("s-task:%s pause event in waiting list not be handled yet, remove it from waiting list, remaining:%d",
+              pTask->id.idStr, pInfo->event);
+      removed = true;
+      break;
+    }
+  }
 
-  SStreamTaskState state = pSM->current;
-  pSM->current = pSM->prev.state;
-
-  pSM->prev.state = state;
-  pSM->prev.evt = 0;
-
-  pSM->startTs = taosGetTimestampMs();
-
-  if (taosArrayGetSize(pSM->pWaitingEventList) > 0) {
-    stDebug("s-task:%s restore status, %s -> %s, and then handle waiting event", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
-    doHandleWaitingEvent(pSM, "restore-pause/halt", pTask);
-  } else {
-    stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
+  if (!removed) {
+    stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, StreamTaskEventList[event].name);
   }
 
   taosThreadMutexUnlock(&pTask->lock);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
+  SStreamTaskSM* pSM = pTask->status.pSM;
+  int32_t code = 0;
+
+  taosThreadMutexLock(&pTask->lock);
+
+  if (pSM->current.state == TASK_STATUS__PAUSE && pSM->pActiveTrans == NULL) {
+    SStreamTaskState state = pSM->current;
+    pSM->current = pSM->prev.state;
+
+    pSM->prev.state = state;
+    pSM->prev.evt = 0;
+
+    pSM->startTs = taosGetTimestampMs();
+
+    if (taosArrayGetSize(pSM->pWaitingEventList) > 0) {
+      stDebug("s-task:%s restore status, %s -> %s, and then handle waiting event", pTask->id.idStr,
+              pSM->prev.state.name, pSM->current.name);
+      doHandleWaitingEvent(pSM, "restore-pause/halt", pTask);
+    } else {
+      stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
+    }
+  } else {
+    removeEventInWaitingList(pTask, TASK_EVENT_PAUSE);
+    code = -1;  // failed to restore the status
+  }
+
+  taosThreadMutexUnlock(&pTask->lock);
+  return code;
 }
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask) {

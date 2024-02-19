@@ -87,6 +87,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   // checkpoint ver is the kept version, handled data should be the next version.
   if (pTask->chkInfo.checkpointId != 0) {
     pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
+    pChkInfo->processedVer = pChkInfo->checkpointVer;
     sndInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64,
             pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
