@@ -185,6 +185,7 @@ def pre_test_build_mac() {
         make -j10
         cd build/bin
         sudo ./taosd || exit 7
+        pkill taosd 
     '''
     sh '''
         date
