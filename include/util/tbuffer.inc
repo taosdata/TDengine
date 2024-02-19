@@ -82,6 +82,13 @@ static int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size) {
 }
 
 // SBufferWriter
+static int32_t tBufferWriterInit(SBufferWriter *writer, bool forward, uint32_t offset, SBuffer *buffer) {
+  writer->forward = forward;
+  writer->offset = offset;
+  writer->buffer = buffer;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tBufferPutFixed(SBufferWriter *writer, const void *data, uint32_t size) {
   if (!writer->forward && writer->offset < size) {
     return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -189,6 +196,13 @@ static FORCE_INLINE int32_t tBufferPutF64(SBufferWriter *writer, double value) {
 }
 
 // SBufferReader
+static int32_t tBufferReaderInit(SBufferReader *reader, bool forward, uint32_t offset, SBuffer *buffer) {
+  reader->forward = forward;
+  reader->offset = offset;
+  reader->buffer = buffer;
+  return 0;
+}
+
 static int32_t tBufferGetFixed(SBufferReader *reader, void *data, uint32_t size) {
   if ((reader->forward && reader->offset + size > reader->buffer->capacity) ||
       (!reader->forward && reader->offset < size)) {

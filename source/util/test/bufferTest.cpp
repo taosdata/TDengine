@@ -9,7 +9,9 @@ typedef struct {
 } STestStruct;
 
 TEST(BufferTest, simpleTest1) {
-  SBuffer buffer = tBufferInit();
+  SBuffer buffer;
+
+  tBufferInit(&buffer);
 
   GTEST_ASSERT_EQ(tBufferGetSize(&buffer), 0);
   GTEST_ASSERT_EQ(tBufferGetData(&buffer), nullptr);
@@ -20,11 +22,13 @@ TEST(BufferTest, simpleTest1) {
 TEST(BufferTest, forwardWriteAndRead) {
   int32_t code = 0;
   bool    forward = true;
-  SBuffer buffer = tBufferInit();
+  SBuffer buffer;
+
+  tBufferInit(&buffer);
   taosSeedRand(taosGetTimestampSec());
 
   // write
-  SBufferWriter writer = tBufferWriterInit(forward, tBufferGetSize(&buffer), &buffer);
+  SBufferWriter writer = BUFFER_WRITER_INITIALIZER(forward, tBufferGetSize(&buffer), &buffer);
 
   /* fix-len struct */
   STestStruct testStruct = {1, 2};
@@ -250,7 +254,7 @@ TEST(BufferTest, forwardWriteAndRead) {
   tBufferWriterDestroy(&writer);
 
   // read
-  SBufferReader reader = tBufferReaderInit(forward, 0, &buffer);
+  SBufferReader reader = BUFFER_READER_INITIALIZER(forward, 0, &buffer);
 
   /* fix-len struct */
   STestStruct testStruct2 = {1, 2};
@@ -372,11 +376,13 @@ TEST(BufferTest, forwardWriteAndRead) {
 TEST(BufferTest, backwardWriteAndRead) {
   int32_t code = 0;
   bool    forward = false;
-  SBuffer buffer = tBufferInit();
+  SBuffer buffer;
+
+  tBufferInit(&buffer);
   taosSeedRand(taosGetTimestampSec());
 
   // write
-  SBufferWriter writer = tBufferWriterInit(forward, 4096, &buffer);
+  SBufferWriter writer = BUFFER_WRITER_INITIALIZER(forward, 4096, &buffer);
 
   /* fix-len struct */
   STestStruct testStruct = {1, 2};
@@ -602,7 +608,7 @@ TEST(BufferTest, backwardWriteAndRead) {
   tBufferWriterDestroy(&writer);
 
   // read
-  SBufferReader reader = tBufferReaderInit(forward, 4096, &buffer);
+  SBufferReader reader = BUFFER_READER_INITIALIZER(forward, 4096, &buffer);
 
   /* fix-len struct */
   STestStruct testStruct2 = {1, 2};
