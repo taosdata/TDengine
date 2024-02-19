@@ -165,7 +165,6 @@ int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
 int32_t tsTimeSeriesThreshold = 50;
-bool    enableSlowQueryMonitor = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -511,7 +510,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
     return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddBool(pCfg, "enableSlowQueryMonitor", enableSlowQueryMonitor, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
@@ -1090,7 +1088,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
     return -1;
   }
-  enableSlowQueryMonitor = cfgGetItem(pCfg, "enableSlowQueryMonitor")->bval;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 

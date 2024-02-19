@@ -42,7 +42,7 @@ static const char* getSlowQueryLableCostDesc(int64_t cost) {
 }
 
 void clientSlowQueryMonitorInit(const char* clusterKey) {
-  if (!tsEnableMonitor || !enableSlowQueryMonitor) return;
+  if (!tsEnableMonitor) return;
   SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
   SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
   clusterMonitorInit(clusterKey, epSet, pAppInstInfo->pTransporter);
@@ -55,7 +55,7 @@ void clientSlowQueryLog(const char* clusterKey, const char* user, SQL_RESULT_COD
 }
 
 void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost) {
-  if (!tsEnableMonitor || !enableSlowQueryMonitor) return;
+  if (!tsEnableMonitor) return;
   SQL_RESULT_CODE result = SQL_RESULT_SUCCESS;
   if (TSDB_CODE_SUCCESS != code) {
     result = SQL_RESULT_FAILED;
