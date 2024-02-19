@@ -8,7 +8,7 @@ options:
   path:
     required: true
     display: Path
-    description: CSV file path or directory
+    description: CSV file path or directory.
     placeholder: "Example: a.csv,b.csv"
 strict: true
 groups:
@@ -23,15 +23,15 @@ groups:
         hint:
           type: bool
       - name: skip
-        display: Skip Records
-        description: Skip number of records for each CSV file.
+        display: Skip the first N lines
+        description: Skip the first N lines for each CSV file.
         value: 0
         hint:
           type: integer
           min: 0
       - name: delimiter
         display: Delimiter Char
-        description: The field separator in a CSV record.
+        description: The field separator in a CSV line.
         value: ","
         editable: true
         hint:
@@ -41,7 +41,7 @@ groups:
             - ";"
       - name: quote
         display: Quote Char
-        description: The quote is used to enclose field values
+        description: The quote is used to enclose field values.
         value: '"'
         editable: true
         hint:
@@ -51,7 +51,7 @@ groups:
             - "'"
       - name: comment
         display: Comment Prefix
-        description: If the start of a record begins with the byte given here, then that line is ignored by the CSV parser.
+        description: If a line begins with the character given here, then that line will be ignored by the CSV parser.
         value: "#"
         editable: true
         hint:
