@@ -186,6 +186,7 @@ export default {
         return
       }
       this.sample_values = result.sample_values ?? [];
+      this.formatCsvTransformerData(this.csvColumns, this.sample_values);
     }
   },
   methods: {
