@@ -63,6 +63,7 @@ struct tmq_conf_t {
   int8_t         withTbName;
   int8_t         snapEnable;
   int8_t         replayEnable;
+  int8_t         sourceExcluded;   // do not consume, bit
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -82,6 +83,7 @@ struct tmq_t {
   int32_t        autoCommitInterval;
   int8_t         resetOffsetCfg;
   int8_t         replayEnable;
+  int8_t         sourceExcluded;   // do not consume, bit
   uint64_t       consumerId;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
@@ -384,6 +386,10 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     } else {
       return TMQ_CONF_INVALID;
     }
+  }
+  if (strcasecmp(key, "msg.consume.excluded") == 0) {
+    conf->sourceExcluded = taosStr2int64(value);
+    return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.db") == 0) {
@@ -783,27 +789,26 @@ void tmqSendHbReq(void* param, void* tmrId) {
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
   taosRLockLatch(&tmq->lock);
-//  if(tmq->needReportOffsetRows){
-    req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
-    for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
-      SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-      int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
-      TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
-      strcpy(data->topicName, pTopic->topicName);
-      data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
-      for(int j = 0; j < numOfVgroups; j++){
-        SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-        OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
-        offRows->vgId = pVg->vgId;
-        offRows->rows = pVg->numOfRows;
-        offRows->offset = pVg->offsetInfo.beginOffset;
-        char buf[TSDB_OFFSET_LEN] = {0};
-        tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
-        tscInfo("consumer:0x%" PRIx64 ",report offset: vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, offRows->vgId, buf, offRows->rows);
-      }
+  req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
+  for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
+    SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
+    int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
+    TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
+    strcpy(data->topicName, pTopic->topicName);
+    data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
+    for(int j = 0; j < numOfVgroups; j++){
+      SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+      OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
+      offRows->vgId = pVg->vgId;
+      offRows->rows = pVg->numOfRows;
+      offRows->offset = pVg->offsetInfo.endOffset;
+      offRows->ever   = pVg->offsetInfo.walVerEnd;
+      char buf[TSDB_OFFSET_LEN] = {0};
+      tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
+      tscInfo("consumer:0x%" PRIx64 ",report offset, group:%s vgId:%d, offset:%s/%"PRId64", rows:%"PRId64,
+              tmq->consumerId, tmq->groupId, offRows->vgId, buf, offRows->ever, offRows->rows);
     }
-//    tmq->needReportOffsetRows = false;
-//  }
+  }
   taosRUnLockLatch(&tmq->lock);
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
@@ -1108,6 +1113,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->commitCbUserParam = conf->commitCbUserParam;
   pTmq->resetOffsetCfg = conf->resetOffset;
   pTmq->replayEnable = conf->replayEnable;
+  pTmq->sourceExcluded = conf->sourceExcluded;
   if(conf->replayEnable){
     pTmq->autoCommit = false;
   }
@@ -1576,6 +1582,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
   pReq->useSnapshot = tmq->useSnapshot;
   pReq->reqId = generateRequestId();
   pReq->enableReplay = tmq->replayEnable;
+  pReq->sourceExcluded = tmq->sourceExcluded;
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
