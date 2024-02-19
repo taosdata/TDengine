@@ -52,6 +52,11 @@ static FORCE_INLINE int32_t tBufferDestroy(SBuffer *buffer) {
   return 0;
 }
 
+static FORCE_INLINE int32_t tBufferClear(SBuffer *buffer) {
+  buffer->size = 0;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity) {
   if (buffer->capacity < capacity) {
     uint32_t newCapacity = (buffer->capacity > 0) ? (buffer->capacity << 1) : 1024;
@@ -65,6 +70,14 @@ static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capa
     buffer->data = newData;
     buffer->capacity = newCapacity;
   }
+  return 0;
+}
+
+static int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size) {
+  int32_t code = tBufferEnsureCapacity(buffer, buffer->size + size);
+  if (code) return code;
+  memcpy((char *)buffer->data + buffer->size, data, size);
+  buffer->size += size;
   return 0;
 }
 
