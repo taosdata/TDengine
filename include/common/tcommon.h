@@ -173,6 +173,7 @@ typedef enum EStreamType {
   STREAM_CHECKPOINT,
   STREAM_CREATE_CHILD_TABLE,
   STREAM_TRANS_STATE,
+  STREAM_MID_RETRIEVE,
 } EStreamType;
 
 #pragma pack(push, 1)
