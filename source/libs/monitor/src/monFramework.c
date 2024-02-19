@@ -441,10 +441,10 @@ void monGenDnodeInfoTable(SMonInfo *pMonitor) {
   taos_gauge_set(*metric, io_write_disk_rate, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, ERRORS, strlen(ERRORS));
-  taos_gauge_set(*metric, io_read_disk_rate, sample_labels);
+  taos_gauge_set(*metric, pStat->errors, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, VNODES_NUM, strlen(VNODES_NUM));
-  taos_gauge_set(*metric, pStat->errors, sample_labels);
+  taos_gauge_set(*metric, pStat->totalVnodes, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, MASTERS, strlen(MASTERS));
   taos_gauge_set(*metric, pStat->masterNum, sample_labels);
