@@ -2,6 +2,7 @@ import * as mdx from "./mdx";
 import i18n from "@/lang";
 export default () => [
   {
+    path: "prometheus",
     name: "Prometheus",
     desc: i18n.t("docs.party.prometheus.desc"),
 
@@ -18,6 +19,7 @@ export default () => [
     ],
   },
   {
+    path: "telegraf",
     name: "Telegraf",
     desc: i18n.t("docs.party.telegraf.desc"),
 
@@ -34,6 +36,7 @@ export default () => [
     ],
   },
   {
+    path: 'influxdb',
     name: i18n.t("docs.party.influxdb.title"),
     icon: "influxDB",
     desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.influxdb.title")]),
@@ -48,6 +51,7 @@ export default () => [
     ],
   },
   {
+    path: 'opentsdbjson',
     name: i18n.t("docs.party.opentsdbjson.title"),
     desc:i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbjson.title")]),
     docs: {
@@ -61,6 +65,7 @@ export default () => [
     ],
   },
   {
+    path: 'opentsdbtelnet',
     name: i18n.t("docs.party.opentsdbtelnet.title"),
     desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbtelnet.title")]),
     docs: {

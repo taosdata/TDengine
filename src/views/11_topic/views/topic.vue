@@ -33,7 +33,7 @@
         <template slot-scope="scope">
           <el-tooltip
             effect="light"
-            :content="$t('sampleCode')"
+            :content="$t('topic.sampleCode')"
             placement="top"
           >
             <el-button

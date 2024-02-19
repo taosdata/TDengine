@@ -280,7 +280,7 @@ export default {
     switchOperation(val, data) {
       console.log('val',val);
       this.$confirm(
-        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))}${this.$t(
+        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))} ${this.$t(
           "replication.theTaskWithId"
         ).replace("{id}", data.id)}?`,
         this.$t("warning"),
