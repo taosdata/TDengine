@@ -889,6 +889,24 @@ impl TaskController {
                     bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
+            ("local", "tmq" | "taos") => {
+                let mut to = to.clone();
+                to.subject.take();
+                // to.subject.take();
+                let builder = TaosBuilder::from_dsn(&to)?;
+                let mut conn = builder.build().await.context("Target connection error")?;
+                builder.ping(&mut conn).await?;
+                let edition = builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check destination edition")?
+                    .assert_enterprise_edition();
+
+                if edition.is_err() {
+                    let err = edition.unwrap_err().to_string();
+                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
+                }
+            }
             (_, "tmq" | "taos") => {
                 let to = to.clone();
                 // to.subject.take();
