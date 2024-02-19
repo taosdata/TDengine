@@ -1449,7 +1449,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->fillNullCols = NULL;
   pCxt->pCreateStreamReq->igUpdate = 0;
   // TODO what's this tiemstamp?
-  pCxt->pCreateStreamReq->lastTs = 1704442278000;
+  pCxt->pCreateStreamReq->lastTs = 1755442278000;
   pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
   pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
 
@@ -2163,7 +2163,7 @@ static int32_t mkNonExistTSMAInfo(const STSMAVersion *pTsmaVer, STableTSMAInfo *
   tstrncpy(pInfo->tb, pTsmaVer->tbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pInfo->name, pTsmaVer->name, TSDB_TABLE_NAME_LEN);
   pInfo->dbId = pTsmaVer->dbId;
-  pInfo->ast = "dummy";// TODO could be freed
+  pInfo->ast = taosMemoryCalloc(1, 1);
   *ppTsma = pInfo;
   return TSDB_CODE_SUCCESS;
 }

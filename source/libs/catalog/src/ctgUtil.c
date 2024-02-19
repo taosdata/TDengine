@@ -636,6 +636,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
+    case TDMT_VND_GET_STREAM_PROGRESS: {
+      if (pCtx->out) {
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -2406,7 +2412,19 @@ bool hasOutOfDateTSMACache(SArray* pTsmas) {
 
 bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   int64_t now = taosGetTimestampMs();
-  return !pTsmaCache->fillHistoryFinished || (30 * 1000 - pTsmaCache->delayDuration)  < (now - pTsmaCache->reqTs);
+  bool ret = !pTsmaCache->fillHistoryFinished || (30 * 1000 - pTsmaCache->delayDuration)  < (now - pTsmaCache->reqTs);
+  if (ret) {
+    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
+           " passed: %" PRId64,
+           pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
+           30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
+  } else {
+    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
+           " passed: %" PRId64,
+           pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
+           30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
+  }
+  return ret;
 }
 
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx,

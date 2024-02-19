@@ -3330,7 +3330,13 @@ int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaNam
     CTG_RET(code);
   }
 
-  void *      pIter = taosHashIterate(pDbCache->tsmaCache, NULL);
+  void *pIter = taosHashIterate(pDbCache->tsmaCache, NULL);
+  res.pRes = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+  if (!res.pRes) CTG_RET(TSDB_CODE_OUT_OF_MEMORY);
+  STableTSMAInfoRsp* pRsp = res.pRes;
+  pRsp->pTsmas = taosArrayInit(1, POINTER_BYTES);
+  if (!pRsp->pTsmas) CTG_RET(TSDB_CODE_OUT_OF_MEMORY);
+
   while (pIter && !found) {
     SCtgTSMACache* pCtgCache = pIter;
     CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
@@ -3348,8 +3354,8 @@ int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaNam
     pIter = taosHashIterate(pDbCache->tsmaCache, pIter);
   }
   taosHashCancelIterate(pDbCache->tsmaCache, pIter);
-  if (found) {
-    res.pRes = pTsmaOut;
+  if (found && code == TSDB_CODE_SUCCESS) {
+    taosArrayPush(pRsp->pTsmas, &pTsmaOut);
     taosArrayPush(pCtx->pResList, &res);
   }
 
@@ -3510,6 +3516,10 @@ int32_t ctgWriteTbTSMAToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     for (int32_t i = 0; i < pCache->pTsmas->size; ++i) {
       STableTSMAInfo* pInfo = taosArrayGetP(pCache->pTsmas, i);
       if (pInfo->tsmaId == pTsmaCache->tsmaId) {
+        ctgDebug("tsma: %s removed from cache, history from %d to %d, reqTs from %" PRId64 " to %" PRId64
+                 "rspTs from %" PRId64 " to %" PRId64 " delay from %" PRId64 " to %" PRId64,
+                 pInfo->name, pInfo->fillHistoryFinished, pTsmaCache->fillHistoryFinished, pInfo->reqTs,
+                 pTsmaCache->reqTs, pInfo->rspTs, pTsmaCache->rspTs, pInfo->delayDuration, pTsmaCache->delayDuration);
         cacheSize = ctgGetTbTSMACacheSize(pInfo);
         taosArrayRemove(pCache->pTsmas, i);
         atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
@@ -3564,8 +3574,7 @@ int32_t ctgOpDropTbTSMA(SCtgCacheOperation *operation) {
     for (int32_t i = 0; i < pCtgCache->pTsmas->size; ++i) {
       pCache = taosArrayGetP(pCtgCache->pTsmas, i);
       cacheSize += ctgGetTbTSMACacheSize(pCache);
-      CTG_ERR_JRET(ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare,
-                                     ctgTSMAVersionSearchCompare));
+      ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare, ctgTSMAVersionSearchCompare);
       CTG_DB_NUM_DEC(CTG_CI_TBL_TSMA);
     }
     taosArrayDestroyP(pCtgCache->pTsmas, tFreeAndClearTableTSMAInfo);
@@ -3586,8 +3595,7 @@ int32_t ctgOpDropTbTSMA(SCtgCacheOperation *operation) {
         continue;
       }
       cacheSize = ctgGetTbTSMACacheSize(pCache);
-      CTG_ERR_JRET(ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare,
-                                     ctgTSMAVersionSearchCompare));
+      ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare, ctgTSMAVersionSearchCompare);
       taosArrayRemove(pCtgCache->pTsmas, i);
       tFreeAndClearTableTSMAInfo(pCache);
       CTG_DB_NUM_DEC(CTG_CI_TBL_TSMA);

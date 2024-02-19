@@ -619,5 +619,8 @@ bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
   if (!pFunc->pStateFunc) {
     return false;
   }
-  return strcmp(pFunc->pStateFunc, pStateFunc->name) == 0;
+  if (strcmp(pFunc->pStateFunc, pStateFunc->name) == 0) return true;
+  int32_t stateMergeFuncId = fmGetFuncId(pFunc->pStateFunc);
+  const SBuiltinFuncDefinition* pStateMergeFunc = &funcMgtBuiltins[stateMergeFuncId];
+  return strcmp(pStateFunc->name, pStateMergeFunc->pMergeFunc) == 0;
 }
