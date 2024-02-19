@@ -4226,7 +4226,7 @@ typedef struct {
   int64_t streamUid;
   int64_t reqTs;
   int64_t rspTs;
-  int64_t delayDuration;
+  int64_t delayDuration; // ms
   bool    fillHistoryFinished;
 } STableTSMAInfo;
 

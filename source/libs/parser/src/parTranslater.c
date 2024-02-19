@@ -10597,24 +10597,39 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
   return code;
 }
 
-static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq) {
+static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, SName* useTbName) {
   SName name;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pReq->name);
   memset(&name, 0, sizeof(SName));
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stb);
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
+  tNameExtractFullName(useTbName, pReq->stb);
   pReq->igExists = pStmt->ignoreExists;
   pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
 
+#define TSMA_MIN_INTERVAL_MS 1 // 1ms
+#define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000) // 1h
+  if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
+    return TSDB_CODE_TSMA_INVALID_INTERVAL;
+  }
+
   int32_t code = TSDB_CODE_SUCCESS;
 
   STableMeta* pTableMeta = NULL;
-  //TODO 在使用该tableName时, 如果确定其其实是tsma name, 那么避免将此作为tbname进行catalog 获取.
-  STableTSMAInfo *pRecursiveTsma = NULL;
-  int32_t numOfCols = 0, numOfTags = 0;
-  SSchema* pCols = NULL, *pTags = NULL;
+  // TODO 在使用该tableName时, 如果确定其其实是tsma name, 那么避免将此作为tbname进行catalog 获取.
+  STableTSMAInfo* pRecursiveTsma = NULL;
+  int32_t         numOfCols = 0, numOfTags = 0;
+  SSchema *       pCols = NULL, *pTags = NULL;
   if (pStmt->pOptions->recursiveTsma) {
-    code = getTsma(pCxt, &name, &pRecursiveTsma);
+    // useTbName is base tsma name
+    code = getTsma(pCxt, useTbName, &pRecursiveTsma);
+    if (code == TSDB_CODE_SUCCESS) {
+      SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
+      if (pRecursiveTsma->interval < pInterval->datum.i && pInterval->datum.i % pRecursiveTsma->interval == 0) {
+      } else {
+        code = TSDB_CODE_TSMA_INVALID_PARA;
+      }
+    }
     if (code == TSDB_CODE_SUCCESS) {
       SNode* pNode;
       if (TSDB_CODE_SUCCESS != nodesStringToNode(pRecursiveTsma->ast, &pNode)) {
@@ -10627,13 +10642,13 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
         nodesListMakeStrictAppend(&pStmt->pOptions->pFuncs, nodesCloneNode(pNode));
       }
       nodesDestroyNode((SNode*)pSelect);
+      memset(useTbName, 0, sizeof(SName));
+      tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
+      numOfCols = pRecursiveTsma->pUsedCols->size; // TODO merge pUsedCols and pTags with one SSchema array
+      numOfTags = pRecursiveTsma->pTags->size;
+      pCols = pRecursiveTsma->pUsedCols->pData;
+      pTags = pRecursiveTsma->pTags->pData;
     }
-    memset(&name, 0, sizeof(SName));
-    tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->targetTb, &name), pReq->stb);
-    numOfCols = pRecursiveTsma->pUsedCols->size; // TODO merge pUsedCols and pTags with one SSchema array
-    numOfTags = pRecursiveTsma->pTags->size;
-    pCols = pRecursiveTsma->pUsedCols->pData;
-    pTags = pRecursiveTsma->pTags->pData;
   } else {
     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
     if (TSDB_CODE_SUCCESS == code) {
@@ -10643,6 +10658,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       pTags = pTableMeta->schema + numOfCols;
       if (pTableMeta->tableType == TSDB_NORMAL_TABLE) {
         pReq->normSourceTbUid = pTableMeta->uid;
+      } else if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+        code = TSDB_CODE_TSMA_INVALID_TB;
       }
     }
   }
@@ -10682,13 +10699,12 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
   int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
 
   SMCreateSmaReq smaReq = {0};
+  SName useTbName = {0};
   if (code == TSDB_CODE_SUCCESS) {
-    code = buildCreateTSMAReq(pCxt, pStmt, &smaReq);
+    code = buildCreateTSMAReq(pCxt, pStmt, &smaReq, &useTbName);
   }
   if ( TSDB_CODE_SUCCESS == code) {
-    SName name;
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-    code = collectUseTable(&name, pCxt->pTargetTables);
+    code = collectUseTable(&useTbName, pCxt->pTargetTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
     // TODO replace with tsma serialization func
@@ -10897,7 +10913,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_TSMA_STMT:
       break;
     case QUERY_NODE_DROP_TSMA_STMT:
-      code =translateDropTSMA(pCxt, (SDropTSMAStmt*)pNode);
+      code = translateDropTSMA(pCxt, (SDropTSMAStmt*)pNode);
       break;
     default:
       break;
