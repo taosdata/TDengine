@@ -65,20 +65,23 @@ mod test_historian_table {
 
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
+    // task info
+    pub task_id: Option<i64>,
+    pub sub_task_id: Option<String>,
+    // communication
     pub connect: ConnectConfig,
     pub ipc_port: Option<u16>,
-
     // collect
     pub mode: TaskMode,
     pub table: HistorianTable,
     pub tags: Vec<String>,
-    pub tag_list_size: usize, // split tags into multiple lists, each list contains tag_list_size tags
+    pub tag_list_size: usize,
+    // split tags into multiple lists, each list contains tag_list_size tags
     pub begin_datetime: Option<DateTime<Utc>>,
     pub end_datetime: Option<DateTime<Utc>>,
     pub time_window: Duration,
     pub retrieve_interval: Duration,
     pub tolerance: Duration,
-
     // advanced options
     pub advanced_options: AdvancedOptions,
 }
@@ -86,6 +89,8 @@ pub struct TaskConfig {
 impl TaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(TaskConfig {
+            task_id: Self::parse_task_id(dsn),
+            sub_task_id: None,
             connect: ConnectConfig::from_dsn(dsn)?,
             ipc_port: None,
             mode: Self::parse_mode(dsn)?,
@@ -99,6 +104,21 @@ impl TaskConfig {
             tolerance: Self::parse_tolerance(dsn)?,
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
         })
+    }
+
+    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
+        dsn.params
+            .get("taskId")
+            .map(|s| {
+                s.parse::<i64>()
+                    .map(Some)
+                    .map_err(|err| {
+                        tracing::warn!("failed to parse taskId: {}, use None", s);
+                        err
+                    })
+                    .unwrap_or(None)
+            })
+            .flatten()
     }
 
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
@@ -308,6 +328,21 @@ mod test_historian_task_config {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_parse_task_id() {
+        let dsn = Dsn::from_str("historian://?").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn);
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("historian://?taskId=1").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn).unwrap();
+        assert_eq!(1, config);
+
+        let dsn = Dsn::from_str("historian://?taskId=xxx").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn);
+        assert!(config.is_none());
+    }
 
     #[test]
     fn test_parse_mode() {
