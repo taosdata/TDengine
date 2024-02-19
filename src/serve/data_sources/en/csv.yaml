@@ -33,7 +33,6 @@ groups:
         display: Delimiter Char
         description: The field separator in a CSV record.
         value: ","
-        required: true
         editable: true
         hint:
           type: str
@@ -44,7 +43,6 @@ groups:
         display: Quote Char
         description: The quote is used to enclose field values
         value: '"'
-        required: true
         editable: true
         hint:
           type: str
@@ -55,7 +53,6 @@ groups:
         display: Comment Prefix
         description: If the start of a record begins with the byte given here, then that line is ignored by the CSV parser.
         value: "#"
-        required: true
         editable: true
         hint:
           type: str
