@@ -1184,6 +1184,13 @@
 ,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
+,,y,script,./test.sh -f tsim/stream/count0.sim
+,,y,script,./test.sh -f tsim/stream/count1.sim
+,,y,script,./test.sh -f tsim/stream/count2.sim
+,,y,script,./test.sh -f tsim/stream/count3.sim
+,,y,script,./test.sh -f tsim/stream/countSliding0.sim
+,,y,script,./test.sh -f tsim/stream/countSliding1.sim
+,,y,script,./test.sh -f tsim/stream/countSliding2.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
 ,,y,script,./test.sh -f tsim/stream/deleteSession.sim
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim
