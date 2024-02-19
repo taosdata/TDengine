@@ -97,7 +97,7 @@ export function uploadFile(file) {
 export function getCSVColumns(path, type, other) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/filemeta?file_path=${path}&file_type=${type}&${other}`,
+        url: `/filemeta?file_path=${path}&file_type=${type}${other ? '&' + other : ''}`,
         method: 'get',
         headers: {
             "Content-Type": "multipart/form-data"
