@@ -26,7 +26,7 @@ use tracing::{info, instrument, warn};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::breakpoints::{breakpoints_get, breakpoints_set},
+    utils::breakpoints::{breakpoints_get_async, breakpoints_set},
     Action,
 };
 
@@ -1516,7 +1516,7 @@ async fn sync_specified_tables_with_workers(
     target_opts: TargetOpts,
     workers: usize,
     task_id: &Option<String>,
-    file_mutex: Arc<std::sync::Mutex<()>>,
+    file_mutex: Arc<tokio::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
     tracing::info!("Synchronize table data with {} workers", workers);
     let mut count = 0;
@@ -1584,11 +1584,13 @@ async fn sync_specified_tables_with_workers(
                 const MAX_RETRIES: usize = 5;
                 let mut retries = MAX_RETRIES;
                 loop {
-                    let _lock = file_mutex.lock().unwrap();
-                    match breakpoints_get(&task_id, &table).and_then(|bp| {
-                        bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
-                            .transpose()
-                    }) {
+                    let _lock = file_mutex.lock().await;
+                    match breakpoints_get_async(&task_id, &table)
+                        .await
+                        .and_then(|bp| {
+                            bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                                .transpose()
+                        }) {
                         Ok(Some(breakpoint)) => {
                             opts.time_range.start = Some(breakpoint);
                             tracing::debug!(
@@ -2674,7 +2676,7 @@ async fn legacy_to_taos_impl(
 
     let metrics_arc = get_metrics_arc(task_id.clone());
     let metrics = metrics_arc.as_ref().legacy();
-    let file_mutex = Arc::new(std::sync::Mutex::new(()));
+    let file_mutex = Arc::new(tokio::sync::Mutex::new(()));
 
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
