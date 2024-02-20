@@ -62,6 +62,7 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
 pub async fn csv_header(
     paths: Vec<impl AsRef<str>>,
     has_header: bool,
+    skip: usize,
     delimiter: Option<u8>,
     quote: Option<u8>,
     comment: Option<u8>,
@@ -84,9 +85,16 @@ pub async fn csv_header(
 
     if sample > 0 {
         if let Some(path) = paths.first() {
-            values =
-                CsvSource::sample(path.as_ref(), has_header, delimiter, quote, comment, sample)
-                    .await?;
+            values = CsvSource::sample(
+                path.as_ref(),
+                has_header,
+                skip,
+                delimiter,
+                quote,
+                comment,
+                sample,
+            )
+            .await?;
         };
     }
 
@@ -395,6 +403,7 @@ impl CsvSource {
     async fn sample(
         read_path: &str,
         has_header: bool,
+        skip: usize,
         delimiter: Option<u8>,
         quote: Option<u8>,
         comment: Option<u8>,
@@ -421,6 +430,17 @@ impl CsvSource {
                 .has_headers(has_header)
                 .from_path(&path)
                 .with_context(|| format!("Reading CSV file {path:?} error"))?;
+            if skip > 0 {
+                let mut record = StringRecord::new();
+                for _ in 0..skip {
+                    let _ = reader.read_record(&mut record);
+                }
+                info!(
+                    skip,
+                    "Start reading csv from line {}",
+                    reader.position().line()
+                );
+            }
 
             reader
                 .records()
@@ -852,6 +872,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sample() {
+        let path = "test.csv".to_string();
+        create_csv_file(&path).await.unwrap();
+
+        let samples = CsvSource::sample(
+            path.as_ref(),
+            true,
+            1,
+            Some(b','),
+            Some(b'"'),
+            Some(b'#'),
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(samples, vec![vec!["2001-01-01T00:00:01Z".to_string(), "location,1,2,3".to_string()]]);
+        delete_csv_file(&path).unwrap();
+    }
+
+    #[tokio::test]
     async fn test_csv_readers() {
         let paths = vec!["test.csv".to_string()];
         for path in &paths {
@@ -928,6 +969,8 @@ mod tests {
         let mut csv = csv_async::AsyncWriter::from_writer(file);
         csv.write_record(&["ts", "payload"]).await?;
         csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])
+            .await?;
+        csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])
             .await?;
         csv.flush().await?;
         Ok(())
