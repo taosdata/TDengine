@@ -279,7 +279,6 @@ export default {
     "sourceForm.targetDB": {
       deep: true,
       handler(val) {
-        console.log('huijingjij',this.defaultSourceConfig)
         this.$store.commit("app/SET_CURRENT_DBNAME", val);
       },
     },
@@ -301,10 +300,14 @@ export default {
         if (!this.isEditable && !this.sourceForm.type) {
           this.$set(this.sourceForm, "type", "tmq");
         }
-        this.$forceUpdate();
-        this.getDataSource();
       },
       immediate: true,
+    },
+    defaultSourceConfig: {
+      deep: true,
+      handler() {
+        this.getDataSource();
+      }
     },
     "$store.state.app.currentDBType": {
       immediate: true,
