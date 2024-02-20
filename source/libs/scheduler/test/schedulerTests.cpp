@@ -60,6 +60,7 @@ extern "C" int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t 
 int64_t insertJobRefId = 0;
 int64_t queryJobRefId = 0;
 
+bool     schtJobDone = false;
 uint64_t schtMergeTemplateId = 0x4;
 uint64_t schtFetchTaskId = 0;
 uint64_t schtQueryId = 1;
@@ -450,6 +451,8 @@ void *schtSendRsp(void *param) {
 
   schReleaseJob(job);
 
+  schtJobDone = true;
+  
   return NULL;
 }
 
@@ -1028,6 +1031,8 @@ TEST(insertTest, normalCase) {
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
 
+  schtJobDone = false;
+
   TdThread thread1;
   taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
 
@@ -1044,6 +1049,14 @@ TEST(insertTest, normalCase) {
 
   code = schedulerExecJob(&req, &insertJobRefId);
   ASSERT_EQ(code, 0);
+
+  while (true) {
+    if (schtJobDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
 
   schedulerFreeJob(&insertJobRefId, 0);
 
