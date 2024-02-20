@@ -115,6 +115,7 @@ impl CommonMetrics {
         self.written_rows.store(0, SeqCst);
         self.written_points.store(0, SeqCst);
         self.execute_time.store(0, SeqCst);
+        self.last_persist_time.reset();
     }
 }
 
