@@ -513,36 +513,9 @@ export default {
     //获取 csv 解析需要的参数
     getCsvParseParam() {
       let dsn = ''
-      // const errorMsg = [];
-      // const validFieldList = this.validFieldList.filter(item => document.querySelector(`.source-ui .left-ui .${getFieldClassMarkName(item)}`));
-      // this.sourceParent.$refs.form.validateField(validFieldList, valid => {
-      //   errorMsg.push(valid);
-      //   if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
-      //     dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-      //     dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0] 
-      //   } else {
-      //     this.$nextTick(() => {
-      //       document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
-      //     });
-      //     dsn = ''
-      //   }
-      // });
       dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-      dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0]
+      dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0] ?? ''
       return dsn;
-    },
-    getValidFieldList(data, result, parent = 'data') {
-      console.log(data)
-      for (const val of data) {
-        if (val.field == 'read_concurrency') break;
-        if (val.children) {
-          this.getValidFieldList(val.children, result, parent + '.' + val.field);
-        } else {
-          if (val.required) {
-            result.push(parent + '.' + val.field);
-          }
-        }
-      }
     },
   },
   watch:{
