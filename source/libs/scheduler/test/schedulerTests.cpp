@@ -1072,6 +1072,16 @@ TEST(multiThread, forceFree) {
   //taosSsleep(3);
 }
 
+TEST(otherTest, otherCase) {
+  // excpet test
+  schReleaseJob(0);
+  schFreeRpcCtx(NULL);
+
+  ASSERT_EQ(schDumpEpSet(NULL), (char*)NULL);
+  ASSERT_EQ(strcmp(schGetOpStr(SCH_OP_NULL), "NULL"), 0);
+  ASSERT_EQ(strcmp(schGetOpStr((SCH_OP_TYPE)100), "UNKNOWN"), 0);
+}
+
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);

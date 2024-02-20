@@ -33,7 +33,8 @@ class TDTestCase(TBase):
         "lossyColumns"           : "float,double",
         "fPrecision"             : "0.000000001",
         "dPrecision"             : "0.00000000000000001",
-        "ifAdtFse"               : "1"
+        "ifAdtFse"               : "1",
+        'slowLogScope'           : "insert"
     }
 
     def insertData(self):
@@ -56,7 +57,7 @@ class TDTestCase(TBase):
         sql = f"select * from {self.db}.{self.stb} where fc!=100"
         tdSql.query(sql)
         tdSql.checkRows(0)
-        sql = f"select count(*) from {self.db}.{self.stb} where dc!=200"
+        sql = f"select * from {self.db}.{self.stb} where dc!=200"
         tdSql.query(sql)
         tdSql.checkRows(0)
         sql = f"select avg(fc) from {self.db}.{self.stb}"

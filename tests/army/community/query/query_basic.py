@@ -29,9 +29,11 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "keepColumnName" : "1",
+        "keepColumnName"   : "1",
         "ttlChangeOnWrite" : "1",
-        "querySmaOptimize": "1"
+        "querySmaOptimize" : "1",
+        "slowLogScope"     : "none",
+        "queryBufferSize"  : 10240
     }
 
 

@@ -31,10 +31,10 @@ class TDTestCase(TBase):
         'queryMaxConcurrentTables': '2K', 
         'streamMax': '1M', 
         'totalMemoryKB': '1G',
-        #'rpcQueueMemoryAllowed': '1T',
-        #'mndLogRetention': '1P',
-        'streamBufferSize':'2G'
-    }    
+        'streamMax': '1P',
+        'streamBufferSize':'1T',
+        'slowLogScope':"query"
+    }  
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -47,8 +47,40 @@ class TDTestCase(TBase):
         # taosBenchmark run
         etool.benchMark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
 
+    def checkQueryOK(self, rets):
+        if rets[-2][:9] != "Query OK,":
+            tdLog.exit(f"check taos -s return unecpect: {rets}")
+
     def doTaos(self):
         tdLog.info(f"check taos command options...")
+        
+        # local command
+        options = [
+                     "DebugFlag 143",
+                     "enableCoreFile 1",
+                     "fqdn 127.0.0.1",
+                     "firstEp 127.0.0.1",
+                     "locale ENG",
+                     "metaCacheMaxSize 10000",
+                     "minimalTmpDirGB 5",
+                     "minimalLogDirGB 1",
+                     "secondEp 127.0.0.2",
+                     "smlChildTableName smltbname",
+                     "smlAutoChildTableNameDelimiter autochild",
+                     "smlTagName tagname",
+                     "smlTsDefaultName tsdef",
+                     "serverPort 6030",
+                     "slowLogScope insert",
+                     "timezone tz",
+                     "tempDir /var/tmp"
+                  ]
+        # exec
+        for option in options:
+            rets = etool.runBinFile("taos", f"-s \"alter local '{option}'\";")
+            self.checkQueryOK(rets)
+        # error
+        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\";")
+
         # help
         rets = etool.runBinFile("taos", "--help")
         self.checkListNotEmpty(rets)
