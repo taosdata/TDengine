@@ -176,11 +176,34 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     if from.get("timeout").is_none() {
         from.set("timeout", "5s");
     }
-    if from.get("auto.offset.reset").is_none() {
+    if let Some(val) = from.get("auto.offset.reset") {
+        if val != "latest" && val != "earliest" {
+            bail!("`auto.offset.reset` option only support `latest` or `earliest`");
+        }
+    } else {
         from.set("auto.offset.reset", "earliest");
     }
     if from.get("experimental.snapshot.enable").is_none() {
         from.set("experimental.snapshot.enable", "true");
+    }
+
+    let mut replica = false;
+    if let Some(val) = from.get("msg.consume.excluded") {
+        let val = val.trim();
+        if !val.is_empty() && val != "1" {
+            bail!("`msg.consume.excluded` option only support `1`");
+        }
+        replica = true;
+    } else {
+        if from.get("replica").is_some() {
+            from.set("msg.consume.excluded", "1");
+            replica = true;
+        }
+    }
+    if replica {
+        if from.get("group.id").is_none() {
+            from.set("group.id", "replica");
+        }
     }
 
     let builder = TaosBuilder::from_dsn(&from)?;
@@ -762,6 +785,16 @@ mod tests {
             "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
             dsv.message.unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn test_replica() {
+        let dsn = Dsn::from_str("tmq:///db1?replica").unwrap();
+        let (dsn, _, topics) = check_tmq_dsn(dsn).await.unwrap();
+        assert_eq!(true, dsn.params.contains_key("msg.consume.excluded"));
+        assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());
+        assert_eq!("replica", dsn.params.get("group.id").unwrap());
+        assert_eq!("db1", topics[0].database);
     }
 
     #[ignore]
