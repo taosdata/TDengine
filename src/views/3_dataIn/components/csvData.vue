@@ -136,7 +136,7 @@ export default {
         fileurl: [
           {
             required: true,
-            trigger: "blur",
+            // trigger: "blur",
             message: this.$t("datasource.uploadcsvtip"),
           },
         ],
@@ -294,12 +294,6 @@ export default {
         isbreak=this.submitUrl();
       }
 
-      if (!this.$refs.param.ruleForm.hasHeader) {
-        this.$refs.param.submit();
-        if (!this.$refs.param.isValid) {
-          isbreak=false;
-        }
-      }
       if(!isbreak){
         return isbreak
       }
@@ -328,6 +322,7 @@ export default {
           this.showfiletip = true;
           return;
         }
+        this.submitUrl();
         if (this.activeName == "second" && !this.fileForm.fileurl) {
           return;
         }
@@ -343,42 +338,13 @@ export default {
         this.dbOptions = [];
         let result = null;
         let parseParam = this.getCsvParseParam()
-        console.log('parseParam',parseParam);
 
-        if (parseParam) {
-          if (this.activeName == "first") {
-            if (this.$refs.param.isValid && this.fileList.length > 0) {
-              // if (this.$refs.param.ruleForm.hasHeader) {
-              result = await getCSVColumns(
-                this.fileList.map((item) => {
-                  return item.response[0];
-                }),
-                "csv",
-                parseParam
-              );
-              if (result && result.message) {
-                Message.error(result.message);
-                return;
-              }
-              this.csvColumns = result.file_header.column_names;
-              if (result && !result.sample_values) {
-                Message.error(this.$t('datasource.transformer.emptySampleValues'))
-                return
-              }
-              this.sample_values = result.sample_values ?? [];
-              // } else {
-              //   result = await getCSVColumns(
-              //     this.fileList.map((item) => {
-              //       return item.response[0];
-              //     }),
-              //     "csv",
-              //     this.$refs.param.ruleForm.hasHeader
-              //   );
-              // }
-            }
-          } else {
+        if (this.activeName == "first") {
+          if (this.$refs.param.isValid && this.fileList.length > 0) {
             result = await getCSVColumns(
-              this.fileForm.fileurl,
+              this.fileList.map((item) => {
+                return item.response[0];
+              }),
               "csv",
               parseParam
             );
@@ -393,7 +359,24 @@ export default {
             }
             this.sample_values = result.sample_values ?? [];
           }
+        } else {
+          result = await getCSVColumns(
+            this.fileForm.fileurl,
+            "csv",
+            parseParam
+          );
+          if (result && result.message) {
+            Message.error(result.message);
+            return;
+          }
+          this.csvColumns = result.file_header.column_names;
+          if (result && !result.sample_values) {
+            Message.error(this.$t('datasource.transformer.emptySampleValues'))
+            return
+          }
+          this.sample_values = result.sample_values ?? [];
         }
+        
         // 去掉自定义列
         // if (this.$refs.param.ruleForm.customcol) {
         //   let apiColumns = result.file_header.column_names;
@@ -461,7 +444,6 @@ export default {
           : inputList,
         msgBody: msgBody.join("\n"),
       };
-      console.log('csvTransformer',csvTransformer);
       let transformerColumns = [
         {
           value: "expression",
@@ -528,6 +510,11 @@ export default {
         
       },
     },
+    "fileForm.fileurl": {
+      handler(val) {
+        this.$store.commit("app/SET_CSV_FILES", val);
+      }
+    }
   }
 };
 </script>
