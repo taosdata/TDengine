@@ -3317,12 +3317,6 @@ _error:
 // table merge scan operator
 
 // table merge scan operator
-// TODO: limit / duration optimization
-// TODO: get block from tsdReader function, with task killed, func_data all filter out, skip, finish
-// TODO: error processing, memory freeing
-// TODO: add log for error and perf
-// TODO: tsdb reader open/close dynamically
-// TODO: blockdata deep cleanup
 
 static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* param) {
   int32_t left = *(int32_t*)pLeft;
