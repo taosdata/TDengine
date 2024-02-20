@@ -63,6 +63,9 @@ func (m *Manager) getOrInitReporter(tag string, vt types.ValueType) (*ArrowRepor
 			for i := 0; i < m.concurrent; i++ {
 				reporter, err := NewArrowReporter(m.ctx, i, m.conf.Remote, vt, m.conf.BatchSize, time.Duration(m.conf.BatchTimeout)*time.Second)
 				if err != nil {
+					for j := 0; j < i; j++ {
+						v[j].Close()
+					}
 					return nil, err
 				}
 				reporter.startReceiveMessage()
