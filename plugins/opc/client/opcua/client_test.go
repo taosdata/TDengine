@@ -300,3 +300,88 @@ func cleanupTestFiles(certFile, keyFile string) {
 	os.Remove(certFile)
 	os.Remove(keyFile)
 }
+
+func TestTryGetCapabilities(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:50000",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+
+	client, err := NewUAClient(ctx, connectConfig, config.CollectConfig{}, 1, logrus.New().WithField("test", "test"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		t.Log("close client")
+		client.Close()
+		t.Log("close client finish")
+	}()
+
+	pointsConf := config.PointsConfig{
+		Limit: 0,
+		Regex: ".*",
+		Ua: config.UaPointsConfig{
+			Root: "i=85",
+		},
+	}
+	points, err := client.GetAllPoints(pointsConf)
+	t.Log(len(points))
+	assert.Greater(t, len(points), 10000)
+
+	nodes := make([]config.NodeConfig, len(points))
+	for i := 0; i < len(points); i++ {
+		nodes[i] = config.NodeConfig{ID: points[i].ID}
+	}
+	tmpDir := t.TempDir()
+	collectConfig := config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Dump: config.DumpConfig{
+			Enable: true,
+			Path:   tmpDir,
+			Keep:   1,
+		},
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes:       nodes,
+		},
+	}
+
+	gotMessage := false
+	var onMessage = func(message []*common.NodeValue) {
+		gotMessage = true
+	}
+	client2, err := NewUAClient(ctx, connectConfig, collectConfig, 1, logrus.New().WithField("test", "test"), onMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client2.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		t.Log("close client 2")
+		client2.Close()
+		t.Log("close client 2 finish")
+	}()
+	err = client2.Collect()
+	assert.NoError(t, err)
+	time.Sleep(time.Second * 2)
+	files, err := findFilesWithPrefix(tmpDir, "opc_data.dump")
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	data, err := os.ReadFile(files[0])
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	assert.True(t, gotMessage)
+}
