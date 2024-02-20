@@ -1231,6 +1231,20 @@ static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
   return numOfSubscriptions;
 }
 
+static int16_t grantGetClusterCurTopics(SMnode *pMnode) {
+  SSdb        *pSdb = pMnode->pSdb;
+  SMqTopicObj *pTopic = NULL;
+  void        *pIter = NULL;
+  int16_t      numOfTopics = 0;
+
+  while ((pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic))) {
+    ++numOfTopics;
+    sdbRelease(pSdb, pTopic);
+  }
+
+  return numOfTopics;
+}
+
 static int32_t grantGetClusterCurViews(SMnode *pMnode) {
   SSdb     *pSdb = pMnode->pSdb;
   SViewObj *pView = NULL;
@@ -1255,7 +1269,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curDnodes = grantGetClusterCurDnodes(pMnode);
   gStatus.curCpuCores = grantGetClusterCurCores(pMnode);
   gStatus.curStreams = grantGetClusterCurStreams(pMnode);
-  gStatus.curSubscriptions = grantGetClusterCurSubscriptions(pMnode);
+  gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode);
   gStatus.curViews = grantGetClusterCurViews(pMnode);
 }
 
@@ -1739,7 +1753,7 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
     return TSDB_CODE_GRANT_STREAM_LIMITED;
   }
   if ((pObj->limitSubscriptions > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurSubscriptions(pMnode) > pObj->limitSubscriptions)) {
+      (grantGetClusterCurTopics(pMnode) > pObj->limitSubscriptions)) {
     return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
   if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurViews(pMnode) > pObj->limitViews)) {
