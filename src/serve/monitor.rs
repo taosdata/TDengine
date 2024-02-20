@@ -374,7 +374,7 @@ fn snapshot2records(snapshot: taosx_metrics::Snapshot) -> Vec<Record> {
     records
 }
 
-/// 所有要写入 taoskeeper 的 metrics，都要有 stable 这个 label
+/// 所有要写入 taoskeeper 的 metrics, 都要有 stable 这个 label
 fn get_table_from_labels(labels: &Vec<Label>) -> Option<String> {
     for label in labels {
         if label.key() == "stable" {

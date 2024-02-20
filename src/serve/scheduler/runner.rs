@@ -428,7 +428,6 @@ impl InnerState {
             InnerState::Completed
                 | InnerState::Stopped
                 | InnerState::Failed(_)
-                | InnerState::Stopping
                 | InnerState::Interrupted
                 | InnerState::Ticked
         )
