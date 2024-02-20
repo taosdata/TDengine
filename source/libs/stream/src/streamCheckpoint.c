@@ -116,7 +116,6 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
   return atomic_sub_fetch_32(&pTask->chkInfo.downstreamAlignNum, 1);
 }
 
-// todo handle down the transId of checkpoint to sink/agg tasks.
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType) {
   SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pChkpoint == NULL) {
@@ -133,6 +132,7 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 
   pBlock->info.type = STREAM_CHECKPOINT;
   pBlock->info.version = pTask->chkInfo.checkpointingId;
+  pBlock->info.window.ekey = pBlock->info.window.skey = pTask->chkInfo.transId;  // NOTE: set the transId
   pBlock->info.rows = 1;
   pBlock->info.childId = pTask->info.selfChildId;
 
@@ -158,7 +158,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 
   pTask->chkInfo.transId = pReq->transId;
   pTask->chkInfo.checkpointingId = pReq->checkpointId;
-  pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+  pTask->chkInfo.numOfNotReady = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
   pTask->execInfo.checkpoint += 1;
 
@@ -185,17 +185,20 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
 int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   SSDataBlock* pDataBlock = taosArrayGet(pBlock->blocks, 0);
   int64_t      checkpointId = pDataBlock->info.version;
+  int32_t      transId = pDataBlock->info.window.skey;
   const char*  id = pTask->id.idStr;
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      vgId = pTask->pMeta->vgId;
 
   stDebug("s-task:%s vgId:%d start to handle the checkpoint block, checkpointId:%" PRId64 " ver:%" PRId64
-          ", current checkpointingId:%" PRId64,
-          id, vgId, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, checkpointId);
+          ", transId:%d current checkpointingId:%" PRId64,
+          id, vgId, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, transId, checkpointId);
 
   // set task status
   if (streamTaskGetStatus(pTask)->state != TASK_STATUS__CK) {
     pTask->chkInfo.checkpointingId = checkpointId;
+    pTask->chkInfo.transId = transId;
+
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s handle checkpoint-trigger block failed, code:%s", id, tstrerror(code));
@@ -211,7 +214,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
-      atomic_add_fetch_32(&pTask->chkInfo.checkpointNotReadyTasks, 1);
+      atomic_add_fetch_32(&pTask->chkInfo.numOfNotReady, 1);
       streamProcessCheckpointReadyMsg(pTask);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
@@ -246,7 +249,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 
       // set the needed checked downstream tasks, only when all downstream tasks do checkpoint complete, this task
       // can start local checkpoint procedure
-      pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+      pTask->chkInfo.numOfNotReady = streamTaskGetNumOfDownstream(pTask);
 
       // Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
       // already. And then, dispatch check point msg to all downstream tasks
@@ -265,7 +268,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG);
 
   // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
-  int32_t notReady = atomic_sub_fetch_32(&pTask->chkInfo.checkpointNotReadyTasks, 1);
+  int32_t notReady = atomic_sub_fetch_32(&pTask->chkInfo.numOfNotReady, 1);
   ASSERT(notReady >= 0);
 
   if (notReady == 0) {
@@ -284,7 +287,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.checkpointingId = 0;  // clear the checkpoint id
   pTask->chkInfo.failedId = 0;
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-  pTask->chkInfo.checkpointNotReadyTasks = 0;
+  pTask->chkInfo.numOfNotReady = 0;
   pTask->chkInfo.transId = 0;
   pTask->chkInfo.dispatchCheckpointTrigger = false;
 
@@ -509,7 +512,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
       SStreamTaskId hTaskId = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
 
       stDebug("s-task:%s fill-history finish checkpoint done, drop related fill-history task:0x%x", id, hTaskId.taskId);
-      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &hTaskId);
+      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &hTaskId, 1);
     } else {
       stWarn("s-task:%s related fill-history task:0x%x is erased", id, (int32_t)pTask->hTaskInfo.id.taskId);
     }

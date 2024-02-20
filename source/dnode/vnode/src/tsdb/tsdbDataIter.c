@@ -16,6 +16,7 @@
 #include "tsdb.h"
 #include "vnodeInt.h"
 
+#ifdef BUILD_NO_CALL
 // STsdbDataIter2
 /* open */
 int32_t tsdbOpenDataFileDataIter(SDataFReader* pReader, STsdbDataIter2** ppIter) {
@@ -451,6 +452,7 @@ int32_t tsdbDataIterNext2(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
     return code;
   }
 }
+#endif
 
 /* get */
 

@@ -86,8 +86,10 @@ typedef struct SParseContext {
   bool             enableSysInfo;
   bool             async;
   bool             hasInvisibleCol;
-  const char*      svrVer;
+  bool             isView;
+  bool             isAudit;
   bool             nodeOffline;
+  const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
@@ -106,7 +108,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery);
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery);
-int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow);
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock);
 
 void qDestroyParseContext(SParseContext* pCxt);
 

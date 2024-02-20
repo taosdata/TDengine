@@ -222,6 +222,10 @@ void syslog(int unused, const char *format, ...);
   do {                          \
     prctl(PR_SET_NAME, (name)); \
   } while (0)
+#define getThreadName(name)     \
+  do {                          \
+    prctl(PR_GET_NAME, (name)); \
+  } while (0)
 #endif
 #else
 // Windows

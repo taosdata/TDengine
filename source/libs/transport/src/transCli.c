@@ -218,7 +218,6 @@ static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq,
 /// static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
 /// NULL,cliHandleUpdate};
 
-static FORCE_INLINE void destroyUserdata(STransMsg* userdata);
 static FORCE_INLINE void destroyCmsg(void* cmsg);
 static FORCE_INLINE void destroyCmsgAndAhandle(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
@@ -1950,14 +1949,6 @@ _err:
   return NULL;
 }
 
-static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
-  if (userdata->pCont == NULL) {
-    return;
-  }
-  transFreeMsg(userdata->pCont);
-  userdata->pCont = NULL;
-}
-
 static FORCE_INLINE void destroyCmsg(void* arg) {
   SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
@@ -1965,7 +1956,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   }
 
   transDestroyConnCtx(pMsg->ctx);
-  destroyUserdata(&pMsg->msg);
+  transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
 
@@ -1984,7 +1975,7 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   tDebug("destroy Ahandle C");
 
   transDestroyConnCtx(pMsg->ctx);
-  destroyUserdata(&pMsg->msg);
+  transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
 
@@ -2515,7 +2506,7 @@ int transReleaseCliHandle(void* handle) {
 
   SCliThrd* pThrd = transGetWorkThrdFromHandle(NULL, (int64_t)handle);
   if (pThrd == NULL) {
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   STransMsg tmsg = {.info.handle = handle, .info.ahandle = (void*)0x9527};
@@ -2535,7 +2526,7 @@ int transReleaseCliHandle(void* handle) {
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
     destroyCmsg(cmsg);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
   return 0;
 }
@@ -2544,7 +2535,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
@@ -2577,7 +2568,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   if (0 != transAsyncSend(pThrd->asyncPool, &(cliMsg->q))) {
     destroyCmsg(cliMsg);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return 0;
@@ -2589,7 +2580,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
     taosMemoryFree(pTransRsp);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
@@ -2627,6 +2618,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   int ret = transAsyncSend(pThrd->asyncPool, &cliMsg->q);
   if (ret != 0) {
     destroyCmsg(cliMsg);
+    ret = TSDB_CODE_RPC_BROKEN_LINK;
     goto _RETURN;
   }
   tsem_wait(sem);
@@ -2661,7 +2653,7 @@ int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STr
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
     taosMemoryFree(pTransMsg);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
@@ -2698,6 +2690,7 @@ int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STr
   int ret = transAsyncSend(pThrd->asyncPool, &cliMsg->q);
   if (ret != 0) {
     destroyCmsg(cliMsg);
+    ret = TSDB_CODE_RPC_BROKEN_LINK;
     goto _RETURN;
   }
 
@@ -2726,7 +2719,7 @@ _RETURN:
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   SCvtAddr cvtAddr = {0};
@@ -2750,7 +2743,6 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     if (transAsyncSend(thrd->asyncPool, &(cliMsg->q)) != 0) {
       destroyCmsg(cliMsg);
       transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-      return -1;
     }
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
