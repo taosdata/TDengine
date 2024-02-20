@@ -81,11 +81,15 @@ class TDTestCase(TBase):
         cmd = f"ls {rootPath}/dnode1/data20/vnode/vnode*/tsdb/*.data"
         tdLog.info(cmd)
         loop = 0
-        while len(eos.runRetList(cmd)) > 0 and loop < 40:
+        while len(eos.runRetList(cmd)) > 0 and loop < 100:
             time.sleep(5)
             self.trimDb(True)
             loop += 1
             tdLog.info(f"loop={loop} wait 5s...")
+            if loop == 4:
+                sc.dnodeStop(1)
+                time.sleep(2)
+                sc.dnodeStart(1)
 
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
