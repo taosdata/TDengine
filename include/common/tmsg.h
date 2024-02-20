@@ -247,6 +247,7 @@ typedef enum ENodeType {
   QUERY_NODE_EVENT_WINDOW,
   QUERY_NODE_HINT,
   QUERY_NODE_VIEW,
+  QUERY_NODE_COUNT_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -432,7 +433,9 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE,
   QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL,
-  QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL,
 } ENodeType;
 
 typedef struct {
@@ -1400,7 +1403,7 @@ void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
 typedef struct {
   int32_t compactId;
-  int8_t bAccepted;
+  int8_t  bAccepted;
 } SCompactDbRsp;
 
 int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
@@ -1414,7 +1417,7 @@ typedef struct {
 
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
-void    tFreeSKillCompactReq(SKillCompactReq *pReq);
+void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -1751,9 +1754,9 @@ int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* 
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 
 typedef struct {
-  int32_t     compactId;
-  int32_t     vgId;
-  int32_t     dnodeId;
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
 } SVKillCompactReq;
 
 int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
@@ -1954,9 +1957,9 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   char    user[TSDB_USER_LEN];
-  char    filterTb[TSDB_TABLE_NAME_LEN]; // for ins_columns
+  char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
-  int64_t compactId; // for compact
+  int64_t compactId;  // for compact
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {
@@ -3182,17 +3185,10 @@ typedef struct {
 
 typedef struct {
   SMsgHead head;
-  int64_t  leftForVer;
+  int64_t  resetRelHalt;  // reset related stream task halt status
   int64_t  streamId;
   int32_t  taskId;
 } SVDropStreamTaskReq;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int32_t  taskId;
-  int64_t  dataVer;
-} SVStreamTaskVerUpdateReq;
 
 typedef struct {
   int8_t reserved;
@@ -3784,12 +3780,12 @@ typedef struct {
 } SMqHbReq;
 
 typedef struct {
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  int8_t         noPrivilege;
+  char   topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t noPrivilege;
 } STopicPrivilege;
 
 typedef struct {
-  SArray* topicPrivileges;   // SArray<STopicPrivilege>
+  SArray* topicPrivileges;  // SArray<STopicPrivilege>
 } SMqHbRsp;
 
 typedef struct {
@@ -3927,8 +3923,8 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
 
-#define  SOURCE_NULL  0
-#define  SOURCE_TAOSX 1
+#define SOURCE_NULL  0
+#define SOURCE_TAOSX 1
 
 typedef struct {
   int32_t        flags;
@@ -3940,8 +3936,8 @@ typedef struct {
     SArray* aRowP;
     SArray* aCol;
   };
-  int64_t       ctimeMs;
-  int8_t        source;
+  int64_t ctimeMs;
+  int8_t  source;
 } SSubmitTbData;
 
 typedef struct {

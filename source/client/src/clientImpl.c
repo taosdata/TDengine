@@ -2121,6 +2121,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
+  // bool blankFill = *(bool*)p;
+  p += sizeof(bool);
+
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);
   }

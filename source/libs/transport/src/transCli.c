@@ -218,7 +218,6 @@ static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq,
 /// static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
 /// NULL,cliHandleUpdate};
 
-static FORCE_INLINE void destroyUserdata(STransMsg* userdata);
 static FORCE_INLINE void destroyCmsg(void* cmsg);
 static FORCE_INLINE void destroyCmsgAndAhandle(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
@@ -1950,14 +1949,6 @@ _err:
   return NULL;
 }
 
-static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
-  if (userdata->pCont == NULL) {
-    return;
-  }
-  transFreeMsg(userdata->pCont);
-  userdata->pCont = NULL;
-}
-
 static FORCE_INLINE void destroyCmsg(void* arg) {
   SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
@@ -1965,7 +1956,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   }
 
   transDestroyConnCtx(pMsg->ctx);
-  destroyUserdata(&pMsg->msg);
+  transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
 
@@ -1984,7 +1975,7 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   tDebug("destroy Ahandle C");
 
   transDestroyConnCtx(pMsg->ctx);
-  destroyUserdata(&pMsg->msg);
+  transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
 

@@ -1945,7 +1945,7 @@ int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey) {
+bool doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey) {
   pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, pKey);
   SSessionKey hashKey = {0};
   getSessionHashKey(pKey, &hashKey);
@@ -2343,7 +2343,7 @@ int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
+void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   int32_t size = taosArrayGetSize(pResWins);
   for (int32_t i = 0; i < size; i++) {
     SSessionKey* pWinKey = taosArrayGet(pResWins, i);
