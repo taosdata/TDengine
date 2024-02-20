@@ -1,5 +1,9 @@
-use arrow::{array::ArrayRef, record_batch::RecordBatch};
+use arrow::{
+    array::{ArrayRef, StringArray},
+    record_batch::RecordBatch,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -11,10 +15,11 @@ pub struct CastValueBuilder {
 impl ValueBuilder for CastValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let schema = record.schema();
+
         schema
             .index_of(&self.cast)
-            .map_err(ValueBuilderError::CastError)
-            .map(|index| record.column(index).clone())
+            .map(|index| Ok(record.column(index).clone()))
+            .unwrap_or_else(|_| Ok(Arc::new(StringArray::new_null(record.num_rows())) as ArrayRef))
     }
 }
 
@@ -35,12 +40,33 @@ mod tests {
                 "f1",
                 Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
             ),
+            ("int", Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef),
             (
-                "int",
+                "intstr",
                 Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
             ),
         ])
         .unwrap()
+    }
+
+    #[test]
+    fn test_field_not_found() {
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "f2"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
+            ""
+        );
     }
 
     #[test]
@@ -88,12 +114,12 @@ mod tests {
             .as_any()
             .downcast_ref::<TimestampNanosecondArray>()
             .unwrap();
-        assert!(array.is_null(0));
+        assert!(array.is_valid(0));
     }
 
     #[test]
     fn test_string_as_int() {
-        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "int"}"#).unwrap();
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "intstr"}"#).unwrap();
         let batch = init_record_batch();
 
         let (field, value) = builder
