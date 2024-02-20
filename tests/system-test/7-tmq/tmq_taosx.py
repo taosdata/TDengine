@@ -11,6 +11,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
+from taos.tmq import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
 
@@ -310,7 +311,57 @@ class TDTestCase:
 
         return
 
+    def consumeTest(self):
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
+
+        tdSql.query("select * from st")
+        tdSql.checkRows(8)
+
+        tdSql.execute(f'create topic topic_excluded with meta as database d1')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_excluded"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        index = 0
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer.close()
+
     def run(self):
+        self.consumeTest()
+
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
 
@@ -324,6 +375,7 @@ class TDTestCase:
         self.checkSnapshotMultiVgroups()
 
         self.checkWalMultiVgroupsWithDropTable()
+
         self.checkSnapshotMultiVgroupsWithDropTable()
 
     def stop(self):

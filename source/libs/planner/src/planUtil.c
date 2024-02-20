@@ -237,6 +237,15 @@ static int32_t adjustEventDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustCountDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -247,6 +256,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustStateDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_EVENT:
       return adjustEventDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_COUNT:
+      return adjustCountDataRequirement(pWindow, requirement);
     default:
       break;
   }

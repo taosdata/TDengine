@@ -138,7 +138,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     }
 
     if (output->info.type == STREAM_RETRIEVE) {
-      if (streamBroadcastToChildren(pTask, output) < 0) {
+      if (streamBroadcastToUpTasks(pTask, output) < 0) {
         // TODO
       }
       continue;
@@ -328,7 +328,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
         id, (int32_t) pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
     // 2. save to disk
     streamMetaWLock(pMeta);
@@ -388,10 +388,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
             pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
             pTimeWindow->ekey, p, pStreamTask->status.schedStatus);
 
-    pTimeWindow->skey = INT64_MIN;
-    qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
-    stDebug("s-task:%s after exceed the threshold:%" PRId64 " and then update the window filter",
-            pStreamTask->id.idStr, pStreamTask->dataRange.range.maxVer);
+    streamTaskResetTimewindowFilter(pStreamTask);
   } else {
     stDebug("s-task:%s no need to update/reset filter time window for non-source tasks", pStreamTask->id.idStr);
   }
@@ -420,10 +417,6 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   ASSERT(pTask->status.appendTranstateBlock == 1);
 
   int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SOURCE) {
-    streamTaskFillHistoryFinished(pTask);
-  }
-
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
   } else { // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.

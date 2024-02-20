@@ -197,6 +197,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 
+void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
+
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
@@ -213,7 +215,6 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
-int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
 void    resetTaskInfo(qTaskInfo_t tinfo);

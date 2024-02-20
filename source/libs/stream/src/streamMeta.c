@@ -590,11 +590,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  if (pTask->info.fillHistory == 1) {
-    stDebug("s-task:0x%x initial nextProcessVer is set to 1 for fill-history task", pTask->id.taskId);
-    ver = 1;
-  }
-
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
     tFreeStreamTask(pTask);
     return -1;
@@ -730,9 +725,6 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     // it is an fill-history task, remove the related stream task's id that points to it
     atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
-    if (pTask->info.fillHistory == 1) {
-      streamTaskClearHTaskAttr(pTask, false);
-    }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);

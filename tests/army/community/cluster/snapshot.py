@@ -29,7 +29,12 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "countAlwaysReturnValue" : "0"
+        "countAlwaysReturnValue" : "0",
+        "lossyColumns"           : "float,double",
+        "fPrecision"             : "0.000000001",
+        "dPrecision"             : "0.00000000000000001",
+        "ifAdtFse"               : "1",
+        'slowLogScope'           : "insert"
     }
 
     def insertData(self):
@@ -47,6 +52,18 @@ class TDTestCase(TBase):
         # create count check table
         sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
         tdSql.execute(sql)
+
+    def checkFloatDouble(self):
+        sql = f"select * from {self.db}.{self.stb} where fc!=100"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = f"select * from {self.db}.{self.stb} where dc!=200"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = f"select avg(fc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 100)
+        sql = f"select avg(dc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 200)
 
     def doAction(self):
         tdLog.info(f"do action.")
@@ -85,6 +102,9 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
+        # check float double value ok
+        self.checkFloatDouble()
+
         # save
         self.snapshotAgg()
 
@@ -96,6 +116,10 @@ class TDTestCase(TBase):
 
         # check insert correct again
         self.checkInsertCorrect()
+
+        # check float double value ok
+        self.checkFloatDouble()
+
 
         tdLog.success(f"{__file__} successfully executed")
 
