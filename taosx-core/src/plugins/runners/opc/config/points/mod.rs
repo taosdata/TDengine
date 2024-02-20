@@ -45,9 +45,10 @@ impl PointsConfig {
                 points_config.ua = Some(PointUaConfig { root, namespaces });
             }
             OpcType::OPCDA => {
-                let access_path = dsn.params.get("root").map(|v| {
-                    v.split(".").map(|v| v.to_string()).collect::<Vec<String>>()
-                });
+                let access_path = dsn
+                    .params
+                    .get("root")
+                    .map(|v| v.split(".").map(|v| v.to_string()).collect::<Vec<String>>());
                 points_config.da = Some(PointDaConfig { access_path });
             }
             OpcType::FAKE => {
