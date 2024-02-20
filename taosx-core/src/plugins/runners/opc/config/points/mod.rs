@@ -10,7 +10,7 @@ pub struct PointUaConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PointDaConfig {
-    access_path: Option<String>,
+    access_path: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,7 +45,9 @@ impl PointsConfig {
                 points_config.ua = Some(PointUaConfig { root, namespaces });
             }
             OpcType::OPCDA => {
-                let access_path = dsn.params.get("root").map(|v| v.to_string());
+                let access_path = dsn.params.get("root").map(|v| {
+                    v.split(".").map(|v| v.to_string()).collect::<Vec<String>>()
+                });
                 points_config.da = Some(PointDaConfig { access_path });
             }
             OpcType::FAKE => {
