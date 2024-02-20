@@ -1217,20 +1217,6 @@ static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
   return numOfStreams;
 }
 
-static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
-  SSdb            *pSdb = pMnode->pSdb;
-  SMqSubscribeObj *pSubscribe = NULL;
-  void            *pIter = NULL;
-  int16_t          numOfSubscriptions = 0;
-
-  while ((pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSubscribe))) {
-    ++numOfSubscriptions;
-    sdbRelease(pSdb, pSubscribe);
-  }
-
-  return numOfSubscriptions;
-}
-
 static int16_t grantGetClusterCurTopics(SMnode *pMnode) {
   SSdb        *pSdb = pMnode->pSdb;
   SMqTopicObj *pTopic = NULL;
@@ -1541,7 +1527,7 @@ static int32_t grantCheckSubscriptions(bool checkNum) {
   if (gStatus.expired || gStatus.subscriptionExpired) {
     code = TSDB_CODE_GRANT_EXPIRED;
   } else if (checkNum && gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED) {
-    if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode);
+    if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurTopics(grantHandle.pMnode);
     if (gStatus.curSubscriptions >= gStatus.limitSubscriptions) code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
 
