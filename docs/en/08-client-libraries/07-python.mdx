@@ -842,12 +842,12 @@ consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 
 In addition to native connections, the client library also supports subscriptions via websockets.
 
-The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/#create-a-consumer).
+The syntax for creating a consumer is "consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/#create-a-consumer).
 
 ```python
 import taosws
 
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
 </TabItem>
