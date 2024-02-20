@@ -888,6 +888,13 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->lastTs) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->normSourceTbUid) < 0) return -1;
+  if (tEncodeI32(&encoder, taosArrayGetSize(pReq->pVgroupVerList)) < 0) return -1;
+
+  for(int32_t i = 0; i < taosArrayGetSize(pReq->pVgroupVerList); ++i) {
+    SVgroupVer* p = taosArrayGet(pReq->pVgroupVerList, i);
+    if (tEncodeI32(&encoder, p->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, p->ver) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -939,6 +946,27 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->lastTs) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->normSourceTbUid) < 0) return -1;
+
+  int32_t numOfVgVer;
+  // TODO extract method decode vgVerList
+  if (tDecodeI32(&decoder, &numOfVgVer) < 0) return -1;
+  if (numOfVgVer > 0) {
+    pReq->pVgroupVerList = taosArrayInit(numOfVgVer, sizeof(SVgroupVer));
+    if (pReq->pVgroupVerList == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < numOfVgVer; ++i) {
+      SVgroupVer v = {0};
+      if (tDecodeI32(&decoder, &v.vgId) < 0) return -1;
+      if (tDecodeI64(&decoder, &v.ver) < 0) return -1;
+      if (taosArrayPush(pReq->pVgroupVerList, &v) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -949,6 +977,7 @@ void tFreeSMCreateSmaReq(SMCreateSmaReq *pReq) {
   taosMemoryFreeClear(pReq->tagsFilter);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
+  taosArrayDestroy(pReq->pVgroupVerList);
 }
 
 int32_t tSerializeSMDropSmaReq(void *buf, int32_t bufLen, SMDropSmaReq *pReq) {

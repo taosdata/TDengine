@@ -266,7 +266,7 @@ void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
   while (pIter) {
     SCtgTSMACache* pCtgCache = pIter;
     CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
-    int32_t size = pCtgCache ? pCtgCache->pTsmas->size : 0;
+    int32_t size = (pCtgCache && pCtgCache->pTsmas) ? pCtgCache->pTsmas->size : 0;
     for (int32_t i = 0; i < size; ++i) {
       STSMACache* pCache = taosArrayGetP(pCtgCache->pTsmas, i);
       if (TSDB_CODE_SUCCESS == ctgMetaRentRemove(&pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare)) {

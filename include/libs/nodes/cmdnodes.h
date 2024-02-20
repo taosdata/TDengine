@@ -595,8 +595,10 @@ typedef struct SCreateTSMAStmt {
   char            tsmaName[TSDB_INDEX_NAME_LEN];
   char            dbName[TSDB_DB_NAME_LEN];
   char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
+  char            originalTbName[TSDB_TABLE_NAME_LEN];
   STSMAOptions*   pOptions;
-  //SMCreateSmaReq* pReq;
+  SNode*          pPrevQuery;
+  SMCreateSmaReq* pReq;
 } SCreateTSMAStmt;
 
 typedef struct SShowCreateTSMAStmt {

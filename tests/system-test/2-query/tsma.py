@@ -299,6 +299,7 @@ class TSMATestSQLGenerator:
     ## order by, limit, having, subquery...
 
 class TDTestCase:
+    updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
@@ -462,12 +463,13 @@ class TDTestCase:
         ## why need 10s, filling history not finished yet
         #ctx = TSMAQCBuilder().with_sql('select avg(c1) from meters').should_query_with_table('meters', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         #self.tsma_tester.check_sql(ctx.sql, ctx)
-        time.sleep(5)
+        #time.sleep(5)
         #time.sleep(9999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         ## self.test_query_with_drop_tsma()
         ## self.test_query_with_add_tag()
+        ## self.test_union()
 
     def test_query_with_tsma_interval(self):
         self.check(self.test_query_with_tsma_interval_no_partition)

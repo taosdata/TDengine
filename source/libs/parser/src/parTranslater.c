@@ -9250,6 +9250,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       }
       nodesDestroyNode((SNode*)pSelect);
       memset(useTbName, 0, sizeof(SName));
+      memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
       tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
       numOfCols = pRecursiveTsma->pUsedCols->size; // TODO merge pUsedCols and pTags with one SSchema array
       numOfTags = pRecursiveTsma->pTags->size;
@@ -9285,17 +9286,12 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = buildTSMAAst(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName,
                         numOfTags, pTags);
   }
-  /*
-  if (TSDB_CODE_SUCCESS == code) {
-    STableMeta* pMetaCache = NULL;
-    code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && !pStmt->pOptions->recursiveTsma) { //TODO remvoe recursive tsma check
     if (TSDB_CODE_SUCCESS == code) {
-      pStmt->pOptions->tsPrecision = pMetaCache->tableInfo.precision;
-      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pMetaCache, &pStmt->pPrevQuery);
+      pStmt->pOptions->tsPrecision = pTableMeta->tableInfo.precision;
+      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pTableMeta, &pStmt->pPrevQuery);
     }
-    taosMemoryFreeClear(pMetaCache);
   }
-  */
 
   taosMemoryFreeClear(pTableMeta);
 
@@ -9305,19 +9301,78 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
 
-  SMCreateSmaReq smaReq = {0};
   SName useTbName = {0};
   if (code == TSDB_CODE_SUCCESS) {
-    code = buildCreateTSMAReq(pCxt, pStmt, &smaReq, &useTbName);
+    pStmt->pReq = taosMemoryCalloc(1, sizeof(SMCreateSmaReq));
+    if (!pStmt->pReq) return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = buildCreateTSMAReq(pCxt, pStmt, pStmt->pReq, &useTbName);
   }
   if ( TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(&useTbName, pCxt->pTargetTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    // TODO replace with tsma serialization func
-    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &smaReq);
+    if (!pStmt->pPrevQuery) {
+      code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
+    } else {
+      TSWAP(pCxt->pPrevRoot, pStmt->pPrevQuery);
+    }
   }
-  tFreeSMCreateSmaReq(&smaReq);
+  return code;
+}
+
+static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pInterval) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pInterval->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
+  pInterval->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
+  pInterval->offset = 0;
+  pInterval->sliding = pInterval->interval;
+  pInterval->slidingUnit = pInterval->intervalUnit;
+  pInterval->precision = pStmt->pOptions->tsPrecision;
+  return code;
+}
+
+int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock) {
+  SCreateTSMAStmt*  pStmt = (SCreateTSMAStmt*)pQuery->pRoot;
+  STranslateContext cxt = {0};
+  SInterval         interval = {0};
+  int64_t           lastTs = 0;
+
+  int32_t code = initTranslateContext(pParseCxt, NULL, &cxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildIntervalForCreateTSMA(pStmt, &interval);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createStreamReqVersionInfo(pBlock, &pStmt->pReq->pVgroupVerList, &lastTs, &interval);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (interval.interval > 0) {
+      pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit, interval.precision);
+    } else {
+      pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
+    }
+    code = buildCmdMsg(&cxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setQuery(&cxt, pQuery);
+  }
+
+  if ( TSDB_CODE_SUCCESS == code) {
+    SName name = {0};
+    toName(pParseCxt->acctId, pStmt->dbName, pStmt->originalTbName, &name);
+    code = collectUseTable(&name, cxt.pTargetTables);
+  }
+
+  setRefreshMeta(&cxt, pQuery);
+  destroyTranslateContext(&cxt);
+
+  tFreeSMCreateSmaReq(pStmt->pReq);
+  taosMemoryFreeClear(pStmt->pReq);
+
   return code;
 }
 
@@ -9327,6 +9382,12 @@ static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) 
   SName        name;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), dropReq.name);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  STableTSMAInfo* pTsma = NULL;
+  code = getTsma(pCxt, &name, &pTsma);
+  if (code == TSDB_CODE_SUCCESS) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pTsma->tb, &name);
+    code = collectUseTable(&name, pCxt->pTargetTables);
+  }
   if (TSDB_CODE_SUCCESS == code)
     code = buildCmdMsg(pCxt, TDMT_MND_DROP_TSMA, (FSerializeFunc)tSerializeSMDropSmaReq, &dropReq);
   return code;

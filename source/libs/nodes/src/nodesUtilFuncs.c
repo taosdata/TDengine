@@ -1204,6 +1204,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_TSMA_STMT: {
       SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
+      if (pStmt->pReq) {
+        tFreeSMCreateSmaReq(pStmt->pReq);
+        taosMemoryFreeClear(pStmt->pReq);
+      }
       break;
                                       }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
