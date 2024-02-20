@@ -14,8 +14,8 @@
  */
 
 #include "tq.h"
-#include "vnd.h"
 #include "tqCommon.h"
+#include "vnd.h"
 
 // 0: not init
 // 1: already inited
@@ -865,9 +865,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   return 0;
 }
 
-int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamTaskProcessCheckReq(pTq->pStreamMeta, pMsg);
-}
+int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) { return tqStreamTaskProcessCheckReq(pTq->pStreamMeta, pMsg); }
 
 int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessCheckRsp(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
@@ -991,7 +989,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       streamReExecScanHistoryFuture(pTask, retInfo.idleTime);
     } else {
       SStreamTaskState* p = streamTaskGetStatus(pTask);
-      ETaskStatus s = p->state;
+      ETaskStatus       s = p->state;
 
       if (s == TASK_STATUS__PAUSE) {
         tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs total:%.2fs, sched-status:%d", pTask->id.idStr,
@@ -1065,7 +1063,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
-    return tqStreamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
@@ -1104,7 +1102,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   pRsp->info.handle = NULL;
 
   SStreamCheckpointSourceReq req = {0};
-  SDecoder decoder;
+  SDecoder                   decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
   if (tDecodeStreamCheckpointSourceReq(&decoder, &req) < 0) {
     code = TSDB_CODE_MSG_DECODE_ERROR;
@@ -1195,8 +1193,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
-  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d",
-        pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
+  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d", pTask->id.idStr,
+        vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {
