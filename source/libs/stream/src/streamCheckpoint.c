@@ -68,18 +68,6 @@ int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckp
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamCheckpointSourceRsp(SDecoder* pDecoder, SStreamCheckpointSourceRsp* pRsp) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->checkpointId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->nodeId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->expireTime) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pRsp->success) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
 int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
