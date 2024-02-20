@@ -784,7 +784,7 @@ bool    streamTaskIsAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock);
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt, bool metaLock);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event);
@@ -870,7 +870,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg);
 int32_t streamAlignTransferState(SStreamTask* pTask);
-int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);
+int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t resetRelHalt);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,

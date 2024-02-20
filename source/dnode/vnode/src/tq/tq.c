@@ -841,23 +841,25 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   }
 
   char* p = streamTaskGetStatus(pTask)->name;
+  const char* pNext = streamTaskGetStatusStr(pTask->status.taskStatus);
 
   if (pTask->info.fillHistory) {
     tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
            " nextProcessVer:%" PRId64
-           " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64
-           " ms, inputVer:%" PRId64,
+           " child id:%d, level:%d, cur-status:%s, next-status:%s fill-history:%d, related stream task:0x%x "
+           "trigger:%" PRId64 " ms, inputVer:%" PRId64,
            vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-           pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
+           pTask->info.selfChildId, pTask->info.taskLevel, p, pNext, pTask->info.fillHistory,
            (int32_t)pTask->streamTaskId.taskId, pTask->info.triggerParam, nextProcessVer);
   } else {
-    tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
-           " nextProcessVer:%" PRId64
-           " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64
-           " ms, inputVer:%" PRId64,
-           vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-           pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-           (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam, nextProcessVer);
+    tqInfo(
+        "vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+        " nextProcessVer:%" PRId64
+        " child id:%d, level:%d, cur-status:%s next-status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64
+        " ms, inputVer:%" PRId64,
+        vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
+        pTask->info.selfChildId, pTask->info.taskLevel, p, pNext, pTask->info.fillHistory,
+        (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam, nextProcessVer);
   }
 
   return 0;
@@ -1016,8 +1018,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
               pTask->streamTaskId.taskId, pTask->id.idStr);
 
-      tqDebug("s-task:%s fill-history task set status to be dropping", id);
-      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
+      tqDebug("s-task:%s fill-history task set status to be dropping and drop it", id);
+      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
       atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
       streamMetaReleaseTask(pMeta, pTask);

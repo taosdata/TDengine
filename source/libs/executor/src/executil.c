@@ -2245,6 +2245,8 @@ char* getStreamOpName(uint16_t opType) {
       return "stream partitionby";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       return "stream event";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      return "stream count";
   }
   return "";
 }

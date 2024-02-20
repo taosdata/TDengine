@@ -1735,6 +1735,31 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
+      SCountWinodwPhysiNode *pCountNode = (SCountWinodwPhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_COUNT_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pCountNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pCountNode->window.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_COUNT_NUM_FORMAT, pCountNode->windowCount);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_COUNT_SLIDING_FORMAT, pCountNode->windowSliding);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+      }
+      break;
+    }
     default:
       qError("not supported physical node type %d", pNode->type);
       return TSDB_CODE_APP_ERROR;

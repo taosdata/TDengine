@@ -247,6 +247,7 @@ typedef enum ENodeType {
   QUERY_NODE_EVENT_WINDOW,
   QUERY_NODE_HINT,
   QUERY_NODE_VIEW,
+  QUERY_NODE_COUNT_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -432,7 +433,9 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE,
   QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL,
-  QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL,
 } ENodeType;
 
 typedef struct {
@@ -3182,17 +3185,10 @@ typedef struct {
 
 typedef struct {
   SMsgHead head;
-  int64_t  leftForVer;
+  int64_t  resetRelHalt;  // reset related stream task halt status
   int64_t  streamId;
   int32_t  taskId;
 } SVDropStreamTaskReq;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int32_t  taskId;
-  int64_t  dataVer;
-} SVStreamTaskVerUpdateReq;
 
 typedef struct {
   int8_t reserved;
