@@ -598,7 +598,7 @@ export default {
     selectAll: "Select All",
     checkFail: "Please check the field name or type",
     tableNameTip:
-      "Table names can only consist of letters, numbers and underscores, and cannot start with numbers, and are not case-sensitive.If you want to be case sensitive, add ', for example 'testTable', before and after the name.",
+      "Table name can only consist of letters, numbers and underscores, but cannot start with numbers. It is case-insensitive, if you need a case-sensitive name, add ` before and after the name, such as `testTable`.",
     runSqlTip: "Run the first or selected SQL statement",
     performanceRelatedParameters: "Performance Related Parameters",
     dataPersistenceParameters: "Data Persistence Parameters",
