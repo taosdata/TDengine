@@ -244,6 +244,10 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock
       code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
       break;
     }
+    case QUERY_NODE_CREATE_TSMA_STMT: {
+      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
+      break;
+    }
     default:
       break;
   }

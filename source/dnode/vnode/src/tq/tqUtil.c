@@ -562,6 +562,9 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
         latest = pReader->pHead->head.ingestTs;
       }
     }
+    // TODO remove log
+    tqInfo("------ver: %" PRId64 " fhFinished: %d max: %" PRId64 " cur: %" PRId64 " latest: %" PRId64, ver, *fhFinished,
+            verRange.maxVer, cur, latest);
 
     if (pDelay != NULL) {  // delay in ms
       *pDelay = (latest - cur) / 1000;

@@ -2865,6 +2865,7 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
   SRealTableNode* pTable = (SRealTableNode*)pRealTable;
   memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
   memcpy(pStmt->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->originalTbName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
 
   return (SNode*)pStmt;
