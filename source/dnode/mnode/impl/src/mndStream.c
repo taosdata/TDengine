@@ -152,7 +152,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
     goto STREAM_DECODE_OVER;
   }
 
-  if (sver != MND_STREAM_VER_NUMBER) {
+  if (sver < 1 || sver > MND_STREAM_VER_NUMBER) {
     terrno = 0;
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto STREAM_DECODE_OVER;
