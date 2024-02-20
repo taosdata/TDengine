@@ -4,7 +4,7 @@ aux_source_directory(. MNODE_STREAM_TEST_SRC)
 add_executable(streamTest ${MNODE_STREAM_TEST_SRC})
 target_link_libraries(
         streamTest
-        PRIVATE dnode  gtest
+        PRIVATE dnode nodes planner gtest qcom
 )
 
 add_test(

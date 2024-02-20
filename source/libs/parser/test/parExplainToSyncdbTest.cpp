@@ -52,6 +52,7 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
     ASSERT_EQ(req.alterType, expect.alterType);
     ASSERT_EQ(string(req.user), string(expect.user));
     ASSERT_EQ(string(req.objname), string(expect.objname));
+    tFreeSAlterUserReq(&req);
   });
 
   setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");
@@ -183,6 +184,7 @@ TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
     ASSERT_EQ(req.dnodeId1, expect.dnodeId1);
     ASSERT_EQ(req.dnodeId2, expect.dnodeId2);
     ASSERT_EQ(req.dnodeId3, expect.dnodeId3);
+    tFreeSRedistributeVgroupReq(&req);
   });
 
   setRedistributeVgroupReqFunc(3, 1);
@@ -228,6 +230,7 @@ TEST_F(ParserExplainToSyncdbTest, restoreDnode) {
     ASSERT_EQ(tDeserializeSRestoreDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
     ASSERT_EQ(req.restoreType, expect.restoreType);
+    tFreeSRestoreDnodeReq(&req);
   });
 
   setRestoreDnodeReq(1, RESTORE_TYPE__ALL);
@@ -272,6 +275,7 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
     ASSERT_EQ(req.alterType, expect.alterType);
     ASSERT_EQ(string(req.user), string(expect.user));
     ASSERT_EQ(string(req.objname), string(expect.objname));
+    tFreeSAlterUserReq(&req);
   });
 
   setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");

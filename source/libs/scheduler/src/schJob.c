@@ -66,7 +66,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     return true;
   }
 
-  if ((*pJob->chkKillFp)(pJob->chkKillParam)) {
+  if (pJob->chkKillFp && (*pJob->chkKillFp)(pJob->chkKillParam)) {
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
     return true;
   }

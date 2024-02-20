@@ -238,6 +238,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  if (submitTbData.flags & SUBMIT_REQ_FROM_FILE) {
+    code = grantCheck(TSDB_GRANT_CSV);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   int64_t uid;
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);

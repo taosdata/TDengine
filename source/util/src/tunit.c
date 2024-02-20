@@ -64,6 +64,7 @@ int64_t taosStrHumanToInt64(const char* str) {
   return val;
 }
 
+#ifdef BUILD_NO_CALL
 void taosInt64ToHumanStr(int64_t val, char* outStr) {
   if (((val >= UNIT_ONE_EXBIBYTE) || (-val >= UNIT_ONE_EXBIBYTE)) && ((val % UNIT_ONE_EXBIBYTE) == 0)) {
     sprintf(outStr, "%qdE", (long long)val / UNIT_ONE_EXBIBYTE);
@@ -80,6 +81,7 @@ void taosInt64ToHumanStr(int64_t val, char* outStr) {
   } else
     sprintf(outStr, "%qd", (long long)val);
 }
+#endif
 
 int32_t taosStrHumanToInt32(const char* str) {
   size_t sLen = strlen(str);
@@ -112,6 +114,7 @@ int32_t taosStrHumanToInt32(const char* str) {
   return val;
 }
 
+#ifdef BUILD_NO_CALL
 void taosInt32ToHumanStr(int32_t val, char* outStr) {
   if (((val >= UNIT_ONE_GIBIBYTE) || (-val >= UNIT_ONE_GIBIBYTE)) && ((val % UNIT_ONE_GIBIBYTE) == 0)) {
     sprintf(outStr, "%qdG", (long long)val / UNIT_ONE_GIBIBYTE);
@@ -122,3 +125,4 @@ void taosInt32ToHumanStr(int32_t val, char* outStr) {
   } else
     sprintf(outStr, "%qd", (long long)val);
 }
+#endif

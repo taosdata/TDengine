@@ -3165,6 +3165,19 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAudit(STranslateContext* pCxt, SRealTableNode* pRealTable, SName* pName) {
+  if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) {
+    if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_STB_NAME(pName->tname)) {
+      pCxt->pParseCxt->isAudit = true;
+    }
+  } else if (pRealTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+    if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_CTB_NAME(pName->tname)) {
+      pCxt->pParseCxt->isAudit = true;
+    }
+  }
+  return 0;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(*pTable)) {
@@ -3184,7 +3197,8 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
         if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
           return translateView(pCxt, pTable, &name);
         }
-#endif        
+        translateAudit(pCxt, pRealTable, &name);
+#endif
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
@@ -4432,7 +4446,7 @@ static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SEqCondTbName
     SName snameTb;
     char* tbName = taosArrayGetP(pInfo->aTbnames, j);
     toName(pCxt->pParseCxt->acctId, dbName, tbName, &snameTb);
-    SVgroupInfo vgInfo;
+    SVgroupInfo vgInfo = {0};
     bool        bExists;
     int32_t     code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &snameTb, &vgInfo, &bExists);
     if (code == TSDB_CODE_SUCCESS && bExists) {
@@ -8203,13 +8217,13 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  code = nodesListAppend(pNode1->pParameterList, (SNode*)pFunc1);
+  code = nodesListStrictAppend(pNode1->pParameterList, nodesCloneNode((SNode*)pFunc1));
   if (code) {
     nodesDestroyNode((SNode*)pNode1);
     return code;
   }
 
-  code = nodesListAppend((*pSelect1)->pGroupByList, nodesCloneNode((const SNode*)pNode1));
+  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
   if (code) {
     return code;
   }
@@ -8226,7 +8240,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  code = nodesListAppend(pNode2->pParameterList, nodesCloneNode((const SNode*)pFunc2));
+  code = nodesListStrictAppend(pNode2->pParameterList, nodesCloneNode((SNode*)pFunc2));
   if (code) {
     nodesDestroyNode((SNode*)pNode2);
     return code;
@@ -9385,7 +9399,20 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
 }
 
 static const char* getTbNameColName(ENodeType type) {
-  return (QUERY_NODE_SHOW_STABLES_STMT == type ? "stable_name" : "table_name");
+  const char* colName;
+  switch (type)
+  {
+  case QUERY_NODE_SHOW_VIEWS_STMT:
+    colName = "view_name";
+    break;
+  case QUERY_NODE_SHOW_STABLES_STMT:
+    colName = "stable_name";
+    break;
+  default:
+    colName = "table_name";
+    break;
+  }
+  return colName;
 }
 
 static int32_t createLogicCondNode(SNode* pCond1, SNode* pCond2, SNode** pCond, ELogicConditionType logicCondType) {
