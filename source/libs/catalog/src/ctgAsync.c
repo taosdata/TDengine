@@ -2855,7 +2855,8 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       pTsmaInfo->rspTs = taosGetTimestampMs();
       pTsmaInfo->delayDuration = TMAX(pRsp->progressDelay, pTsmaInfo->delayDuration);
       pTsmaInfo->fillHistoryFinished = pTsmaInfo->fillHistoryFinished && pRsp->fillHisFinished;
-      qDebug("received stream progress for tsma %s rsp history: %d vnode: %d", pTsmaInfo->name, pRsp->fillHisFinished, pRsp->subFetchIdx);
+      qDebug("received stream progress for tsma %s rsp history: %d vnode: %d, delay: %" PRId64, pTsmaInfo->name,
+             pRsp->fillHisFinished, pRsp->subFetchIdx, pRsp->progressDelay);
 
       if (atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) == pFetch->subFetchNum) {
         // subfetch all finished

@@ -3527,6 +3527,7 @@ typedef struct {
   int64_t deleteMark;
   int64_t lastTs;
   int64_t normSourceTbUid; // the Uid of source tb if its a normal table, otherwise 0
+  SArray* pVgroupVerList;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);

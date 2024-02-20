@@ -1884,6 +1884,7 @@ int32_t ctgGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaNa
   ASSERT(tsmaRsp.pTsmas && tsmaRsp.pTsmas->size == 1);
   *pTsma = taosArrayGetP(tsmaRsp.pTsmas, 0);
   taosArrayDestroy(tsmaRsp.pTsmas);
+  tsmaRsp.pTsmas = NULL;
 
 _return:
   if (tsmaRsp.pTsmas) {
