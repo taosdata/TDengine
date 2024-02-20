@@ -2675,7 +2675,10 @@ pub async fn listen_tcp_socket_with_agent(
 
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
-    let socket = tokio::net::TcpListener::bind(addr).await?;
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    let addr: SocketAddr = addr.parse()?;
+    socket.bind(addr)?;
+    let socket = socket.listen(4096)?;
 
     // let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     // let closed = Arc::new(AtomicBool::new(false));
@@ -2838,8 +2841,7 @@ pub async fn listen_tcp_socket(
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
     socket.bind(addr)?;
-    let socket = socket.listen(128)?;
-    socket.set_ttl(100)?;
+    let socket = socket.listen(4096)?;
 
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
