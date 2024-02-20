@@ -864,7 +864,7 @@ taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。创�
 ```python
 import taosws
 
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
 </TabItem>
