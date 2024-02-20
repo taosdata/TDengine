@@ -866,9 +866,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema
+  // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
   // | each column length |
-  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
@@ -1436,6 +1436,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.capacity = 0;
   pBlock->info.rowSize = 0;
   pBlock->info.id = pDataBlock->info.id;
+  pBlock->info.blankFill = pDataBlock->info.blankFill;
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -2282,6 +2283,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     //    htonl(colSizes[col]), colSizes[col]);
   }
 
+  bool* blankFill = (bool*)data;
+  *blankFill = pBlock->info.blankFill;
+  data += sizeof(bool);
+
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
   ASSERT(dataLen > 0);
@@ -2375,8 +2380,12 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     pStart += colLen[i];
   }
 
+  bool blankFill = *(bool*)pStart;
+  pStart += sizeof(bool);
+
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
+  pBlock->info.blankFill = blankFill;
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }

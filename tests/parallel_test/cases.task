@@ -160,6 +160,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
