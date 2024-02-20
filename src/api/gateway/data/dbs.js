@@ -137,6 +137,9 @@ export function handleDataKey(data, type, parent = "") {
     if ((type == "database" && item.name == "log") || parent.startsWith("log.") || parent == "log") {
       item.noOperate = true;
     }
+    if ((type == "database" && item.name == "audit") || parent.startsWith("audit.") || parent == "audit") {
+      item.noOperate = true;
+    }
     item["node-key"] = item.name + type + parent;
 
     return item;
