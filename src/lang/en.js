@@ -598,7 +598,7 @@ export default {
     selectAll: "Select All",
     checkFail: "Please check the field name or type",
     tableNameTip:
-      "Table names can only consist of letters, numbers and underscores, and cannot start with numbers, and are not case-sensitive",
+      "Table names can only consist of letters, numbers and underscores, and cannot start with numbers, and are not case-sensitive.If you want to be case sensitive, add ', for example 'testTable', before and after the name.",
     runSqlTip: "Run the first or selected SQL statement",
     performanceRelatedParameters: "Performance Related Parameters",
     dataPersistenceParameters: "Data Persistence Parameters",
@@ -606,6 +606,7 @@ export default {
     specialParameters: "Special Parameters",
     modifyColumn: "Modify column width",
     renameColumn: "Change column name",
+    backslashTip: 'If you want to create a database with a case-sensitive name, please add ` before and after the name. For example, `testDB`.',
   },
   dataIn: {
     orgIdTip: 'Please enter hexadecimal characters',

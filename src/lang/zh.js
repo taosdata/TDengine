@@ -589,7 +589,7 @@ export default {
     selectAll: "全选",
     checkFail: "请检查字段名或类型",
     tableNameTip:
-      "表名只能由字母、数字和下划线组成，且不能以数字开头，不区分大小写",
+      "表名只能由字母、数字和下划线组成，且不能以数字开头。默认不区分大小写，如果要创建区分大小写的名称，请在名称前后添加 `，例如`testTable`。",
     runSqlTip: "运行第一条或选中的 SQL 语句",
     performanceRelatedParameters: "性能调优相关参数",
     dataPersistenceParameters: "数据持久化存储参数",
@@ -597,6 +597,7 @@ export default {
     specialParameters: "特殊参数",
     modifyColumn: "修改列宽",
     renameColumn: "修改列名",
+    backslashTip: '如果要创建区分大小写的数据库名称，请在名称前后添加 `。例如，`testDB`。',
   },
   connecter: {
     filterToken: "过滤令牌",
