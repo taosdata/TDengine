@@ -464,6 +464,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
   SRpcConnInfo  connInfo = pMsg->info.conn;
 
+  if (0 != pHbReq->clusterId && pHbReq->clusterId != pMnode->clusterId) {
+    hbRsp.status = TSDB_CODE_MND_INVALID_CLUSTER_ID;
+    taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (0 != pHbReq->app.appId) {
     mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
   }

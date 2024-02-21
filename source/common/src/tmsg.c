@@ -290,6 +290,8 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
     pIter = taosHashIterate(pReq->info, pIter);
   }
 
+  if (tEncodeI64(pEncoder, pReq->clusterId) < 0) return -1;
+
   return 0;
 }
 
@@ -368,6 +370,10 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     SKv kv = {0};
     if (tDecodeSKv(pDecoder, &kv) < 0) return -1;
     taosHashPut(pReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (tDecodeI64(pDecoder, &pReq->clusterId) < 0) return -1;
   }
 
   return 0;
