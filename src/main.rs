@@ -77,6 +77,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
+mod replica;
 mod run;
 mod serve;
 
@@ -84,6 +85,8 @@ mod serve;
 enum Commands {
     Run(run::Cli),
     Serve(serve::Cli),
+    #[clap(hide = true)]
+    Replica(replica::Cli),
 }
 
 #[derive(Parser, Debug)]
@@ -594,6 +597,9 @@ fn main() -> Result<()> {
             let _ = span.enter();
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
+        Commands::Replica(replica) => {
+            runtime.block_on(replica.run())?;
+        }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
             let addr = serve.get_listen_address();
@@ -625,7 +631,6 @@ fn main() -> Result<()> {
     runtime.block_on(async move {
         opentelemetry::global::shutdown_tracer_provider();
     });
-    println!("wait for runtime shutdown");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     Ok(())
 }
