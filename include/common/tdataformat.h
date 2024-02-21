@@ -192,15 +192,10 @@ struct SValue {
 };
 
 #define TD_MAX_PRIMARY_KEY_COL 8
-typedef struct {
-  int8_t type;
-  SValue value;
-} STypeValue;
-
 struct SRowKey {
-  TSKEY      ts;
-  uint8_t    numOfKeys;
-  STypeValue keys[TD_MAX_PRIMARY_KEY_COL];
+  TSKEY   ts;
+  uint8_t numOfKeys;
+  SValue  keys[TD_MAX_PRIMARY_KEY_COL];
 };
 
 struct SColVal {

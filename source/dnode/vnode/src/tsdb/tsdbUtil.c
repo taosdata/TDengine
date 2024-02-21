@@ -614,8 +614,8 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
       if (pColData->cflag & COL_IS_KEY) {
         SColVal cv;
         tColDataGetValue(pColData, row->iRow, &cv);
-        key->key.keys[key->key.numOfKeys].type = pColData->type;
-        key->key.keys[key->key.numOfKeys].value = cv.value;
+        ASSERT(COL_VAL_IS_VALUE(&cv));
+        key->key.keys[key->key.numOfKeys] = cv.value;
         key->key.numOfKeys++;
       } else {
         break;

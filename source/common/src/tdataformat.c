@@ -1175,9 +1175,9 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
       }
 
       for (uint8_t iKey = 0; iKey < key->numOfKeys; iKey++) {
-        int32_t     index;
-        uint8_t    *pData;
-        STypeValue *pValue = &key->keys[iKey];
+        int32_t  index;
+        uint8_t *pData;
+        SValue  *pValue = &key->keys[iKey];
 
         pEnd -= tGetI8(pEnd, &pValue->type, false);
         pEnd -= tGetI32v(pEnd, &index, false);
@@ -1192,10 +1192,10 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
 
         pData += tGetI16v(pData, NULL, true);
         if (IS_VAR_DATA_TYPE(pValue->type)) {
-          pData += tGetU32v(pData, &pValue->value.nData, true);
-          pValue->value.pData = pData;
+          pData += tGetU32v(pData, &pValue->nData, true);
+          pValue->pData = pData;
         } else {
-          memcpy(&pValue->value.val, pData, TYPE_BYTES[pValue->type]);
+          memcpy(&pValue->val, pData, TYPE_BYTES[pValue->type]);
         }
       }
     } else {  // Tuple format
@@ -1222,17 +1222,17 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
       }
 
       for (uint8_t iKey = 0; iKey < key->numOfKeys; iKey++) {
-        int32_t     offset;
-        STypeValue *pValue = &key->keys[iKey];
+        int32_t offset;
+        SValue *pValue = &key->keys[iKey];
 
         pEnd -= tGetI8(pEnd, &pValue->type, false);
         pEnd -= tGetI32v(pEnd, &offset, false);
 
         if (IS_VAR_DATA_TYPE(key->keys[iKey].type)) {
-          pValue->value.pData = pv + *(int32_t *)(pf + offset);
-          pValue->value.pData += tGetU32v(pValue->value.pData, &pValue->value.nData, true);
+          pValue->pData = pv + *(int32_t *)(pf + offset);
+          pValue->pData += tGetU32v(pValue->pData, &pValue->nData, true);
         } else {
-          memcpy(&key->keys[iKey].value.val, pf + offset, TYPE_BYTES[key->keys[iKey].type]);
+          memcpy(&key->keys[iKey].val, pf + offset, TYPE_BYTES[key->keys[iKey].type]);
         }
       }
     }
@@ -1250,45 +1250,44 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
     }                                           \
   } while (0)
 
-static int32_t tTypeValueCmpr(const STypeValue *tv1, const STypeValue *tv2) {
+static int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
   ASSERT(tv1->type == tv2->type);
 
   switch (tv1->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
-      T_COMPARE_SCALAR_VALUE(int8_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(int8_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_SMALLINT:
-      T_COMPARE_SCALAR_VALUE(int16_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(int16_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_INT:
-      T_COMPARE_SCALAR_VALUE(int32_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(int32_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      T_COMPARE_SCALAR_VALUE(int64_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(int64_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_FLOAT:
-      T_COMPARE_SCALAR_VALUE(float, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(float, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_DOUBLE:
-      T_COMPARE_SCALAR_VALUE(double, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(double, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_UTINYINT:
-      T_COMPARE_SCALAR_VALUE(uint8_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(uint8_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_USMALLINT:
-      T_COMPARE_SCALAR_VALUE(uint16_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(uint16_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_UINT:
-      T_COMPARE_SCALAR_VALUE(uint32_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(uint32_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_UBIGINT:
-      T_COMPARE_SCALAR_VALUE(uint64_t, &tv1->value.val, &tv2->value.val);
+      T_COMPARE_SCALAR_VALUE(uint64_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_BINARY: {
-      return strcmp((const char *)tv1->value.pData, (const char *)tv2->value.pData);
+      return strcmp((const char *)tv1->pData, (const char *)tv2->pData);
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->value.pData, (TdUcs4 *)tv2->value.pData,
-                                    tv1->value.nData < tv2->value.nData ? tv1->value.nData : tv2->value.nData);
-      return ret ? ret : (tv1->value.nData < tv2->value.nData ? -1 : (tv1->value.nData > tv2->value.nData ? 1 : 0));
+      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
+                                    tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
+      return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_VARBINARY: {
-      int32_t ret = memcmp(tv1->value.pData, tv2->value.pData,
-                           tv1->value.nData < tv2->value.nData ? tv1->value.nData : tv2->value.nData);
-      return ret ? ret : (tv1->value.nData < tv2->value.nData ? -1 : (tv1->value.nData > tv2->value.nData ? 1 : 0));
+      int32_t ret = memcmp(tv1->pData, tv2->pData, tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
+      return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_DECIMAL:
       ASSERT(0);
@@ -1311,7 +1310,7 @@ int32_t tRowKeyCmpr(const void *p1, const void *p2) {
   }
 
   for (uint8_t iKey = 0; iKey < key1->numOfKeys; iKey++) {
-    int32_t ret = tTypeValueCmpr(&key1->keys[iKey], &key2->keys[iKey]);
+    int32_t ret = tValueCompare(&key1->keys[iKey], &key2->keys[iKey]);
     if (ret) return ret;
   }
 
