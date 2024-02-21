@@ -29,7 +29,7 @@
 
 #define MND_STREAM_MAX_NUM 60
 
-typedef struct SMStreamNodeCheckMsg {
+typedef struct {
   int8_t placeHolder;  // // to fix windows compile error, define place holder
 } SMStreamNodeCheckMsg;
 
