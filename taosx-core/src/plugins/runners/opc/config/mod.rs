@@ -16,6 +16,7 @@ use taosx_ipc::prelude::IpcDataType;
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
+use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{
     ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
 };
@@ -231,16 +232,20 @@ impl OPCConfig {
             .unwrap_or(false)
     }
 
-    pub async fn parse_tables_with(&self) -> anyhow::Result<OpcModelConfig> {
+    pub async fn with_table_config_map(
+        &self,
+        table_config_map: HashMap<String, TableConfig>,
+    ) -> anyhow::Result<OpcModelConfig> {
         let id_code_map = self
             .param_mapping
             .iter()
             .map(|(id, code)| (id.clone(), code.clone()))
             .collect();
+
         let c = OpcModelConfig {
             point_config_map: id_code_map,
             table_config: self.opc_table_config.clone().unwrap(),
-            table_config_map: HashMap::new(),
+            table_config_map,
         };
         Ok(c)
     }

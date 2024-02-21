@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
@@ -14,6 +15,7 @@ use tracing::{instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
+use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::OPCConfig;
@@ -104,7 +106,7 @@ pub async fn opc_to_taos(
         handle_select_all_points(&mut from).await?;
     }
 
-    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
+    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
     }
@@ -132,7 +134,13 @@ pub async fn opc_to_taos(
         None => {}
     }
 
-    let table_config = Some(config.parse_tables_with().await?);
+    let parser = CsvParser::from_dsn(&from).await;
+    let table_config_map = match parser {
+        Ok(parser) => parser.get_model_config().table_config_map,
+        Err(_) => HashMap::new(),
+    };
+
+    let model_config = Some(config.with_table_config_map(table_config_map).await?);
     let connector = match config.opc_type {
         OpcType::FAKE => None,
         OpcType::OPCDA => Some("opc_da"),
@@ -144,7 +152,7 @@ pub async fn opc_to_taos(
         None,
         &to,
         connector,
-        table_config,
+        model_config,
         &cancel,
         with_agent,
         transferred,
