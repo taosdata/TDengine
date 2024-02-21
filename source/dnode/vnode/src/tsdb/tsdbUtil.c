@@ -676,8 +676,9 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
     if (pIter->iColData == 0) {
-      pIter->cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP,
-                                (SValue){.val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]});
+      pIter->cv = COL_VAL_VALUE(
+          PRIMARYKEY_TIMESTAMP_COL_ID,
+          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
       ++pIter->iColData;
       return &pIter->cv;
     }
@@ -714,7 +715,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
     ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       return code;
@@ -734,7 +735,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
-      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
+      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
         uint8_t *pVal = pColVal->value.pData;
 
         pColVal->value.pData = NULL;
@@ -778,7 +779,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
       if (key.version > pMerger->version) {
         if (!COL_VAL_IS_NONE(pColVal)) {
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
             if (!COL_VAL_IS_NULL(pColVal)) {
               code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
@@ -800,7 +801,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       } else if (key.version < pMerger->version) {
         SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
         if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
+          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
 
@@ -836,7 +837,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
 void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -848,7 +849,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
       tFree(pTColVal->value.pData);
     }
   }

@@ -653,7 +653,7 @@ static void setBlockAllDumped(SFileBlockDumpInfo* pDumpInfo, int64_t maxKey, int
 
 static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_t colIndex, SColVal* pColVal,
                             SBlockLoadSuppInfo* pSup) {
-  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     if (!COL_VAL_IS_VALUE(pColVal)) {
       colDataSetNULL(pColInfoData, rowIndex);
     } else {

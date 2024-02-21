@@ -2016,13 +2016,13 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             if (!isStartKey) {
               isStartKey = true;
               ASSERT(PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId);
-              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(TSKEY*)var});
+              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(TSKEY*)var}));
               taosArrayPush(pVals, &cv);
             } else if (colDataIsNull_s(pColInfoData, j)) {
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
-              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, (SValue){.val = *(int64_t*)var});
+              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(int64_t*)var}));
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2034,9 +2034,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
               taosArrayPush(pVals, &cv);
             } else {
-              void*   data = colDataGetVarData(pColInfoData, j);
-              SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
-              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+              void*  data = colDataGetVarData(pColInfoData, j);
+              SValue sv = (SValue){
+                  .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
               taosArrayPush(pVals, &cv);
             }
             break;
@@ -2054,7 +2055,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                 SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
                 taosArrayPush(pVals, &cv);
               } else {
-                SValue sv;
+                SValue sv = {.type = pColInfoData->info.type};
                 if (pCol->type == pColInfoData->info.type) {
                   memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
                 } else {
@@ -2082,7 +2083,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   }
                   memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
                 }
-                SColVal cv = COL_VAL_VALUE(pCol->colId, pColInfoData->info.type, sv);
+                SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
                 taosArrayPush(pVals, &cv);
               }
             } else {

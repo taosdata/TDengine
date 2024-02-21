@@ -39,7 +39,7 @@ static void saveOneRowForLastRaw(SLastCol* pColVal, SCacheRowsReader* pReader, c
   SColVal*  pVal = &pColVal->colVal;
 
   // allNullRow = false;
-  if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
     if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
       colDataSetNULL(pColInfoData, numOfRows);
     } else {
@@ -98,7 +98,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
       // allNullRow = p->isNull & allNullRow;
       if (!p->isNull) {
-        if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
           varDataSetLen(p->buf, pColVal->colVal.value.nData);
 
           memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
@@ -315,7 +315,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 
 static void freeItem(void* pItem) {
   SLastCol* pCol = (SLastCol*)pItem;
-  if (IS_VAR_DATA_TYPE(pCol->colVal.type) && pCol->colVal.value.pData) {
+  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
 }
@@ -390,12 +390,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = 0; i < pr->numOfCols; ++i) {
       int32_t          slotId = slotIds[i];
       if (slotId == -1) {
-        SLastCol p = {.ts = INT64_MIN, .colVal.type = TSDB_DATA_TYPE_BOOL, .colVal.flag = CV_FLAG_NULL};
+        SLastCol p = {.ts = INT64_MIN, .colVal.value.type = TSDB_DATA_TYPE_BOOL, .colVal.flag = CV_FLAG_NULL};
         taosArrayPush(pLastCols, &p);
         continue;
       }
       struct STColumn* pCol = &pr->pSchema->columns[slotId];
-      SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
+      SLastCol         p = {.ts = INT64_MIN, .colVal.value.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
 
       if (IS_VAR_DATA_TYPE(pCol->type)) {
         p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
@@ -447,7 +447,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               singleTableLastTs = pColVal->ts;
             }
 
-            if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+            if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
               p->colVal = pColVal->colVal;
             } else {
               if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
@@ -455,7 +455,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               }
 
               p->colVal.value.nData = pColVal->colVal.value.nData;
-              p->colVal.type = pColVal->colVal.type;
+              p->colVal.value.type = pColVal->colVal.value.type;
               p->colVal.flag = pColVal->colVal.flag;
               p->colVal.cid = pColVal->colVal.cid;
             }

@@ -70,7 +70,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
 
   ASSERT(TARRAY_SIZE(aColVal) > 0);
   ASSERT(((SColVal *)aColVal->pData)[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(((SColVal *)aColVal->pData)[0].type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(((SColVal *)aColVal->pData)[0].value.type == TSDB_DATA_TYPE_TIMESTAMP);
 
   // scan ---------------
   SRow           *pRow = NULL;
@@ -399,7 +399,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
 
   if (iCol == 0) {
     pColVal->cid = pTColumn->colId;
-    pColVal->type = pTColumn->type;
+    pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
     memcpy(&pColVal->value.val, &pRow->ts, sizeof(TSKEY));
     return 0;
@@ -447,7 +447,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
         } else {
           pColVal->cid = pTColumn->colId;
-          pColVal->type = pTColumn->type;
+          pColVal->value.type = pTColumn->type;
           pColVal->flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
@@ -473,7 +473,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
   } else {  // Tuple Row
     if ((pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) == HAS_VALUE) {
       pColVal->cid = pTColumn->colId;
-      pColVal->type = pTColumn->type;
+      pColVal->value.type = pTColumn->type;
       pColVal->flag = CV_FLAG_VALUE;
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         uint8_t *pData = pRow->data + pTSchema->flen + *(int32_t *)(pRow->data + pTColumn->offset);
@@ -526,7 +526,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       }
 
       pColVal->cid = pTColumn->colId;
-      pColVal->type = pTColumn->type;
+      pColVal->value.type = pTColumn->type;
       pColVal->flag = CV_FLAG_VALUE;
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
@@ -763,7 +763,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   // timestamp
   if (0 == pIter->iTColumn) {
     pIter->cv.cid = pTColumn->colId;
-    pIter->cv.type = pTColumn->type;
+    pIter->cv.value.type = pTColumn->type;
     pIter->cv.flag = CV_FLAG_VALUE;
     memcpy(&pIter->cv.value.val, &pIter->pRow->ts, sizeof(TSKEY));
     goto _exit;
@@ -800,7 +800,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
           pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
         } else {
           pIter->cv.cid = pTColumn->colId;
-          pIter->cv.type = pTColumn->type;
+          pIter->cv.value.type = pTColumn->type;
           pIter->cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
@@ -859,7 +859,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
     }
 
     pIter->cv.cid = pTColumn->colId;
-    pIter->cv.type = pTColumn->type;
+    pIter->cv.value.type = pTColumn->type;
     pIter->cv.flag = CV_FLAG_VALUE;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
       uint8_t *pData = pIter->pv + *(int32_t *)(pIter->pf + pTColumn->offset);
@@ -2145,7 +2145,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     //       VALUE                  NONE                     NULL
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
+  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type);
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
       pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
       pColVal->value.nData);
@@ -2455,7 +2455,7 @@ static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     //    VALUE             NONE        NULL
 };
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
+  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type);
   ASSERT(pColData->nVal > 0);
 
   if (tColDataUpdateValueImpl[pColData->flag][pColVal->flag] == NULL) return 0;
@@ -2485,7 +2485,7 @@ static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
   }
 }
 static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
-  SValue value;
+  SValue value = {.type = pColData->type};
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     if (iVal + 1 < pColData->nVal) {
       value.nData = pColData->aOffset[iVal + 1] - pColData->aOffset[iVal];
@@ -2496,7 +2496,7 @@ static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SCo
   } else {
     memcpy(&value.val, pColData->pData + tDataTypes[pColData->type].bytes * iVal, tDataTypes[pColData->type].bytes);
   }
-  *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
+  *pColVal = COL_VAL_VALUE(pColData->cid, value);
 }
 static FORCE_INLINE void tColDataGetValue5(SColData *pColData, int32_t iVal,
                                            SColVal *pColVal) {  // HAS_VALUE|HAS_NONE

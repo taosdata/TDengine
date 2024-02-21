@@ -220,9 +220,10 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             taosArrayPush(pVals, &cv);
           } else {
-            void*   data = colDataGetVarData(pColInfoData, j);
-            SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            void*  data = colDataGetVarData(pColInfoData, j);
+            SValue sv = (SValue){
+                .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           }
           break;
@@ -243,7 +244,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
                 terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
                 goto _end;
               }
-              
+
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
               taosArrayPush(pVals, &cv);
             } else {
@@ -257,9 +258,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
                 }
               }
 
-              SValue sv;
+              SValue sv = {.type = pCol->type};
               memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
-              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
               taosArrayPush(pVals, &cv);
             }
           } else {
@@ -288,7 +289,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
   if (disorderTs) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-      (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
       goto _end;
     }
   }
@@ -393,7 +394,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
-  
+
   taosMemoryFree(pInserter->pManager);
   return TSDB_CODE_SUCCESS;
 }
@@ -475,6 +476,6 @@ _return:
   } else {
     taosMemoryFree(pManager);
   }
-  
-  return terrno;  
+
+  return terrno;
 }

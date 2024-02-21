@@ -84,9 +84,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define CV_FLAG_NONE  ((int8_t)0x1)
 #define CV_FLAG_NULL  ((int8_t)0x2)
 
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
-#define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
+#define COL_VAL_NONE(CID, TYPE) ((SColVal){.cid = (CID), .flag = CV_FLAG_NONE, .value = {.type = (TYPE)}})
+#define COL_VAL_NULL(CID, TYPE) ((SColVal){.cid = (CID), .flag = CV_FLAG_NULL, .value = {.type = (TYPE)}})
+#define COL_VAL_VALUE(CID, V)   ((SColVal){.cid = (CID), .flag = CV_FLAG_VALUE, .value = (V)})
 
 #define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
@@ -181,6 +181,7 @@ struct SRow {
 };
 
 struct SValue {
+  int8_t type;
   union {
     int64_t val;
     struct {
@@ -204,7 +205,6 @@ struct SRowKey {
 
 struct SColVal {
   int16_t cid;
-  int8_t  type;
   int8_t  flag;
   SValue  value;
 };

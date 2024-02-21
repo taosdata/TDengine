@@ -564,13 +564,14 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           void* colData = colDataGetData(pColData, j);
           if (IS_STR_DATA_TYPE(pCol->type)) {
             // address copy, no value
-            SValue  sv = (SValue){.nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            SValue sv =
+                (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           } else {
-            SValue sv;
+            SValue sv = {.type = pCol->type};
             memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           }
           dataIndex++;
