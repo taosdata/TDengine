@@ -142,7 +142,7 @@ async fn ipc_tcp_forward(
                         json!({
                             "data_trace_id": data_trace_id
                         })
-                            .to_string(),
+                        .to_string(),
                     )
                 })
             });
@@ -276,7 +276,7 @@ async fn ipc_tcp_read(
     let ipc_reader = tokio::task::spawn_blocking(move || {
         IpcReader::new(reader_stream).context("IPC reading error")
     })
-        .await??;
+    .await??;
     info!(client, "Prepare IPC ACK writer");
     // dbg!(ipc_reader.ack());
     let ack = ipc_reader.ack();
@@ -299,7 +299,7 @@ async fn ipc_tcp_read(
         notifier,
         stream_trace_id,
     )
-        .await?;
+    .await?;
     tracing::info!("IPC stream processed");
     Ok(())
     // tokio::select! {
@@ -1038,7 +1038,7 @@ mod handle_transform_tests {
                             1700000000000,
                             1700000000000,
                         ])
-                            .with_timezone_opt::<&str>(None),
+                        .with_timezone_opt::<&str>(None),
                     ),
                     Arc::new(
                         TimestampMillisecondArray::from(vec![
@@ -1046,13 +1046,13 @@ mod handle_transform_tests {
                             1700000000000,
                             1700000000000,
                         ])
-                            .with_timezone_opt::<&str>(None),
+                        .with_timezone_opt::<&str>(None),
                     ),
                     Arc::new(Int32Array::from(vec![1, 2, 3])),
                     Arc::new(Int64Array::from(vec![0, 1, 0])),
                 ],
             )
-                .unwrap(),
+            .unwrap(),
         );
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
@@ -1246,7 +1246,7 @@ async fn consume_point_record(
                                 .into_value()
                                 .to_sql_value()
                         )
-                            .as_str(),
+                        .as_str(),
                     );
                 } else if temp_name == "original_ts" || temp_name == "original_time" {
                     values.push_str(
@@ -1260,7 +1260,7 @@ async fn consume_point_record(
                                 .into_value()
                                 .to_sql_value()
                         )
-                            .as_str(),
+                        .as_str(),
                     );
                 } else if temp_name == "value" {
                     let value_column = value_cv
@@ -1286,7 +1286,7 @@ async fn consume_point_record(
                                 .into_value()
                                 .to_sql_value()
                         )
-                            .as_str(),
+                        .as_str(),
                     );
                 }
                 columns_in_insert.push_str(format!("`{temp_alias}`,").as_str());
@@ -1511,7 +1511,7 @@ async fn consume_point_record(
                                 let mut sql_prefix = "create table".to_string();
                                 let mut child_table_count = 0u32;
                                 for (child_table_name, child_table_create_sql) in
-                                &child_table_create_sql_map
+                                    &child_table_create_sql_map
                                 {
                                     let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
@@ -1526,7 +1526,7 @@ async fn consume_point_record(
                                 child_table_create_sqls.push(sql_prefix);
                                 child_table_counts_vec.push(child_table_count);
                                 for (create_child_sql, child_table_count) in
-                                zip(child_table_create_sqls, child_table_counts_vec)
+                                    zip(child_table_create_sqls, child_table_counts_vec)
                                 {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match taos
@@ -1701,7 +1701,7 @@ async fn consume_point_record(
                                     IpcDataType::from_str(
                                         format!("varchar({})", modify_message.id.len()).as_str(),
                                     )
-                                        .unwrap(),
+                                    .unwrap(),
                                 ));
                                 tags_for_diff.push((
                                     "point_name".to_string(),
@@ -1709,7 +1709,7 @@ async fn consume_point_record(
                                         format!("varchar({})", modify_message.point_name.len())
                                             .as_str(),
                                     )
-                                        .unwrap(),
+                                    .unwrap(),
                                 ));
                                 if table_config.tag_configs.is_some() {
                                     for tag_conf in table_config.tag_configs.clone().unwrap() {
@@ -1826,7 +1826,7 @@ async fn consume_flat_record(
                         message,
                         metrics,
                     )
-                        .await?;
+                    .await?;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
@@ -2008,8 +2008,8 @@ async fn consume_flat_record(
                                                                         |tag_added| {
                                                                             if tag_added.is_tag()
                                                                                 && tag_added.field()
-                                                                                == tag_meta
-                                                                                .field()
+                                                                                    == tag_meta
+                                                                                        .field()
                                                                             {
                                                                                 need_add = false;
                                                                             }
@@ -2329,7 +2329,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
-            .unwrap();
+        .unwrap();
         let last = count;
         if let Err(err) = consume_lush_record(
             pool,
@@ -2344,7 +2344,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             &data_trace_id_str,
             metrics,
         )
-            .await
+        .await
         {
             metrics.add_failed_batches(1);
             tracing::error!("Writing batch {data_trace_id_str} error: {err:#}");
@@ -2360,7 +2360,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                         "stream": "flat",
                         "written":  written,
                     })
-                        .to_string(),
+                    .to_string(),
                 ),
             });
 
@@ -2378,7 +2378,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                             "stream": "flat",
                             "written":  count - last,
                         })
-                            .to_string(),
+                        .to_string(),
                     ),
                 })
                 .context("write ack error");
@@ -2430,7 +2430,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
-            .unwrap();
+        .unwrap();
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -2442,7 +2442,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             trace_id_str,
             metrics,
         )
-            .await?;
+        .await?;
         Ok(n)
     }
 
@@ -2524,7 +2524,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
-            .unwrap();
+        .unwrap();
         info!(
             num.rows = record.num_rows(),
             "Writing batch {data_trace_id_str}"
@@ -2543,7 +2543,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             &data_trace_id_str,
             metrics,
         )
-            .await
+        .await
         {
             metrics.add_failed_batches(1);
             error!("Writing batch {batches} error: {err:#}");
@@ -2556,7 +2556,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                         "stream": "flat",
                         "written":  written,
                     })
-                        .to_string(),
+                    .to_string(),
                 ),
             });
             if ipc_error_strategy.will_stop() {
@@ -2576,7 +2576,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                             "stream": "flat",
                             "written":  count - last,
                         })
-                            .to_string(),
+                        .to_string(),
                     ),
                 })
                 .context("write ack error");
@@ -2749,9 +2749,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
         #[cfg(feature = "disable-enterprise-connector-validation")]
-            let license: Option<ConnectorLicense> = None;
+        let license: Option<ConnectorLicense> = None;
         #[cfg(not(feature = "disable-enterprise-connector-validation"))]
-            let license: Option<ConnectorLicense> = taos
+        let license: Option<ConnectorLicense> = taos
             .query_one::<_, String>(&format!(
                 "select {connector} from information_schema.ins_grants"
             ))
@@ -2808,7 +2808,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 stream_trace_id_u64,
                 metrics,
             )
-                .await?
+            .await?
         }
         StreamType::Lush => {
             ipc_lush_stream_reader(
@@ -2823,7 +2823,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 stream_trace_id_u64,
                 metrics,
             )
-                .await?
+            .await?
         }
         StreamType::Point => {
             ipc_point_reader(
@@ -2839,7 +2839,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 stream_trace_id_u64,
                 metrics_arc.clone(),
             )
-                .await?
+            .await?
         }
     }
     Ok(())
@@ -2986,7 +2986,7 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                    .unwrap();
+                .unwrap();
                 let mut taos = Some(self.pool.get().await?);
                 consume_flat_record(
                     &self.pool,
@@ -3001,7 +3001,7 @@ impl IpcStreamWorker {
                     trace_id_str,
                     metrics,
                 )
-                    .await?;
+                .await?;
                 Ok(count)
             }
             StreamType::Lush => {
@@ -3017,9 +3017,9 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                    .map_err(|_| {
-                        anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str)
-                    })?;
+                .map_err(|_| {
+                    anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str)
+                })?;
                 let mut taos = Some(self.pool.get().await?);
                 let task = self.task;
                 consume_lush_record(
@@ -3035,7 +3035,7 @@ impl IpcStreamWorker {
                     trace_id_str,
                     metrics,
                 )
-                    .await?;
+                .await?;
                 Ok(count)
             }
             StreamType::Point => {
@@ -3044,7 +3044,7 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                    .unwrap();
+                .unwrap();
                 let mut taos = Some(self.pool.get().await?);
                 let _n = consume_point_record(
                     &self.pool,
@@ -3059,7 +3059,7 @@ impl IpcStreamWorker {
                     trace_id_str,
                     metrics,
                 )
-                    .await?;
+                .await?;
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
@@ -3381,7 +3381,7 @@ pub async fn listen_tcp_socket(
                 }
             }
         }
-            .instrument(tracing::info_span!("plain_ipc_listener_abort_handle")),
+        .instrument(tracing::info_span!("plain_ipc_listener_abort_handle")),
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
