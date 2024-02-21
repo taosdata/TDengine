@@ -2229,7 +2229,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         }
       } else {
-        if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+        if (!transEpSetIsEqual2(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset1");
           transPrintEpSet(&pCtx->epSet);
           transPrintEpSet(&epSet);
@@ -2256,7 +2256,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
     } else {
-      if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+      if (!transEpSetIsEqual2(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset2");
         transPrintEpSet(&pCtx->epSet);
         transPrintEpSet(&epSet);
