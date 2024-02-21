@@ -2696,11 +2696,14 @@ int32_t mWinJoinMoveWinBegin(SMJoinWindowCtx* pCtx) {
       SMJoinGrpRows* pGrp = taosArrayGet(pCache->grps, i);
       SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCol->srcSlot);
       if (*((int64_t*)pCol->pData + pGrp->blk->info.rows - 1) < pCtx->winBeginTs) {
-        blockDataDestroy(pGrp->blk);
+        pCache->rowNum -= (pGrp->blk->info.rows - pGrp->beginIdx);
+        if (pGrp->blk == pCache->outBlk) {
+          blockDataCleanup(pGrp->blk);
+        }
+        
         taosArrayPopFrontBatch(pCache->grps, 1);
         grpNum--;
         i--;
-        pCache->rowNum -= (pGrp->blk->info.rows - pGrp->beginIdx);
         continue;
       }
 
@@ -2712,7 +2715,12 @@ int32_t mWinJoinMoveWinBegin(SMJoinWindowCtx* pCtx) {
 
         if (*((int64_t*)pCol->pData + pGrp->beginIdx) <= pCtx->winEndTs) {
           pGrp->readIdx = pGrp->beginIdx;
-          pCache->rowNum -= (pGrp->beginIdx - startIdx);
+          if (pGrp->endIdx < pGrp->beginIdx) {
+            pGrp->endIdx = pGrp->beginIdx;
+            pCache->rowNum = 1;
+          } else {
+            pCache->rowNum -= (pGrp->beginIdx - startIdx);
+          }
           return TSDB_CODE_SUCCESS;
         }
 
@@ -2772,7 +2780,7 @@ _return:
 int32_t mWinJoinMoveWinEnd(SMJoinWindowCtx* pCtx) {
   SMJoinWinCache* pCache = &pCtx->cache;
   int32_t grpNum = taosArrayGetSize(pCache->grps);
-  if (grpNum <= 0) {
+  if (grpNum <= 0 || pCache->rowNum >= pCtx->jLimit) {
     return TSDB_CODE_SUCCESS;
   }
   
@@ -2790,9 +2798,13 @@ int32_t mWinJoinMoveWinEnd(SMJoinWindowCtx* pCtx) {
     }
   } else {
     int32_t startIdx = pGrp->endIdx;
-    for (; pGrp->endIdx < pGrp->blk->info.rows && pCache->rowNum < pCtx->jLimit; pGrp->endIdx++) {
+    for (; pCache->rowNum < pCtx->jLimit && ++pGrp->endIdx < pGrp->blk->info.rows; ) {
       if (*((int64_t*)pCol->pData + pGrp->endIdx) <= pCtx->winEndTs) {
         pCache->rowNum++;
+        if ((pGrp->endIdx + 1) >= pGrp->blk->info.rows) {
+          break;
+        }
+        
         continue;
       }
 
@@ -2998,6 +3010,7 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   if (JOIN_STYPE_ASOF == pJoinNode->subType || JOIN_STYPE_WIN == pJoinNode->subType) {
     pCtx->jLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
     pJoin->subType = JOIN_STYPE_OUTER;
+    pJoin->build->eqRowLimit = pCtx->jLimit;
   } else {
     pCtx->jLimit = -1;
   }

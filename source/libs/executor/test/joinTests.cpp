@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       50000
+#define JT_MAX_LOOP       10000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -199,7 +199,7 @@ typedef struct {
 
 
 SJoinTestCtx jtCtx = {0};
-SJoinTestCtrl jtCtrl = {1, 1, 1, 0};
+SJoinTestCtrl jtCtrl = {0, 0, 0, 0};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
@@ -794,35 +794,34 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
   p->joinType = param->joinType;
   p->subType = param->subType;
   p->asofOpType = param->asofOp;
-  if (param->jLimit > 1 || taosRand() % 2) {
+  if (p->subType == JOIN_STYPE_WIN || param->jLimit > 1 || taosRand() % 2) {
     SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
     limitNode->limit = param->jLimit;
     p->pJLimit = (SNode*)limitNode;
   }
+  
   p->leftPrimSlotId = JT_PRIM_TS_SLOT_ID;
   p->rightPrimSlotId = JT_PRIM_TS_SLOT_ID;
   p->node.inputTsOrder = param->asc ? ORDER_ASC : ORDER_DESC;
   if (JOIN_STYPE_WIN == p->subType) {
     SWindowOffsetNode* pOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
-    SValueNode* pStart = nodesMakeNode(QUERY_NODE_VALUE);
-    SValueNode* pEnd = nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pStart = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pEnd = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
     pStart->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pStart->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-    pStart->datum.i = (taosRand() % 2) ? (-1 * taosRand() % JT_MAX_WINDOW_OFFSET) : (taosRand() % JT_MAX_WINDOW_OFFSET);
+    pStart->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
     pEnd->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pEnd->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-    pEnd->datum.i = (taosRand() % 2) ? (-1 * taosRand() % JT_MAX_WINDOW_OFFSET) : (taosRand() % JT_MAX_WINDOW_OFFSET);
+    pEnd->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
+    if (pStart->datum.i > pEnd->datum.i) {
+      TSWAP(pStart->datum.i, pEnd->datum.i);
+    }
     pOffset->pStartOffset = (SNode*)pStart;
     pOffset->pEndOffset = (SNode*)pEnd;
     p->pWindowOffset = (SNode*)pOffset;
 
-    if (pStart->datum.i <= pEnd->datum.i) {
-      jtCtx.winStartOffset = pStart->datum.i;
-      jtCtx.winEndOffset = pEnd->datum.i;
-    } else {
-      jtCtx.winStartOffset = pEnd->datum.i;
-      jtCtx.winEndOffset = pStart->datum.i;
-    }
+    jtCtx.winStartOffset = pStart->datum.i;
+    jtCtx.winEndOffset = pEnd->datum.i;
   }
 
   jtCtx.joinType = param->joinType;
@@ -1005,7 +1004,9 @@ void chkAppendAsofGreaterResRows(bool forceOut) {
 
 void appendWinEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rightRows) {
   if (rightOffset < 0) {
-    appendLeftNonMatchGrp(leftInRow);
+    if (0 == jtCtx.rightFilterNum) {
+      appendLeftNonMatchGrp(leftInRow);
+    }
     return;
   }
   
@@ -1101,7 +1102,9 @@ void chkAppendWinResRows(bool forceOut) {
         break;
       }
 
-      if (0 == jtCtx.rightFilterNum) {
+      if (winBeginIdx >= 0) {
+        appendWinEachResGrps(leftRow, winBeginIdx, rightRows - winBeginIdx);
+      } else if (0 == jtCtx.rightFilterNum) {
         appendLeftNonMatchGrp(leftRow);
       }
     }
@@ -1142,12 +1145,12 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   bool keepRes = false;
   bool keepInput = false;
   if (blkId == LEFT_BLK_ID) {
-    if ((jtCtx.joinType == JOIN_TYPE_LEFT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF)) {
+    if ((jtCtx.joinType == JOIN_TYPE_LEFT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF && jtCtx.subType != JOIN_STYPE_WIN)) {
       keepRes = true;
     }
     peerOffset = MAX_SLOT_NUM;
   } else {
-    if ((jtCtx.joinType == JOIN_TYPE_RIGHT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF)) {
+    if ((jtCtx.joinType == JOIN_TYPE_RIGHT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF && jtCtx.subType != JOIN_STYPE_WIN)) {
       keepRes = true;
     }
     tableOffset = MAX_SLOT_NUM;
@@ -1183,7 +1186,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
       taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk);
     }
 
-    filterOut = (peerFilterNum > 0 && (jtCtx.subType != JOIN_STYPE_ASOF && jtCtx.subType != JOIN_STYPE_WIN) ? true : false;
+    filterOut = (peerFilterNum > 0 && (jtCtx.subType != JOIN_STYPE_ASOF && jtCtx.subType != JOIN_STYPE_WIN)) ? true : false;
     if (!filterOut) {
       memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
       if (keepInput) {
@@ -2752,7 +2755,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(10, 10, 10, 10, 3);
+  createDummyBlkList(200, 200, 200, 200, 20);
   
   while (contLoop) {
     rerunBlockedHere();

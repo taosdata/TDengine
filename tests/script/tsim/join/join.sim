@@ -68,6 +68,7 @@ run tsim/join/right_anti_join.sim
 run tsim/join/left_asof_join.sim
 run tsim/join/right_asof_join.sim
 run tsim/join/left_win_join.sim
+run tsim/join/right_win_join.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -85,5 +86,6 @@ run tsim/join/right_anti_join.sim
 run tsim/join/left_asof_join.sim
 run tsim/join/right_asof_join.sim
 run tsim/join/left_win_join.sim
+run tsim/join/right_win_join.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
