@@ -756,6 +756,10 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
 }
 
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool metaLock) {
+  if (pTask == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
