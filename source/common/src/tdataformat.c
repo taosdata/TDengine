@@ -3784,3 +3784,90 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
     tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
 };
+
+// SValueColumn ================================
+struct SValueColumn {
+  int8_t   type;
+  uint32_t numOfValues;
+  SBuffer  data;
+  SBuffer  offsets;
+};
+
+int32_t tValueColumnInit(SValueColumn *valCol, int8_t type) {
+  valCol->type = type;
+  valCol->numOfValues = 0;
+  tBufferInit(&valCol->data);
+  tBufferInit(&valCol->offsets);
+  return 0;
+}
+
+int32_t tValueColumnDestroy(SValueColumn *valCol) {
+  valCol->type = TSDB_DATA_TYPE_NULL;
+  valCol->numOfValues = 0;
+  tBufferDestroy(&valCol->data);
+  tBufferDestroy(&valCol->offsets);
+  return 0;
+}
+
+int32_t tValueColumnClear(SValueColumn *valCol) {
+  valCol->numOfValues = 0;
+  tBufferClear(&valCol->data);
+  tBufferClear(&valCol->offsets);
+  return 0;
+}
+
+int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
+  int32_t code;
+
+  ASSERT(value->type == valCol->type);
+  if (IS_VAR_DATA_TYPE(value->type)) {
+    int32_t offset = tBufferGetSize(&valCol->data);
+    if ((code = tBufferAppend(&valCol->offsets, &offset, sizeof(offset)))) {
+      return code;
+    }
+    if ((code = tBufferAppend(&valCol->data, value->pData, value->nData))) {
+      return code;
+    }
+  } else {
+    return tBufferAppend(&valCol->data, &value->val, tDataTypes[value->type].bytes);
+  }
+  valCol->numOfValues++;
+
+  return 0;
+}
+
+int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
+  if (idx < 0 || idx >= valCol->numOfValues) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  value->type = valCol->type;
+  if (IS_VAR_DATA_TYPE(value->type)) {
+    int32_t offset, nextOffset;
+
+    memcpy(&offset, tBufferGetData(&valCol->data) + idx * sizeof(offset), sizeof(offset));
+    if (idx == valCol->numOfValues - 1) {
+      nextOffset = tBufferGetSize(&valCol->data);
+    } else {
+      memcpy(&nextOffset, tBufferGetData(&valCol->data) + (idx + 1) * sizeof(offset), sizeof(nextOffset));
+    }
+    value->nData = nextOffset - offset;
+    value->pData = (uint8_t *)((char *)tBufferGetData(&valCol->data) + offset);
+  } else {
+    memcpy(&value->val, (char *)tBufferGetData(&valCol->data) + idx * tDataTypes[value->type].bytes,
+           tDataTypes[value->type].bytes);
+  }
+  return 0;
+}
+
+int32_t tValueColumnCompress(SValueColumn *valCol, SBuffer *buffer) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int32_t tValueColumnDecompress(SBuffer *buffer, SValueColumn *valCol) {
+  ASSERT(0);
+  // TODO
+  return 0;
+}

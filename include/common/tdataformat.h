@@ -19,6 +19,7 @@
 #include "os.h"
 #include "talgo.h"
 #include "tarray.h"
+#include "tbuffer.h"
 #include "tencode.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -27,18 +28,19 @@
 extern "C" {
 #endif
 
-typedef struct SSchema  SSchema;
-typedef struct SSchema2 SSchema2;
-typedef struct STColumn STColumn;
-typedef struct STSchema STSchema;
-typedef struct SValue   SValue;
-typedef struct SColVal  SColVal;
-typedef struct SRow     SRow;
-typedef struct SRowIter SRowIter;
-typedef struct STagVal  STagVal;
-typedef struct STag     STag;
-typedef struct SColData SColData;
-typedef struct SRowKey  SRowKey;
+typedef struct SSchema      SSchema;
+typedef struct SSchema2     SSchema2;
+typedef struct STColumn     STColumn;
+typedef struct STSchema     STSchema;
+typedef struct SValue       SValue;
+typedef struct SColVal      SColVal;
+typedef struct SRow         SRow;
+typedef struct SRowIter     SRowIter;
+typedef struct STagVal      STagVal;
+typedef struct STag         STag;
+typedef struct SColData     SColData;
+typedef struct SRowKey      SRowKey;
+typedef struct SValueColumn SValueColumn;
 
 #define HAS_NONE      ((uint8_t)0x1)
 #define HAS_NULL      ((uint8_t)0x2)
@@ -54,9 +56,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i)&7)
+#define MOD_8(i)          ((i) & 7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i)&3)
+#define MOD_4(i)          ((i) & 3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -92,6 +94,15 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+// SValueColumn ================================
+int32_t tValueColumnInit(SValueColumn *valCol, int8_t type);
+int32_t tValueColumnDestroy(SValueColumn *valCol);
+int32_t tValueColumnClear(SValueColumn *valCol);
+int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
+int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
+int32_t tValueColumnCompress(SValueColumn *valCol, SBuffer *buffer);
+int32_t tValueColumnDecompress(SBuffer *buffer, SValueColumn *valCol);
+
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -123,16 +134,16 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
 
 // SColData ================================
 typedef void *(*xMallocFn)(void *, int32_t);
-void    tColDataDestroy(void *ph);
-void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
-void    tColDataClear(SColData *pColData);
-void    tColDataDeepClear(SColData *pColData);
-int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
-int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
-extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+void          tColDataDestroy(void *ph);
+void          tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
+void          tColDataClear(SColData *pColData);
+void          tColDataDeepClear(SColData *pColData);
+int32_t       tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t       tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
+void          tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+uint8_t       tColDataGetBitValue(const SColData *pColData, int32_t iVal);
+int32_t       tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+extern void   (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
