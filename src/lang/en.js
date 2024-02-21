@@ -206,7 +206,8 @@ export default {
   day: 'd ',
   hours: 'h ',
   minutes: 'm ',
-  seconds: 's',
+  seconds: 's ',
+  milliseconds: 'ms',
   statuses: {
     created: "Created",
     queued: "Queued",
