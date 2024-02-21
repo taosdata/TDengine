@@ -491,7 +491,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-
+  
+  pScan->paraTablesSort = getparaTablesSortOptHint(pSelect->pHint);
   pCxt->hasScan = true;
 
   return code;

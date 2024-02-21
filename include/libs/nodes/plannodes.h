@@ -111,6 +111,7 @@ typedef struct SScanLogicNode {
   bool          igLastNull;
   bool          groupOrderScan;
   bool          onlyMetaCtbIdx; // for tag scan with no tbname
+  bool          paraTablesSort; // for table merge scan  
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -413,6 +414,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igExpired;
   bool           assignBlockUid;
   int8_t         igCheckUpdate;
+  bool           paraTablesSort;  
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

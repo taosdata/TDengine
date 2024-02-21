@@ -45,6 +45,7 @@ int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQue
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 
 bool    getBatchScanOptionFromHint(SNodeList* pList);
+bool    getparaTablesSortOptHint(SNodeList* pList);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool isPartTableAgg(SAggLogicNode* pAgg);
