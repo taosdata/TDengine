@@ -71,7 +71,7 @@ extern char* tsMonFwUri;
 #define IO_WRITE DNODE_TABLE":io_write"
 #define IO_READ_DISK DNODE_TABLE":io_read_disk"
 #define IO_WRITE_DISK DNODE_TABLE":io_write_disk"
-#define ERRORS DNODE_TABLE":errors"
+//#define ERRORS DNODE_TABLE":errors"
 #define VNODES_NUM DNODE_TABLE":vnodes_num"
 #define MASTERS DNODE_TABLE":masters"
 #define HAS_MNODE DNODE_TABLE":has_mnode"
@@ -135,10 +135,10 @@ void monInitMonitorFW(){
   const char *dnodes_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep"};
   char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_SYSTEM,
                            MEM_TOTAL, DISK_ENGINE, DISK_USED, DISK_TOTAL, NET_IN,
-                           NET_OUT, IO_READ, IO_WRITE, IO_READ_DISK, IO_WRITE_DISK, ERRORS,
+                           NET_OUT, IO_READ, IO_WRITE, IO_READ_DISK, IO_WRITE_DISK, /*ERRORS,*/
                            VNODES_NUM, MASTERS, HAS_MNODE, HAS_QNODE, HAS_SNODE, DNODE_STATUS,
                            DNODE_LOG_ERROR, DNODE_LOG_INFO, DNODE_LOG_DEBUG, DNODE_LOG_TRACE};
-  for(int32_t i = 0; i < 27; i++){
+  for(int32_t i = 0; i < 26; i++){
     gauge= taos_gauge_new(dnodes_gauges[i], "",  dnodes_label_count, dnodes_sample_labels);
     if(taos_collector_registry_register_metric(gauge) == 1){
       taos_counter_destroy(gauge);
@@ -440,8 +440,8 @@ void monGenDnodeInfoTable(SMonInfo *pMonitor) {
   metric = taosHashGet(tsMonitor.metrics, IO_WRITE_DISK, strlen(IO_WRITE_DISK));
   taos_gauge_set(*metric, io_write_disk_rate, sample_labels);
 
-  metric = taosHashGet(tsMonitor.metrics, ERRORS, strlen(ERRORS));
-  taos_gauge_set(*metric, pStat->errors, sample_labels);
+  //metric = taosHashGet(tsMonitor.metrics, ERRORS, strlen(ERRORS));
+  //taos_gauge_set(*metric, pStat->errors, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, VNODES_NUM, strlen(VNODES_NUM));
   taos_gauge_set(*metric, pStat->totalVnodes, sample_labels);

@@ -2029,6 +2029,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   return code;
 
 _err:
+  /*
   if(code == TSDB_CODE_SUCCESS){
     const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_DELETE, pVnode->monitor.strClusterId, 
                                         pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
@@ -2041,6 +2042,7 @@ _err:
                                         pOriginalMsg->info.conn.user, "Failed"};
     taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
   }
+  */
 
   return code;
 }

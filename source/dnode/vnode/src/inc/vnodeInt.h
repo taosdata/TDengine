@@ -118,7 +118,7 @@ typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
 //#define VNODE_METRIC_TAG_VALUE_INSERT "insert"
-#define VNODE_METRIC_TAG_VALUE_DELETE "delete"
+//#define VNODE_METRIC_TAG_VALUE_DELETE "delete"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
