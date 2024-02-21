@@ -398,7 +398,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   if (NULL == pTscObj) {
     tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
   } else if (pRsp->status == TSDB_CODE_MND_INVALID_CLUSTER_ID) {
-    tscWarn("destroy taosObj since %s, refId:%" PRIx64 ", type:%" PRIi8 ", clusterId:%" PRIi64, tstrerror(pRsp->status),
+    tscWarn("destroy taosObj since %s, rid:%" PRIx64 ", type:%" PRIi8 ", clusterId:%" PRIi64, tstrerror(pRsp->status),
             pRsp->connKey.tscRid, pRsp->connKey.connType, pReq->clusterId);
     releaseTscObj(pRsp->connKey.tscRid);
     releaseTscObj(pRsp->connKey.tscRid);  // destroyTscObj
