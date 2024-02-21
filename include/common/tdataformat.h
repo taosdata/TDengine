@@ -95,7 +95,7 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // SValueColumn ================================
-int32_t tValueColumnInit(SValueColumn *valCol, int8_t type);
+int32_t tValueColumnInit(SValueColumn *valCol);
 int32_t tValueColumnDestroy(SValueColumn *valCol);
 int32_t tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
@@ -290,6 +290,13 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
       pTSchema = NULL;            \
     }                             \
   } while (0)
+
+struct SValueColumn {
+  int8_t   type;
+  uint32_t numOfValues;
+  SBuffer  data;
+  SBuffer  offsets;
+};
 
 #endif
 

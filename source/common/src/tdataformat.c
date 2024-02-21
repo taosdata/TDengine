@@ -3786,15 +3786,8 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
 };
 
 // SValueColumn ================================
-struct SValueColumn {
-  int8_t   type;
-  uint32_t numOfValues;
-  SBuffer  data;
-  SBuffer  offsets;
-};
-
-int32_t tValueColumnInit(SValueColumn *valCol, int8_t type) {
-  valCol->type = type;
+int32_t tValueColumnInit(SValueColumn *valCol) {
+  valCol->type = TSDB_DATA_TYPE_NULL;
   valCol->numOfValues = 0;
   tBufferInit(&valCol->data);
   tBufferInit(&valCol->offsets);
@@ -3810,6 +3803,7 @@ int32_t tValueColumnDestroy(SValueColumn *valCol) {
 }
 
 int32_t tValueColumnClear(SValueColumn *valCol) {
+  valCol->type = TSDB_DATA_TYPE_NULL;
   valCol->numOfValues = 0;
   tBufferClear(&valCol->data);
   tBufferClear(&valCol->offsets);
@@ -3819,7 +3813,12 @@ int32_t tValueColumnClear(SValueColumn *valCol) {
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
   int32_t code;
 
+  if (valCol->numOfValues == 0) {
+    valCol->type = value->type;
+  }
+
   ASSERT(value->type == valCol->type);
+
   if (IS_VAR_DATA_TYPE(value->type)) {
     int32_t offset = tBufferGetSize(&valCol->data);
     if ((code = tBufferAppend(&valCol->offsets, &offset, sizeof(offset)))) {
