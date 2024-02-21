@@ -763,11 +763,11 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (metaLock) {
-    streamMetaWLock(pTask->pMeta);
+    streamMetaWLock(pMeta);
   }
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
@@ -788,7 +788,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
   }
 
   if (metaLock) {
-    streamMetaWUnLock(pTask->pMeta);
+    streamMetaWUnLock(pMeta);
   }
 
   return TSDB_CODE_SUCCESS;
