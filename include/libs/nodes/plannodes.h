@@ -121,6 +121,7 @@ typedef struct SScanLogicNode {
   bool          filesetDelimited; // returned blocks delimited by fileset
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
   SArray*       pFuncTypes; // for last, last_row
+  bool          paraTablesSort; // for table merge scan
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -244,7 +245,8 @@ typedef enum EWindowType {
   WINDOW_TYPE_INTERVAL = 1,
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -282,6 +284,8 @@ typedef struct SWindowLogicNode {
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   bool             isPartTb;
+  int64_t          windowCount;
+  int64_t          windowSliding;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -440,6 +444,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igCheckUpdate;
   bool           filesetDelimited;
   bool           needCountEmptyTable;
+  bool           paraTablesSort;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -630,6 +635,14 @@ typedef struct SEventWinodwPhysiNode {
 } SEventWinodwPhysiNode;
 
 typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+
+typedef struct SCountWinodwPhysiNode {
+  SWindowPhysiNode window;
+  int64_t          windowCount;
+  int64_t          windowSliding;
+} SCountWinodwPhysiNode;
+
+typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

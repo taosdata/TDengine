@@ -57,6 +57,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -160,6 +162,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -575,6 +585,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3405_3398_3423.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -1140,6 +1151,8 @@
 ,,y,script,./test.sh -f tsim/query/bug3398.sim
 ,,y,script,./test.sh -f tsim/query/explain_tsorder.sim
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
+,,y,script,./test.sh -f tsim/query/query_count0.sim
+,,y,script,./test.sh -f tsim/query/query_count_sliding0.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1184,6 +1197,13 @@
 ,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
 ,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
+,,y,script,./test.sh -f tsim/stream/count0.sim
+,,y,script,./test.sh -f tsim/stream/count1.sim
+,,y,script,./test.sh -f tsim/stream/count2.sim
+,,y,script,./test.sh -f tsim/stream/count3.sim
+,,y,script,./test.sh -f tsim/stream/countSliding0.sim
+,,y,script,./test.sh -f tsim/stream/countSliding1.sim
+,,y,script,./test.sh -f tsim/stream/countSliding2.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
 ,,y,script,./test.sh -f tsim/stream/deleteSession.sim
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim

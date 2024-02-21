@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 #define MND_STREAM_RESERVE_SIZE 64
-#define MND_STREAM_VER_NUMBER   4
+#define MND_STREAM_VER_NUMBER   5
 
 #define MND_STREAM_CREATE_NAME      "stream-create"
 #define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"

@@ -8,6 +8,9 @@ from frame.caseBase import *
 from frame import *
 
 class TDTestCase(TBase):
+    updatecfgDict = {
+        'slowLogScope':"all"
+    }    
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)

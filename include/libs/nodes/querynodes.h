@@ -128,6 +128,7 @@ typedef enum EHintOption {
   HINT_BATCH_SCAN,
   HINT_SORT_FOR_GROUP,
   HINT_PARTITION_FIRST,
+  HINT_PARA_TABLES_SORT
 } EHintOption;
 
 typedef struct SHintNode {
@@ -277,6 +278,13 @@ typedef struct SEventWindowNode {
   SNode*    pStartCond;
   SNode*    pEndCond;
 } SEventWindowNode;
+
+typedef struct SCountWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  int64_t   windowCount;
+  int64_t   windowSliding;
+} SCountWindowNode;
 
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
