@@ -276,7 +276,7 @@ static void monGenClusterJsonBasic(SMonInfo *pMonitor) {
   tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
   tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id);
   tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version);
-  tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
+  //tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
 }
 
 static void monGenVgroupJson(SMonInfo *pMonitor) {
