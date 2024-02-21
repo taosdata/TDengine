@@ -1702,10 +1702,12 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
 
-  const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS, pVnode->monitor.strClusterId, 
-                                  pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
-                                  pOriginalMsg->info.conn.user, "Success"};
-  taos_counter_add(pVnode->monitor.insertCounter, pSubmitRsp->affectedRows, sample_labels);
+  if(pSubmitRsp->affectedRows > 0 && strlen(pOriginalMsg->info.conn.user) > 0){
+    const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS, pVnode->monitor.strClusterId, 
+                                    pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                    pOriginalMsg->info.conn.user, "Success"};
+    taos_counter_add(pVnode->monitor.insertCounter, pSubmitRsp->affectedRows, sample_labels);
+  }
 
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
