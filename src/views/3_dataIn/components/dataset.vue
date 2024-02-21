@@ -348,7 +348,7 @@ export default {
           this.complete = complete
            
           if (!complete) {
-            this.percentage = this.percentage <= 90 ? this.percentage + (this.percentage * 0.8) : this.percentage
+            this.percentage = this.percentage < 95 ? this.percentage + 5 : this.percentage
           }
         }, 2000);
         this.dialogVisible = false  
