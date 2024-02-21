@@ -942,8 +942,7 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
-        let mut lock_flag = self.lock_flag.lock().await;
-        *lock_flag = (*lock_flag + 1) % 2;
+        tracing::info!(task.name, task.via, "create new task");
         let path = get_data_dir();
         let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
@@ -1003,6 +1002,10 @@ impl TaskController {
         }
         task.patch_labels();
         let now = chrono::Utc::now();
+
+        tracing::info!(task.name, task.via, "acquire task creation lock");
+        let lock_flag = self.lock_flag.lock().await;
+        tracing::info!(task.name, task.via, "got creation lock, create");
         if let Some(name) = &task.name {
             let tasks = self
                 .tasks(TaskFilter {
@@ -1035,6 +1038,8 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+        tracing::info!(task.name, task.via, "release creation lock");
+        drop(lock_flag);
 
         let path = get_data_dir();
         let path = path.join("tasks").join(id.to_string());
@@ -2786,7 +2791,7 @@ pub(crate) struct NewTask {
     stream_type: Option<String>,
     /// Task name.
     #[schema(example = "demo")]
-    name: Option<String>,
+    pub name: Option<String>,
     /// Task trigger events, default will be oneshot.
     ///
     /// For schedule trigger:
