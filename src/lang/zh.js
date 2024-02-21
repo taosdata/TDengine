@@ -184,6 +184,12 @@ export default {
   write: "写",
   subscribe: "订阅",
   required: "{0}是必需的",
+  year: '年',
+  month: '月',
+  day: '天',
+  hours: '小时',
+  minutes: '分',
+  seconds: '秒',
   statuses: {
     created: "已创建",
     queued: "排队中",

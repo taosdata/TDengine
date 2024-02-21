@@ -41,6 +41,7 @@
 
 <script>
 import { parseTime } from "@/utils";
+import moment from 'moment';
 export default {
   props: {
     data: {
@@ -86,10 +87,45 @@ export default {
         return parseTime(data.value, "YYYY-MM-DD HH:mm:ss");
       } else if (['points_per_second','rows_per_second','total_points_per_second','total_rows_per_second'].includes(data.name)) {
         return Number(data.value).toFixed(2)
+      } else if (/execute_time/i.test(data.name)) {
+        return this.formatDuration(data.value)
       } else {
         return data.value;
       }
     },
+    formatDuration(durationInMs) {
+      if (!durationInMs) return '';
+      const duration = moment.duration(durationInMs);
+      const years = Math.floor(duration.asYears());
+      const months = duration.months();
+      const days = duration.days();
+      const hours = duration.hours();
+      const minutes = duration.minutes();
+      const seconds = duration.seconds();
+
+      let formattedDuration = '';
+      if (years > 0) {
+        formattedDuration += years + this.$t('year');
+      }
+      if (months > 0) {
+        formattedDuration += months + this.$t('month');
+      }
+      if (days > 0) {
+        formattedDuration += days + this.$t('day');
+      }
+      if (hours > 0) {
+        formattedDuration += hours + this.$t('hours');
+      }
+      if (minutes > 0) {
+        formattedDuration += minutes + this.$t('minutes');
+      }
+      if (seconds > 0) {
+        formattedDuration += seconds + this.$t('seconds');
+      }
+
+      return formattedDuration;
+    },
+
     connect() {
       this.disconnect();
       this.loading = true;
