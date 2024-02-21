@@ -91,6 +91,9 @@ pub(super) struct Cli {
     #[clap(long)]
     pub do_not_resume: Option<bool>,
 
+    #[clap(hide = true)]
+    pub replica: Option<Vec<String>>,
+
     #[clap(flatten)]
     #[serde(skip)]
     pub verbose: Option<Verbosity<InfoLevel>>,

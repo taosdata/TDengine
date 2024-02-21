@@ -914,6 +914,7 @@ impl TaskJob {
                 let agent_activities = waiter.agent_activities.clone();
                 let is_cron_job = state.schedule().is_cron_job();
 
+                #[instrument(skip_all, fields(task.id = task_id, task.jid = %jid, task.rid = run_id, task.agent = agent_id,))]
                 async fn agent_activities_listener(
                     operator: TaskOperator,
                     is_cron_job: bool,
@@ -1051,8 +1052,10 @@ impl TaskJob {
                                                 ipc_in_progress
                                             ),
                                         ));
-                                        if ipc_in_progress > 1 {
+                                        if ipc_in_progress >= 1 {
                                             ipc_in_progress = ipc_in_progress - 1;
+                                        }
+                                        if ipc_in_progress > 0 {
                                             continue;
                                         }
                                         drop(activity); // drop activity explicitly to not use it anymore

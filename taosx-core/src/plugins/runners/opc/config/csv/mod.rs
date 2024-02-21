@@ -18,7 +18,9 @@ use crate::runners::opc::OpcType;
 
 pub struct CsvParser {
     // dsn: Dsn,
+    #[allow(dead_code)]
     opc_type: OpcType,
+    #[allow(dead_code)]
     csv_files: Vec<String>,
     model_config: OpcModelConfig,
 }

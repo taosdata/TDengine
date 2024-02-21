@@ -124,7 +124,7 @@ advanced:
         min: 1
         max: 10000
     - name: batch_timeout
-      #hidden: true
+      hidden: true
       display: 批次延时
       description: |
         单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。

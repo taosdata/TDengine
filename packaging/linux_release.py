@@ -33,15 +33,15 @@ def release(release_info,build_info):
             build_and_install_influxdb_on_linux(info.VersionMode)
         if info.Name =='opentsdb':
             build_and_install_opentsdb_on_linux(info.VersionMode)
-        if info.Name =='taosx' and release_info.UploadAgent == False:
+        if info.Name =='taosx' and release_info.UploadAgent == False and release_info.BuildAgent == False:
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':
             build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
-        if info.Name =='taos-explorer' and release_info.UploadAgent == False:
+        if info.Name =='taos-explorer' and release_info.UploadAgent == False and release_info.BuildAgent == False:
             install_taos_explorer_on_linux(release_info, info.VersionMode)
 
     chmodReleaseDir(release_info)
-    if release_info.UploadAgent:
+    if release_info.UploadAgent or release_info.BuildAgent:
         make_agent_package(release_info)
         logging.info("release successfully")
     else:
@@ -258,10 +258,11 @@ def make_agent_package(release_info):
     if code != 0:
         raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
     else:
-        logging.info(f'upload {filename} to taosdata.com')
-        os.system(f"scp {release_dir}.tar.gz root@taosdata.com:/data/www/assets-download/3.0/")
-        logging.info(f'upload {filename} to tdengine.com')
-        os.system(f"scp {release_dir}.tar.gz ubuntu@tdengine.com:/data/www/assets-download/3.0/")
+        if release_info.UploadAgent:
+            logging.info(f'upload {filename} to taosdata.com')
+            os.system(f"scp {release_dir}.tar.gz root@taosdata.com:/data/www/assets-download/3.0/")
+            logging.info(f'upload {filename} to tdengine.com')
+            os.system(f"scp {release_dir}.tar.gz ubuntu@tdengine.com:/data/www/assets-download/3.0/")
 
 def make_tar_package(release_info):
     logging.info("making tar package")
