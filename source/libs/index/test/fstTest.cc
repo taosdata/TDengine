@@ -207,7 +207,7 @@ void checkMillonWriteAndReadOfFst() {
   FstWriter* fw = new FstWriter;
   Performance_fstWriteRecords(fw);
   delete fw;
-  FstReadMemory* fr = new FstReadMemory(1024 * 64 * 1024);
+  FstReadMemory* fr = new FstReadMemory(1024 * 8 * 1024);
 
   if (fr->init()) {
     printf("success to init fst read");
