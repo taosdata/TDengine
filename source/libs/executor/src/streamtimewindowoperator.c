@@ -1569,6 +1569,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->recvRetrive = false;
   pInfo->pMidRetriveRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
+  pInfo->recvPullover = false;
   pInfo->pMidPulloverRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
   pInfo->clearState = false;
   pInfo->pMidPullDatas = taosArrayInit(4, sizeof(SWinKey));
