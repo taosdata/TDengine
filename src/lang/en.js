@@ -201,6 +201,12 @@ export default {
   write: "write",
   subscribe: "Subscribe",
   required: "{0} is required",
+  year: 'y',
+  month: 'mo ',
+  day: 'd ',
+  hours: 'h ',
+  minutes: 'm ',
+  seconds: 's',
   statuses: {
     created: "Created",
     queued: "Queued",
