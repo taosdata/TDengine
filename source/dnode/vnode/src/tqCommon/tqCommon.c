@@ -939,5 +939,8 @@ int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
 }
 
 int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
