@@ -17,7 +17,7 @@
 #include "mndTrans.h"
 
 typedef struct {
-  int8_t placeholder;  // placeholder
+  SMsgHead head;
 } SMStreamHbRspMsg;
 
 typedef struct SFailedCheckpointInfo {
@@ -359,6 +359,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   {
     SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
     rsp.pCont = rpcMallocCont(rsp.contLen);
+    SMsgHead* pHead = rsp.pCont;
+    pHead->vgId = htonl(req.vgId);
+
     tmsgSendRsp(&rsp);
 
     pReq->info.handle = NULL;   // disable auto rsp
