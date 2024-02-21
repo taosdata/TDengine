@@ -1,4 +1,4 @@
-use crate::runners::opc::config::csv::CsvHeader;
+use crate::runners::opc::config::csv::{CsvHeader, CsvParser};
 use crate::runners::opc::config::{generate_config_from_csv, OPCConfig};
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
 use anyhow::bail;
@@ -14,7 +14,8 @@ pub struct OpcModelConfig {
     /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
     pub point_config_map: HashMap<String, PointConfig>,
-    pub table_config: TableConfig, // for compatibility
+    // for compatibility
+    pub table_config: TableConfig,
     pub table_config_map: HashMap<String, TableConfig>,
 }
 
@@ -51,6 +52,21 @@ impl OpcModelConfig {
 
         Ok(())
     }
+
+    pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
+        let mut transform_map = HashMap::new();
+
+        for (point_id, table_config) in &self.table_config_map {
+            let column_config = table_config.column_config(col_name);
+            if column_config.is_none() {
+                continue;
+            }
+            let column_config = column_config.unwrap().clone();
+            transform_map.insert(point_id.clone(), column_config);
+        }
+
+        transform_map
+    }
 }
 
 fn parse_point_id(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<String> {
@@ -85,7 +101,8 @@ fn parse_point_id(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PointConfig {
-    pub code: String, // code is tbname
+    // code is tbname
+    pub code: String,
     pub stable: Option<String>,
     pub tag_values: Option<HashMap<String, String>>,
     pub value_type: Option<IpcDataType>,
@@ -204,6 +221,7 @@ pub struct TableConfig {
     pub column_configs: Vec<ColumnConfig>,
     pub tag_configs: Option<Vec<TagConfig>>,
 }
+
 const DEFAULT_STABLE_PREFIX: &'static str = "opc";
 
 impl TableConfig {
@@ -290,6 +308,10 @@ impl TableConfig {
         };
 
         Ok(table_config)
+    }
+
+    pub fn column_config(&self, name: &str) -> Option<&ColumnConfig> {
+        self.column_configs.iter().find(|c| c.name == name)
     }
 }
 
@@ -393,7 +415,7 @@ fn parse_value_col(header: &CsvHeader, row: &csv_async::StringRecord) -> ColumnC
         .flatten();
 
     ColumnConfig {
-        name: "value".to_string(),
+        name: ColumnConfig::VALUE.to_string(),
         r#type: None,
         alias: value_name,
         transform: value_transform,
@@ -416,7 +438,7 @@ fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Colum
         .flatten();
 
     ColumnConfig {
-        name: "quality".to_string(),
+        name: ColumnConfig::QUALITY.to_string(),
         r#type: Some(Ty::Int),
         alias: col_name.map(|v| v.to_string()),
         transform: None,
@@ -464,7 +486,7 @@ fn parse_received_ts_col(
         .flatten();
 
     Some(ColumnConfig {
-        name: "received_ts".to_string(),
+        name: ColumnConfig::RECEIVED_TS.to_string(),
         r#type: Some(Ty::Timestamp),
         alias: col_name,
         transform: received_ts_transform,
@@ -510,7 +532,7 @@ fn parse_original_ts_col(
         .flatten();
 
     Some(ColumnConfig {
-        name: "original_ts".to_string(),
+        name: ColumnConfig::ORIGINAL_TS.to_string(),
         r#type: Some(Ty::Timestamp),
         alias: col_name,
         transform: original_ts_transform,
@@ -525,6 +547,13 @@ pub struct ColumnConfig {
     pub alias: Option<String>,
     pub transform: Option<String>,
     pub is_primary_key: bool,
+}
+
+impl ColumnConfig {
+    pub const ORIGINAL_TS: &'static str = "original_ts";
+    pub const RECEIVED_TS: &'static str = "received_ts";
+    pub const VALUE: &'static str = "value";
+    pub const QUALITY: &'static str = "quality";
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
