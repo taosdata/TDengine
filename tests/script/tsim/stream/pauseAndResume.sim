@@ -259,7 +259,7 @@ sql insert into ts4 values(1648791213001,1,12,3,1.0);
 
 
 $loop_count = 0
-loop3:
+loop4:
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -276,7 +276,7 @@ if $rows != 1 then
   print $data00 $data01 $data02
   print $data10 $data11 $data12
   print $data20 $data21 $data22
-  goto loop3
+  goto loop4
 endi
 
 print 2 select * from streamt5;
@@ -287,7 +287,7 @@ if $rows != 1 then
   print $data00 $data01 $data02
   print $data10 $data11 $data12
   print $data20 $data21 $data22
-  goto loop3
+  goto loop4
 endi
 
 print 3 select * from streamt3;
