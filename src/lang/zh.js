@@ -190,6 +190,7 @@ export default {
   hours: '小时',
   minutes: '分',
   seconds: '秒',
+  milliseconds: '毫秒',
   statuses: {
     created: "已创建",
     queued: "排队中",

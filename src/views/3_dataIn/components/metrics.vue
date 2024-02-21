@@ -102,6 +102,7 @@ export default {
       const hours = duration.hours();
       const minutes = duration.minutes();
       const seconds = duration.seconds();
+      const milliseconds = duration.milliseconds()
 
       let formattedDuration = '';
       if (years > 0) {
@@ -121,6 +122,9 @@ export default {
       }
       if (seconds > 0) {
         formattedDuration += seconds + this.$t('seconds');
+      }
+      if (milliseconds > 0) {
+        formattedDuration += milliseconds + this.$t('milliseconds');
       }
 
       return formattedDuration;
