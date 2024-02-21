@@ -1220,3 +1220,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
+
+// this function is needed, do not try to remove it.
+int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamProcessStreamHbRsp(pTq->pStreamMeta, pMsg);
+}
