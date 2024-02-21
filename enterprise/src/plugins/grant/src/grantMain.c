@@ -88,7 +88,7 @@
 #define GRANT_OPT_EXPIRE_CHECK(expire, name)                                                                       \
   do {                                                                                                             \
     if ((expire) == GRANT_UNIQ_UNDEFINED) {                                                                        \
-      if (basicLtDefault) {                                                                                        \
+      if (basicLtDefault && (0 != strcmp((name), "service"))) {                                                    \
         code = TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE;                                                               \
         uError("grant optional items check failed since %s, basic:%" PRIi64 " < default %s:%" PRIi64 "(second)",   \
                tstrerror(code), basicExpireSec, (name), defaultExpireSec);                                         \
@@ -1217,18 +1217,18 @@ static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
   return numOfStreams;
 }
 
-static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
-  SSdb            *pSdb = pMnode->pSdb;
-  SMqSubscribeObj *pSubscribe = NULL;
-  void            *pIter = NULL;
-  int16_t          numOfSubscriptions = 0;
+static int16_t grantGetClusterCurTopics(SMnode *pMnode) {
+  SSdb        *pSdb = pMnode->pSdb;
+  SMqTopicObj *pTopic = NULL;
+  void        *pIter = NULL;
+  int16_t      numOfTopics = 0;
 
-  while ((pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSubscribe))) {
-    ++numOfSubscriptions;
-    sdbRelease(pSdb, pSubscribe);
+  while ((pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic))) {
+    ++numOfTopics;
+    sdbRelease(pSdb, pTopic);
   }
 
-  return numOfSubscriptions;
+  return numOfTopics;
 }
 
 static int32_t grantGetClusterCurViews(SMnode *pMnode) {
@@ -1255,7 +1255,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curDnodes = grantGetClusterCurDnodes(pMnode);
   gStatus.curCpuCores = grantGetClusterCurCores(pMnode);
   gStatus.curStreams = grantGetClusterCurStreams(pMnode);
-  gStatus.curSubscriptions = grantGetClusterCurSubscriptions(pMnode);
+  gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode);
   gStatus.curViews = grantGetClusterCurViews(pMnode);
 }
 
@@ -1527,7 +1527,7 @@ static int32_t grantCheckSubscriptions(bool checkNum) {
   if (gStatus.expired || gStatus.subscriptionExpired) {
     code = TSDB_CODE_GRANT_EXPIRED;
   } else if (checkNum && gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED) {
-    if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurSubscriptions(grantHandle.pMnode);
+    if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurTopics(grantHandle.pMnode);
     if (gStatus.curSubscriptions >= gStatus.limitSubscriptions) code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
 
@@ -1739,7 +1739,7 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
     return TSDB_CODE_GRANT_STREAM_LIMITED;
   }
   if ((pObj->limitSubscriptions > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurSubscriptions(pMnode) > pObj->limitSubscriptions)) {
+      (grantGetClusterCurTopics(pMnode) > pObj->limitSubscriptions)) {
     return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
   if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurViews(pMnode) > pObj->limitViews)) {
@@ -1787,7 +1787,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
 
   // check duplicated active
   for (int32_t i = 0; i < pObj->nActives; ++i) {
-    if (0 == memcmp(&pObj->actives[i].active[0], newActive, GRANT_UNIQ_HEAD_LEN)) {
+    if (0 == memcmp(&pObj->actives[i].active[0], newActive, GRANT_ACTIVE_HEAD_LEN)) {
       code = TSDB_CODE_GRANT_DUPLICATED_ACTIVE;
       goto _exit;
     }
