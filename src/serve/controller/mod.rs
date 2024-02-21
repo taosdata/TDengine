@@ -238,6 +238,9 @@ pub(crate) struct TaskController {
     pub max_activities_per_entity: usize,
 
     pub max_activities_keep_interval: Duration,
+
+    /// for lock, function can only be called once at a time.
+    pub lock_flag: Arc<tokio::sync::Mutex<i32>>,
 }
 
 impl Debug for TaskController {
@@ -635,6 +638,7 @@ impl TaskController {
             shutdown_notify,
             max_activities_per_entity,
             max_activities_keep_interval,
+            lock_flag: Arc::new(tokio::sync::Mutex::new(0)),
         })
     }
 
@@ -938,6 +942,8 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        let mut lock_flag = self.lock_flag.lock().await;
+        *lock_flag = (*lock_flag + 1) % 2;
         let path = get_data_dir();
         let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
