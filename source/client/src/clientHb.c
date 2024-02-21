@@ -276,11 +276,20 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pRsp->query) {
     STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
-    if (NULL == pTscObj) {
-      tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
-    } else {
+  if (NULL == pTscObj) {
+    tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
+  } else if (pRsp->status == TSDB_CODE_MND_INVALID_CLUSTER_ID) {
+    tscWarn("destroy taosObj since %s, rid:%" PRIx64 ", type:%" PRIi8 ", clusterId:%" PRIi64, tstrerror(pRsp->status),
+            pRsp->connKey.tscRid, pRsp->connKey.connType, pReq->clusterId);
+    releaseTscObj(pRsp->connKey.tscRid);
+    releaseTscObj(pRsp->connKey.tscRid);  // destroyTscObj
+    taosHashRelease(pAppHbMgr->activeInfo, pReq);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pRsp->query) {
+    if (pTscObj) {
       if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
         SEpSet *pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
         SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
@@ -316,10 +325,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       if (pRsp->query->pQnodeList) {
         updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList);
       }
-
-      releaseTscObj(pRsp->connKey.tscRid);
     }
   }
+
+  if(pTscObj) releaseTscObj(pRsp->connKey.tscRid);
 
   int32_t kvNum = pRsp->info ? taosArrayGetSize(pRsp->info) : 0;
 
