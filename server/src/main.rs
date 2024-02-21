@@ -682,15 +682,10 @@ impl Args {
         header: &str,
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        if license.active_code.is_none() && license.c_active_code.is_none() {
-            return Err(RestErrResponse {
-                code: Code::FAILED,
-                desc: "active code or connector active code must exist at lease one".into(),
-            });
-        }
-        //token
+        // token
         let credentials =
             Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        // connection
         let mut dsn: Dsn = self
             .profile
             .cluster
@@ -701,21 +696,53 @@ impl Args {
         dsn.username = Some(credentials.user_id);
         dsn.password = Some(credentials.password);
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
-
-        if let Some(active_code) = license.active_code.as_ref() {
-            if active_code.len() > 0 {
-                let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                conn.exec(&sql).await.map_err(|err| {
-                    RestErrResponse::new(format!("Invalid cluster activation code: {err:#}"))
-                })?;
+        // server version
+        let server_version = conn.server_version().await;
+        let server_version = match server_version {
+            Err(err) => {
+                log::error!("Failed to get server version: {err}");
+                return Err(RestErrResponse::new("Failed to get server version"));
             }
-        }
-        if let Some(c_active_code) = license.c_active_code.as_ref() {
-            if c_active_code.len() > 0 {
-                let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                conn.exec(&sql).await.map_err(|err| {
-                    RestErrResponse::new(format!("Invalid connector activation code: {err:#}"))
-                })?;
+            Ok(version) => version,
+        };
+        let (a, b, c) = get_main_version_from_server_version(&server_version.to_string()).unwrap();
+        // check version and use different function
+        if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+            if let Some(active_code) = license.active_code.as_ref() {
+                if active_code.len() > 0 {
+                    let sql = format!("alter cluster 'activeCode' '{active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })?;
+                }
+            } else {
+                return Err(RestErrResponse {
+                    code: Code::FAILED,
+                    desc: "active code must exist".into(),
+                });
+            }
+        } else {
+            if license.active_code.is_none() && license.c_active_code.is_none() {
+                return Err(RestErrResponse {
+                    code: Code::FAILED,
+                    desc: "active code or connector active code must exist at lease one".into(),
+                });
+            }
+            if let Some(active_code) = license.active_code.as_ref() {
+                if active_code.len() > 0 {
+                    let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })?;
+                }
+            }
+            if let Some(c_active_code) = license.c_active_code.as_ref() {
+                if c_active_code.len() > 0 {
+                    let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
+                    })?;
+                }
             }
         }
         Ok(RestOkResponse {
@@ -795,6 +822,19 @@ impl From<taos::Error> for RestErrResponse {
                 desc: err_str,
             }
         }
+    }
+}
+
+pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<(i32, i32, i32)> {
+    let mut version_vec = version.splitn(4, ".").collect_vec();
+    version_vec.truncate(3);
+    let res = version_vec
+        .into_iter()
+        .map(|x| x.parse::<i32>())
+        .collect_tuple();
+    match res {
+        Some((Ok(a), Ok(b), Ok(c))) => Ok((a, b, c)),
+        _ => Err(anyhow::anyhow!("Invalid version string: {}", version)),
     }
 }
 
