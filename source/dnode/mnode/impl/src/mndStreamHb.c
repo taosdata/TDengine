@@ -357,10 +357,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   taosArrayDestroy(pOrphanTasks);
 
   {
-    pReq->info.handle = NULL;   // disable auto rsp
     SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
     rsp.pCont = rpcMallocCont(rsp.contLen);
     tmsgSendRsp(&rsp);
+
+    pReq->info.handle = NULL;   // disable auto rsp
   }
 
   return TSDB_CODE_SUCCESS;
