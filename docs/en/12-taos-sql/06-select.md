@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -87,12 +87,13 @@ Hints are a means of user control over query optimization for individual stateme
 
 The list of currently supported Hints is as follows:
 
-|    **Hint**   |    **Params**  |         **Comment**        |       **Scopt**            |
+|    **Hint**   |    **Params**  |         **Comment**        |       **Scope**            |
 | :-----------: | -------------- | -------------------------- | -----------------------------------|
 | BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable           |
 | NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
 | SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
+| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used | Sorting the supertable rows by timestamp  |
 
 For example:
 
@@ -100,6 +101,7 @@ For example:
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 ```
 
 ## Lists
