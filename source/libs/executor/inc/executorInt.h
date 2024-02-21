@@ -371,6 +371,8 @@ typedef struct SStreamAggSupporter {
   STimeWindow         winRange;
   SStorageAPI*        pSessionAPI;
   struct SUpdateInfo* pUpdateInfo;
+  int32_t             windowCount;
+  int32_t             windowSliding;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -663,6 +665,27 @@ typedef struct SStreamEventAggOperatorInfo {
   SFilterInfo*        pEndCondInfo;
 } SStreamEventAggOperatorInfo;
 
+typedef struct SStreamCountAggOperatorInfo {
+  SOptrBasicInfo      binfo;
+  SStreamAggSupporter streamAggSup;
+  SExprSupp           scalarSupp;  // supporter for perform scalar function
+  SGroupResInfo       groupResInfo;
+  int32_t             primaryTsIndex;  // primary timestamp slot id
+  STimeWindowAggSupp  twAggSup;
+  SSDataBlock*        pDelRes;
+  SSHashObj*          pStDeleted;
+  void*               pDelIterator;
+  bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
+  SArray*             pUpdated;
+  SSHashObj*          pStUpdated;
+  int64_t             dataVersion;
+  SArray*             historyWins;
+  bool                reCkBlock;
+  bool                recvGetAll;
+  SSDataBlock*        pCheckpointRes;
+} SStreamCountAggOperatorInfo;
+
 typedef struct SStreamPartitionOperatorInfo {
   SOptrBasicInfo        binfo;
   SPartitionBySupporter partitionSup;
@@ -800,6 +823,9 @@ bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, ST
                            SStateStore* pStore);
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
+void appendAllColumnToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, TSKEY* pCalStartTs,
+                                                TSKEY* pCalEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName);
+
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
@@ -864,7 +890,7 @@ void     resetWinRange(STimeWindow* winRange);
 bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
 int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
-void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
+void     setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
 void     reloadAggSupFromDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
@@ -881,11 +907,18 @@ void         freeExchangeGetBasicOperatorParam(void* pParam);
 void         freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void         freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam);
+void         getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
+bool         doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
+
+void         saveDeleteInfo(SArray* pWins, SSessionKey key);
+void         removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
+void         copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
 
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
+void doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);

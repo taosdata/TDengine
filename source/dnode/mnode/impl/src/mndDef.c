@@ -85,6 +85,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   // 3.0.50 ver = 3
   if (tEncodeI64(pEncoder, pObj->checkpointId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->subTableWithoutMd5) < 0) return -1;
 
   if (tEncodeCStrWithLen(pEncoder, pObj->reserve, sizeof(pObj->reserve) - 1) < 0) return -1;
 
@@ -167,6 +168,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   }
   if (sver >= 3) {
     if (tDecodeI64(pDecoder, &pObj->checkpointId) < 0) return -1;
+  }
+
+  if (sver >= 5) {
+    if (tDecodeI8(pDecoder, &pObj->subTableWithoutMd5) < 0) return -1;
   }
   if (tDecodeCStrTo(pDecoder, pObj->reserve) < 0) return -1;
 

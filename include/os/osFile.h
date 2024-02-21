@@ -119,6 +119,8 @@ int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
 
+bool lastErrorIsFileNotExist();
+
 #ifdef __cplusplus
 }
 #endif

@@ -162,6 +162,8 @@ int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
   return 0;
 }
 
+void tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
+
 void sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp));
   ((SMsgHead*)buf)->vgId = htonl(pReq->srcNodeId);
@@ -174,7 +176,7 @@ void sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
   tmsgSendRsp(pRsp);
 }
 
-int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq *req){
+int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq* req) {
   int32_t code = 0;
   void*   buf = NULL;
   int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
@@ -569,6 +571,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
       if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER &&
+          pTask->subtableWithoutMd5 != 1 &&
           !isAutoTableName(pDataBlock->info.parTbName) &&
           !alreadyAddGroupId(pDataBlock->info.parTbName) &&
           groupId != 0){

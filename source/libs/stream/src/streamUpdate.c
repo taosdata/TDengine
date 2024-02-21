@@ -261,6 +261,7 @@ void updateInfoDestroy(SUpdateInfo *pInfo) {
 
   taosArrayDestroy(pInfo->pTsSBFs);
   taosHashCleanup(pInfo->pMap);
+  updateInfoDestoryColseWinSBF(pInfo);
   taosMemoryFree(pInfo);
 }
 

@@ -928,6 +928,20 @@ SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* 
   return (SNode*)pEvent;
 }
 
+SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCountWindowNode* pCount = (SCountWindowNode*)nodesMakeNode(QUERY_NODE_COUNT_WINDOW);
+  CHECK_OUT_OF_MEM(pCount);
+  pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
+  if (NULL == pCount->pCol) {
+    nodesDestroyNode((SNode*)pCount);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
+  pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
+  return (SNode*)pCount;
+}
+
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill) {
   CHECK_PARSER_STATUS(pCxt);
