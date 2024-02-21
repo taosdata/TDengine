@@ -419,6 +419,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -1072,6 +1073,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -1363,7 +1365,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->pFilterConditions);
       nodesDestroyList(pPhyNode->pTargets);
-      
+
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
@@ -1703,9 +1705,9 @@ void nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList*
   pSrc->pTail->pNext = pPos->pNext;
 
   pPos->pNext = pSrc->pHead;
-  
+
   pTarget->length += pSrc->length;
-  nodesFree(pSrc);  
+  nodesFree(pSrc);
 }
 
 SNode* nodesListGetNode(SNodeList* pList, int32_t index) {

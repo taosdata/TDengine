@@ -104,6 +104,7 @@ typedef enum {
   TRN_CONFLICT_DB_INSIDE = 3,
   TRN_CONFLICT_TOPIC = 4,
   TRN_CONFLICT_TOPIC_INSIDE = 5,
+  TRN_CONFLICT_ARBGROUP = 6,
 } ETrnConflct;
 
 typedef enum {
@@ -176,6 +177,7 @@ typedef struct {
   tmsg_t        originRpcType;
   char          dbname[TSDB_TABLE_FNAME_LEN];
   char          stbname[TSDB_TABLE_FNAME_LEN];
+  int32_t       arbGroupId;
   int32_t       startFunc;
   int32_t       stopFunc;
   int32_t       paramLen;
@@ -246,6 +248,39 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  int32_t dnodeId;
+  char    token[TSDB_ARB_TOKEN_SIZE];
+} SArbAssignedLeader;
+
+typedef struct {
+  int32_t dnodeId;
+} SArbMemberInfo;
+
+typedef struct {
+  int32_t nextHbSeq;
+  int32_t responsedHbSeq;
+  char    token[TSDB_ARB_TOKEN_SIZE];
+  int64_t lastHbMs;
+} SArbMemberState;
+
+typedef struct {
+  SArbMemberInfo  info;
+  SArbMemberState state;
+} SArbGroupMember;
+
+typedef struct {
+  int32_t            vgId;
+  int64_t            dbUid;
+  SArbGroupMember    members[2];
+  int8_t             isSync;
+  SArbAssignedLeader assignedLeader;
+
+  // following fields will not be duplicated
+  bool          mutexInited;
+  TdThreadMutex mutex;
+} SArbGroup;
 
 typedef struct {
   int32_t maxUsers;
@@ -343,6 +378,7 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
+  int8_t  withArbitrator;
 } SDbCfg;
 
 typedef struct {

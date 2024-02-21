@@ -406,7 +406,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
 
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
   SSyncState syncState = syncGetState(pVnode->sync);
-  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+  if (syncState.state == TAOS_SYNC_STATE_LEADER || syncState.state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     pLoad->vgId = TD_VID(pVnode);
     pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
     return 0;
