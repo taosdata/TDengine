@@ -505,6 +505,12 @@ export default {
       try {
         let data = await getDBListReq();
         this.dbList = data.filter((v) => v.name !== "audit" && v.name !== 'log');
+
+        // 判断如果 targetDb 不为空，并且 targetDB 不在 dbList 中，则将 targetDB 置空
+        if (this.sourceForm.targetDB && !this.dbList.find((v) => v.name === this.sourceForm.targetDB)) {
+          this.sourceForm.targetDB = "";
+        }
+
       } catch (error) {
         console.log(error);
       }
