@@ -2678,7 +2678,7 @@ pub async fn listen_tcp_socket_with_agent(
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
     socket.bind(addr)?;
-    let socket = socket.listen(4096)?;
+    let socket = socket.listen(65535)?;
 
     // let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     // let closed = Arc::new(AtomicBool::new(false));
@@ -2698,7 +2698,7 @@ pub async fn listen_tcp_socket_with_agent(
                 let se = sender.clone();
                 let cancel = cancel.clone();
                 let (id, remote, token) = with_agent.clone();
-                    let config = config.clone();
+                let config = config.clone();
 
                 tokio::spawn(async move {
                     let client = addr.to_string();
@@ -2717,6 +2717,7 @@ pub async fn listen_tcp_socket_with_agent(
                     }
                 })
             };
+            let mut backoff = 1;
             loop {
                 tokio::select! {
                     _ = notified.notified() => {
@@ -2725,13 +2726,18 @@ pub async fn listen_tcp_socket_with_agent(
                     accept = socket.accept() => {
                         match accept {
                             Ok((stream, addr)) => {
+                                backoff = 1;
                                 let h = accept_stream(stream, addr);
                                 handlers.push(h);
                             }
                             Err(e) => {
-                                /* connection failed */
-                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
-                                break;
+                                if backoff > 64 {
+                                    // Accept has been failed too many times. break the loop.
+                                    tracing::warn!("IPC stream acceptation error {e:#}, might be stopped");
+                                    break;
+                                }
+                                tokio::time::sleep(Duration::from_secs(backoff)).await;
+                                backoff *= 2;
                             }
                         }
                     }
@@ -2841,7 +2847,7 @@ pub async fn listen_tcp_socket(
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
     socket.bind(addr)?;
-    let socket = socket.listen(4096)?;
+    let socket = socket.listen(65535)?;
 
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
@@ -2911,6 +2917,7 @@ pub async fn listen_tcp_socket(
                     }.instrument(span.clone()))
                 }
             };
+            let mut backoff = 1;
             loop {
                 tokio::select! {
                     _ = notified.notified() => {
@@ -2920,13 +2927,18 @@ pub async fn listen_tcp_socket(
                     accept = socket.accept() => {
                         match accept {
                             Ok((stream, addr)) => {
+                                backoff = 1;
                                 let h = accept_stream(stream, addr);
                                 handlers.push(h);
                             }
                             Err(e) => {
-                                /* connection failed */
-                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
-                                break;
+                                if backoff > 64 {
+                                    // Accept has been failed too many times. break the loop.
+                                    tracing::warn!("IPC stream acceptation error {e:#}, might be stopped");
+                                    break;
+                                }
+                                tokio::time::sleep(Duration::from_secs(backoff)).await;
+                                backoff *= 2;
                             }
                         }
                     }

@@ -888,7 +888,13 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(samples, vec![vec!["2001-01-01T00:00:01Z".to_string(), "location,1,2,3".to_string()]]);
+        assert_eq!(
+            samples,
+            vec![vec![
+                "2001-01-01T00:00:01Z".to_string(),
+                "location,1,2,3".to_string()
+            ]]
+        );
         delete_csv_file(&path).unwrap();
     }
 
