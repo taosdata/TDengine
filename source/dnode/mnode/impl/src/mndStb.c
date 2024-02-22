@@ -901,7 +901,6 @@ _OVER:
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) return -1;
-  if (mndSetCreateStbPrepareLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, pStb) != 0) return -1;
