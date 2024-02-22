@@ -1817,7 +1817,9 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   } else {
     int64_t curTime = taosGetTimestampMs() / 1000;
     if (newObj.validDays > 0) {  // check valid days
-      if (curTime - newObj.distribute > (int64_t)newObj.validDays * 86400) {
+      if (curTime - (int64_t)newObj.distribute > (int64_t)newObj.validDays * 86400) {
+        uWarn("current time:%" PRIi64 " minus distribute:%" PRIi64 " larger than valid days:%" PRIi64, curTime,
+              (int64_t)newObj.distribute, (int64_t)newObj.validDays * 86400);
         code = TSDB_CODE_GRANT_PAR_IVLD_DIST;
         goto _exit;
       }
