@@ -8,7 +8,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
+use taos::Dsn;
 use taos::IntoDsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
@@ -290,6 +292,20 @@ pub async fn get_point_file_template(driver: &str, lang: &str) -> anyhow::Result
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
+fn set_file_content(dsn: &mut Dsn, key: &str) {
+    let content = dsn.get(key).map(|v| {
+        if v.starts_with('@') {
+            // let v = v.trim_start_matches('@');
+            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
+        } else {
+            v.to_string()
+        }
+    });
+    if content.is_some() {
+        dsn.set(key, content.unwrap());
+    }
+}
+
 async fn get_all_points(
     from: String,
     via: Option<i64>,
@@ -303,7 +319,7 @@ async fn get_all_points(
         via,
         categories
     );
-    let from = from.into_dsn()?;
+    let mut from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {
@@ -314,19 +330,34 @@ async fn get_all_points(
         }
     }
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-    let data = DataSetsReq {
-        from: from.to_string(),
-        categories: vec![categories],
-        via,
-        offset: 0,
-        pattern,
-        limit,
-        lang: None,
-    };
     let lang = lang.unwrap_or("zh".to_string());
-    match if let Some(agent) = data.via {
+
+    match if let Some(agent) = via {
+        set_file_content(&mut from, "certificate");
+        set_file_content(&mut from, "private_key");
+        set_file_content(&mut from, "auth_certificate");
+        set_file_content(&mut from, "auth_private_key");
+
+        let data = DataSetsReq {
+            from: from.to_string(),
+            categories: vec![categories],
+            via,
+            offset: 0,
+            pattern,
+            limit,
+            lang: None,
+        };
         controller.list_datasets_via_agent(agent, data).await
     } else {
+        let data = DataSetsReq {
+            from: from.to_string(),
+            categories: vec![categories],
+            via,
+            offset: 0,
+            pattern,
+            limit,
+            lang: None,
+        };
         list_datasets_from(&data).await
     } {
         Ok(data) => {

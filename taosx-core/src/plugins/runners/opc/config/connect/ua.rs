@@ -25,23 +25,10 @@ impl UaConnectConfig {
         let request_timeout = Self::parse_request_timeout(dsn)?;
         let security_policy = Self::parse_security_policy(dsn);
         let security_mode = Self::parse_security_mode(dsn);
-        let certificate = dsn
-            .params
-            .get("certificate")
-            .map(|v| v.trim_start_matches('@').to_string());
-        let private_key = dsn
-            .params
-            .get("private_key")
-            .map(|v| v.trim_start_matches('@').to_string());
-
-        let auth_certificate = dsn
-            .params
-            .get("auth_certificate")
-            .map(|v| v.trim_start_matches('@').to_string());
-        let auth_private_key = dsn
-            .params
-            .get("auth_private_key")
-            .map(|v| v.trim_start_matches('@').to_string());
+        let certificate = Self::parse_value(dsn, "certificate");
+        let private_key = Self::parse_value(dsn, "private_key");
+        let auth_certificate = Self::parse_value(dsn, "auth_certificate");
+        let auth_private_key = Self::parse_value(dsn, "auth_private_key");
         let username = dsn.username.clone();
         let password = dsn.password.clone();
         let auth_method = if username.is_some() || password.is_some() {
@@ -131,6 +118,10 @@ impl UaConnectConfig {
             .map(|v| v.to_string())
             .unwrap_or("None".to_string())
     }
+
+    fn parse_value(dsn: &Dsn, key: &str) -> Option<String> {
+        dsn.params.get(key).map(|v| v.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -212,6 +203,18 @@ mod ua_connect_config_tests {
             "parse connection_timeout failed, cause: invalid digit found in string",
             timeout.unwrap_err().to_string()
         );
+    }
+
+    #[test]
+    fn test_certificate_file() {
+        let dsn = Dsn::from_str("opc://localhost:7080?certificate=@/tmp/cert").unwrap();
+        let config = UaConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!("/tmp/cert", config.certificate.unwrap());
+
+        let dsn = Dsn::from_str("opc://localhost:7080?certificate=abc").unwrap();
+        let config = UaConnectConfig::from_dsn(&dsn).unwrap();
+        println!("{:?}", config.certificate);
+        assert!(config.certificate.is_none());
     }
 
     #[test]
