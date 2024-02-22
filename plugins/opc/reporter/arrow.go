@@ -112,7 +112,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 		} else {
 			err := r.appendFunc(valueField, msg.Value)
 			if err != nil {
-				r.logger.WithError(err).Error("append value error")
+				r.logger.WithError(err).WithField("identifier", msg.Identifier).Error("append value error")
 				return err
 			}
 		}
