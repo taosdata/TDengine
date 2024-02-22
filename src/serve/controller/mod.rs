@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::ops::Deref;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -536,6 +537,20 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
         .execute(pool)
         .await?;
     Ok(())
+}
+
+fn set_file_content(dsn: &mut Dsn, key: &str) {
+    let content = dsn.get(key).map(|v| {
+        if v.starts_with('@') {
+            // let v = v.trim_start_matches('@');
+            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
+        } else {
+            v.to_string()
+        }
+    });
+    if content.is_some() {
+        dsn.set(key, content.unwrap());
+    }
 }
 
 impl TaskController {
@@ -1681,6 +1696,31 @@ impl TaskController {
         self.tasks(TaskFilter::default().via(agent_id)).await
     }
 
+    pub async fn list_datasets_via_agent_v1(
+        &self,
+        agent_id: i64,
+        dsn: &mut Dsn,
+        categories: String,
+        via: Option<i64>,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        set_file_content(dsn, "certificate");
+        set_file_content(dsn, "private_key");
+        set_file_content(dsn, "auth_certificate");
+        set_file_content(dsn, "auth_private_key");
+
+        let data = DataSetsReq {
+            from: dsn.to_string(),
+            categories: vec![categories],
+            via,
+            offset: 0,
+            pattern: None,
+            limit: 0,
+            lang: None,
+        };
+
+        self.list_datasets_via_agent(agent_id, data).await
+    }
+
     pub async fn list_datasets_via_agent(
         &self,
         agent_id: i64,
@@ -1713,9 +1753,15 @@ impl TaskController {
             );
         }
 
+        let mut dsn_agent = dsn.clone();
+        set_file_content(&mut dsn_agent, "certificate");
+        set_file_content(&mut dsn_agent, "private_key");
+        set_file_content(&mut dsn_agent, "auth_certificate");
+        set_file_content(&mut dsn_agent, "auth_private_key");
+
         let result = tokio::time::timeout(
             Duration::from_secs(600),
-            scheduler.validate_dsn_via_agent(agent, dsn.clone()),
+            scheduler.validate_dsn_via_agent(agent, dsn_agent),
         )
         .await;
         let result = match result {

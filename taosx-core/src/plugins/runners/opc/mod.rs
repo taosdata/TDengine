@@ -575,9 +575,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opcda only support windows".to_string(),
         );
     }
+    let mut dsn = dsn.clone();
+    let certificate = get_temp_file(&mut dsn, "certificate");
+    let private_key = get_temp_file(&mut dsn, "private_key");
+    let auth_certificate = get_temp_file(&mut dsn, "auth_certificate");
+    let auth_private_key = get_temp_file(&mut dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_for_validate(dsn);
-    match config {
+    let config = OPCConfig::from_dsn_for_validate(&dsn);
+    let r = match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
             format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
@@ -592,7 +597,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 ),
             )
         }),
-    }
+    };
+
+    certificate.map(|f| f.close());
+    private_key.map(|f| f.close());
+    auth_certificate.map(|f| f.close());
+    auth_private_key.map(|f| f.close());
+
+    r
 }
 
 async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
