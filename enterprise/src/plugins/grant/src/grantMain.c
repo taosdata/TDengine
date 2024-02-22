@@ -2044,16 +2044,10 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (isDataIn) {
-    if (expire == GRANT_UNIQ_UNLIMITED) {
-      snprintf(qBuf, colLen,
-               "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
-               curVal, limit, expire, GRANT_UNIQ_UNLIMITED_S);
-    } else {
-      grantSecondsToString(expire, ts);
-      snprintf(qBuf, colLen,
-               "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
-               curVal, limit, expire, ts);
-    }
+    if (expire != GRANT_UNIQ_UNLIMITED) grantSecondsToString(expire, ts);
+    snprintf(qBuf, colLen,
+             "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
+             curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
     snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
