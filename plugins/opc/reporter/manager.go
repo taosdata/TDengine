@@ -2,11 +2,14 @@ package reporter
 
 import (
 	"collector/config"
+	"collector/log"
 	"collector/types"
 	"context"
 	"hash/fnv"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Manager struct {
@@ -16,6 +19,7 @@ type Manager struct {
 	ctx            context.Context
 	locker         sync.RWMutex
 	conf           config.ReportConfig
+	logger         *logrus.Entry
 }
 
 func NewManager(ctx context.Context, conf config.ReportConfig) *Manager {
@@ -28,6 +32,7 @@ func NewManager(ctx context.Context, conf config.ReportConfig) *Manager {
 		concurrent: concurrent,
 		reporters:  make(map[types.ValueType][]*ArrowReporter),
 		conf:       conf,
+		logger:     log.GetLogger("reporter manager"),
 	}
 }
 
@@ -61,15 +66,26 @@ func (m *Manager) getOrInitReporter(tag string, vt types.ValueType) (*ArrowRepor
 		} else {
 			v = make([]*ArrowReporter, m.concurrent)
 			for i := 0; i < m.concurrent; i++ {
-				reporter, err := NewArrowReporter(m.ctx, i, m.conf.Remote, vt, m.conf.BatchSize, time.Duration(m.conf.BatchTimeout)*time.Second)
+				var reporter *ArrowReporter
+				var err error
+				for retryTimes := 0; retryTimes < 8; retryTimes++ {
+					time.Sleep(time.Millisecond * 100 * time.Duration(retryTimes))
+					reporter, err = NewArrowReporter(m.ctx, i, m.conf.Remote, vt, m.conf.BatchSize, time.Duration(m.conf.BatchTimeout)*time.Second)
+					if err != nil {
+						m.logger.WithError(err).WithField("retry times", retryTimes).Error("new arrow reporter error")
+					} else {
+						reporter.startReceiveMessage()
+						v[i] = reporter
+						break
+					}
+				}
 				if err != nil {
+					m.logger.WithError(err).Error("new arrow reporter error and retry times exceed 8, close all reporters and return error")
 					for j := 0; j < i; j++ {
 						v[j].Close()
 					}
 					return nil, err
 				}
-				reporter.startReceiveMessage()
-				v[i] = reporter
 			}
 			m.reporters[vt] = v
 			return v[h], nil
