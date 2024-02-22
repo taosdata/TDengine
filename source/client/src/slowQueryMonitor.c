@@ -23,17 +23,17 @@ const int   slowQueryLabelCount = 4;
 const char* slowQueryLabels[] = {"cluster_id", "username", "result", "duration"};
 static const char* defaultClusterID = "";
 
-const int64_t msInSeconds = 1000;
+const int64_t usInSeconds = 1000 * 1000;
 const int64_t msInMinutes = 60 * 1000;
 
 static const char* getSlowQueryLableCostDesc(int64_t cost) {
-  if (cost >= 1000 * msInSeconds) {
+  if (cost >= 1000 * usInSeconds) {
     return "1000s-";
-  } else if (cost >= 100 * msInSeconds) {
+  } else if (cost >= 100 * usInSeconds) {
     return "100-1000s";
-  } else if (cost >= 10 * msInSeconds) {
+  } else if (cost >= 10 * usInSeconds) {
     return "10-100s";
-  } else if (cost >= 3 * msInSeconds) {
+  } else if (cost >= 3 * usInSeconds) {
     return "3-10s";
   }
   return "0-3s";
