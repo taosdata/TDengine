@@ -76,7 +76,7 @@ impl Debug for Scheduler {
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(worker = worker))]
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -395,18 +395,10 @@ async fn worker(
                                                 });
                                             }
                                         }
-                                        // metrics
-                                        log::debug!(
+                                        tracing::debug!(
                                             "sync table {table} time_range {time_range}",
                                             table = table.as_str(),
                                             time_range = query.time_range,
-                                        );
-
-                                        log::debug!(
-                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                            metrics = metrics,
                                         );
                                         break;
                                     }
