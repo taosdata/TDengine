@@ -32,6 +32,9 @@ typedef struct SBlockOrderInfo {
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
+#define BLOCK_VERSION_1          1
+#define BLOCK_VERSION_2          2
+
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
@@ -253,7 +256,7 @@ SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols, int32_t bVersion);
 const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 // for debug
