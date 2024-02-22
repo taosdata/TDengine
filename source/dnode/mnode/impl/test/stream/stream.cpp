@@ -216,6 +216,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   pTask->id.streamId = defStreamId;
   pTask->id.taskId = 1;
   pTask->exec.qmsg = (char*)taosMemoryMalloc(1);
+  taosThreadMutexInit(&pTask->lock, NULL);
 
   taosArrayPush(pLevel, &pTask);
 
