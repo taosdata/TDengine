@@ -313,8 +313,26 @@ impl Table {
                 return Err(super::Error::EmptyTableColumns(self.name.clone()));
             }
             let primary = names[0].as_str();
-            let timestamp =
-                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into()));
+
+            let timestamp = schema
+                .field_with_name(primary)
+                .map(|f| {
+                    if let DataType::Timestamp(unit, tz) = f.data_type() {
+                        DataType::Timestamp(
+                            unit.clone(),
+                            if tz.is_some() {
+                                tz.clone()
+                            } else {
+                                Some("UTC".into())
+                            },
+                        )
+                    } else {
+                        DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into()))
+                    }
+                })
+                .unwrap_or_else(|_| {
+                    DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into()))
+                });
 
             // Primary key column.
             let primary_array = records
@@ -325,11 +343,8 @@ impl Table {
                 return Err(super::Error::NullPrimaryKey(self.name.clone()));
             }
             // Cast primary key column to timestamp.
-            let primary_array = arrow_cast_guess_precision::cast(
-                &primary_array,
-                &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into())),
-            )
-            .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
+            let primary_array = arrow_cast_guess_precision::cast(&primary_array, &timestamp)
+                .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
             let primary_field = schema
                 .field_with_name(primary)?
                 .clone()
