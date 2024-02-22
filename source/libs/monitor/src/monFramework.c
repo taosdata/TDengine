@@ -615,8 +615,27 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor){
 
     const char *sample_labels[] = {buf, mnode_id, pMnodeDesc->mnode_ep};
 
+    bool dnodeIsOnline = false;
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->dnodes); ++i) {
+      SMonDnodeDesc *pDnodeDesc = taosArrayGet(pInfo->dnodes, i);
+
+      if(pDnodeDesc->dnode_id == pMnodeDesc->mnode_id){
+        if(strcmp(pDnodeDesc->status, "ready") == 0){
+          dnodeIsOnline = true;
+        }
+      }
+    }
+ 
     metric = taosHashGet(tsMonitor.metrics, MNODE_ROLE, strlen(MNODE_ROLE));
-    taos_gauge_set(*metric, pMnodeDesc->syncState, sample_labels);
+
+    if(dnodeIsOnline){
+      taos_gauge_set(*metric, pMnodeDesc->syncState, sample_labels);
+    }
+    else{
+      taos_gauge_set(*metric, 0, sample_labels);
+    }
+    //metric = taosHashGet(tsMonitor.metrics, MNODE_ROLE, strlen(MNODE_ROLE));
+    //taos_gauge_set(*metric, pMnodeDesc->syncState, sample_labels);
   }
 }
 
