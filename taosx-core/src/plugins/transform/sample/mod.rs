@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -7,6 +8,7 @@ use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 
+use crate::plugins::transform::parse::{FieldParser, ParserImpl};
 use utoipa::ToSchema;
 
 /// Sample data input with transform pipeline.
@@ -51,31 +53,8 @@ impl DsSampleIn {
             .flatten()
             .collect_vec();
 
-        let schema = arrow::datatypes::Schema::new(
-            self.input[0]
-                .iter()
-                .map(|(name, value)| {
-                    let dt = match value {
-                        serde_json::Value::Null
-                        | serde_json::Value::String(_)
-                        | serde_json::Value::Object(_)
-                        | serde_json::Value::Array(_) // array/object is not supported actually
-                        => DataType::Utf8,
-                        serde_json::Value::Bool(_) => DataType::Boolean,
-                        serde_json::Value::Number(num) => {
-                            if num.is_u64() {
-                                DataType::UInt64
-                            } else if num.is_f64() {
-                                DataType::Float64
-                            } else {
-                                DataType::Int64
-                            }
-                        }
-                    };
-                    Field::new(name, dt, true)
-                })
-                .collect_vec(),
-        );
+        let schema = self.to_schema()?;
+
         let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
             .build(json.as_slice())
             .context("Could not build record reader from json stream")?;
@@ -96,5 +75,71 @@ impl DsSampleIn {
             .map(|batch| batch.to_modeled_json())
             .collect_vec();
         Ok(output)
+    }
+
+    pub fn to_schema(&self) -> anyhow::Result<arrow::datatypes::Schema> {
+        let schema = match &self.parser.parse {
+            None => Self::to_schema_by_first_input(&self.input),
+            Some(parse) => Self::to_schema_by_parse(parse),
+        };
+
+        if schema.is_none() {
+            anyhow::bail!("Could not infer schema from sample data");
+        }
+
+        Ok(schema.unwrap())
+    }
+
+    fn to_schema_by_parse(parse: &ParserImpl) -> Option<arrow::datatypes::Schema> {
+        let mut fields = Vec::new();
+        for (name, field_parser) in parse.deref() {
+            let data_type = match field_parser {
+                FieldParser::Cast(c) => c.r#as().clone().arrow_data_type(),
+                _ => {
+                    tracing::warn!(
+                        "Could not infer data type for field {}, use DataType::Utf8",
+                        name
+                    );
+                    DataType::Utf8
+                }
+            };
+            fields.push(Field::new(name, data_type, true));
+        }
+
+        Some(arrow::datatypes::Schema::new(fields))
+    }
+
+    fn to_schema_by_first_input(
+        input: &Vec<LinkedHashMap<String, serde_json::Value>>,
+    ) -> Option<arrow::datatypes::Schema> {
+        if input.is_empty() {
+            return None;
+        }
+
+        let fields = input[0]
+            .iter()
+            .map(|(name, value)| {
+                let dt = match value {
+                    serde_json::Value::Null
+                    | serde_json::Value::String(_)
+                    | serde_json::Value::Object(_)
+                    | serde_json::Value::Array(_) // array/object is not supported actually
+                    => DataType::Utf8,
+                    serde_json::Value::Bool(_) => DataType::Boolean,
+                    serde_json::Value::Number(num) => {
+                        if num.is_u64() {
+                            DataType::UInt64
+                        } else if num.is_f64() {
+                            DataType::Float64
+                        } else {
+                            DataType::Int64
+                        }
+                    }
+                };
+                Field::new(name, dt, true)
+            })
+            .collect_vec();
+
+        Some(arrow::datatypes::Schema::new(fields))
     }
 }

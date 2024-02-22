@@ -45,7 +45,8 @@ impl ColumnMeta {
         let db_type = match type_name {
             "datetime2" => "timestamp(ms)".to_string(),
             "nvarchar" => format!("varchar({})", precision).to_string(),
-            "tinyint" => "tinyint".to_string(),
+            // !!!Attention: tinyint is unsigned in SQL Server
+            "tinyint" => "u8".to_string(),
             "int" => "int".to_string(),
             "float" => "double".to_string(),
             _ => anyhow::bail!(
@@ -108,7 +109,6 @@ fn to_arrow_data_type(type_name: String) -> anyhow::Result<arrow::datatypes::Dat
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_to_arrow_data_type() {
         let arrow_type = super::to_arrow_data_type("datetime2".to_string()).unwrap();
