@@ -16,7 +16,6 @@ use taosx_ipc::prelude::IpcDataType;
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
-use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{
     ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
 };

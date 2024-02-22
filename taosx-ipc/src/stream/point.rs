@@ -1,14 +1,12 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, BooleanArray, StringArray};
-use arrow::datatypes::{DataType, TimeUnit};
+use arrow::array::ArrayRef;
+use arrow::datatypes::DataType;
 use arrow::{
     array::{Array, ListArray, StructArray},
     datatypes::SchemaRef,
     record_batch::RecordBatch,
 };
-use tonic::codegen::Body;
 
 use crate::prelude::IpcMessage;
 

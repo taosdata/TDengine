@@ -106,7 +106,7 @@ pub async fn opc_to_taos(
         handle_select_all_points(&mut from).await?;
     }
 
-    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
+    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
     }

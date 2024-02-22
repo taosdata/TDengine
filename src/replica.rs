@@ -587,10 +587,9 @@ impl Cli {
 mod tests {
     use std::mem::transmute;
 
-    use futures::{StreamExt, TryStreamExt};
+    use futures::TryStreamExt;
     use rand::distributions::DistString;
     use taos::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta, IsOffset, MessageSet};
-    use taosx_core::TaskOpts;
 
     use super::*;
 
@@ -620,7 +619,6 @@ mod tests {
         taos.create_topic_as_database("rep2", "rep2").await.unwrap();
 
         let mut rng = rand::thread_rng();
-        use rand::distributions::Alphanumeric;
         let group = rand::distributions::Alphanumeric.sample_string(&mut rng, 10);
 
         println!("Using group {}", group);
