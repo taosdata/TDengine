@@ -302,6 +302,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCaseWhenNode));
     case QUERY_NODE_EVENT_WINDOW:
       return makeNode(type, sizeof(SEventWindowNode));
+    case QUERY_NODE_COUNT_WINDOW:
+      return makeNode(type, sizeof(SCountWindowNode));
     case QUERY_NODE_HINT:
       return makeNode(type, sizeof(SHintNode));
     case QUERY_NODE_VIEW:
@@ -564,6 +566,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamFinalIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return makeNode(type, sizeof(SStreamSemiIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+      return makeNode(type, sizeof(SStreamMidIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return makeNode(type, sizeof(SFillPhysiNode));
@@ -583,6 +587,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SEventWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       return makeNode(type, sizeof(SStreamEventWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+      return makeNode(type, sizeof(SCountWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      return makeNode(type, sizeof(SStreamCountWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
@@ -846,6 +854,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
+      break;
+    }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      nodesDestroyNode(pEvent->pCol);
       break;
     }
     case QUERY_NODE_HINT: {
@@ -1391,6 +1404,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
@@ -1422,6 +1436,12 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
       nodesDestroyNode(pPhyNode->pEndCond);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT: {
+      SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {

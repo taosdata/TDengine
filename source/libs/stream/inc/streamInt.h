@@ -107,9 +107,7 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
 void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
 
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
-int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock);
-
-int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
+int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock);
 
 int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);

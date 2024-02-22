@@ -87,6 +87,7 @@ void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
+  tTrace("rpc free cont:%p", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {

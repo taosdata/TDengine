@@ -85,8 +85,9 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   // checkpoint ver is the kept version, handled data should be the next version.
-  if (pTask->chkInfo.checkpointId != 0) {
-    pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
+  if (pChkInfo->checkpointId != 0) {
+    pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
+    pChkInfo->processedVer = pChkInfo->checkpointVer;
     sndInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64,
             pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
@@ -177,6 +178,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessCheckRsp(pSnode->pMeta, pMsg, true);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqStreamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_HEARTBEAT_RSP:
+      return tqStreamProcessStreamHbRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);

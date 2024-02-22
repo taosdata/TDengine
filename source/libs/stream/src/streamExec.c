@@ -138,7 +138,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     }
 
     if (output->info.type == STREAM_RETRIEVE) {
-      if (streamBroadcastToChildren(pTask, output) < 0) {
+      if (streamBroadcastToUpTasks(pTask, output) < 0) {
         // TODO
       }
       continue;
@@ -328,7 +328,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
         id, (int32_t) pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
     // 2. save to disk
     streamMetaWLock(pMeta);

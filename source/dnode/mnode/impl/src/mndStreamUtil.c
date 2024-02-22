@@ -231,6 +231,8 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
     taosMemoryFree(pReq);
     return -1;
   }
+
+  mDebug("set the resume action for trans:%d", pTrans->id);
   return 0;
 }
 

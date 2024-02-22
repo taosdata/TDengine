@@ -725,9 +725,6 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     // it is an fill-history task, remove the related stream task's id that points to it
     atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
-    if (pTask->info.fillHistory == 1) {
-      streamTaskClearHTaskAttr(pTask, false);
-    }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
@@ -1163,7 +1160,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
     tEncoderClear(&encoder);
 
-    SRpcMsg msg = {.info.noResp = 1};
+    SRpcMsg msg = {0};
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
 
     pMeta->pHbInfo->hbCount += 1;

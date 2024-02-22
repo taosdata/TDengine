@@ -16,6 +16,10 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
+typedef struct {
+  SMsgHead head;
+} SMStreamHbRspMsg;
+
 typedef struct SFailedCheckpointInfo {
   int64_t streamUid;
   int64_t checkpointId;
@@ -65,7 +69,7 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
   taosArrayPush(pList, pInfo);
 }
 
-int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
+int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
@@ -115,7 +119,7 @@ static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, in
     } else {
       mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
              pStream->uid, transId);
-      code = createStreamResetStatusTrans(pMnode, pStream);
+      code = mndCreateStreamResetStatusTrans(pMnode, pStream);
     }
   }
 
@@ -211,7 +215,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
       };
 
       tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-      mInfo("receive pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
+      mInfo("receive pause stream:%s, %s, %"PRId64 ", because grant expired", pStream->name, reqPause.name, pStream->uid);
     }
 
     sdbRelease(pSdb, pStream);
@@ -222,11 +226,11 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
-  SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
-  SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
+  SArray      *pFailedTasks = NULL;
+  SArray      *pOrphanTasks = NULL;
 
-  if(grantCheckLE(TSDB_GRANT_STREAMS) < 0){
-    if(suspendAllStreams(pMnode, &pReq->info) < 0){
+  if (grantCheckExpire(TSDB_GRANT_STREAMS) < 0) {
+    if (suspendAllStreams(pMnode, &pReq->info) < 0) {
       return -1;
     }
   }
@@ -243,6 +247,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderClear(&decoder);
 
   mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
+
+  pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
+  pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
 
   taosThreadMutexLock(&execInfo.lock);
 
@@ -348,6 +355,17 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   taosArrayDestroy(pFailedTasks);
   taosArrayDestroy(pOrphanTasks);
+
+  {
+    SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    SMsgHead* pHead = rsp.pCont;
+    pHead->vgId = htonl(req.vgId);
+
+    tmsgSendRsp(&rsp);
+
+    pReq->info.handle = NULL;   // disable auto rsp
+  }
 
   return TSDB_CODE_SUCCESS;
 }

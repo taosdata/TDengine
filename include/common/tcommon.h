@@ -54,6 +54,8 @@ typedef struct SSessionKey {
   uint64_t    groupId;
 } SSessionKey;
 
+typedef int64_t COUNT_TYPE;
+
 typedef struct SVersionRange {
   int64_t minVer;
   int64_t maxVer;
@@ -171,6 +173,7 @@ typedef enum EStreamType {
   STREAM_CHECKPOINT,
   STREAM_CREATE_CHILD_TABLE,
   STREAM_TRANS_STATE,
+  STREAM_MID_RETRIEVE,
 } EStreamType;
 
 #pragma pack(push, 1)

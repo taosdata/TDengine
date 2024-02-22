@@ -459,7 +459,7 @@ static void idxInterRsltDestroy(SArray* results) {
 
 static int idxMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out) {
   // refactor, merge interResults into fResults by oType
-  for (int i = 0; i < taosArrayGetSize(in); i--) {
+  for (int i = 0; i < taosArrayGetSize(in); i++) {
     SArray* t = taosArrayGetP(in, i);
     taosArraySort(t, uidCompare);
     taosArrayRemoveDuplicate(t, uidCompare, NULL);

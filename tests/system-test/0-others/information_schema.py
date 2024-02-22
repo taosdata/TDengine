@@ -263,6 +263,54 @@ class TDTestCase:
         tdSql.error(f'select c_active_code from information_schema.ins_dnodes')
         tdSql.error('alter all dnodes "cActiveCode" ""')
 
+    def ins_grants_check(self):
+        grant_name_dict = {
+            'stream':'stream',
+            'subscription':'subscription',
+            'view':'view',
+            'audit':'audit',
+            'csv':'csv',
+            'storage':'multi_tier_storage',
+            'backup_restore':'backup_restore',
+            'opc_da':'OPC_DA',
+            'opc_ua':'OPC_UA',
+            'pi':'Pi',
+            'kafka':'Kafka',
+            'influxdb':'InfluxDB',
+            'mqtt':'MQTT',
+            'avevahistorian':'avevaHistorian',
+            'opentsdb':'OpenTSDB',
+            'td2.6':'TDengine2.6',
+            'td3.0':'TDengine3.0'
+        }
+
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        tdSql.query(f'select * from information_schema.ins_grants_full')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            if result[i][0] in grant_name_dict:
+                tdSql.checkEqual(result[i][1], grant_name_dict[result[i][0]])
+                index += 1
+        tdSql.checkEqual(index, 17)
+        tdSql.query(f'select * from information_schema.ins_grants_logs')
+        result = tdSql.queryResult
+        tdSql.checkEqual(True, len(result) >= 0)
+        if(len(result) > 0):
+            tdSql.checkEqual(True, result[0][0].find(",init,ungranted,ungranted") >= 16)
+            tdSql.checkEqual(True, len(result[0][1]) == 0)
+            tdSql.checkEqual(True, len(result[0][2]) >= 46)
+
+        tdSql.query(f'select * from information_schema.ins_machines')
+        tdSql.checkRows(1)
+        tdSql.execute('alter cluster "activeCode" "revoked"')
+        tdSql.execute('alter cluster "activeCode" "revoked"')
+        tdSql.error('alter cluster "activeCode" ""')
+        tdSql.error('alter cluster "activeCode" "abc"')
+        tdSql.error('alter cluster "activeCode" ""')
+        tdSql.execute('alter cluster "activeCode" "revoked"')
+
     def run(self):
         self.prepare_data()
         self.count_check()
@@ -271,6 +319,7 @@ class TDTestCase:
         self.ins_stable_check()
         self.ins_stable_check2()
         self.ins_dnodes_check()
+        self.ins_grants_check()
 
 
     def stop(self):

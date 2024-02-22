@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 #define MND_STREAM_RESERVE_SIZE 64
-#define MND_STREAM_VER_NUMBER   4
+#define MND_STREAM_VER_NUMBER   5
 
 #define MND_STREAM_CREATE_NAME      "stream-create"
 #define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"
@@ -119,6 +119,7 @@ int32_t     mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
 int32_t     mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 int32_t     mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);
 void             destroyStreamTaskIter(SStreamTaskIter *pIter);

@@ -31,6 +31,9 @@ from frame.srvCtl import *
 
 
 class TDTestCase(TBase):
+    updatecfgDict = {
+        'slowLogScope' : "others"
+    }
 
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to init {__file__}")
