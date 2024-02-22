@@ -273,7 +273,8 @@ static void monGenClusterJsonBasic(SMonInfo *pMonitor) {
   SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
-  tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
+  //tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
+  tjsonAddStringToObject(pMonitor->pJson, "first_ep", tsFirst);
   tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id);
   tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version);
   //tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
