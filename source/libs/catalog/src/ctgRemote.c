@@ -1143,7 +1143,7 @@ int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, char* dbFName, char* tbName,
+int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, const char* tbName,
                                   STableMetaOutput* out, SCtgTaskReq* tReq) {
   SCtgTask*        pTask = tReq ? tReq->pTask : NULL;
   SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = tbName};

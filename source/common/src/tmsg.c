@@ -895,6 +895,8 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
     if (tEncodeI32(&encoder, p->vgId) < 0) return -1;
     if (tEncodeI64(&encoder, p->ver) < 0) return -1;
   }
+  if (tEncodeI8(&encoder, pReq->recursiveTsma) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->baseTsmaName) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -967,6 +969,8 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
       }
     }
   }
+  if (tDecodeI8(&decoder, &pReq->recursiveTsma) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->baseTsmaName) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;

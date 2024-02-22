@@ -259,7 +259,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, char *dbFName, char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
+int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
@@ -503,7 +503,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgTbMetaExistInCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *exist) {
+int32_t ctgTbMetaExistInCache(SCatalog *pCtg, const char *dbFName, const char *tbName, int32_t *exist) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache);
