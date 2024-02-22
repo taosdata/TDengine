@@ -308,7 +308,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
 static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* pTable, SNodeList* pProjectionList,
                                                    SSelectStmt** pStmt);
-static int32_t  createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta, SNode** pQuery);
+static int32_t  createLastTsSelectStmt(char* pDb, const char* pTable, const char* pkColName, SNode** pQuery);
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
@@ -7072,7 +7072,7 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->pOptions->tsPrecision = pMetaCache->tableInfo.precision;
-      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pMetaCache, &pStmt->pPrevQuery);
+      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pMetaCache->schema[0].name, &pStmt->pPrevQuery);
     }
     taosMemoryFreeClear(pMetaCache);
   }
@@ -8276,14 +8276,14 @@ static int32_t translateStreamTargetTable(STranslateContext* pCxt, SCreateStream
   return code;
 }
 
-static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta, SNode** pQuery) {
+static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char* pkColName, SNode** pQuery) {
   SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == col) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
-  tstrncpy(col->colName, pMeta->schema[0].name, tListLen(col->colName));
+  tstrncpy(col->colName, pkColName, tListLen(col->colName));
   SNodeList* pParameterList = nodesMakeList();
   if (NULL == pParameterList) {
     nodesDestroyNode((SNode*)col);
@@ -8424,7 +8424,8 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
   }
   if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory) {
     SRealTableNode* pTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
-    code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta, &pStmt->pPrevQuery);
+    code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta->schema[0].name,
+                                  &pStmt->pPrevQuery);
     /*
         if (TSDB_CODE_SUCCESS == code) {
           STranslateContext cxt = {0};
@@ -9231,6 +9232,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     // useTbName is base tsma name
     code = getTsma(pCxt, useTbName, &pRecursiveTsma);
     if (code == TSDB_CODE_SUCCESS) {
+      pReq->recursiveTsma = true;
+      tNameExtractFullName(useTbName, pReq->baseTsmaName);
       SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
       if (pRecursiveTsma->interval < pInterval->datum.i && pInterval->datum.i % pRecursiveTsma->interval == 0) {
       } else {
@@ -9256,6 +9259,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       numOfTags = pRecursiveTsma->pTags->size;
       pCols = pRecursiveTsma->pUsedCols->pData;
       pTags = pRecursiveTsma->pTags->pData;
+      code = getTableMeta(pCxt, pStmt->dbName, pRecursiveTsma->targetTb, &pTableMeta);
     }
   } else {
     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
@@ -9286,11 +9290,10 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = buildTSMAAst(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName,
                         numOfTags, pTags);
   }
-  if (TSDB_CODE_SUCCESS == code && !pStmt->pOptions->recursiveTsma) { //TODO remvoe recursive tsma check
-    if (TSDB_CODE_SUCCESS == code) {
-      pStmt->pOptions->tsPrecision = pTableMeta->tableInfo.precision;
-      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pTableMeta, &pStmt->pPrevQuery);
-    }
+  if (TSDB_CODE_SUCCESS == code) {
+    const char* pkColName = pTableMeta->schema[0].name;
+    const char* tbName = pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName;
+    code = createLastTsSelectStmt(pStmt->dbName, tbName, pkColName, &pStmt->pPrevQuery);
   }
 
   taosMemoryFreeClear(pTableMeta);

@@ -4498,7 +4498,11 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
     }
 
     STableTSMAInfo* pTsma = taosArrayGetP(pTsmaOptCtx->pTsmas, i);
-    if (!pTsma->fillHistoryFinished || 30 * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) continue;
+    if (!pTsma->fillHistoryFinished || 30 * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) {
+      qInfo("tsma %s filtered out history: %d rspTs: %ld reqTs: %ld delay: %ld, rspTs - reqTs: %ld", pTsma->name,
+             pTsma->fillHistoryFinished, pTsma->rspTs, pTsma->reqTs, pTsma->delayDuration, pTsma->rspTs - pTsma->reqTs);
+      continue;
+    }
     // filter with interval
     // TODO unit not right
     if (!tsmaOptCheckValidInterval(pTsma->interval, pTsma->unit, pTsmaOptCtx)) {

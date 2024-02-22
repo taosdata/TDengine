@@ -972,7 +972,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
 void    ctgReleaseDBCache(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRUnlockVgInfo(SCtgDBCache* dbCache);
-int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char* dbFName, char* tbName, int32_t* exist);
+int32_t ctgTbMetaExistInCache(SCatalog* pCtg, const char* dbFName, const char* tbName, int32_t* exist);
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
@@ -1033,7 +1033,7 @@ int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const ch
                                SCtgTask* pTask);
 int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* out,
                                   SCtgTask* pTask);
-int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, char* dbFName, char* tbName,
+int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, const char* tbName,
                                   STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMetaOutput* out,
                               SCtgTaskReq* tReq);

@@ -461,6 +461,7 @@ typedef struct {
   char*          ast;
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
+  char           baseSmaName[TSDB_TABLE_FNAME_LEN];
 } SSmaObj;
 
 typedef struct {
