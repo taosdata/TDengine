@@ -216,14 +216,18 @@ fn get_default_config_path() -> PathBuf {
         .join("taosx.toml")
 }
 
+#[inline]
+fn get_effective_config_path(args: &Args) -> PathBuf {
+    args.opt_args
+        .config
+        .clone()
+        .unwrap_or_else(|| get_default_config_path())
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let mut args = Args::parse();
-        let path = args
-            .opt_args
-            .config
-            .clone()
-            .unwrap_or(get_default_config_path());
+        let path = get_effective_config_path(&args);
         // let path = if let Ok(c) = Args::try_parse() {
         //     c.opt_args
         //         .config
@@ -537,6 +541,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     let mut s = String::new();
     s += "       global config\n";
     s += "===================================================================================\n";
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "config file", get_effective_config_path(args).display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
