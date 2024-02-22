@@ -222,6 +222,8 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   taosArrayPush(stream.tasks, &pLevel);
   mndCreateStreamResetStatusTrans(pMnode, &stream);
 
+  std::cout<<"finish create reset status trans"<< std::endl;
+
   tFreeStreamObj(&stream);
   sdbCleanup(pMnode->pSdb);
   taosMemoryFree(pMnode);
