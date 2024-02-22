@@ -205,8 +205,8 @@ struct SValue {
 #define TD_MAX_PRIMARY_KEY_COL 8
 struct SRowKey {
   TSKEY   ts;
-  uint8_t numOfKeys;
-  SValue  keys[TD_MAX_PRIMARY_KEY_COL];
+  uint8_t numOfPKs;
+  SValue  pks[TD_MAX_PRIMARY_KEY_COL];
 };
 
 struct SColVal {

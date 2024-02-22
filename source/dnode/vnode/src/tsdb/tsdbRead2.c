@@ -1952,13 +1952,13 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
     startKey = (STsdbRowKey){.version = pReader->info.verRange.minVer,
                              .key = {
                                  .ts = pBlockScanInfo->lastProcKey + 1,
-                                 .numOfKeys = 0,  // TODO: change here if multi-key is supported
+                                 .numOfPKs = 0,  // TODO: change here if multi-key is supported
                              }};
   } else {
     startKey = (STsdbRowKey){.version = pReader->info.verRange.maxVer,
                              .key = {
                                  .ts = pBlockScanInfo->lastProcKey - 1,
-                                 .numOfKeys = 0,  // TODO: change here if multi-key is supported
+                                 .numOfPKs = 0,  // TODO: change here if multi-key is supported
                              }};
   }
 
@@ -2681,7 +2681,8 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
 
   // update the last key for the corresponding table
   pScanInfo->lastProcKey = asc ? pInfo->window.ekey : pInfo->window.skey;
-  tsdbDebug("%p uid:%" PRIu64 " clean file block retrieved from file, global index:%d, "
+  tsdbDebug("%p uid:%" PRIu64
+            " clean file block retrieved from file, global index:%d, "
             "table index:%d, rows:%d, brange:%" PRId64 "-%" PRId64 ", %s",
             pReader, pScanInfo->uid, blockIndex, pBlockInfo->tbBlockIdx, pBlockInfo->numRow, pBlockInfo->firstKey,
             pBlockInfo->lastKey, pReader->idStr);

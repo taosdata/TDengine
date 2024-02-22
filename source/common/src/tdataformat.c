@@ -1156,11 +1156,11 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
 void tRowGetKey(SRow *pRow, SRowKey *key) {
   key->ts = pRow->ts;
   if ((pRow->flag & HAS_MULTI_KEY) == 0) {
-    key->numOfKeys = 0;
+    key->numOfPKs = 0;
   } else {
     uint8_t *pEnd = ((uint8_t *)pRow) + pRow->len;
 
-    pEnd -= tGetU8(pEnd, &key->numOfKeys, false);
+    pEnd -= tGetU8(pEnd, &key->numOfPKs, false);
 
     if (pRow->flag >> 4) {  // Key-Value format
       SKVIdx  *pKVIdx = (SKVIdx *)pRow->data;
@@ -1174,10 +1174,10 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
         pv = pKVIdx->idx + (pKVIdx->nCol << 2);
       }
 
-      for (uint8_t iKey = 0; iKey < key->numOfKeys; iKey++) {
+      for (uint8_t iKey = 0; iKey < key->numOfPKs; iKey++) {
         int32_t  index;
         uint8_t *pData;
-        SValue  *pValue = &key->keys[iKey];
+        SValue  *pValue = &key->pks[iKey];
 
         pEnd -= tGetI8(pEnd, &pValue->type, false);
         pEnd -= tGetI32v(pEnd, &index, false);
@@ -1221,18 +1221,18 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
           ASSERTS(0, "invalid row format");
       }
 
-      for (uint8_t iKey = 0; iKey < key->numOfKeys; iKey++) {
+      for (uint8_t iKey = 0; iKey < key->numOfPKs; iKey++) {
         int32_t offset;
-        SValue *pValue = &key->keys[iKey];
+        SValue *pValue = &key->pks[iKey];
 
         pEnd -= tGetI8(pEnd, &pValue->type, false);
         pEnd -= tGetI32v(pEnd, &offset, false);
 
-        if (IS_VAR_DATA_TYPE(key->keys[iKey].type)) {
+        if (IS_VAR_DATA_TYPE(key->pks[iKey].type)) {
           pValue->pData = pv + *(int32_t *)(pf + offset);
           pValue->pData += tGetU32v(pValue->pData, &pValue->nData, true);
         } else {
-          memcpy(&key->keys[iKey].val, pf + offset, TYPE_BYTES[key->keys[iKey].type]);
+          memcpy(&key->pks[iKey].val, pf + offset, TYPE_BYTES[key->pks[iKey].type]);
         }
       }
     }
@@ -1309,8 +1309,8 @@ int32_t tRowKeyCmpr(const void *p1, const void *p2) {
     return 1;
   }
 
-  for (uint8_t iKey = 0; iKey < key1->numOfKeys; iKey++) {
-    int32_t ret = tValueCompare(&key1->keys[iKey], &key2->keys[iKey]);
+  for (uint8_t iKey = 0; iKey < key1->numOfPKs; iKey++) {
+    int32_t ret = tValueCompare(&key1->pks[iKey], &key2->pks[iKey]);
     if (ret) return ret;
   }
 

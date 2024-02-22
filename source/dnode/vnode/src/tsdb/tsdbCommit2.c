@@ -301,7 +301,7 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   config.from->version = VERSION_MIN;
   config.from->key = (SRowKey){
       .ts = committer->ctx->minKey,
-      .numOfKeys = 0,  // TODO: support multiple primary keys
+      .numOfPKs = 0,  // TODO: support multiple primary keys
   };
 
   code = tsdbIterOpen(&config, &iter);

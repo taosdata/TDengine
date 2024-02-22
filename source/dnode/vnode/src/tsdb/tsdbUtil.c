@@ -608,15 +608,15 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   } else {
     key->version = row->pBlockData->aVersion[row->iRow];
     key->key.ts = row->pBlockData->aTSKEY[row->iRow];
-    key->key.numOfKeys = 0;
+    key->key.numOfPKs = 0;
     for (int32_t i = 0; i < row->pBlockData->nColData; i++) {
       SColData *pColData = &row->pBlockData->aColData[i];
       if (pColData->cflag & COL_IS_KEY) {
         SColVal cv;
         tColDataGetValue(pColData, row->iRow, &cv);
         ASSERT(COL_VAL_IS_VALUE(&cv));
-        key->key.keys[key->key.numOfKeys] = cv.value;
-        key->key.numOfKeys++;
+        key->key.pks[key->key.numOfPKs] = cv.value;
+        key->key.numOfPKs++;
       } else {
         break;
       }
