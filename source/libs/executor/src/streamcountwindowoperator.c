@@ -115,8 +115,16 @@ void setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId,
   }
 }
 
-static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs, int32_t start, int32_t rows, int32_t maxRows,
-                              SSHashObj* pStDeleted, bool* pRebuild) {
+static void removeCountResult(SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey) {
+  SSessionKey key = {0};
+  getSessionHashKey(pKey, &key);
+  tSimpleHashRemove(pHashMap, &key, sizeof(SSessionKey));
+  tSimpleHashRemove(pResMap, &key, sizeof(SSessionKey));
+}
+
+static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs,
+                                     int32_t start, int32_t rows, int32_t maxRows, SSHashObj* pStUpdated,
+                                     SSHashObj* pStDeleted, bool* pRebuild) {
   SSessionKey sWinKey = pWinInfo->winInfo.sessionWin;
   int32_t num = 0;
   for (int32_t i = start; i < rows; i++) {
@@ -148,6 +156,7 @@ static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowI
 
   if (needDelState) {
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
+    removeCountResult(pStUpdated, pAggSup->pResultRows, &sWinKey);
     if (pWinInfo->winInfo.pStatePos->needFree) {
       pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &sWinKey);
     }
@@ -242,7 +251,8 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     setSessionWinOutputInfo(pStUpdated, &curWin.winInfo);
     slidingRows = *curWin.pWindowCount;
     if (!buffInfo.rebuildWindow) {
-      winRows = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStDeleted, &buffInfo.rebuildWindow);
+      winRows = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStUpdated,
+                                      pStDeleted, &buffInfo.rebuildWindow);
     }
     if (buffInfo.rebuildWindow) {
       SSessionKey range = {0};
