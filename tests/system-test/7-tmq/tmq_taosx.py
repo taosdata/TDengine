@@ -323,7 +323,7 @@ class TDTestCase:
         tdSql.query("select * from st")
         tdSql.checkRows(8)
 
-        tdSql.execute(f'create topic topic_excluded with meta as database d1')
+        tdSql.execute(f'create topic topic_all with meta as database d1')
         consumer_dict = {
             "group.id": "g1",
             "td.connect.user": "root",
@@ -333,7 +333,7 @@ class TDTestCase:
         consumer = Consumer(consumer_dict)
 
         try:
-            consumer.subscribe(["topic_excluded"])
+            consumer.subscribe(["topic_all"])
         except TmqError:
             tdLog.exit(f"subscribe error")
 
