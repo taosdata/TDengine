@@ -1545,6 +1545,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     }
   }
 
+  mInfo("stream:%s,%"PRId64 " start to pause stream", pauseReq.name, pStream->uid);
+
   if (pStream->status == STREAM_STATUS__PAUSE) {
     sdbRelease(pMnode->pSdb, pStream);
     return 0;

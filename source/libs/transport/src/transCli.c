@@ -961,7 +961,7 @@ static void cliSendCb(uv_write_t* req, int status) {
       tTrace("%s conn %p send cost:%dus ", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
-  if (pMsg->msg.contLen == 0 && pMsg->msg.pCont != 0) {
+  if (pMsg != NULL && pMsg->msg.contLen == 0 && pMsg->msg.pCont != 0) {
     rpcFreeCont(pMsg->msg.pCont);
     pMsg->msg.pCont = 0;
   }
