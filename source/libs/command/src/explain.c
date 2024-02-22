@@ -1777,7 +1777,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
-  int32_t len = blockEncode(pBlock, rsp->data, taosArrayGetSize(pBlock->pDataBlock), BLOCK_VERSION_1);
+  int32_t len = blockEncode(pBlock, rsp->data, taosArrayGetSize(pBlock->pDataBlock));
 
   rsp->compLen = htonl(len);
 

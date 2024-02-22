@@ -512,7 +512,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS, BLOCK_VERSION_1);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
   blockDataDestroy(pBlock);
 
   if (len != rspSize - sizeof(SRetrieveTableRsp)) {
@@ -625,7 +625,7 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data, COMPACT_DB_RESULT_COLS, BLOCK_VERSION_1);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, COMPACT_DB_RESULT_COLS);
   blockDataDestroy(pBlock);
 
   if (len != rspSize - sizeof(SRetrieveTableRsp)) {
