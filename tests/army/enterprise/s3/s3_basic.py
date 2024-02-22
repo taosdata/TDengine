@@ -81,15 +81,23 @@ class TDTestCase(TBase):
         cmd = f"ls {rootPath}/dnode1/data20/vnode/vnode*/tsdb/*.data"
         tdLog.info(cmd)
         loop = 0
-        while len(eos.runRetList(cmd)) > 0 and loop < 100:
-            time.sleep(5)
+        rets = []
+        while loop < 500:
+            rets = eos.runRetList(cmd)
+            cnt = len(rets)
+            if cnt == 0:
+                tdLog.info("All data file upload to server over.")
+                break
+            time.sleep(3)
             self.trimDb(True)
             loop += 1
-            tdLog.info(f"loop={loop} wait 5s...")
+            tdLog.info(f"loop={loop} data files have {cnt} wait 5s...")
             if loop == 4:
                 sc.dnodeStop(1)
                 time.sleep(2)
                 sc.dnodeStart(1)
+        if len(rets) > 0:
+            tdLog.exit(f"s3 can not upload all data to server. data files={rets}")
 
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
