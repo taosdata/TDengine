@@ -203,26 +203,17 @@ impl TaskOpts {
             // Check if enterprise available
             #[cfg(not(feature = "disable-enterprise-only-validation"))]
             match (from.driver.as_str(), to.driver.as_str()) {
-                ("tmq" | "taos", "tmq" | "taos") => {
-                    let mut from = from.clone();
-                    from.subject.take();
-                    let from = TaosBuilder::from_dsn(from)?;
-                    let _ = from.build().await?;
+                (_, "tmq" | "taos") => {
                     let mut to = to.clone();
                     to.subject.take();
-                    let to = TaosBuilder::from_dsn(to)?;
-                    let _ = to.build().await?;
-
-                    if !from
+                    let builder = TaosBuilder::from_dsn(to)?;
+                    let _ = builder.build().await.context("Target connection error")?;
+                    if !builder
                         .is_enterprise_edition()
                         .await
-                        .context("Failed to check source edition")?
-                        && !to
-                            .is_enterprise_edition()
-                            .await
-                            .context("Failed to check target edition")?
+                        .context("Failed to check target edition")?
                     {
-                        anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 ("tmq" | "taos", _) => {
@@ -236,19 +227,6 @@ impl TaskOpts {
                         .context("Failed to check source edition")?
                     {
                         anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
-                    }
-                }
-                (_, "tmq" | "taos") => {
-                    let mut to = to.clone();
-                    to.subject.take();
-                    let builder = TaosBuilder::from_dsn(to)?;
-                    let _ = builder.build().await.context("Target connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
-                    {
-                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 _ => (),

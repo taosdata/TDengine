@@ -859,23 +859,15 @@ impl TaskController {
                         bail!("Failed to connect target server: {err}");
                     }
                 };
-
-                let from_edition =
-                    tokio::time::timeout(Duration::from_secs(30), from.get_edition())
-                        .await
-                        .context("Checking source edition timeout")?
-                        .context("Failed to check source edition")?
-                        .assert_enterprise_edition();
-                let to_edition = to_builder
+                let edition = to_builder
                     .get_edition()
                     .await
                     .context("Failed to check destination edition")?
                     .assert_enterprise_edition();
 
-                if from_edition.is_err() && to_edition.is_err() {
-                    let from_err = from_edition.unwrap_err().to_string();
-                    let to_err = to_edition.unwrap_err().to_string();
-                    bail!("Neither source nor destination is a valid TDengine enterprise edition, cause: source error: {from_err}, destination error: {to_err}, please contact the TDengine customer success team for further assistance.");
+                if edition.is_err() {
+                    let err = edition.unwrap_err().to_string();
+                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
             ("tmq" | "taos", _) => {
