@@ -3844,11 +3844,12 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
   if (IS_VAR_DATA_TYPE(value->type)) {
     int32_t offset, nextOffset;
 
-    memcpy(&offset, tBufferGetData(&valCol->data) + idx * sizeof(offset), sizeof(offset));
+    memcpy(&offset, (char *)tBufferGetData(&valCol->offsets) + idx * sizeof(offset), sizeof(offset));
     if (idx == valCol->numOfValues - 1) {
       nextOffset = tBufferGetSize(&valCol->data);
     } else {
-      memcpy(&nextOffset, tBufferGetData(&valCol->data) + (idx + 1) * sizeof(offset), sizeof(nextOffset));
+      memcpy(&nextOffset, (char *)tBufferGetData(&valCol->offsets) + (idx + 1) * sizeof(nextOffset),
+             sizeof(nextOffset));
     }
     value->nData = nextOffset - offset;
     value->pData = (uint8_t *)((char *)tBufferGetData(&valCol->data) + offset);
