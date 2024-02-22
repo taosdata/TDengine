@@ -92,7 +92,7 @@ The list of currently supported Hints is as follows:
 | :-----------: | -------------- | -------------------------- | -------------------------- |
 | BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable   |         
 | NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable   |
-| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used | Sorting the supertable rows by timestamp  |
+| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
 
 
 
