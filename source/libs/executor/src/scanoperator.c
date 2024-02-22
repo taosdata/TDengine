@@ -4348,6 +4348,9 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->mSkipTables = NULL;
   }
 
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
   if (!hasLimit && blockDataGetRowSize(pInfo->pResBlock) >= 256) {
     pInfo->bSortRowId = true;
   } else {
@@ -4355,9 +4358,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   }
 
   
-  initResultSizeInfo(&pOperator->resultInfo, 1024);
-  pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
