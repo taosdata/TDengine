@@ -1,9 +1,11 @@
 use std::sync::atomic::Ordering::SeqCst;
 
 use super::scheduler::runner::MultiIndexTaskJobMap;
+use super::AgentFilter;
 use super::TaskControllerRef;
 use clap::Parser;
 use gethostname::gethostname;
+use lazy_static::lazy_static;
 use metrics::gauge;
 use metrics::Label;
 use serde::Deserialize;
@@ -79,6 +81,11 @@ pub struct Monitor {
     tasks: Arc<RwLock<MultiIndexTaskJobMap>>,
 }
 
+// cache a map of agent id to agent name
+lazy_static! {
+    static ref AGENT_NAME_MAP: RwLock<HashMap<String, String>> = RwLock::new(HashMap::new());
+}
+
 impl Monitor {
     pub fn new(cfg: MonitorCfg, taosx_port: &str, controller: TaskControllerRef) -> Self {
         let hostname = gethostname();
@@ -112,6 +119,7 @@ impl Monitor {
         let taosx_id = self.taosx_id;
         let controller = self.controller.clone();
         tokio::spawn(async move {
+            init_agents(controller.clone()).await.unwrap();
             use sysinfo::*;
             tracing::info!("start update process metrics task");
             let duration = Duration::from_secs(monitor_interval);
@@ -137,6 +145,7 @@ impl Monitor {
         if let Some(fqdn) = &self.cfg.fqdn {
             tracing::info!("nonitor is enabled");
             let url = format!("http://{}:{}/general-metric", fqdn, self.cfg.port);
+            let controller = self.controller.clone();
             tokio::spawn(async move {
                 tracing::info!("start send metrics task");
                 let exporter = TaosKeeperExporter { url: &url };
@@ -146,8 +155,12 @@ impl Monitor {
                     let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
                     let records = snapshot2records(snapshot);
                     let mut tables = records2tables(records);
+                    add_extra_tags_to_tables(controller.clone(), &mut tables).await;
                     add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
                     let stables = grouptables2stable(tables);
+                    if stables.is_empty() {
+                        continue;
+                    }
                     let body = stable2json(stables);
                     tracing::debug!("data send to taoskeeper: {}", &body);
                     exporter.push_taoskeeper(body).await;
@@ -158,7 +171,58 @@ impl Monitor {
     }
 }
 
-/// 遍历 scheduler 中的所有 task，将 task 的 metric 转换成 Table, 并加入 tables 中
+async fn init_agents(controller: TaskControllerRef) -> anyhow::Result<()> {
+    let agents = controller.get_agents(AgentFilter::default()).await?;
+    let mut agent_name_map = AGENT_NAME_MAP.write().await;
+    for agent in agents {
+        agent_name_map.insert(agent.id.to_string(), agent.name.clone());
+    }
+    Ok(())
+}
+
+async fn get_agent_name_by_id(controller: TaskControllerRef, agent_id: &str) -> Option<String> {
+    let agent_name_map = AGENT_NAME_MAP.read().await;
+    if let Some(agent_name) = agent_name_map.get(agent_id) {
+        return Some(agent_name.clone());
+    }
+    drop(agent_name_map);
+    let agent_id: i64 = agent_id.parse().unwrap();
+    let agent = controller.get_agent_by_id(agent_id).await.unwrap();
+    if let Some(agent) = agent {
+        let mut agent_name_map = AGENT_NAME_MAP.write().await;
+        agent_name_map.insert(agent.id.to_string(), agent.name.clone());
+        return Some(agent.name);
+    }
+    None
+}
+
+/// 为 table 添加额外的 tag, 这些 tag 不是 metrics 自带的（即从 metrics 的 label 来的）,而是为了其它目的额外加的。
+async fn add_extra_tags_to_tables(controller: TaskControllerRef, tables: &mut Vec<Table>) {
+    // 为 taosx_agent 表添加 agent_name 标签
+    for table in tables.iter_mut() {
+        if table.table_key.stable == "taosx_agent" {
+            let agent_id = table
+                .table_key
+                .tags
+                .iter()
+                .find(|tag| tag.name == "agent_id")
+                .map(|tag| tag.value.clone());
+            if let Some(agent_id) = agent_id {
+                let agent_name = get_agent_name_by_id(controller.clone(), &agent_id).await;
+                if let Some(agent_name) = agent_name {
+                    table.table_key.tags.push(Tag {
+                        name: "agent_name".to_string(),
+                        value: agent_name.to_string(),
+                    });
+                } else {
+                    tracing::warn!("agent_name for agent_id {} not found", agent_id);
+                }
+            }
+        }
+    }
+}
+
+/// 遍历 scheduler 中的所有 task, 将 task 的 metric 转换成 Table, 并加入 tables 中
 async fn add_task_metrics_tables(
     tasks: Arc<RwLock<MultiIndexTaskJobMap>>,
     tables: &mut Vec<Table>,
@@ -180,7 +244,7 @@ async fn add_task_metrics_tables(
                 }
             },
             None => {
-                tracing::debug!("metrics for task {} not is not initialized", task_id);
+                tracing::debug!("metrics for task {} is not initialized", task_id);
                 continue;
             }
         }
