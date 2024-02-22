@@ -1125,8 +1125,11 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       int64_t firstRowTs = *(int64_t*)tsCol->pData;
       if ((pOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs)  ||
           (pOrder->order == TSDB_ORDER_DESC && firstRowTs < pHandle->currMergeLimitTs)) {
-            continue;
-          }
+        if (bExtractedBlock) {
+          blockDataDestroy(pBlk);
+	}
+        continue;
+      }
     }
 
     if (pBlk != NULL) {
@@ -1149,10 +1152,11 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       tSimpleHashClear(mUidBlk);
       code = sortBlocksToExtSource(pHandle, aBlkSort, pOrder, aExtSrc);
       if (code != TSDB_CODE_SUCCESS) {
-        tSimpleHashCleanup(mUidBlk);
-        taosArrayDestroy(aBlkSort);
-        taosArrayDestroy(aExtSrc);
-        return code;
+        for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
+          blockDataDestroy(taosArrayGetP(aBlkSort, i));
+        }
+        taosArrayClear(aBlkSort);
+        break;	
       }
 
       int64_t el = taosGetTimestampUs() - p;
@@ -1165,6 +1169,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       szSort = 0;
       qDebug("source %zu created", taosArrayGetSize(aExtSrc));
     }
+
     if (pBlk == NULL) {
       break;
     }
@@ -1180,6 +1185,9 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   }
 
   tSimpleHashCleanup(mUidBlk);
+  for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
+    blockDataDestroy(taosArrayGetP(aBlkSort, i));
+  }
   taosArrayDestroy(aBlkSort);
   tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
   if (!tsortIsClosed(pHandle)) {
@@ -1188,7 +1196,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   taosArrayDestroy(aExtSrc);
   tSimpleHashCleanup(mTableNumRows);
   pHandle->type = SORT_SINGLESOURCE_SORT;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
