@@ -3,6 +3,7 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
+use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 pub use tokio_stream::StreamExt;
@@ -406,8 +407,37 @@ fn test_tbname_pattern() {
     }
 }
 
+/*
+ * 解析为文件路径.
+ * 1. 如果以@开头，表示文件路径, 直接覆盖会dsn;
+ * 2. 否则，认为是文件内容，存储到临时文件后，返回文件句柄，为了使tempfile不被删除，需要返回NamedTempFile.
+ */
+fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
+    let file_name = dsn.get(key);
+    if file_name.is_none() {
+        return None;
+    }
+    let file_name = file_name.unwrap();
+
+    if file_name.starts_with('@') {
+        dsn.set(key, file_name[1..].to_string());
+        None
+    } else {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(file_name.as_bytes()).unwrap();
+        dsn.set(key, file.path().to_str().unwrap().to_string());
+
+        Some(file)
+    }
+}
+
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from: Dsn = req.from.parse()?;
+    let mut from: Dsn = req.from.parse()?;
+    let certificate = get_temp_file(&mut from, "certificate");
+    let private_key = get_temp_file(&mut from, "private_key");
+    let auth_certificate = get_temp_file(&mut from, "auth_certificate");
+    let auth_private_key = get_temp_file(&mut from, "auth_private_key");
+
     if req.categories.is_empty() {
         anyhow::bail!("categories is empty");
     }
@@ -466,6 +496,10 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     }
 
     temp_path.close()?;
+    certificate.map(|f| f.close());
+    private_key.map(|f| f.close());
+    auth_certificate.map(|f| f.close());
+    auth_private_key.map(|f| f.close());
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
     // tracing::debug!("parse opc dataset successfully, have {} points", res.len());
     // let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
