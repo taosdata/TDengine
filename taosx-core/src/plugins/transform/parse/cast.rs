@@ -36,6 +36,11 @@ impl Cast {
             alias: None,
         }
     }
+
+    pub fn r#as(&self) -> &IpcDataType {
+        &self.r#as
+    }
+
     #[allow(dead_code)]
     pub fn alias(mut self, alias: impl ToString) -> Self {
         self.alias.replace(alias.to_string());
