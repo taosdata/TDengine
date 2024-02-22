@@ -458,6 +458,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
   req.alterOriData = alterOriData;
   req.alterOriDataLen = alterOriDataLen;
+  req.source = pStb->source;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -774,7 +775,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
   pDst->uid =
-      (pCreate->source == TD_REQ_FROM_TAOX) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+      (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX)
+          ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
   pDst->tagVer = 1;
   pDst->colVer = 1;
@@ -790,6 +792,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfFuncs = pCreate->numOfFuncs;
   pDst->commentLen = pCreate->commentLen;
   pDst->pFuncs = pCreate->pFuncs;
+  pDst->source = pCreate->source;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -1033,6 +1036,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   memcpy(pDst, pStb, sizeof(SStbObj));
   taosRUnLockLatch(&pStb->lock);
 
+  pDst->source = createReq->source;
   pDst->updateTime = taosGetTimestampMs();
   pDst->numOfColumns = createReq->numOfColumns;
   pDst->numOfTags = createReq->numOfTags;
@@ -1141,7 +1145,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     }
   } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
     goto _OVER;
-  } else if (createReq.source == TD_REQ_FROM_TAOX && (createReq.tagVer != 1 || createReq.colVer != 1)) {
+  } else if ((createReq.source == TD_REQ_FROM_TAOX_OLD || createReq.source == TD_REQ_FROM_TAOX) && (createReq.tagVer != 1 || createReq.colVer != 1)) {
     mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
     code = 0;
     goto _OVER;
@@ -2572,7 +2576,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     }
   }
 
-  if (dropReq.source == TD_REQ_FROM_TAOX && pStb->uid != dropReq.suid) {
+  if ((dropReq.source == TD_REQ_FROM_TAOX_OLD || dropReq.source == TD_REQ_FROM_TAOX) && pStb->uid != dropReq.suid) {
     code = 0;
     goto _OVER;
   }

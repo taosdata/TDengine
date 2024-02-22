@@ -815,7 +815,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
           return;
         }
 
-        SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .source = SOURCE_NULL};
+        SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = TD_REQ_FROM_APP};
         code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
@@ -860,7 +860,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       pTask->execInfo.sink.numOfBlocks += 1;
       uint64_t groupId = pDataBlock->info.id.groupId;
 
-      SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .source = SOURCE_NULL};
+      SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = TD_REQ_FROM_APP};
 
       int32_t* index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
