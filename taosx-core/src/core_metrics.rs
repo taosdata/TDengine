@@ -366,7 +366,7 @@ pub fn init_task_metrics(
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let stable = String::from("taosx_task_tdengine");
+                let stable = String::from("taosx_task_tdengine3");
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
                     stable, task_id, task_name,
                 )));

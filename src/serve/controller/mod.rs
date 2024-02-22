@@ -1811,6 +1811,13 @@ pub struct AgentFilter {
 }
 
 impl AgentFilter {
+    pub fn default() -> Self {
+        Self {
+            cluster_id: None,
+            user_id: None,
+        }
+    }
+
     pub fn to_sql_condition(&self) -> Option<String> {
         match (self.cluster_id.as_ref(), self.user_id.as_ref()) {
             (None, None) => None,

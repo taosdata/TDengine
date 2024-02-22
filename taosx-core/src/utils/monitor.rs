@@ -110,7 +110,7 @@ pub fn update_sub_connector_process_metrics(
             }
 
             Err(err) => {
-                tracing::debug!("receive error: {}", err);
+                tracing::trace!("receive error: {}", err);
                 break;
             }
         }
