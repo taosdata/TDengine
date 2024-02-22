@@ -158,7 +158,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: Write Concurrency
       description: |
@@ -167,7 +167,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: Batch Size
       description: |

@@ -46,7 +46,7 @@ options:
         - Aes128_Sha256_RsaOaep
         - Aes256_Sha256_RsaPss
 
-  certificate:  
+  certificate:
     name: certificate
     display: Secure Channel Certificate
     description: If the certificate is not authenticated by CA, please trust it on the server side and initiate a connectivity check again.
@@ -246,7 +246,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: Write Concurrency
       description: |
@@ -255,7 +255,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: Batch Size
       description: |
