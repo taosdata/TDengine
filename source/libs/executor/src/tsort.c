@@ -1423,8 +1423,9 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     }
     blockDataCleanup(pHandle->pDataBlock);
   }
-
-  saveDirtyPagesToExtRowsMemFile(pHandle);
+  if (pHandle->bSortByRowId) {
+    saveDirtyPagesToExtRowsMemFile(pHandle);
+  }
 
   SSDataBlock* pMemSrcBlk = createOneDataBlock(pHandle->pDataBlock, false);
   doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
