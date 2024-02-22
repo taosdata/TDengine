@@ -34,15 +34,20 @@ int32_t mWinJoinDumpGrpCache(SMJoinWindowCtx* pCtx) {
   SMJoinWinCache* cache = &pCtx->cache;
   int32_t buildGrpNum = taosArrayGetSize(cache->grps);
   int64_t buildTotalRows = TMIN(cache->rowNum, pCtx->jLimit);
+
+  pCtx->finBlk->info.id.groupId = pCtx->seqWinGrp ? pCtx->seqGrpId : 0;
+
   if (buildGrpNum <= 0 || buildTotalRows <= 0) {
-    return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true);
+    MJ_ERR_RET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true, pCtx->seqWinGrp));    
+    pCtx->seqGrpId++;
+    return TSDB_CODE_SUCCESS;
   }
   
   SMJoinGrpRows* probeGrp = &pCtx->probeGrp;
   int32_t probeRows = GRP_REMAIN_ROWS(probeGrp);
   int32_t probeEndIdx = probeGrp->endIdx;
 
-  if (0 == cache->grpIdx && probeRows * buildTotalRows <= rowsLeft) {
+  if ((!pCtx->seqWinGrp) && 0 == cache->grpIdx && probeRows * buildTotalRows <= rowsLeft) {
     SMJoinGrpRows* pFirstBuild = taosArrayGet(cache->grps, 0);
     if (pFirstBuild->readIdx == pFirstBuild->beginIdx) {
       for (; cache->grpIdx < buildGrpNum; ++cache->grpIdx) {
@@ -82,6 +87,11 @@ int32_t mWinJoinDumpGrpCache(SMJoinWindowCtx* pCtx) {
     if (cache->grpIdx >= buildGrpNum) {
       cache->grpIdx = 0;
       ++probeGrp->readIdx; 
+      pCtx->seqGrpId++;
+      
+      if (pCtx->seqWinGrp) {
+        break;
+      }
     }
 
     if (rowsLeft <= 0) {
@@ -489,7 +499,7 @@ static FORCE_INLINE int32_t mLeftJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false);
 }
 
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
@@ -575,7 +585,7 @@ SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -812,7 +822,7 @@ static FORCE_INLINE int32_t mFullJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return pCtx->lastProbeGrp ? mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true) : mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false);
+  return pCtx->lastProbeGrp ? mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false) : mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false, false);
 }
 
 static bool mFullJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin) {
@@ -1170,7 +1180,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1191,7 +1201,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false, false));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1512,7 +1522,7 @@ static FORCE_INLINE int32_t mAntiJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false);
 }
 
 static int32_t mAntiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
@@ -1766,7 +1776,7 @@ SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1877,7 +1887,7 @@ int32_t mAsofLowerAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWindow
 
 int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
   if (NULL == pCtx->cache.outBlk || pCtx->cache.outBlk->info.rows <= 0) {
-    return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true);
+    return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true, false);
   }
 
   int32_t rowsLeft = pCtx->finBlk->info.capacity - pCtx->finBlk->info.rows;
@@ -2523,7 +2533,7 @@ SSDataBlock* mAsofGreaterJoinDo(struct SOperatorInfo* pOperator) {
       pCtx->probeGrp.readIdx = pCtx->probeGrp.beginIdx;
       pCtx->probeGrp.endIdx = pJoin->probe->blk->info.rows - 1;
       
-      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true, false));
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
@@ -2862,10 +2872,6 @@ int32_t mWinJoinMoveFillWinCache(SMJoinWindowCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mWinJoinDumpWinCache(SMJoinWindowCtx* pCtx) {
-  return pCtx->winProjection ? mWinJoinDumpGrpCache(pCtx) : TSDB_CODE_SUCCESS;  
-}
-
 SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
   SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
@@ -2876,8 +2882,8 @@ SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
   blockDataCleanup(pCtx->finBlk);
 
   if (pCtx->grpRemains) {
-    MJ_ERR_JRET(mWinJoinDumpWinCache(pCtx));
-    if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+    MJ_ERR_JRET(mWinJoinDumpGrpCache(pCtx));
+    if (pCtx->finBlk->info.rows >= pCtx->blkThreshold || (pCtx->finBlk->info.rows > 0 && pCtx->seqWinGrp)) {
       return pCtx->finBlk;
     }
     pCtx->grpRemains = false;
@@ -2902,9 +2908,9 @@ SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
         MJ_ERR_JRET(mWinJoinMoveFillWinCache(pCtx));
       }
 
-      MJ_ERR_JRET(mWinJoinDumpWinCache(pCtx));
+      MJ_ERR_JRET(mWinJoinDumpGrpCache(pCtx));
       
-      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold || (pCtx->finBlk->info.rows > 0 && pCtx->seqWinGrp)) {
         return pCtx->finBlk;
       }
     }
@@ -2947,6 +2953,8 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
   
   pCtx->pJoin = pJoin;
   pCtx->lastTs = INT64_MIN;
+  pCtx->seqWinGrp = pJoinNode->seqWinGroup;
+  pCtx->seqGrpId = 1;
 
   switch (pJoinNode->subType) {
     case JOIN_STYPE_ASOF:
@@ -2967,7 +2975,6 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
       SValueNode* pWinBegin = (SValueNode*)pOffsetNode->pStartOffset;
       SValueNode* pWinEnd = (SValueNode*)pOffsetNode->pEndOffset;
       pCtx->jLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : INT64_MAX;
-      pCtx->winProjection = true;
       pCtx->winBeginOffset = pWinBegin->datum.i;
       pCtx->winEndOffset = pWinEnd->datum.i;
       pCtx->eqRowsAcq = (pCtx->winBeginOffset <= 0 && pCtx->winEndOffset >= 0);
@@ -3007,6 +3014,7 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   pCtx->pJoin = pJoin;
   pCtx->lastEqTs = INT64_MIN;
   pCtx->hashCan = pJoin->probe->keyNum > 0;
+
   if (JOIN_STYPE_ASOF == pJoinNode->subType || JOIN_STYPE_WIN == pJoinNode->subType) {
     pCtx->jLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
     pJoin->subType = JOIN_STYPE_OUTER;

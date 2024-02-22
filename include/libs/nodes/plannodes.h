@@ -140,6 +140,7 @@ typedef struct SJoinLogicNode {
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
+  bool           seqWinGroup;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -499,6 +500,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*       pFullOnCond;
   SNodeList*   pTargets;
   SQueryStat   inputStat[2];  
+  bool         seqWinGroup;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {

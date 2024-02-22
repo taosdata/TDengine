@@ -550,6 +550,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
   pJoin->winPrimEqCond = nodesCloneNode(pJoinTable->winPrimCond);
   pJoin->node.pChildren = nodesMakeList();
+  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && pSelect->hasAggFuncs;
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -713,6 +714,10 @@ static EGroupAction getDistinctGroupAction(SLogicPlanContext* pCxt, SSelectStmt*
                                                                                               : GROUP_ACTION_NONE;
 }
 
+static bool isWindowJoinStmt(SSelectStmt * pSelect) {
+  return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) && IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType));
+}
+
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   return ((pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) && !pSelect->isDistinct) ? GROUP_ACTION_KEEP
                                                                                               : GROUP_ACTION_NONE;
@@ -721,6 +726,49 @@ static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSelect) {
   return needTimeline ? (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                       : DATA_ORDER_LEVEL_NONE;
+}
+
+static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pList) {
+  SNodeList* pTargets = (NULL == *pList) ? nodesMakeList() : *pList;
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  SRealTableNode* pProbeTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    default:
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSchema* pColSchema = &pProbeTable->pMeta->schema[0];
+  strcpy(pCol->dbName, pProbeTable->table.dbName);
+  strcpy(pCol->tableAlias, pProbeTable->table.tableAlias);
+  strcpy(pCol->tableName, pProbeTable->table.tableName);
+  strcpy(pCol->colName, pColSchema->name);
+  strcpy(pCol->node.aliasName, pColSchema->name);
+  strcpy(pCol->node.userAlias, pColSchema->name);
+  pCol->tableId = pProbeTable->pMeta->uid;
+  pCol->tableType = pProbeTable->pMeta->tableType;
+  pCol->colId = pColSchema->colId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
+  pCol->node.resType.type = pColSchema->type;
+  pCol->node.resType.bytes = pColSchema->bytes;
+  pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;  
+
+  SNode* pFunc = (SNode*)createGroupKeyAggFunc(pCol);
+
+  nodesListAppend(pTargets, pFunc);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -733,14 +781,16 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  bool winJoin = isWindowJoinStmt(pSelect);
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
   pAgg->hasLast = pSelect->hasLastFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->hasGroupKeyOptimized = false;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
-  pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
+  pAgg->node.groupAction = winJoin ? GROUP_ACTION_NONE : getGroupAction(pCxt, pSelect);
   pAgg->node.requireDataOrder = getRequireDataOrder(pAgg->hasTimeLineFunc, pSelect);
   pAgg->node.resultDataOrder = pAgg->onlyHasKeepOrderFunc ? pAgg->node.requireDataOrder : DATA_ORDER_LEVEL_NONE;
+  pAgg->node.forceCreateNonBlockingOptr = winJoin ? true : false;
 
   int32_t code = TSDB_CODE_SUCCESS;
 

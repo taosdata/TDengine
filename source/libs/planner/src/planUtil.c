@@ -542,3 +542,27 @@ bool keysHasCol(SNodeList* pKeys) {
   nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
+
+SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (pFunc) {
+    strcpy(pFunc->functionName, "_group_key");
+    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
+    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode((SNode*)pGroupCol));
+    if (code == TSDB_CODE_SUCCESS) {
+      code = fmGetFuncInfo(pFunc, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pFunc);
+      pFunc = NULL;
+    }
+    char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+    taosCreateMD5Hash(name, len);
+    strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  }
+  return pFunc;
+}
+
+

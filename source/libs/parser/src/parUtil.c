@@ -192,6 +192,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Out of memory";
     case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
       return "ORDER BY \"%s\" is ambiguous";
+    case TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR:
+      return "Not supported window join having expr";
     default:
       return "Unknown error";
   }

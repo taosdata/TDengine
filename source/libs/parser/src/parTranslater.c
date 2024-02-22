@@ -314,6 +314,10 @@ static int32_t  createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMet
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
+static bool isWindowJoinStmt(SSelectStmt* pSelect) {
+  return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) && IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType);
+}
+
 static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode** ppNode);
 
 static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_BY; }
@@ -2706,6 +2710,32 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
   return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
 }
 
+static bool isWindowJoinProbeTablePrimCol(SSelectStmt*         pSelect, SNode* pNode) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  SRealTableNode* pProbeTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    default:
+      return false;
+  }
+
+  if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID && 0 == strcmp(pCol->dbName, pProbeTable->table.dbName) && 0 == strcmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
+    return true;
+  }
+
+  return false;
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -2733,6 +2763,11 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
+  if (isWindowJoinStmt(pSelect)) {
+    if (isWindowJoinProbeTablePrimCol(pSelect, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc ||
         (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
@@ -2753,7 +2788,7 @@ static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pList) {
-  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow) {
+  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow && (!isWindowJoinStmt(pSelect) || !pSelect->hasAggFuncs)) {
     return TSDB_CODE_SUCCESS;
   }
   nodesRewriteExprs(pList, doCheckExprForGroupBy, pCxt);
@@ -2826,7 +2861,7 @@ static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
 }
 
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
+  if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow || isWindowJoinStmt(pSelect) ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2850,7 +2885,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
 
 static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow) {
+  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow && !isWindowJoinStmt(pSelect)) {
     return code;
   }
   if (NULL != pSelect->pHaving) {
@@ -2867,12 +2902,38 @@ static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect)
   return code;
 }
 
-static int32_t checkWindowFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pWindow) {
-    return TSDB_CODE_SUCCESS;
+static EDealRes searchAggFuncNode(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsAggFunc(pFunc->funcId)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
   }
+  return DEAL_RES_CONTINUE;
+}
+
+
+static int32_t checkWindowGrpFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasStateKey) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
+  }
+  if (isWindowJoinStmt(pSelect)) {
+    if (!pSelect->hasAggFuncs && NULL != pSelect->pHaving) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR);
+    }
+/*
+    if (NULL != pSelect->pHaving) {
+      bool hasFunc = false;
+      nodesWalkExpr(pSelect->pHaving, searchAggFuncNode, &hasFunc);
+      if (!hasFunc) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR);
+      }
+    }
+*/    
+    if (pSelect->hasAggFuncs) {
+      return checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3911,9 +3972,18 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
 }
 
 static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
+  if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow && !isWindowJoinStmt(pSelect) &&
       NULL != pSelect->pHaving) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  }
+  if (isWindowJoinStmt(pSelect)) {
+    if (NULL != pSelect->pHaving) {
+      bool hasFunc = false;
+      nodesWalkExpr(pSelect->pHaving, searchAggFuncNode, &hasFunc);
+      if (!hasFunc) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR);
+      }
+    }
   }
   pCxt->currClause = SQL_CLAUSE_HAVING;
   int32_t code = translateExpr(pCxt, &pSelect->pHaving);
@@ -4781,13 +4851,32 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createPrimaryKeyCol(STranslateContext* pCxt, SNode** pPrimaryKey) {
+static int32_t tranCreatePrimaryKeyCol(STranslateContext* pCxt, const char* tableAlias, SNode** pPrimaryKey) {
   STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, NULL, &pTable);
+  int32_t     code = findTable(pCxt, tableAlias, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = createPrimaryKeyColByTable(pCxt, pTable, pPrimaryKey);
   }
   return code;
+}
+
+static EDealRes collectTableAlias(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (NULL == *(void**)pContext) {
+    SSHashObj* pHash = tSimpleHashInit(3, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pHash) {
+      return DEAL_RES_ERROR;
+    }
+    *(SSHashObj**)pContext = pHash;
+  }
+
+  tSimpleHashPut(*(SSHashObj**)pContext, pCol->tableAlias, strlen(pCol->tableAlias), pCol->tableAlias, sizeof(pCol->tableAlias));
+  
+  return DEAL_RES_CONTINUE;
 }
 
 static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
@@ -4795,7 +4884,20 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
   if (isImplicitTsFunc(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SNode*         pPrimaryKey = NULL;
-    pCxt->errCode = createPrimaryKeyCol(pCxt, &pPrimaryKey);
+    SSHashObj*     pTableAlias = NULL;
+    nodesWalkExprs(pFunc->pParameterList, collectTableAlias, &pTableAlias);
+    if (NULL == pTableAlias) {
+      pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, NULL, &pPrimaryKey);
+    } else {
+      if (tSimpleHashGetSize(pTableAlias) > 1) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_FUNC);
+      }
+      char* tableAlias = NULL;
+      int32_t                      iter = 0;
+      tableAlias = tSimpleHashIterate(pTableAlias, tableAlias, &iter);
+      pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
+      tSimpleHashCleanup(pTableAlias);
+    }
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
     }
@@ -4899,6 +5001,69 @@ static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* 
   return translateExprList(pCxt, pSelect->pProjectionList);
 }
 
+static int32_t translateWinJoin(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_JOIN_TABLE != nodeType(pSelect->pFromTable) || !pSelect->hasAggFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  if (JOIN_STYPE_WIN != pJoinTable->subType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pSelect->pGroupByList || pSelect->pPartitionByList || pSelect->pWindow) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GRP_WINDOW_NOT_ALLOWED);
+  }
+
+/*
+  SRealTableNode* pProbeTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    default:
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSchema* pColSchema = &pProbeTable->pMeta->schema[0];
+  strcpy(pCol->dbName, pProbeTable->table.dbName);
+  strcpy(pCol->tableAlias, pProbeTable->table.tableAlias);
+  strcpy(pCol->tableName, pProbeTable->table.tableName);
+  strcpy(pCol->colName, pColSchema->name);
+  strcpy(pCol->node.aliasName, pColSchema->name);
+  strcpy(pCol->node.userAlias, pColSchema->name);
+  pCol->tableId = pProbeTable->pMeta->uid;
+  pCol->tableType = pProbeTable->pMeta->tableType;
+  pCol->colId = pColSchema->colId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
+  pCol->node.resType.type = pColSchema->type;
+  pCol->node.resType.bytes = pColSchema->bytes;
+  pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;
+  
+  SGroupingSetNode* groupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  if (NULL == groupingSet) {
+    nodesDestroyNode((SNode*)pCol);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  groupingSet->groupingSetType = GP_TYPE_NORMAL;
+  groupingSet->pParameterList = nodesMakeList();
+  nodesListAppend(groupingSet->pParameterList, (SNode*)pCol);
+
+  pSelect->pGroupByList = nodesMakeList();
+  nodesListAppend(pSelect->pGroupByList, (SNode*)groupingSet);
+*/
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
@@ -4934,11 +5099,14 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkIsEmptyResult(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = translateWinJoin(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkWindowFuncCoexist(pCxt, pSelect);
+    code = checkWindowGrpFuncCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkLimit(pCxt, pSelect);

@@ -175,3 +175,220 @@ sql select a.ts, b.ts from tba1 a left window join tba2 b window_offset(1a, -1h)
 if $rows != 9 then
   return -1
 endi
+
+sql select count(*) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+if $data10 != 3 then
+  return -1
+endi
+
+sql select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+sql select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data21 != 3 then
+  return -1
+endi
+
+sql select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(count(*) != 2);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+
+sql select a.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(count(*) != 2) order by count(*);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data21 != 3 then
+  return -1
+endi
+
+sql select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*);
+if $rows != 7 then
+  return -1
+endi
+sql select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*), a.ts;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data30 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data40 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data50 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data60 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+
+sql select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data02 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data12 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data22 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data30 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data32 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data40 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data42 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data50 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data52 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data60 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data62 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data70 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data72 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+
+sql select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s) limit 1;
+if $rows != 1 then
+  return -1
+endi
+
+
+sql select timetruncate(a.ts, 1m), count(*) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+sql select a.ts+1s, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+sql_error select a.col1, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+sql_error select b.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(b.ts > 0);
+sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(a.col1 > 0);
+sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(a.col1 > 0);
+sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(a.ts > "2023-11-17 16:29:00.000");
+sql_error select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(a.ts > 0) order by count(*);
+sql_error select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s) slimit 1;

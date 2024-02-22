@@ -2475,7 +2475,8 @@ enum {
   PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM0,
   PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE0,
   PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM1,
-  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1,
+  PHY_SORT_MERGE_JOIN_CODE_SEQ_WIN_GROUP
 };
 
 static int32_t physiMergeJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2535,6 +2536,9 @@ static int32_t physiMergeJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1, pNode->inputStat[1].inputRowSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_SORT_MERGE_JOIN_CODE_SEQ_WIN_GROUP, pNode->seqWinGroup);
   }
   
   return code;
@@ -2603,6 +2607,9 @@ static int32_t msgToPhysiMergeJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1:
         code = tlvDecodeI32(pTlv, &pNode->inputStat[1].inputRowSize);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_SEQ_WIN_GROUP:
+        code = tlvDecodeBool(pTlv, &pNode->seqWinGroup);
         break;
       default:
         break;

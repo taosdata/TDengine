@@ -451,7 +451,7 @@ int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
 }
 
 
-int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp) {
+int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp, bool singleProbeRow) {
   pCtx->lastEqGrp = false;
   pCtx->lastProbeGrp = probeGrp;
 
@@ -459,6 +459,10 @@ int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp
   if (rowsLeft <= 0) {
     pCtx->grpRemains = pGrp->readIdx <= pGrp->endIdx;
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (probeGrp && singleProbeRow) {
+    rowsLeft = 1;
   }
 
   if (GRP_REMAIN_ROWS(pGrp) <= rowsLeft) {
@@ -636,7 +640,7 @@ int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnI
     break;
   }
 
-  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);  
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true, false);  
 }
 
 int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
@@ -655,7 +659,7 @@ int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
     break;
   }
 
-  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false);  
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false, false);  
 }
 
 
@@ -844,7 +848,7 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
-       || (JOIN_STYPE_WIN == pJoin->subType && !WIN_ONLY_EQ_ROW_INCLUDED(((SWindowOffsetNode*)pJoinNode->pWindowOffset)->pStartOffset, ((SWindowOffsetNode*)pJoinNode->pWindowOffset)->pEndOffset))) {
+       || (JOIN_STYPE_WIN == pJoin->subType)) {
     return mJoinInitWindowCtx(pJoin, pJoinNode);
   }
   

@@ -55,6 +55,7 @@ bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
+SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
 
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1
