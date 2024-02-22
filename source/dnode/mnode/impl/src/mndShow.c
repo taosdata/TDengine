@@ -326,7 +326,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pStart += sizeof(SSysTableSchema);
     }
 
-    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
+    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns, BLOCK_VERSION_1);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

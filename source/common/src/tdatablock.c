@@ -2157,12 +2157,12 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols, int32_t bVersion) {
   int32_t dataLen = 0;
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = 1;
+  *version = bVersion;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2243,7 +2243,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-    colSizes[col] = htonl(colSizes[col]);
+    if(bVersion == BLOCK_VERSION_1){
+      colSizes[col] = htonl(colSizes[col]);
+    }
     //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
     //    htonl(colSizes[col]), colSizes[col]);
   }
@@ -2305,7 +2307,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if(version == 1){
+    if(version == BLOCK_VERSION_1){
       colLen[i] = htonl(colLen[i]);
     }
     ASSERT(colLen[i] >= 0);

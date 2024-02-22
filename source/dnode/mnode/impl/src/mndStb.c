@@ -3099,7 +3099,7 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 //      pStart += sizeof(SSysTableSchema);
 //    }
 //
-//    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
+//    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns, BLOCK_VERSION_1);
 //  }
 //
 //  pRsp->numOfRows = htonl(rowsRead);

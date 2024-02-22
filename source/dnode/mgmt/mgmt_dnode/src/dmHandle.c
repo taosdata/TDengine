@@ -368,7 +368,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     pStart += sizeof(SSysTableSchema);
   }
 
-  int32_t len = blockEncode(pBlock, pStart, numOfCols);
+  int32_t len = blockEncode(pBlock, pStart, numOfCols, BLOCK_VERSION_1);
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
