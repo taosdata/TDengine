@@ -2045,11 +2045,13 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (isDataIn) {
     if (expire == GRANT_UNIQ_UNLIMITED) {
-      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
+      snprintf(qBuf, colLen,
+               "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
                curVal, limit, expire, GRANT_UNIQ_UNLIMITED_S);
     } else {
       grantSecondsToString(expire, ts);
-      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
+      snprintf(qBuf, colLen,
+               "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
                curVal, limit, expire, ts);
     }
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
