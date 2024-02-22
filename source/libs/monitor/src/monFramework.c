@@ -273,9 +273,22 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->mnodes); ++i) {
 
     SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->mnodes, i);
+    
+    bool dnodeIsOnline = false;
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->dnodes); ++i) {
+      SMonDnodeDesc *pDnodeDesc = taosArrayGet(pInfo->dnodes, i);
 
-    if(pMnodeDesc->syncState != 0){
-        mnode_alive++;
+      if(pDnodeDesc->dnode_id == pMnodeDesc->mnode_id){
+        if(strcmp(pDnodeDesc->status, "ready") == 0){
+          dnodeIsOnline = true;
+        }
+      }
+    }
+
+    if(dnodeIsOnline){
+      if(pMnodeDesc->syncState != 0){
+          mnode_alive++;
+      }
     }
   }
 
