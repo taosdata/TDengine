@@ -27,18 +27,16 @@ const int64_t msInSeconds = 1000;
 const int64_t msInMinutes = 60 * 1000;
 
 static const char* getSlowQueryLableCostDesc(int64_t cost) {
-  if (cost >= 10000 * msInSeconds) {
-    return " > 10000 seconds";
-  } else if (cost >= 1000 * msInSeconds) {
-    return " > 1000 seconds";
+  if (cost >= 1000 * msInSeconds) {
+    return "1000s-";
   } else if (cost >= 100 * msInSeconds) {
-    return " > 100 seconds";
+    return "100-1000s";
   } else if (cost >= 10 * msInSeconds) {
-    return " > 10 seconds";
+    return "10-100s";
   } else if (cost >= 3 * msInSeconds) {
-    return " > 3 seconds";
+    return "3-10s";
   }
-  return "< 3 s";
+  return "0-3s";
 }
 
 void clientSlowQueryMonitorInit(const char* clusterKey) {
