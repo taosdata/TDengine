@@ -48,7 +48,7 @@ options:
         - Aes128_Sha256_RsaOaep
         - Aes256_Sha256_RsaPss
 
-  certificate:  
+  certificate:
     name: certificate
     display: 安全通信证书
     description: 建立连接时，发送给 OPC UA 服务器；如果未经 CA 认证，请在服务器端信任此证书后，再次发起连通性检查。
@@ -205,7 +205,7 @@ groups:
             - observe
             - subscribe
         value: subscribe
-        
+
       - name: request_timeout
         display: 采集超时
         hint:
@@ -243,7 +243,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: 最大写入并发数
       description: |
@@ -252,7 +252,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: 批次大小
       description: |

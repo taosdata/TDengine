@@ -8,17 +8,22 @@ use crate::runners::historian::appender;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
-use crate::runners::historian::worker::to_csv_string;
+use crate::runners::historian::worker::{set_break_point, to_csv_string};
 use crate::runners::set_tcp_keepalive;
 
 pub struct Consumer {
+    id: Option<String>,
     connect: ConnectConfig,
     ipc_port: u16,
 }
 
 impl Consumer {
-    pub fn new(connect: ConnectConfig, ipc_port: u16) -> Self {
-        Self { connect, ipc_port }
+    pub fn new(id: Option<String>, connect: ConnectConfig, ipc_port: u16) -> Self {
+        Self {
+            id,
+            connect,
+            ipc_port,
+        }
     }
 
     pub async fn consume(
@@ -93,7 +98,9 @@ impl Consumer {
 
         // query database and send to writer
         let mut batch_count: u64 = 1;
-        while let Ok(task) = receiver.recv_async().await {
+        while let Ok(mut task) = receiver.recv_async().await {
+            task.sub_task_id = self.id.clone();
+
             let start = task
                 .begin_datetime
                 .ok_or(anyhow::anyhow!("beginDateTime cannot be None"))?;
@@ -110,7 +117,9 @@ impl Consumer {
             );
 
             let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
-            let stream = client.select_from_history(task.tags, start, end).await?;
+            let stream = client
+                .select_from_history(task.tags.clone(), start, end)
+                .await?;
             let batches = appender::to_record_batches(stream, batch_size).await?;
 
             for batch in batches {
@@ -120,51 +129,8 @@ impl Consumer {
                 batch_count += 1;
             }
 
-            /*
-                       let mut rows = client
-                           .select_from_history(task.tags, start, end)
-                           .await?
-                           .into_row_stream();
-
-                       let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
-                       let mut row_count = 0;
-                       while let Some(row) = rows.try_next().await? {
-                           let raw_data = appender.append_history_row(&row).map_err(|err| {
-                               let err_msg = format!(
-                                   "migrate history batch: {}, append row error: {}",
-                                   batch_count,
-                                   err.to_string()
-                               );
-                               tracing::error!(err_msg);
-                               anyhow::anyhow!(err_msg)
-                           })?;
-
-                           let _ = logger_tx.send_async(raw_data.to_string()).await;
-
-                           row_count += 1;
-
-                           if row_count == batch_size {
-                               let batch = appender.finish()?;
-                               tracing::debug!(
-                                   "migrate history batch: {}, send batch records to writer",
-                                   batch_count
-                               );
-                               tx.send_async(batch.clone()).await?;
-                               batch_count += 1;
-
-                               row_count = 0;
-                           }
-                       }
-                       drop(rows);
-
-                       let batch = appender.finish()?;
-                       tracing::debug!(
-                           "migrate history batch: {}, send batch records to writer",
-                           batch_count
-                       );
-                       tx.send_async(batch.clone()).await?;
-                       batch_count += 1;
-            */
+            // set break point
+            set_break_point(&task, &end).await?;
         }
         drop(tx);
 

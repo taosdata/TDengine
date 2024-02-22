@@ -115,6 +115,7 @@ impl CommonMetrics {
         self.written_rows.store(0, SeqCst);
         self.written_points.store(0, SeqCst);
         self.execute_time.store(0, SeqCst);
+        self.last_persist_time.reset();
     }
 }
 
@@ -365,7 +366,7 @@ pub fn init_task_metrics(
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let stable = String::from("taosx_task_tdengine");
+                let stable = String::from("taosx_task_tdengine3");
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
                     stable, task_id, task_name,
                 )));

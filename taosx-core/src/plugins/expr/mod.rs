@@ -198,7 +198,6 @@ impl Expr {
                     DataType::Int64 => {
                         set_scope!(Int64, i64);
                     }
-
                     DataType::UInt8 => {
                         set_scope!(UInt8, i64);
                     }
@@ -286,7 +285,7 @@ impl Expr {
     }
 }
 
-fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
+pub fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
     debug_assert!(values
         .iter()
         .map(|v| if v.is_unit() { None } else { Some(v.type_id()) })

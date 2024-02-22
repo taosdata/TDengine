@@ -238,6 +238,9 @@ pub(crate) struct TaskController {
     pub max_activities_per_entity: usize,
 
     pub max_activities_keep_interval: Duration,
+
+    /// for lock, function can only be called once at a time.
+    pub lock_flag: Arc<tokio::sync::Mutex<i32>>,
 }
 
 impl Debug for TaskController {
@@ -635,6 +638,7 @@ impl TaskController {
             shutdown_notify,
             max_activities_per_entity,
             max_activities_keep_interval,
+            lock_flag: Arc::new(tokio::sync::Mutex::new(0)),
         })
     }
 
@@ -855,22 +859,15 @@ impl TaskController {
                         bail!("Failed to connect target server: {err}");
                     }
                 };
-
-                let from_edition = from
-                    .get_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    .assert_enterprise_edition();
-                let to_edition = to_builder
+                let edition = to_builder
                     .get_edition()
                     .await
                     .context("Failed to check destination edition")?
                     .assert_enterprise_edition();
 
-                if from_edition.is_err() && to_edition.is_err() {
-                    let from_err = from_edition.unwrap_err().to_string();
-                    let to_err = to_edition.unwrap_err().to_string();
-                    bail!("Neither source nor destination is a valid TDengine enterprise edition, cause: source error: {from_err}, destination error: {to_err}, please contact the TDengine customer success team for further assistance.");
+                if edition.is_err() {
+                    let err = edition.unwrap_err().to_string();
+                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
             ("tmq" | "taos", _) => {
@@ -878,15 +875,33 @@ impl TaskController {
                 from.subject.take();
                 let builder = TaosBuilder::from_dsn(from)?;
                 let _ = builder.build().await.context("Source connection error")?;
-                let edition = builder
-                    .get_edition()
+                let edition = tokio::time::timeout(Duration::from_secs(30), builder.get_edition())
                     .await
+                    .context("Checking source edition timeout")?
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
 
                 if edition.is_err() {
                     let err = edition.unwrap_err().to_string();
                     bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
+                }
+            }
+            ("local", "tmq" | "taos") => {
+                let mut to = to.clone();
+                to.subject.take();
+                // to.subject.take();
+                let builder = TaosBuilder::from_dsn(&to)?;
+                let mut conn = builder.build().await.context("Target connection error")?;
+                builder.ping(&mut conn).await?;
+                let edition = builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check destination edition")?
+                    .assert_enterprise_edition();
+
+                if edition.is_err() {
+                    let err = edition.unwrap_err().to_string();
+                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
             (_, "tmq" | "taos") => {
@@ -920,6 +935,7 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        tracing::info!(task.name, task.via, "create new task");
         let path = get_data_dir();
         let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
@@ -979,6 +995,10 @@ impl TaskController {
         }
         task.patch_labels();
         let now = chrono::Utc::now();
+
+        tracing::info!(task.name, task.via, "acquire task creation lock");
+        let lock_flag = self.lock_flag.lock().await;
+        tracing::info!(task.name, task.via, "got creation lock, create");
         if let Some(name) = &task.name {
             let tasks = self
                 .tasks(TaskFilter {
@@ -1011,6 +1031,8 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+        tracing::info!(task.name, task.via, "release creation lock");
+        drop(lock_flag);
 
         let path = get_data_dir();
         let path = path.join("tasks").join(id.to_string());
@@ -1782,6 +1804,13 @@ pub struct AgentFilter {
 }
 
 impl AgentFilter {
+    pub fn default() -> Self {
+        Self {
+            cluster_id: None,
+            user_id: None,
+        }
+    }
+
     pub fn to_sql_condition(&self) -> Option<String> {
         match (self.cluster_id.as_ref(), self.user_id.as_ref()) {
             (None, None) => None,
@@ -2762,7 +2791,7 @@ pub(crate) struct NewTask {
     stream_type: Option<String>,
     /// Task name.
     #[schema(example = "demo")]
-    name: Option<String>,
+    pub name: Option<String>,
     /// Task trigger events, default will be oneshot.
     ///
     /// For schedule trigger:
@@ -3330,6 +3359,15 @@ mod tests {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let _ = controller.get_task_summaries(10).await;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn legacy_edition_check() -> anyhow::Result<()> {
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041")?;
+        controller.validate_enterprise_license(&from, &to).await?;
         Ok(())
     }
 }

@@ -281,6 +281,7 @@ impl PutStream {
                 agent_id,
                 TaskActivity::ipc_finished(task_id),
             ))?;
+            tracing::info!(task.id = task_id, "IPC stream writer finished");
             Ok(())
         }
         let notify_sender = self.notify_sender.clone();

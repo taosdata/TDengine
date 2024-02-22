@@ -77,6 +77,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
+mod replica;
 mod run;
 mod serve;
 
@@ -84,6 +85,8 @@ mod serve;
 enum Commands {
     Run(run::Cli),
     Serve(serve::Cli),
+    #[clap(hide = true)]
+    Replica(replica::Cli),
 }
 
 #[derive(Parser, Debug)]
@@ -213,14 +216,18 @@ fn get_default_config_path() -> PathBuf {
         .join("taosx.toml")
 }
 
+#[inline]
+fn get_effective_config_path(args: &Args) -> PathBuf {
+    args.opt_args
+        .config
+        .clone()
+        .unwrap_or_else(|| get_default_config_path())
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let mut args = Args::parse();
-        let path = args
-            .opt_args
-            .config
-            .clone()
-            .unwrap_or(get_default_config_path());
+        let path = get_effective_config_path(&args);
         // let path = if let Ok(c) = Args::try_parse() {
         //     c.opt_args
         //         .config
@@ -534,6 +541,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     let mut s = String::new();
     s += "       global config\n";
     s += "===================================================================================\n";
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "config file", get_effective_config_path(args).display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
@@ -594,6 +602,9 @@ fn main() -> Result<()> {
             let _ = span.enter();
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
+        Commands::Replica(replica) => {
+            runtime.block_on(replica.run())?;
+        }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
             let addr = serve.get_listen_address();
@@ -625,7 +636,6 @@ fn main() -> Result<()> {
     runtime.block_on(async move {
         opentelemetry::global::shutdown_tracer_provider();
     });
-    println!("wait for runtime shutdown");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     Ok(())
 }

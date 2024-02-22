@@ -1063,7 +1063,7 @@ mod tests {
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow::{
-        datatypes::{DataType, Field, Schema, SchemaRef},
+        datatypes::{DataType, Field, Schema},
         ipc::writer::IpcWriteOptions,
     };
     use arrow_flight::decode::FlightDataDecoder;
@@ -1156,7 +1156,7 @@ mod tests {
             // schema.with_metadata(metadata)
 
             // let ipc = arrow::ipc::reader::StreamReader::try_new();
-            struct FakeStream(SchemaRef, tokio::time::Interval, Instant);
+            struct FakeStream((), tokio::time::Interval, Instant);
 
             impl futures::Stream for FakeStream {
                 type Item = Result<RecordBatch, FlightError>;
@@ -1239,7 +1239,7 @@ mod tests {
                     IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
                 )
                 .build(FakeStream(
-                    schema.clone(),
+                    (),
                     tokio::time::interval(Duration::from_millis(1000)),
                     Instant::now() + Duration::from_secs(10),
                 ));

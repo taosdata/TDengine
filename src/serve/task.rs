@@ -159,16 +159,7 @@ pub(super) async fn create_task(
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
-    // if let Some(trigger) = task.trigger.as_deref() {
-    //     if !trigger.starts_with("schedule:") {
-    //         return Err(Failed {
-    //             code: Code::FAILED,
-    //             message: format!(
-    //                 "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
-    //             ),
-    //         });
-    //     }
-    // }
+    tracing::info!(task.name, "create task with name");
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision
@@ -706,6 +697,7 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
+    skip: Option<usize>,
     delimiter: Option<String>,
     quote: Option<String>,
     comment: Option<String>,
@@ -742,17 +734,17 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header, delimiter, quote, comment, sample) = (
+    let (filepath_or_filedir, file_type, has_header, skip, delimiter, quote, comment, sample) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
         filemeta_request.has_header,
-        filemeta_request.delimiter,
-        filemeta_request.quote,
-        filemeta_request.comment,
+        filemeta_request.skip.unwrap_or(0),
+        filemeta_request.delimiter.unwrap_or(String::new()),
+        filemeta_request.quote.unwrap_or(String::new()),
+        filemeta_request.comment.unwrap_or(String::new()),
         filemeta_request.sample.unwrap_or(5),
     );
 
-    let delimiter = delimiter.unwrap();
     let delimiter = delimiter.trim();
     let delimiter = match delimiter.len() {
         0 => None,
@@ -762,7 +754,6 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     .transpose()?
     .unwrap_or(b',');
 
-    let quote = quote.unwrap();
     let quote = quote.trim();
     let quote = match quote.as_bytes() {
         [] => None,
@@ -774,7 +765,6 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
     }
     .transpose()?;
 
-    let comment = comment.unwrap();
     let comment = comment.trim();
     let comment = match comment.as_bytes() {
         [] => None,
@@ -798,6 +788,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
             let csv_header = taosx_core::csv_header(
                 filepath_or_filedir,
                 has_header,
+                skip,
                 Some(delimiter),
                 quote,
                 comment,

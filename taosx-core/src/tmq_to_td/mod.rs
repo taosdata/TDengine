@@ -132,16 +132,17 @@ async fn write_data(
         *rows += raw.nrows();
 
         if target_is_v3 {
-            if let Err(err) = taos.write_raw_block(&raw).await {
-                let code = *err.code().deref();
-                match code {
-                    0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                        let from = source.get().await?;
-                        let database = from
-                            .query_one::<_, String>("select database()")
-                            .await?
-                            .unwrap();
-                        if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+            let with_raw_block = async {
+                if let Err(err) = taos.write_raw_block(&raw).await {
+                    let code = *err.code().deref();
+                    match code {
+                        0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                            let from = source.get().await?;
+                            let database = from
+                                .query_one::<_, String>("select database()")
+                                .await?
+                                .unwrap();
+                            if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                             let from = source.get().await?;
                             let target_opts = Default::default();
                             sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
@@ -168,35 +169,54 @@ async fn write_data(
                                 raw.pretty_format()
                             );
                         }
+                        }
+                        _ => {
+                            bail!(
+                                "write table failed: {err}, with block: {}",
+                                raw.pretty_format()
+                            );
+                        }
                     }
-                    _ => {
-                        bail!(
-                            "write table failed: {err}, with block: {}",
-                            raw.pretty_format()
-                        );
-                    }
-                }
+                };
+                anyhow::Ok(())
             };
+            if let Err(err) = with_raw_block.await {
+                metrics.add_write_raw_fails(1);
+                bail!(
+                    "write table with raw block failed: {err:#}, block: {}",
+                    raw.pretty_format()
+                );
+            }
         } else {
-            let mut stmt = Stmt::init(taos)
-                .await
-                .context("Write with stmt init error")?;
-            let fields = raw.fields();
-            let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
-            let table = raw.table_name().unwrap();
-            stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
-                .await
-                .context("Write with stmt prepare error")?;
+            let with_stmt = async {
+                let mut stmt = Stmt::init(taos)
+                    .await
+                    .context("Write with stmt init error")?;
+                let fields = raw.fields();
+                let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                let table = raw.table_name().unwrap();
+                stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
+                    .await
+                    .context("Write with stmt prepare error")?;
 
-            stmt.bind(raw.column_views())
-                .await
-                .context("Write with stmt bind error")?;
-            stmt.add_batch()
-                .await
-                .context("Write with stmt add_batch error")?;
-            stmt.execute()
-                .await
-                .context("Write with stmt execute error")?;
+                stmt.bind(raw.column_views())
+                    .await
+                    .context("Write with stmt bind error")?;
+                stmt.add_batch()
+                    .await
+                    .context("Write with stmt add_batch error")?;
+                stmt.execute()
+                    .await
+                    .context("Write with stmt execute error")?;
+                anyhow::Ok(())
+            };
+            if let Err(err) = with_stmt.await {
+                metrics.add_write_raw_fails(1);
+                bail!(
+                    "write table with stmt failed: {err:#}, block: {}",
+                    raw.pretty_format()
+                );
+            }
         }
         metrics.add_suc_blocks(1);
         metrics.add_written_rows(raw.nrows() as _);

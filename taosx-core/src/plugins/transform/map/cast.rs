@@ -1,5 +1,9 @@
-use arrow::{array::ArrayRef, record_batch::RecordBatch};
+use arrow::{
+    array::{ArrayRef, StringArray},
+    record_batch::RecordBatch,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -11,10 +15,11 @@ pub struct CastValueBuilder {
 impl ValueBuilder for CastValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let schema = record.schema();
+
         schema
             .index_of(&self.cast)
-            .map_err(ValueBuilderError::CastError)
-            .map(|index| record.column(index).clone())
+            .map(|index| Ok(record.column(index).clone()))
+            .unwrap_or_else(|_| Ok(Arc::new(StringArray::new_null(record.num_rows())) as ArrayRef))
     }
 }
 
@@ -42,6 +47,26 @@ mod tests {
             ),
         ])
         .unwrap()
+    }
+
+    #[test]
+    fn test_field_not_found() {
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "f2"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
+            ""
+        );
     }
 
     #[test]

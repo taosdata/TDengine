@@ -152,7 +152,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: 最大写入并发数
       description: |
@@ -161,7 +161,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: 批次大小
       description: |

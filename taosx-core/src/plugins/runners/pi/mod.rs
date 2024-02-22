@@ -254,7 +254,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
-            send_sub_process_info(child_command.id(), task_id);
+            send_sub_process_info(child_command.id(), task_id, "pi");
         }
         "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
@@ -266,7 +266,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI Backfill error")?;
-            send_sub_process_info(child_command.id(), task_id);
+            send_sub_process_info(child_command.id(), task_id, "pi");
         }
         _ => {
             anyhow::bail!("wrong driver configured");

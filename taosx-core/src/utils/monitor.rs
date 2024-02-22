@@ -19,22 +19,27 @@ lazy_static! {
 pub struct SubInfo {
     sub_pid: u32,
     task_id: i64,
+    datasource_name: String,
 }
 
 impl SubInfo {
-    pub fn new(sub_pid: u32, task_id: i64) -> Self {
-        Self { sub_pid, task_id }
+    pub fn new(sub_pid: u32, task_id: i64, datasource_name: &str) -> Self {
+        Self {
+            sub_pid,
+            task_id,
+            datasource_name: datasource_name.to_string(),
+        }
     }
 }
 
-pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>) {
+pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>, datasource_name: &str) {
     if task_id.is_none() {
         tracing::debug!("task id is None");
         return;
     }
     let task_id = task_id.unwrap();
     if let Some(sub_pid) = sub_pid {
-        let sub_info = SubInfo::new(sub_pid, task_id);
+        let sub_info = SubInfo::new(sub_pid, task_id, datasource_name);
         let sender = CHANNEL.0.clone();
         if let Err(err) = sender.send(sub_info) {
             tracing::error!("send sub process info error: {}", err);
@@ -55,6 +60,7 @@ pub fn update_sub_connector_process_metrics(
             Ok(sub_info) => {
                 let sub_process_id = Pid::from_u32(sub_info.sub_pid as u32);
                 let task_id = sub_info.task_id.to_string();
+                let ds_name = sub_info.datasource_name.clone();
                 let sub_process = sys.process(sub_process_id);
                 if sub_process.is_none() {
                     tracing::debug!("sub process {} not found", sub_process_id);
@@ -83,9 +89,11 @@ pub fn update_sub_connector_process_metrics(
                 let stable = "taosx_connector".to_string();
                 let taosx_id_key = "taosx_id".to_string();
                 let task_id_key = "task_id".to_string();
+                let ds_name_key = "ds_name".to_string();
                 let labels = vec![
                     (stable_key, stable),
                     (taosx_id_key, taosx_id.clone()),
+                    (ds_name_key, ds_name),
                     (task_id_key, task_id),
                 ];
                 let labels = labels.into_labels();
@@ -102,7 +110,7 @@ pub fn update_sub_connector_process_metrics(
             }
 
             Err(err) => {
-                tracing::debug!("receive error: {}", err);
+                tracing::trace!("receive error: {}", err);
                 break;
             }
         }

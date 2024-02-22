@@ -4,7 +4,7 @@ use arrow::array::RecordBatchWriter;
 use arrow::csv::Writer;
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use chrono::{Local, Utc};
+use chrono::{DateTime, Local, Utc};
 use flume::Sender;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
@@ -17,19 +17,33 @@ use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::consumer::Consumer;
 use crate::runners::historian::worker::producer::Producer;
 use crate::runners::set_tcp_keepalive;
+use crate::utils::breakpoints;
 
 mod consumer;
 mod producer;
 
-/// migrate data
-pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
-    tracing::info!("migrate history start, config: {:?}", config);
+const MIGRATE_TASK_PREFIX: &str = "mig";
+const SYNCHRONIZE_TASK_PREFIX: &str = "syn";
 
+/// migrate data
+pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
+    // get break point
+    let break_point = get_break_point(config.task_id);
+    if break_point.is_some() {
+        let begin_date_time = break_point.unwrap();
+        tracing::info!(
+            "migrate history start from break point: {}",
+            begin_date_time.to_rfc3339()
+        );
+        config.begin_datetime = Some(begin_date_time);
+    }
+
+    tracing::info!("migrate history start, config: {:?}", config);
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced_options.read_concurrency.unwrap_or(1), 1);
     // consume task
     let mut consumers = Vec::new();
-    for _ in 1..=concurrency {
+    for sub_task_index in 1..=concurrency {
         let receiver = rx.clone();
         let ipc_port = config
             .ipc_port
@@ -38,7 +52,8 @@ pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyh
         let connect_config = config.connect.clone();
 
         let c = tokio::spawn(async move {
-            let mut consumer = Consumer::new(connect_config, ipc_port);
+            let sub_task_id = Some(format!("{MIGRATE_TASK_PREFIX}-{sub_task_index}"));
+            let mut consumer = Consumer::new(sub_task_id, connect_config, ipc_port);
             consumer.consume(receiver, logger_tx).await
         });
 
@@ -56,17 +71,65 @@ pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyh
     Ok(())
 }
 
-pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
+fn get_break_point(task_id: Option<i64>) -> Option<DateTime<Utc>> {
+    if task_id.is_none() {
+        return None;
+    }
+
+    let task_id = format!("{}", task_id.unwrap());
+    let breakpoints_res = breakpoints::breakpoints_get_all(&task_id);
+    if breakpoints_res.is_err() {
+        return None;
+    }
+
+    let break_points = breakpoints_res.unwrap();
+    let mut earliest = None;
+    for (sub_task_id, bp) in break_points {
+        if sub_task_id.starts_with(MIGRATE_TASK_PREFIX) {
+            let date_time = DateTime::parse_from_rfc3339(&bp)
+                .map(|dt| Some(dt.with_timezone(&Utc)))
+                .unwrap_or(None);
+
+            if date_time.is_some() {
+                earliest = Some(cmp::min(
+                    earliest.unwrap_or(date_time.unwrap()),
+                    date_time.unwrap(),
+                ));
+            }
+        }
+    }
+
+    earliest
+}
+
+pub async fn sync_history(
+    mut task_config: TaskConfig,
+    logger: Sender<String>,
+) -> anyhow::Result<()> {
+    // get break point
+    let task_id = task_config.task_id;
+    let break_pint = get_break_point(task_id);
+    if break_pint.is_some() {
+        let break_point = break_pint.unwrap();
+        tracing::info!(
+            "sync history start from break point: {}",
+            break_point.to_rfc3339()
+        );
+        task_config.begin_datetime = Some(break_point);
+    }
+
     tracing::info!("sync history start, config: {:?}", task_config);
+    let now = Utc::now();
 
     // create migrate task
-    let now = Utc::now();
     let mut migrate_task_config = task_config.clone();
     migrate_task_config.end_datetime = Some(now);
 
     let logger_tx = logger.clone();
     let _ = tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
 
+    // create synchronize task and set sub task id
+    task_config.sub_task_id = Some(format!("{SYNCHRONIZE_TASK_PREFIX}-1"));
     // create stream for ipc
     let port = task_config
         .ipc_port
@@ -97,6 +160,7 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
     });
 
     let mut client = HistorianQuery::try_new(task_config.connect.clone()).await?;
+    // get schema from database
     let mut rows = client
         .describe_table(HistorianTable::History)
         .await?
@@ -121,9 +185,6 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
         anyhow::Ok(())
     });
 
-    // query database and send to writer
-    let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
-
     // sync-history start from now + retrieve_interval + tolerance
     tokio::time::sleep(
         (task_config.tolerance + task_config.retrieve_interval)
@@ -131,9 +192,10 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
             .unwrap(),
     )
     .await;
-
+    // query database and send to writer
     let mut count: u64 = 1;
     let mut window_start = now;
+    let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
     loop {
         let window_end = Utc::now() - task_config.tolerance;
 
@@ -264,6 +326,16 @@ pub fn to_csv_string(batch: &RecordBatch) -> anyhow::Result<String> {
             err.to_string()
         )
     })
+}
+
+pub async fn set_break_point(task: &TaskConfig, break_point: &DateTime<Utc>) -> anyhow::Result<()> {
+    let task = task.clone();
+
+    let task_id = format!("{}", task.task_id.unwrap());
+    let sub_task_id = task.sub_task_id.unwrap();
+    let breakpoint = format!("{}", break_point.to_rfc3339());
+
+    breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint)
 }
 
 fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {

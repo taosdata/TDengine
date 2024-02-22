@@ -152,15 +152,6 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             global_sender.send_task_activity(activity);
         }
     });
-    // let metrics_arc = init_task_metrics(
-    //     opts.from.clone(),
-    //     opts.to.clone(),
-    //     task_id,
-    //     task.name.clone(),
-    // )
-    // .unwrap();
-    // let (_sender, close_signal) = oneshot::channel::<()>();
-    // auto_save_task_metrics(task_id, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -171,11 +162,6 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
         Ok(())
     }
 }
-
-// pub type JobLock = Arc<Mutex<u32>>;
-
-// pub type TaskErrorSender = tokio::sync::mpsc::Sender<anyhow::Error>;
-// pub type TaskErrorReceiver = tokio::sync::mpsc::Receiver<anyhow::Error>;
 
 pub type TaskId = i64;
 pub type AgentId = i64;
@@ -442,7 +428,6 @@ impl InnerState {
             InnerState::Completed
                 | InnerState::Stopped
                 | InnerState::Failed(_)
-                | InnerState::Stopping
                 | InnerState::Interrupted
                 | InnerState::Ticked
         )
@@ -924,17 +909,12 @@ impl TaskJob {
                     .push_action(agent_id, AgentAction::Run(task_id, jid, run_id))
                     .await;
                 tracing::debug!("Command run sending ok");
-                // let from_dsn: Dsn = state.task.from.parse().unwrap();
-                // let to_dsn = state.task.to.parse().unwrap();
-                // let metrics_arc = init_task_metrics(from_dsn, to_dsn, task_id, task_name).unwrap();
-                // let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
-                // // start save metrics task
-                // auto_save_task_metrics(task_id, stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
                 let agent_activities = waiter.agent_activities.clone();
                 let is_cron_job = state.schedule().is_cron_job();
 
+                #[instrument(skip_all, fields(task.id = task_id, task.jid = %jid, task.rid = run_id, task.agent = agent_id,))]
                 async fn agent_activities_listener(
                     operator: TaskOperator,
                     is_cron_job: bool,
@@ -1072,8 +1052,10 @@ impl TaskJob {
                                                 ipc_in_progress
                                             ),
                                         ));
-                                        if ipc_in_progress > 1 {
+                                        if ipc_in_progress >= 1 {
                                             ipc_in_progress = ipc_in_progress - 1;
+                                        }
+                                        if ipc_in_progress > 0 {
                                             continue;
                                         }
                                         drop(activity); // drop activity explicitly to not use it anymore
