@@ -45,10 +45,8 @@ use taosx_ipc::{
 };
 
 use crate::core_metrics::get_metrics_arc_from_i64;
-use crate::plugins::expr::{array_from_rhai_dynamics, EvalError};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
-    plugins,
     runners::opc::config::OPCConfig,
 };
 use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
@@ -800,7 +798,7 @@ fn transform_by_name(
             values.push(Dynamic::UNIT);
             continue;
         }
-        let (name, mut expr) = expression.unwrap();
+        let (name, expr) = expression.unwrap();
         let mut scope = Scope::new();
         match col_type {
             DataType::Boolean => {
@@ -936,12 +934,12 @@ fn transform_by_name(
             }
         }
 
-        let mut engine = Engine::new();
+        let engine = Engine::new();
         let engine = Arc::new(engine);
         let ast = engine.compile_expression(&expr)?;
         let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
             Ok(v) => v,
-            Err(e) => rhai::Dynamic::UNIT,
+            Err(_) => rhai::Dynamic::UNIT,
         };
         values.push(new_value);
     }

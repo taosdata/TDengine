@@ -1,4 +1,4 @@
-use crate::runners::opc::config::csv::{CsvHeader, CsvParser};
+use crate::runners::opc::config::csv::CsvHeader;
 use crate::runners::opc::config::{generate_config_from_csv, OPCConfig};
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
 use anyhow::bail;
