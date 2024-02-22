@@ -366,10 +366,11 @@ impl CsvSource {
         quote: Option<u8>,
         comment: Option<u8>,
     ) -> Result<Vec<String>> {
-        let clone_read_path = Arc::new(read_path.to_string());
-        let paths = tokio::task::spawn_blocking(move || CsvSource::csv_path(&*clone_read_path))
-            .await?
-            .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
+        let clone_read_path = read_path.to_string();
+        let paths =
+            tokio::task::spawn_blocking(move || CsvSource::csv_path(clone_read_path.as_ref()))
+                .await?
+                .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
         }
