@@ -989,8 +989,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
-    pGrantInfo->expire_time = INT32_MAX;
-    pGrantInfo->timeseries_total = INT32_MAX;
+    pGrantInfo->expire_time = 0;
+    pGrantInfo->timeseries_total = 0;
   }
 
   mndReleaseRpc(pMnode);
