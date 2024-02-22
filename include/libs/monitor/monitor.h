@@ -76,7 +76,8 @@ typedef struct {
 } SMonBasicInfo;
 
 typedef struct {
-  float        uptime;  // day
+  //float        uptime;  // day
+  int64_t      uptime;  // second
   int8_t       has_mnode;
   int8_t       has_qnode;
   int8_t       has_snode;
