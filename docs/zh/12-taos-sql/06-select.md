@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN   
+    BATCH_SCAN | NO_BATCH_SCAN | PARA_TABLES_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -91,11 +91,12 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | :-----------: | -------------- | -------------------------- | -------------------------- |
 | BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句           |         
 | NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句           |         
-
+| PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
 举例： 
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 ```
 
 ## 列表
