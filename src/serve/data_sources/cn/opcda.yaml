@@ -44,17 +44,29 @@ datasets:
       selectable: true
 
   - category: select_all_points
-    display: 选择所有点位
+    display: 选择数据点位
     description:
     target:
       name: select_all_points
       description: |
-        选择 OPC 服务器上面的所有点位。
+        设置过滤条件，选择 OPC 服务器上满足指定条件的数据点位。
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: 查询根节点
+        description: |
+          从该节点开始查询所有子节点。
+        hint:
+          type: str
+      - name: pattern
+        display: 正则匹配
+        description: |
+          数据点位 TagName 需要满足设置的正则表达式。
+        hint:
+          type: str
       - name: table_primary_key
         display: 主键列
         description:
@@ -67,7 +79,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: 表名称
-        value: Meter_{TagName}
+        value: t_{TagName}
         description: |
           支持 <child table prefix>_{TagName} 的格式
         hint:
