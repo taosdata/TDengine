@@ -155,9 +155,9 @@ datasets:
           choices:
             - "--NONE--"
       - name: pattern
-        display: 名称正则
+        display: 正则匹配
         description: |
-          数据点位名称需要满足设置的正则表达式。
+          数据点位名称或 id 需要满足设置的正则表达式。
         hint:
           type: str
       - name: table_primary_key

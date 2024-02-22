@@ -47,18 +47,30 @@ datasets:
       selectable: true
 
   - category: select_all_points
-    display: All Points
+    display: Data Points
     description: |
       OPC DA point configuration file.
     target:
       name: select_all_points
       description: |
-        Select All Points on OPC Server.
+        Select data points that meet specified conditions on the OPC server.
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: root node
+        description: |
+          Query all child nodes starting from this node.
+        hint:
+          type: str
+      - name: pattern
+        display: regex pattern for name
+        description: |
+          The data point TagName need to match the regular expression.
+        hint:
+          type: str
       - name: table_primary_key
         display: Primary Key
         description:
@@ -71,7 +83,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
-        value: Meter_{TagName}
+        value: t_{TagName}
         description: |
           Support <child table prefix>_{TagName} pattern
         hint:

@@ -155,9 +155,9 @@ datasets:
         hint:
           type: str
       - name: pattern
-        display: regex pattern for name
+        display: regex pattern
         description: |
-          The data point names need to match the regular expression.
+          The data point name or id need to match the regular expression.
         hint:
           type: str
 
