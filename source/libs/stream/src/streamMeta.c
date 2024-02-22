@@ -1160,7 +1160,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
     tEncoderClear(&encoder);
 
-    SRpcMsg msg = {.info.noResp = 1};
+    SRpcMsg msg = {0};
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
 
     pMeta->pHbInfo->hbCount += 1;
