@@ -256,7 +256,7 @@ SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols, int32_t bVersion);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
 const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 // for debug

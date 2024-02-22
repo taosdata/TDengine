@@ -40,7 +40,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(numOfCols);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data, numOfCols, BLOCK_VERSION_1);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, numOfCols);
 
   return TSDB_CODE_SUCCESS;
 }
