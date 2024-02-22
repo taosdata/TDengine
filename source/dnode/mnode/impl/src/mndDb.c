@@ -41,7 +41,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
-static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
+static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
 static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
@@ -256,17 +256,27 @@ _OVER:
   return pRow;
 }
 
-static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
-  SDbObj *pNewDb = pObj;
+static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
+  SSdb    *pSdb = pMnode->pSdb;
+  SSdbRow *pRow = NULL;
+  int      code = -1;
+
+  pRow = mndDbActionDecode(pRaw);
+  if (pRow == NULL) goto _OVER;
+  SDbObj *pNewDb = sdbGetRowObj(pRow);
+  if (pNewDb == NULL) goto _OVER;
 
   SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
   if (pOldDb != NULL) {
     mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
     sdbRelease(pMnode->pSdb, pOldDb);
-    return -1;
+    goto _OVER;
   }
 
-  return 0;
+  code = 0;
+_OVER:
+  taosMemoryFree(pRow);
+  return code;
 }
 
 static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
