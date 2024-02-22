@@ -189,6 +189,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
     opt.pWal = pMnode->pWal;
 
     pMnode->pSdb = sdbInit(&opt);
+    taosThreadMutexInit(&pMnode->syncMgmt.lock, NULL);
   }
 
   SVgroupChangeInfo info;
