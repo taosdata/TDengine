@@ -500,34 +500,27 @@ int32_t backendCopyFiles(char* src, char* dst) {
   // return 0;
 }
 int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = -1;
-  int32_t len = strlen(defaultPath) + 32;
-  char*   tmp = taosMemoryCalloc(1, len);
-  sprintf(tmp, "%s%s", defaultPath, "_tmp");
-
-  if (taosIsDir(tmp)) taosRemoveDir(tmp);
-  if (taosIsDir(defaultPath)) taosRenameFile(defaultPath, tmp);
-
-  if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
-    if (taosIsDir(tmp)) {
-      taosRemoveDir(tmp);
-    }
+  int32_t code = 0;
+  if (taosIsDir(defaultPath)) {
+    taosRemoveDir(defaultPath);
     taosMkDir(defaultPath);
+
+    stInfo("succ to clear stream backend %s", defaultPath);
+  }
+  if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
     code = backendCopyFiles(chkpPath, defaultPath);
     if (code != 0) {
-      stError("failed to restart stream backend from %s, reason: %s", chkpPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      taosRemoveDir(defaultPath);
+      taosMkDir(defaultPath);
+
+      stError("failed to restart stream backend from %s, reason: %s, start to restart from empty path: %s", chkpPath,
+              tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
+      code = 0;
     } else {
       stInfo("start to restart stream backend at checkpoint path: %s", chkpPath);
     }
   }
-  if (code != 0) {
-    if (taosIsDir(defaultPath)) taosRemoveDir(defaultPath);
-    if (taosIsDir(tmp)) taosRenameFile(tmp, defaultPath);
-  } else {
-    taosRemoveDir(tmp);
-  }
 
-  taosMemoryFree(tmp);
   return code;
 }
 
@@ -1775,8 +1768,8 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
   rocksdb_options_set_info_log_level(opts, 1);
-  rocksdb_options_set_db_write_buffer_size(opts, 64 << 20);
-  rocksdb_options_set_write_buffer_size(opts, 32 << 20);
+  rocksdb_options_set_db_write_buffer_size(opts, 256 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 128 << 20);
   rocksdb_options_set_atomic_flush(opts, 1);
 
   pTaskDb->dbOpt = opts;
@@ -1787,6 +1780,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_compaction_filter_factory(pTaskDb->dbOpt, pTaskDb->filterFactory);
   pTaskDb->readOpt = rocksdb_readoptions_create();
   pTaskDb->writeOpt = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(pTaskDb->writeOpt, 1);
 
   size_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
   pTaskDb->pCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
@@ -2889,13 +2883,13 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
   return code;
 }
 
-SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState) {
+SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, int64_t groupId) {
   stDebug("streamStateSessionSeekToLast_rocksdb");
 
   int32_t code = 0;
 
-  SSessionKey      maxSessionKey = {.groupId = UINT64_MAX, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
-  SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = INT64_MAX};
+  SSessionKey      maxSessionKey = {.groupId = groupId, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
+  SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = pState->number};
 
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &maxKey, "", 0);
   if (code != 0) {
@@ -3047,6 +3041,46 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) < 0) return pCur;
 
   rocksdb_iter_next(pCur->iter);
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  return pCur;
+}
+
+SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, const SSessionKey* key) {
+  stDebug("streamStateSessionSeekKeyPrev_rocksdb");
+  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  pCur->number = pState->number;
+
+  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+
+  char buf[128] = {0};
+  int  len = stateSessionKeyEncode(&sKey, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) rocksdb_iter_prev(pCur->iter);
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  size_t           klen;
+  const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
+  SStateSessionKey curKey = {0};
+  stateSessionKeyDecode(&curKey, (char*)iKey);
+  if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) return pCur;
+
+  rocksdb_iter_prev(pCur->iter);
   if (!rocksdb_iter_valid(pCur->iter)) {
     streamStateFreeCur(pCur);
     return NULL;

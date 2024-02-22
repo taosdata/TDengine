@@ -329,6 +329,13 @@ static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t countWindowNodeCopy(const SCountWindowNode* pSrc, SCountWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  COPY_SCALAR_FIELD(windowCount);
+  COPY_SCALAR_FIELD(windowSliding);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
   CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
   CLONE_NODE_FIELD_EX(pGap, SValueNode*);
@@ -449,6 +456,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(filesetDelimited);
   COPY_SCALAR_FIELD(isCountByTag);
   CLONE_OBJECT_FIELD(pFuncTypes, functParamClone);
+  COPY_SCALAR_FIELD(paraTablesSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -486,6 +494,7 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(ignoreGroupId);
+  COPY_SCALAR_FIELD(inputIgnoreGroup);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -550,6 +559,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(igCheckUpdate);
   COPY_SCALAR_FIELD(windowAlgo);
+  COPY_SCALAR_FIELD(windowCount);
+  COPY_SCALAR_FIELD(windowSliding);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -678,6 +689,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(filesetDelimited);
   COPY_SCALAR_FIELD(needCountEmptyTable);
+  COPY_SCALAR_FIELD(paraTablesSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -725,6 +737,15 @@ static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhy
   CLONE_NODE_LIST_FIELD(pTargets);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
   COPY_SCALAR_FIELD(tsSlotId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiProjectCopy(const SProjectPhysiNode* pSrc, SProjectPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pProjections);
+  COPY_SCALAR_FIELD(mergeDataBlock);
+  COPY_SCALAR_FIELD(ignoreGroupId);
+  COPY_SCALAR_FIELD(inputIgnoreGroup);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -843,6 +864,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_EVENT_WINDOW:
       code = eventWindowNodeCopy((const SEventWindowNode*)pNode, (SEventWindowNode*)pDst);
       break;
+    case QUERY_NODE_COUNT_WINDOW:
+      code = countWindowNodeCopy((const SCountWindowNode*)pNode, (SCountWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
       break;
@@ -949,6 +973,7 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
@@ -958,6 +983,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
       break;
     default:
       break;

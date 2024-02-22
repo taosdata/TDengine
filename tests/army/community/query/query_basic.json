@@ -32,7 +32,7 @@
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "timestamp_step": 30000,
-                    "start_timestamp":"2023-10-01 10:00:00",
+                    "start_timestamp":1700000000000,
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc" },

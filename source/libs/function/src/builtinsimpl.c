@@ -499,6 +499,9 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  if(1 == pInput->numOfRows && pInput->blankFill) {
+    return 0;
+  }
   if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
@@ -1576,9 +1579,19 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   param12 /= param[1][1];
 
-  char   buf[512] = {0};
+  char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
+  char slopBuf[64] = {0};
+  char interceptBuf[64] = {0};
+  int  n = snprintf(slopBuf, 64, "%.6lf", param02);
+  if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+    snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param02);
+  }
+  n = snprintf(interceptBuf, 64, "%.6lf", param12);
+  if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+    snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param12);
+  }
   size_t len =
-      snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
+      snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
   varDataSetLen(buf, len);
 
   colDataSetVal(pCol, currentRow, buf, pResInfo->isNullRes);
@@ -6012,7 +6025,7 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
     goto _group_key_over;
   }
 
-  if (colDataIsNull_s(pInputCol, startIndex)) {
+  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
     pInfo->isNull = true;
     pInfo->hasResult = true;
     goto _group_key_over;

@@ -385,12 +385,21 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-
   streamTaskOnHandleEventSuccess(pTask->status.pSM, event);
 
   int64_t initTs = pTask->execInfo.init;
   int64_t startTs = pTask->execInfo.start;
   streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, initTs, startTs, true);
+
+  if (pTask->status.taskStatus == TASK_STATUS__HALT) {
+    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
+
+    // halt it self for count window stream task until the related
+    // fill history task completd.
+    stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
+            pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
+    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
+  }
 
   // start the related fill-history task, when current task is ready
   // not invoke in success callback due to the deadlock.
@@ -540,11 +549,6 @@ int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
   return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
 
-int32_t streamRestoreParam(SStreamTask* pTask) {
-  stDebug("s-task:%s restore operator param after scan-history", pTask->id.idStr);
-  return qRestoreStreamOperatorOption(pTask->exec.pExecutor);
-}
-
 // source
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow) {
   return qStreamSourceScanParamForHistoryScanStep1(pTask->exec.pExecutor, pVerRange, pWindow);
@@ -592,114 +596,10 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  if (pTask->info.fillHistory && qRestoreStreamOperatorOption(exec) < 0) {
-    return -1;
-  }
-
-  if (qStreamRecoverFinish(exec) < 0) {
-    return -1;
-  }
-  return 0;
-}
-
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq,
-                                          SRpcHandleInfo* pRpcInfo) {
-  int32_t taskLevel = pTask->info.taskLevel;
-  ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
-
-  const char* id = pTask->id.idStr;
-  SStreamTaskState* p = streamTaskGetStatus(pTask);
-
-  if (p->state != TASK_STATUS__SCAN_HISTORY) {
-    stError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly", id,
-            p->name, pReq->upstreamTaskId);
-
-    void*   pBuf = NULL;
-    int32_t len = 0;
-    streamTaskBuildScanhistoryRspMsg(pTask, pReq, &pBuf, &len);
-
-    SRpcMsg msg = {.info = *pRpcInfo};
-    initRpcMsg(&msg, 0, pBuf, sizeof(SMsgHead) + len);
-
-    tmsgSendRsp(&msg);
-    stDebug("s-task:%s level:%d notify upstream:0x%x(vgId:%d) to continue process data in WAL", id, taskLevel,
-            pReq->upstreamTaskId, pReq->upstreamNodeId);
-    return 0;
-  }
-
-  // sink tasks do not send end of scan history msg to its upstream, which is agg task.
-  streamAddEndScanHistoryMsg(pTask, pRpcInfo, pReq);
-
-  int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
-  ASSERT(left >= 0);
-
-  if (left == 0) {
-    int32_t numOfTasks = taosArrayGetSize(pTask->upstreamInfo.pList);
-    if (taskLevel == TASK_LEVEL__AGG) {
-      stDebug(
-          "s-task:%s all %d upstream tasks finish scan-history data, set param for agg task for stream data processing "
-          "and send rsp to all upstream tasks",
-          id, numOfTasks);
-      streamAggUpstreamScanHistoryFinish(pTask);
-    } else {
-      stDebug("s-task:%s all %d upstream task(s) finish scan-history data, and rsp to all upstream tasks", id,
-              numOfTasks);
-    }
-
-    // all upstream tasks have completed the scan-history task in the stream time window, let's start to extract data
-    // from the WAL files, which contains the real time stream data.
-    streamNotifyUpstreamContinue(pTask);
-
-    // mnode will not send the pause/resume message to the sink task, so no need to enable the pause for sink tasks.
-    if (taskLevel == TASK_LEVEL__AGG) {
-      /*int32_t code = */ streamTaskScanHistoryDataComplete(pTask);
-    } else {  // for sink task, set normal
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-    }
-  } else {
-    stDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d", id,
-            pReq->upstreamTaskId, pReq->childId, left);
-  }
-
-  return 0;
-}
-
-int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
-
-  // task restart now, not handle the scan-history finish rsp
-  if (status == TASK_STATUS__UNINIT) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY/* || status == TASK_STATUS__STREAM_SCAN_HISTORY*/);
-  SStreamMeta* pMeta = pTask->pMeta;
-
-  // execute in the scan history complete call back msg, ready to process data from inputQ
-  int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-  streamTaskSetSchedStatusInactive(pTask);
-
-  streamMetaWLock(pMeta);
-  streamMetaSaveTask(pMeta, pTask);
-  streamMetaCommit(pMeta);
-  streamMetaWUnLock(pMeta);
-
-  // for source tasks, let's continue execute.
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    streamSchedExec(pTask);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   SDataRange* pRange = &pHTask->dataRange;
 
   // the query version range should be limited to the already processed data
-  pRange->range.minVer = 0;
-  pRange->range.maxVer = pTask->chkInfo.nextProcessVer - 1;
   pHTask->execInfo.init = taosGetTimestampMs();
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -909,7 +809,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 
   // check stream task status in the first place.
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-  if (pStatus->state != TASK_STATUS__READY) {
+  if (pStatus->state != TASK_STATUS__READY && pStatus->state != TASK_STATUS__HALT) {
     stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", idStr, hStreamId, hTaskId,
             pStatus->name);
 
@@ -946,30 +846,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   }
 }
 
-int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__DROPPING) {
-    return 0;
-  }
-
-  // restore param
-  int32_t code = 0;
-  if (pTask->info.fillHistory) {
-    code = streamRestoreParam(pTask);
-    if (code < 0) {
-      return -1;
-    }
-  }
-
-  // dispatch scan-history finish req to all related downstream task
-  code = streamDispatchScanHistoryFinishMsg(pTask);
-  if (code < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t streamTaskFillHistoryFinished(SStreamTask* pTask) {
+int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
   return qStreamInfoResetTimewindowFilter(exec);
 }
@@ -980,8 +857,6 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
 
   int64_t walScanStartVer = pRange->maxVer + 1;
   if (walScanStartVer > nextProcessVer - 1) {
-    // no input data yet. no need to execute the secondary scan while stream task halt
-    streamTaskFillHistoryFinished(pTask);
     stDebug(
         "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during step1 scan, "
         "related stream task currentVer:%" PRId64,
@@ -1054,24 +929,20 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   return 0;
 }
 
-int32_t tEncodeStreamScanHistoryFinishReq(SEncoder* pEncoder, const SStreamScanHistoryFinishReq* pReq) {
+int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
   tEndEncode(pEncoder);
-  return pEncoder->pos;
+  return 0;
 }
 
-int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistoryFinishReq* pReq) {
+int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -1095,27 +966,13 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
       return;
     }
 
-    int64_t ekey = 0;
-    if (pRange->window.ekey < INT64_MAX) {
-      ekey = pRange->window.ekey + 1;
-    } else {
-      ekey = pRange->window.ekey;
-    }
-
-    int64_t ver = pRange->range.minVer;
-
-    pRange->window.skey = ekey;
-    pRange->window.ekey = INT64_MAX;
-    pRange->range.minVer = 0;
-    pRange->range.maxVer = ver;
-
-    stDebug("s-task:%s level:%d related fill-history task exists, set stream task timeWindow:%" PRId64 " - %" PRId64
+    stDebug("s-task:%s level:%d related fill-history task exists, stream task timeWindow:%" PRId64 " - %" PRId64
             ", verRang:%" PRId64 " - %" PRId64,
-            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, ver, INT64_MAX);
+            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
+            pRange->range.maxVer);
 
-    SVersionRange verRange = {.minVer = ver, .maxVer = INT64_MAX};
+    SVersionRange verRange = pRange->range;
     STimeWindow win = pRange->window;
     streamSetParamForStreamScannerStep2(pTask, &verRange, &win);
   }
 }
-
