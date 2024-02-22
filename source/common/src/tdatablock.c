@@ -1688,6 +1688,7 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    pColInfoData->varmeta.length = pColInfoData->varmeta.offset[n];
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
