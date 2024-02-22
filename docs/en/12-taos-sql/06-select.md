@@ -93,7 +93,7 @@ The list of currently supported Hints is as follows:
 | NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
 | SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
-| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used | Sorting the supertable rows by timestamp  |
+| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
 
 For example:
 
