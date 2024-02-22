@@ -860,11 +860,12 @@ impl TaskController {
                     }
                 };
 
-                let from_edition = from
-                    .get_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    .assert_enterprise_edition();
+                let from_edition =
+                    tokio::time::timeout(Duration::from_secs(30), from.get_edition())
+                        .await
+                        .context("Checking source edition timeout")?
+                        .context("Failed to check source edition")?
+                        .assert_enterprise_edition();
                 let to_edition = to_builder
                     .get_edition()
                     .await
@@ -882,9 +883,9 @@ impl TaskController {
                 from.subject.take();
                 let builder = TaosBuilder::from_dsn(from)?;
                 let _ = builder.build().await.context("Source connection error")?;
-                let edition = builder
-                    .get_edition()
+                let edition = tokio::time::timeout(Duration::from_secs(30), builder.get_edition())
                     .await
+                    .context("Checking source edition timeout")?
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
 
@@ -3366,6 +3367,15 @@ mod tests {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let _ = controller.get_task_summaries(10).await;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn legacy_edition_check() -> anyhow::Result<()> {
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041")?;
+        controller.validate_enterprise_license(&from, &to).await?;
         Ok(())
     }
 }
