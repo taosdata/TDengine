@@ -145,7 +145,7 @@ uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
   const uint8_t *it = pbuf + (size - len);
   while (it != pbuf + size && *it == 0) ++it;
 
-  uint8_t *result = taosMemoryCalloc(1, inlen + 1);
+  uint8_t *result = taosMemoryCalloc(1, nz + (pbuf + size - it) + 1);
   if (!result) {
     if (bfree) taosMemoryFree(pbuf);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
