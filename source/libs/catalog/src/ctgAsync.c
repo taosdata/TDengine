@@ -2705,8 +2705,22 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     taosArrayPush(pCtx->pResList, &(SMetaRes){0});
     CTG_ERR_RET(ctgGetTbTSMAFromMnode(pCtg, pConn, pTsmaName, NULL, &tReq, TDMT_MND_GET_TSMA));
   } else {
+    SMetaRes* pRes = taosArrayGet(pCtx->pResList, 0);
+    STableTSMAInfoRsp* pRsp = (STableTSMAInfoRsp*)pRes->pRes;
+    ASSERT(pRsp->pTsmas->size == 1);
+    const STSMACache* pTsma = taosArrayGetP(pRsp->pTsmas, 0);
     TSWAP(pTask->res, pCtx->pResList);
-    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    // get tsma target stable meta if not existed in cache
+    int32_t exists = false;
+    CTG_ERR_RET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
+    if (!exists) {
+      SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
+      SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
+      if (!pMsgCtx->pBatchs) pMsgCtx->pBatchs = pJob->pBatchs;
+      CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
+    } else {
+      CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2740,23 +2754,13 @@ int32_t ctgHandleGetTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
         pRes->pRes = pOut;
         pMsgCtx->out = NULL;
         TSWAP(pTask->res, pCtx->pResList);
-        break;
+
         STableTSMAInfo* pTsma = taosArrayGetP(pOut->pTsmas, 0);
-
-        SName dstTbName = *pName;
-        strcpy(dstTbName.tname, pTsma->targetTb);
-
-        SCtgTbMetaCtx stbCtx = {0};
-        stbCtx.flag = CTG_FLAG_STB;
-        stbCtx.pName = &dstTbName;
-        STableMeta* pDstTbMeta = NULL;
-        (void)ctgReadTbMetaFromCache(pCtg, &stbCtx, &pDstTbMeta);
-
-        if (!pDstTbMeta) {
+        int32_t         exists = false;
+        CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
+        if (!exists) {
           TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
-          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, dstTbName.tname, NULL, tReq));
-        } else {
-          taosMemoryFreeClear(pDstTbMeta);
+          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, tReq));
         }
       }
     } break;
@@ -2779,7 +2783,6 @@ _return:
 
 int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   bool               taskDone = false;
-  bool               hasSubFetch = false;
   int32_t            code = 0;
   SCtgTask*          pTask = tReq->pTask;
   SCatalog*          pCtg = pTask->pJob->pCtg;
@@ -2828,7 +2831,6 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
                                         .vgId = pVgInfo->vgId};
               CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
               pFetch->subFetchNum++;
-              hasSubFetch = true;
               pVgInfo = taosHashIterate(pDbCache->vgCache.vgInfo->vgHash, pVgInfo);
             }
           }
@@ -2891,7 +2893,6 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
                                     .vgId = pVgInfo->vgId};
           CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
           pFetch->subFetchNum++;
-          hasSubFetch = true;
           pVgInfo = taosHashIterate(pVgHash, pVgInfo);
         }
       }
@@ -2914,7 +2915,6 @@ _return:
   if (code) {
     SMetaRes* pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx);
     pRes->code = code;
-    pRes->pRes = NULL;
     if (TSDB_CODE_MND_SMA_NOT_EXIST == code) {
       code = TSDB_CODE_SUCCESS;
     } else {
@@ -2924,10 +2924,10 @@ _return:
                    tstrerror(code));
     }
     bool allSubFetchFinished = false;
-    if (reqType == TDMT_VND_GET_STREAM_PROGRESS) {
+    if (pMsgCtx->reqType == TDMT_VND_GET_STREAM_PROGRESS) {
       allSubFetchFinished = atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) >= pFetch->subFetchNum;
     }
-    if ((allSubFetchFinished || !hasSubFetch) && 0 == atomic_sub_fetch_32(&pCtx->fetchNum, 1)) {
+    if ((allSubFetchFinished || pFetch->subFetchNum == 0) && 0 == atomic_sub_fetch_32(&pCtx->fetchNum, 1)) {
       TSWAP(pTask->res, pCtx->pResList);
       taskDone = true;
     }

@@ -445,9 +445,9 @@ typedef enum ENodeType {
 } ENodeType;
 
 typedef struct {
-  int32_t vgId;
-  char*   dbFName;
-  char*   tbName;
+  int32_t     vgId;
+  const char* dbFName;
+  const char* tbName;
 } SBuildTableInput;
 
 typedef struct {
@@ -3528,6 +3528,8 @@ typedef struct {
   int64_t lastTs;
   int64_t normSourceTbUid; // the Uid of source tb if its a normal table, otherwise 0
   SArray* pVgroupVerList;
+  int8_t  recursiveTsma;
+  char    baseTsmaName[TSDB_TABLE_FNAME_LEN]; // base tsma name for recursively created tsma
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
