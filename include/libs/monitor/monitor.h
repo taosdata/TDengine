@@ -107,7 +107,8 @@ typedef struct {
   char    first_ep[TSDB_EP_LEN];
   int32_t first_ep_dnode_id;
   char    version[MON_VER_LEN];
-  float   master_uptime;     // day
+  //float   master_uptime;     // day
+  int64_t master_uptime;        //second
   int32_t monitor_interval;  // sec
   int32_t dbs_total;
   int32_t stbs_total;
