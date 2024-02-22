@@ -70,8 +70,13 @@ pub async fn csv_header(
 ) -> Result<CsvHeader> {
     let mut header = Vec::new();
     for path in &paths {
-        let path_header =
-            CsvSource::read_header(path.as_ref(), has_header, delimiter, quote, comment).await?;
+        let path_header = tokio::time::timeout(
+            Duration::from_secs(60),
+            CsvSource::read_header(path.as_ref(), has_header, delimiter, quote, comment),
+        )
+        .await
+        .context("Reading CSV header timeout(60s)")?
+        .context("Failed to read CSV header")?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
             bail!(
                 "CSV file \"{}\" format is different from others",
@@ -361,7 +366,10 @@ impl CsvSource {
         quote: Option<u8>,
         comment: Option<u8>,
     ) -> Result<Vec<String>> {
-        let paths = CsvSource::csv_path(read_path)?;
+        let clone_read_path = Arc::new(read_path.to_string());
+        let paths = tokio::task::spawn_blocking(move || CsvSource::csv_path(&*clone_read_path))
+            .await?
+            .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
         }
@@ -869,6 +877,20 @@ mod tests {
 
         assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
         delete_csv_file(&path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_read_header_timeout() {
+        let path = "/".to_string();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            CsvSource::read_header(path.as_ref(), true, Some(b','), Some(b'"'), Some(b'#')),
+        )
+        .await
+        .context("Reading CSV header timeout(5s)");
+        dbg!(&result);
+        assert!(result.is_err());
     }
 
     #[tokio::test]
