@@ -101,32 +101,31 @@ func createUAConn(connectConfig config.UaConnectConfig) (*opcua.Client, error) {
 		return nil, err
 	}
 	var opts []opcua.Option
+	opts = append(
+		opts,
+		opcua.ApplicationURI("urn:taosx-opc:client"),
+		opcua.ApplicationName("taosx-opc"),
+		opcua.ProductURI("urn:taosx-opc"),
+	)
 	opts = append(opts, opcua.RequestTimeout(time.Duration(connectConfig.RequestTimeout)*time.Second))
 	if len(connectConfig.Certificate) != 0 && len(connectConfig.PrivateKey) != 0 {
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
+		cert, key, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, certOpt, keyOpt)
-	}
-	if len(connectConfig.Certificate) != 0 && len(connectConfig.PrivateKey) != 0 {
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, certOpt, keyOpt)
+		opts = append(opts, opcua.Certificate(cert), opcua.PrivateKey(key))
 	}
 	var authType ua.UserTokenType
 	switch strings.ToLower(connectConfig.AuthMethod) {
 	case "certificate":
-		if len(connectConfig.Certificate) == 0 || len(connectConfig.PrivateKey) == 0 {
+		if len(connectConfig.AuthCertificate) == 0 || len(connectConfig.AuthPrivateKey) == 0 {
 			return nil, fmt.Errorf("certificate and privateKey is required if auth method is `certificate`")
 		}
-		certOpt, keyOpt, err := tlsOpts(connectConfig.Certificate, connectConfig.PrivateKey)
+		cert, key, err := tlsOpts(connectConfig.AuthCertificate, connectConfig.AuthPrivateKey)
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, certOpt, keyOpt)
+		opts = append(opts, opcua.AuthCertificate(cert), opcua.AuthPrivateKey(key))
 		authType = ua.UserTokenTypeCertificate
 	case "username":
 		if len(connectConfig.Username) == 0 || len(connectConfig.Password) == 0 {
@@ -163,7 +162,7 @@ func createUAConn(connectConfig config.UaConnectConfig) (*opcua.Client, error) {
 	return opcua.NewClient(connectConfig.Endpoint, opts...)
 }
 
-func tlsOpts(certFile, keyFile string) (opcua.Option, opcua.Option, error) {
+func tlsOpts(certFile, keyFile string) ([]byte, *rsa.PrivateKey, error) {
 	var cert []byte
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -174,7 +173,7 @@ func tlsOpts(certFile, keyFile string) (opcua.Option, opcua.Option, error) {
 		return nil, nil, fmt.Errorf("invalid private key")
 	}
 	cert = certificate.Certificate[0]
-	return opcua.Certificate(cert), opcua.PrivateKey(privateKey), nil
+	return cert, privateKey, nil
 }
 
 func getServerEndpoint(endpoints []*ua.EndpointDescription, securityPolicy string, securityMode ua.MessageSecurityMode) (endpoint *ua.EndpointDescription, err error) {
@@ -200,7 +199,7 @@ func (c *UAClient) Connect() error {
 	if err := c.conn.Connect(timeoutCtx); err != nil {
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
-	return c.getServerLimit()
+	return nil
 }
 
 func (c *UAClient) getServerLimit() error {
@@ -220,51 +219,56 @@ func (c *UAClient) getServerLimit() error {
 	if err != nil {
 		return err
 	}
-	if resp.Results[0].Status == ua.StatusOK {
+	if errors.Is(resp.Results[0].Status, ua.StatusOK) {
 		c.maxNodesPerRead = resp.Results[0].Value.Uint()
 		if c.maxNodesPerRead == 0 {
 			c.maxNodesPerRead = uint64(resp.Results[0].Value.Int())
 		}
 		c.logger.Info("get max node per read success ", c.maxNodesPerRead)
 	} else {
-		c.logger.Warn("get max node per read fail, set to 1")
-		c.maxNodesPerRead = 1
+		c.logger.Warn("get max node per read fail")
 	}
 	if c.maxNodesPerRead == 0 {
-		c.logger.Warn("get max node per read 0, set to 1")
-		c.maxNodesPerRead = 1
+		c.logger.Warn("get max node per read 0, try to get max nodes per read")
+		c.tryGetMaxNodesPerRead()
 	}
-	if resp.Results[1].Status == ua.StatusOK {
+
+	if errors.Is(resp.Results[1].Status, ua.StatusOK) {
 		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
 		if c.maxMonitoredItemsPerCall == 0 {
 			c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
 		}
 		c.logger.Info("get max monitored items per call success, ", c.maxMonitoredItemsPerCall)
 	} else {
-		c.logger.Warn("get max monitored items per call fail, set to 1")
-		c.maxMonitoredItemsPerCall = 1
-	}
-	if c.maxMonitoredItemsPerCall == 0 {
-		c.logger.Warn("get max monitored items per call 0, set to 1")
-		c.maxMonitoredItemsPerCall = 1
+		c.logger.Warn("get max monitored items per call fail")
 	}
 
-	if resp.Results[2].Status == ua.StatusOK {
+	if errors.Is(resp.Results[2].Status, ua.StatusOK) {
 		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
 		if c.maxNodesPerBrowse == 0 {
 			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
 		}
 		c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
+	} else {
+		c.logger.Warn("get max node per browse fail")
 	}
 	if c.maxNodesPerBrowse == 0 {
-		c.logger.Warn("get max nodes per browse fail, set to maxMonitoredItemsPerCall")
-		c.maxNodesPerBrowse = c.maxMonitoredItemsPerCall
+		c.logger.Warn("get max nodes per browse 0")
+	}
+
+	if c.maxMonitoredItemsPerCall == 0 {
+		c.logger.Warn("get max monitored items per call 0")
+		c.tryGetMonitorAbility()
 	}
 	return nil
 }
 
 func (c *UAClient) Collect() error {
 	err := c.checkCollect()
+	if err != nil {
+		return err
+	}
+	err = c.getServerLimit()
 	if err != nil {
 		return err
 	}
@@ -307,6 +311,14 @@ func (c *UAClient) initNodeNameAndValue() error {
 	return nil
 }
 
+var ability = []uint64{
+	10000,
+	5000,
+	2500,
+	1000,
+	100,
+}
+
 func (c *UAClient) readAllNames() {
 	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
@@ -321,6 +333,118 @@ func (c *UAClient) readAllNames() {
 		c.readNameBatch(int(base), nodes)
 	}
 
+}
+
+func (c *UAClient) tryGetMaxNodesPerRead() {
+	conn, err := createUAConn(c.connectConfig)
+	if err != nil {
+		c.logger.WithError(err).Fatal("try to get max nodes per read error: create conn error")
+	}
+	err = conn.Connect(c.ctx)
+	if err != nil {
+		c.logger.WithError(err).Fatal("try to get max nodes per read error:conn error")
+	}
+	defer conn.Close(c.ctx)
+	nodeID, _ := ua.ParseNodeID("i=85")
+	reqs := make([]*ua.ReadValueID, ability[0])
+	for i := 0; uint64(i) < ability[0]; i++ {
+		reqs[i] = &ua.ReadValueID{NodeID: nodeID, AttributeID: ua.AttributeIDBrowseName}
+	}
+	result := uint64(1)
+	for _, v := range ability {
+		req := reqs[:v]
+		resp, err := conn.Read(c.ctx, &ua.ReadRequest{NodesToRead: req})
+		if err != nil {
+			if errors.Is(err, ua.StatusBadTooManyOperations) {
+				continue
+			}
+			c.logger.WithError(err).Fatal("try to get max nodes per read error:read error")
+		}
+		for _, r := range resp.Results {
+			if !errors.Is(r.Status, ua.StatusOK) {
+				continue
+			}
+		}
+		result = v
+		break
+	}
+	c.maxNodesPerRead = result
+	c.logger.Warnf("try to get max nodes per read finish, set value %d", c.maxNodesPerRead)
+}
+
+func (c *UAClient) tryGetMonitorAbility() {
+	// start time "i=2257"
+	conn, err := createUAConn(c.connectConfig)
+	if err != nil {
+		c.logger.WithError(err).Fatal("try to get monitor ability error: create conn error")
+	}
+	err = conn.Connect(c.ctx)
+	if err != nil {
+		c.logger.WithError(err).Fatal("try to get monitor ability error: conn error")
+	}
+	defer conn.Close(c.ctx)
+	nodeID, _ := ua.ParseNodeID("i=2257")
+	// max monitored items per call
+	ch := make(chan *opcua.PublishNotificationData, 1)
+	sub, err := conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
+	if err != nil {
+		c.logger.WithError(err).Fatal("subscribe error")
+	}
+	defer sub.Cancel(c.ctx)
+	reqs := make([]*ua.MonitoredItemCreateRequest, ability[0])
+	for i := 0; uint64(i) < ability[0]; i++ {
+		reqs[i] = opcua.NewMonitoredItemCreateRequestWithDefaults(nodeID, ua.AttributeIDValue, uint32(i))
+	}
+	if c.maxMonitoredItemsPerCall == 0 {
+		//get max monitored items per call
+		for _, v := range ability {
+			req := reqs[:v]
+			resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, req...)
+			if err != nil {
+				if errors.Is(err, ua.StatusBadTooManyOperations) {
+					continue
+				}
+				c.logger.WithError(err).Fatal("try to get monitor ability error: monitor error")
+			}
+			for _, r := range resp.Results {
+				if !errors.Is(r.StatusCode, ua.StatusOK) {
+					continue
+				}
+			}
+			c.maxMonitoredItemsPerCall = v
+			c.logger.Warnf("try to get max monitored items per call finish, set value %d", c.maxMonitoredItemsPerCall)
+			break
+		}
+	}
+	if c.maxMonitoredItemsPerCall == 0 {
+		c.logger.Warnf("try to get max monitored items per call fail, set value %d", ability[0])
+		c.maxMonitoredItemsPerCall = ability[0]
+	}
+	if c.maxNodesPerBrowse != 0 {
+		return
+	}
+	// max nodes per browse, try 10 times
+	for i := 0; i < 10; i++ {
+		req := reqs[:c.maxMonitoredItemsPerCall]
+		resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, req...)
+		if err != nil {
+			if errors.Is(err, ua.StatusBadTooManyOperations) {
+				continue
+			}
+			c.logger.WithError(err).Fatal("try to get monitor ability error: monitor error")
+		}
+		for v, r := range resp.Results {
+			if !errors.Is(r.StatusCode, ua.StatusOK) {
+				if errors.Is(r.StatusCode, ua.StatusBadTooManyMonitoredItems) {
+					c.maxNodesPerBrowse = uint64(i+1)*(c.maxMonitoredItemsPerCall) + uint64(v)
+					c.logger.Warnf("try to get max nodes per browse finish, set value %d", c.maxMonitoredItemsPerCall)
+					return
+				}
+				c.logger.WithError(r.StatusCode).Fatal("try to get monitor ability error: monitor error")
+			}
+		}
+	}
+	c.logger.Warn("try to get max nodes per browse fail")
 }
 
 func (c *UAClient) readAllValue() {
@@ -349,10 +473,9 @@ func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) {
 		return
 	}
 	for i, r := range resp.Results {
-		if r.Status != ua.StatusOK {
+		if !errors.Is(r.Status, ua.StatusOK) {
 			c.logger.WithError(err).Error("read names error")
 			continue
-			//return fmt.Errorf("read names for node %s failed: %w", nodes[uint(i)].String(), r.Status)
 		}
 		c.dataCache[base+i].Name = r.Value.String()
 	}
@@ -373,7 +496,7 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 	end := time.Now()
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
-		if r.Status != ua.StatusOK {
+		if !errors.Is(r.Status, ua.StatusOK) {
 			c.logger.WithField("id", c.dataCache[base+i].Identifier).WithError(r.Status).Error("read value batch status error")
 			c.dataCache[base+i].Value = nil
 		} else {
@@ -432,7 +555,7 @@ func (c *UAClient) observe() error {
 					if data.Name == "" {
 						continue
 					}
-					if ua.StatusCode(data.Status) != ua.StatusOK {
+					if !errors.Is(ua.StatusCode(data.Status), ua.StatusOK) {
 						c.logger.WithField("id", data.Identifier).WithField("status", ua.StatusCode(data.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
 							continue
@@ -468,9 +591,15 @@ func (c *UAClient) observe() error {
 }
 
 func (c *UAClient) subscribe() error {
+	//return nil
 	err := c.checkCollect()
 	if err != nil {
 		return err
+	}
+	if c.maxNodesPerBrowse == 0 {
+		c.logger.Warn("max nodes per browse is 0, try to sub all nodes")
+		c.doSubAll()
+		return nil
 	}
 	needSubTimes := uint64(len(c.nodes)) / c.maxNodesPerBrowse
 	for subTimes := uint64(0); subTimes < needSubTimes; subTimes++ {
@@ -489,6 +618,66 @@ func (c *UAClient) subscribe() error {
 	}
 	c.logger.Info("add monitored items success")
 	return err
+}
+
+// get max node per browse fail, try to sub all nodes
+func (c *UAClient) doSubAll() {
+	reqs := make([]*ua.MonitoredItemCreateRequest, 0, c.maxMonitoredItemsPerCall)
+	baseIndex := uint64(0)
+	monitCount := uint64(0)
+	needNextMonitor := false
+	for {
+		if monitCount >= uint64(len(c.nodes)) {
+			break
+		}
+		// new subscription
+		ch := make(chan *opcua.PublishNotificationData, 1)
+		sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
+		if err != nil {
+			c.logger.WithError(err).Error("subscribe error")
+			return
+		}
+		c.logger.Info("start to add monitored items")
+		//monitor
+		for {
+			if monitCount >= uint64(len(c.nodes)) {
+				c.handleSubCallback(sub, ch)
+				break
+			}
+			reqs = reqs[:0]
+			subItemCount := c.maxMonitoredItemsPerCall
+			if baseIndex+subItemCount > uint64(len(c.nodes)) {
+				subItemCount = uint64(len(c.nodes)) - baseIndex
+			}
+			for i := uint64(0); i < subItemCount; i++ {
+				reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(c.nodes[baseIndex+i], ua.AttributeIDValue, uint32(baseIndex+i)))
+			}
+			resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, reqs...)
+			if err != nil {
+				c.logger.WithError(err).Error("monitor error")
+				continue
+			}
+			for index, result := range resp.Results {
+				if !errors.Is(result.StatusCode, ua.StatusOK) {
+					if errors.Is(result.StatusCode, ua.StatusBadTooManyMonitoredItems) {
+						baseIndex += uint64(index)
+						needNextMonitor = true
+						break
+					}
+					c.logger.WithField("identifier", c.nodes[baseIndex+uint64(index)].String()).WithError(result.StatusCode).Error("monitor item error")
+				}
+				monitCount += 1
+			}
+			if needNextMonitor {
+				c.handleSubCallback(sub, ch)
+				needNextMonitor = false
+				break
+			} else {
+				baseIndex += c.maxMonitoredItemsPerCall - 1
+			}
+		}
+		c.logger.Info("add monitored items finish")
+	}
 }
 
 func (c *UAClient) doSubBatch(base uint, nodes []*ua.NodeID) error {
@@ -534,7 +723,7 @@ func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscript
 	}
 	var errs []error
 	for index, r := range resp.Results {
-		if r.StatusCode != ua.StatusOK {
+		if !errors.Is(r.StatusCode, ua.StatusOK) {
 			c.logger.WithError(err).Error("monitor item error")
 			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", nodes[uint(index)].String(), r.StatusCode))
 		}
@@ -600,7 +789,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						c.dataCache[handle].FinishTime = now
 						c.dataCache[handle].StartTime = now
 						c.dataCache[handle].Status = int64(item.Value.Status)
-						if item.Value.Status != ua.StatusOK {
+						if !errors.Is(item.Value.Status, ua.StatusOK) {
 							c.logger.WithField("status", item.Value.Status).WithField("identifier", identifier).Warn("read value status is not ok")
 							if !c.containsBad {
 								continue
@@ -650,6 +839,10 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	}
 	if c.conn.State() != opcua.Connected {
 		return nil, fmt.Errorf("opc ua client is not connected")
+	}
+	err := c.getServerLimit()
+	if err != nil {
+		return nil, fmt.Errorf("get server ability fail: %s", err.Error())
 	}
 	reg, err := regexp.Compile(conf.Regex)
 	if err != nil {
