@@ -105,21 +105,6 @@ void monInitMonitorFW(){
   tsMonitor.metrics = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   taos_gauge_t *gauge = NULL;
 
-  int32_t label_count =1;
-  const char *sample_labels[] = {"cluster_id"};
-  char *metric[] = {MASTER_UPTIME, DBS_TOTAL, TBS_TOTAL, STBS_TOTAL, VGROUPS_TOTAL,
-                    VGROUPS_ALIVE, VNODES_TOTAL, VNODES_ALIVE, MNODES_TOTAL, MNODES_ALIVE,
-                    CONNECTIONS_TOTAL, TOPICS_TOTAL, STREAMS_TOTAL,
-                    DNODES_TOTAL, DNODES_ALIVE, EXPIRE_TIME, TIMESERIES_USED,
-                    TIMESERIES_TOTAL};
-  for(int32_t i = 0; i < 18; i++){
-    gauge= taos_gauge_new(metric[i], "",  label_count, sample_labels);
-    if(taos_collector_registry_register_metric(gauge) == 1){
-      taos_counter_destroy(gauge);
-    }
-    taosHashPut(tsMonitor.metrics, metric[i], strlen(metric[i]), &gauge, sizeof(taos_gauge_t *));
-  } 
-
   int32_t dnodes_label_count = 3;
   const char *dnodes_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep"};
   char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_SYSTEM,
@@ -156,28 +141,6 @@ void monInitMonitorFW(){
     }
     taosHashPut(tsMonitor.metrics, dnodes_log_gauges[i], strlen(dnodes_log_gauges[i]), &gauge, sizeof(taos_gauge_t *));
   }
-
-  int32_t mnodes_role_label_count = 3;
-  const char *mnodes_role_sample_labels[] = {"cluster_id", "mnode_id", "mnode_ep"};
-  char *mnodes_role_gauges[] = {MNODE_ROLE};
-  for(int32_t i = 0; i < 1; i++){
-    gauge= taos_gauge_new(mnodes_role_gauges[i], "",  mnodes_role_label_count, mnodes_role_sample_labels);
-    if(taos_collector_registry_register_metric(gauge) == 1){
-      taos_counter_destroy(gauge);
-    }
-    taosHashPut(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i]), &gauge, sizeof(taos_gauge_t *));
-  }
-
-  int32_t vnodes_role_label_count = 4;
-  const char *vnodes_role_sample_labels[] = {"cluster_id", "vgroup_id", "database_name", "dnode_id"};
-  char *vnodes_role_gauges[] = {VNODE_ROLE};
-  for(int32_t i = 0; i < 1; i++){
-    gauge= taos_gauge_new(vnodes_role_gauges[i], "",  vnodes_role_label_count, vnodes_role_sample_labels);
-    if(taos_collector_registry_register_metric(gauge) == 1){
-      taos_counter_destroy(gauge);
-    }
-    taosHashPut(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i]), &gauge, sizeof(taos_gauge_t *));
-  }
 }
 
 void monCleanupMonitorFW(){
@@ -191,51 +154,77 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
   SMonGrantInfo *pGrantInfo = &pMonitor->mmInfo.grant;
 
+  char *metric_names[] = {MASTER_UPTIME, DBS_TOTAL, TBS_TOTAL, STBS_TOTAL, VGROUPS_TOTAL,
+                    VGROUPS_ALIVE, VNODES_TOTAL, VNODES_ALIVE, MNODES_TOTAL, MNODES_ALIVE,
+                    CONNECTIONS_TOTAL, TOPICS_TOTAL, STREAMS_TOTAL,
+                    DNODES_TOTAL, DNODES_ALIVE, EXPIRE_TIME, TIMESERIES_USED,
+                    TIMESERIES_TOTAL};
+
+  for(int32_t i = 0; i < 18; i++){
+    if(taos_collector_registry_deregister_metric(metric_names[i]) != 0){
+      uError("failed to delete metric %s", metric_names[i]);
+    }
+
+    taosHashRemove(tsMonitor.metrics, metric_names[i], strlen(metric_names[i]));
+  } 
+
   if(pBasicInfo->cluster_id == 0) {
     uError("failed to generate dnode info table since cluster_id is 0");
     return;
   }
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
-  //cluster info
+  //cluster info  
+  taos_gauge_t *gauge = NULL;  
+  int32_t label_count =1;
+  const char *sample_labels1[] = {"cluster_id"};
+
+  for(int32_t i = 0; i < 18; i++){
+    gauge= taos_gauge_new(metric_names[i], "",  label_count, sample_labels1);
+    if(taos_collector_registry_register_metric(gauge) == 1){
+      taos_counter_destroy(gauge);
+    }
+    taosHashPut(tsMonitor.metrics, metric_names[i], strlen(metric_names[i]), &gauge, sizeof(taos_gauge_t *));
+  }
+
   char buf[TSDB_CLUSTER_ID_LEN] = {0};
   snprintf(buf, TSDB_CLUSTER_ID_LEN, "%"PRId64, pBasicInfo->cluster_id);
-  const char *sample_labels[] = {buf};
+  const char *sample_label_values[] = {buf};
 
   taos_gauge_t **metric = NULL;
   
   metric = taosHashGet(tsMonitor.metrics, MASTER_UPTIME, strlen(MASTER_UPTIME));
-  taos_gauge_set(*metric, pInfo->master_uptime, sample_labels);
+  taos_gauge_set(*metric, pInfo->master_uptime, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, DBS_TOTAL, strlen(DBS_TOTAL));
-  taos_gauge_set(*metric, pInfo->dbs_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->dbs_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, TBS_TOTAL, strlen(TBS_TOTAL));
-  taos_gauge_set(*metric, pInfo->tbs_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->tbs_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, STBS_TOTAL, strlen(STBS_TOTAL));
-  taos_gauge_set(*metric, pInfo->stbs_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->stbs_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, VGROUPS_TOTAL, strlen(VGROUPS_TOTAL));
-  taos_gauge_set(*metric, pInfo->vgroups_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->vgroups_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, VGROUPS_ALIVE, strlen(VGROUPS_ALIVE));
-  taos_gauge_set(*metric, pInfo->vgroups_alive, sample_labels);
+  taos_gauge_set(*metric, pInfo->vgroups_alive, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, VNODES_TOTAL, strlen(VNODES_TOTAL));
-  taos_gauge_set(*metric, pInfo->vnodes_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->vnodes_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, VNODES_ALIVE, strlen(VNODES_ALIVE));
-  taos_gauge_set(*metric, pInfo->vnodes_alive, sample_labels);
+  taos_gauge_set(*metric, pInfo->vnodes_alive, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, CONNECTIONS_TOTAL, strlen(CONNECTIONS_TOTAL));
-  taos_gauge_set(*metric, pInfo->connections_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->connections_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, TOPICS_TOTAL, strlen(TOPICS_TOTAL));
-  taos_gauge_set(*metric, pInfo->topics_toal, sample_labels);
+  taos_gauge_set(*metric, pInfo->topics_toal, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, STREAMS_TOTAL, strlen(STREAMS_TOTAL));
-  taos_gauge_set(*metric, pInfo->streams_total, sample_labels);
+  taos_gauge_set(*metric, pInfo->streams_total, sample_label_values);
 
   //dnodes number
   int32_t dnode_total = taosArrayGetSize(pInfo->dnodes);
@@ -250,10 +239,10 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   }
     
   metric = taosHashGet(tsMonitor.metrics, DNODES_TOTAL, strlen(DNODES_TOTAL));
-  taos_gauge_set(*metric, dnode_total, sample_labels);
+  taos_gauge_set(*metric, dnode_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, DNODES_ALIVE, strlen(DNODES_ALIVE));
-  taos_gauge_set(*metric, dnode_alive, sample_labels);
+  taos_gauge_set(*metric, dnode_alive, sample_label_values);
 
   //mnodes number 
   int32_t mnode_total = taosArrayGetSize(pInfo->mnodes);
@@ -282,23 +271,31 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   }
 
   metric = taosHashGet(tsMonitor.metrics, MNODES_TOTAL, strlen(MNODES_TOTAL));
-  taos_gauge_set(*metric, mnode_total, sample_labels);
+  taos_gauge_set(*metric, mnode_total, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, MNODES_ALIVE, strlen(MNODES_ALIVE));
-  taos_gauge_set(*metric, mnode_alive, sample_labels);
+  taos_gauge_set(*metric, mnode_alive, sample_label_values);
 
   //grant info
   metric = taosHashGet(tsMonitor.metrics, EXPIRE_TIME, strlen(EXPIRE_TIME));
-  taos_gauge_set(*metric, pGrantInfo->expire_time, sample_labels);
+  taos_gauge_set(*metric, pGrantInfo->expire_time, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, TIMESERIES_USED, strlen(TIMESERIES_USED));
-  taos_gauge_set(*metric, pGrantInfo->timeseries_used, sample_labels);
+  taos_gauge_set(*metric, pGrantInfo->timeseries_used, sample_label_values);
 
   metric = taosHashGet(tsMonitor.metrics, TIMESERIES_TOTAL, strlen(TIMESERIES_TOTAL));
-  taos_gauge_set(*metric, pGrantInfo->timeseries_total, sample_labels);
+  taos_gauge_set(*metric, pGrantInfo->timeseries_total, sample_label_values);
 }
 
 void monGenVgroupInfoTable(SMonInfo *pMonitor){
+  if(taos_collector_registry_deregister_metric(TABLES_NUM) != 0){
+    uError("failed to delete metric "TABLES_NUM);
+  }
+
+  if(taos_collector_registry_deregister_metric(STATUS) != 0){
+    uError("failed to delete metric "STATUS);
+  }
+
   if(pMonitor->dmInfo.basic.cluster_id == 0) return;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
@@ -307,20 +304,10 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
 
   int32_t vgroup_label_count = 3;
   const char *vgroup_sample_labels[] = {"cluster_id", "vgroup_id", "database_name"};
-
-  if(taos_collector_registry_deregister_metric(TABLES_NUM) != 0){
-    uError("failed to delete metric "TABLES_NUM);
-  }
-
   taos_gauge_t *tableNumGauge = taos_gauge_new(TABLES_NUM, "",  vgroup_label_count, vgroup_sample_labels);
   if(taos_collector_registry_register_metric(tableNumGauge) == 1){
     taos_counter_destroy(tableNumGauge);
   }
-
-  if(taos_collector_registry_deregister_metric(STATUS) != 0){
-    uError("failed to delete metric "STATUS);
-  }
-
   taos_gauge_t *statusGauge = taos_gauge_new(STATUS, "",  vgroup_label_count, vgroup_sample_labels);
   if(taos_collector_registry_register_metric(statusGauge) == 1){
     taos_counter_destroy(statusGauge);
@@ -617,10 +604,31 @@ void monGenLogDiskTable(SMonInfo *pMonitor){
 }
 
 void monGenMnodeRoleTable(SMonInfo *pMonitor){
+  char *mnodes_role_gauges[] = {MNODE_ROLE};
+
+  for(int32_t i = 0; i < 1; i++){
+    if(taos_collector_registry_deregister_metric(mnodes_role_gauges[i]) != 0){
+      uError("failed to delete metric %s", mnodes_role_gauges[i]);
+    }
+
+    taosHashRemove(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i]));
+  }
+
   SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
   SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
   if(pBasicInfo->cluster_id == 0) return;
+
+  taos_gauge_t *gauge = NULL;
+  int32_t mnodes_role_label_count = 3;
+  const char *mnodes_role_sample_labels[] = {"cluster_id", "mnode_id", "mnode_ep"};
+  for(int32_t i = 0; i < 1; i++){
+    gauge= taos_gauge_new(mnodes_role_gauges[i], "",  mnodes_role_label_count, mnodes_role_sample_labels);
+    if(taos_collector_registry_register_metric(gauge) == 1){
+      taos_counter_destroy(gauge);
+    }
+    taosHashPut(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i]), &gauge, sizeof(taos_gauge_t *));
+  }
 
   char buf[TSDB_CLUSTER_ID_LEN] = {0};
   snprintf(buf, TSDB_CLUSTER_ID_LEN, "%" PRId64, pBasicInfo->cluster_id);
@@ -661,11 +669,32 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor){
 }
 
 void monGenVnodeRoleTable(SMonInfo *pMonitor){
+  char *vnodes_role_gauges[] = {VNODE_ROLE};
+  taos_gauge_t *gauge = NULL;
+  
+  for(int32_t i = 0; i < 1; i++){
+    if(taos_collector_registry_deregister_metric(vnodes_role_gauges[i]) != 0){
+      uError("failed to delete metric %s", vnodes_role_gauges[i]);
+    }
+
+    taosHashRemove(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i]));
+  }
+
   SMonVgroupInfo *pInfo = &pMonitor->mmInfo.vgroup;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
   if(pBasicInfo->cluster_id == 0) return;
+
+  int32_t vnodes_role_label_count = 4;
+  const char *vnodes_role_sample_labels[] = {"cluster_id", "vgroup_id", "database_name", "dnode_id"};
+  for(int32_t i = 0; i < 1; i++){
+    gauge= taos_gauge_new(vnodes_role_gauges[i], "",  vnodes_role_label_count, vnodes_role_sample_labels);
+    if(taos_collector_registry_register_metric(gauge) == 1){
+      taos_counter_destroy(gauge);
+    }
+    taosHashPut(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i]), &gauge, sizeof(taos_gauge_t *));
+  }
 
   char buf[TSDB_CLUSTER_ID_LEN] = {0};
   snprintf(buf, TSDB_CLUSTER_ID_LEN, "%" PRId64, pBasicInfo->cluster_id);
