@@ -1065,6 +1065,7 @@ function getDatasetsQuery(datasets, allData, query) {
         const field = getOriginField(k);
         query.push(field + '=' + getQueryParamValue(datasets[tabValue][k]));
       }
+      query.push(tabValue + '=' + true);
     } else {
       query.push(tabValue + '=' + getQueryParamValue(datasets[tabValue]));
     }
