@@ -276,12 +276,12 @@
         </el-table-column>
         <el-table-column
           :label="$t('datasource.operation')"
-          width="150"
+          width="190"
           class="action"
           fixed="right"
         >
           <template slot-scope="scope">
-            <el-tooltip
+            <!-- <el-tooltip
               placement="bottom"
               effect="light"
               :content="
@@ -295,8 +295,26 @@
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
-                @click="edit(scope.row, scope.row.status.toLowerCase())"
+                @click="view(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-view"
+              ></el-button>
+            </el-tooltip> -->
+            <el-tooltip
+              placement="bottom"
+              effect="light"
+              :content="
+                $t('datasource.editconfig')
+              "
+            >
+              <el-button
+                type="primay"
+                size="mini"
+                :disabled="
+                  scope.row.from_detail === undefined ||
+                  !getEditStatus(scope.row.labels)
+                "
+                @click="edit(scope.row, scope.row.status.toLowerCase())"
+                icon="el-icon-edit"
               ></el-button>
             </el-tooltip>
             <el-tooltip
@@ -463,6 +481,7 @@ export default {
         })
       });
     },
+    view() {},
     edit(data, status, iscopy) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;

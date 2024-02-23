@@ -315,6 +315,7 @@ export default {
             })
           );
         });
+
         if (isall) {
           transformerColumns.splice(1, 1, {
             value: "mapping",
@@ -330,13 +331,24 @@ export default {
             "app/SET_TRANSFORMER_MAPCOLUMNS",
             transformerColumns
           );
-          //获取全部的extract or split参数
+          
+          let newFields = this.tableColumns.concat(result[0].fields.filter(item => !this.tableColumns.find(x => x.name === item.name))) 
+          let newColumns = []
+          let len = this.tableColumns.length
+          newColumns = result[0].columns.map(col => {
+            return col.slice(-len).concat(col.slice(0,col.length-len))
+          })
+          tbdata = newColumns.map((data) => {
+            return Object.fromEntries(
+              newFields.map((item, index) => {
+                return [item.name, data[index] ? data[index].toString() : null];
+              })
+            );
+          });
+
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
+          this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-          // let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
-          //   (item) => item== Object.keys(this.tableData[0])[0]
-          // );
-          // this.$store.commit("app/SET_RESULT_PAGE", pageindex);
           
           return;
         }
@@ -357,6 +369,7 @@ export default {
           obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
           return obj;
         });
+        // this.singleFileds = result[0].fields
         this.tableData = tbdata;
         this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
       } catch (error) {
@@ -501,19 +514,35 @@ export default {
         });
       let topparse = deepClone(this.$store.state.app.topParse);
       let extractlist = {};
+      // topparse["parser"]["mutate"] = isall
+      //   ? this.$store.state.app.transformerFilterParseData
+      //     ? []
+      //         .concat(this.$store.state.app.transformerFilterParseData)
+      //         .concat(this.extractParseData)
+      //     : [].concat(this.extractParseData)
+      //   : [].concat({
+      //       extract: {
+      //         [`${this.itemData.columnname}`]:
+      //           this.extractParseData["extract"][this.itemData.columnname],
+      //       },
+      //     });
+      
+      const keys = Object.keys(this.extractParseData.extract);
+      const slicedKeys = keys.slice(0, this.index + 1);
+      const slicedObj = slicedKeys.reduce((acc, key) => {
+        acc[key] = this.extractParseData.extract[key];
+        return acc;
+      }, {});
+
       topparse["parser"]["mutate"] = isall
-        ? this.$store.state.app.transformerFilterParseData
-          ? []
-              .concat(this.$store.state.app.transformerFilterParseData)
-              .concat(this.extractParseData)
-          : [].concat(this.extractParseData)
+        ? [].concat({ extract: slicedObj })
         : [].concat({
             extract: {
               [`${this.itemData.columnname}`]:
                 this.extractParseData["extract"][this.itemData.columnname],
             },
           });
-          
+     
       let parser = {
         parser: {
           parse:

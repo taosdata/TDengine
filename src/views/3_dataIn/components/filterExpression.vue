@@ -26,11 +26,16 @@
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteFilter"></el-button>
+        <el-button
+          icon="el-icon-PREVIEW"
+          @click="excuteFilter"
+          style="display: flex"
+        ></el-button>
       </div>
     </div>
-    <div class='tip' v-if='ruleForm.filter_name'>
+    <!-- <div class='tip' v-if='ruleForm.filter_name'>
       <span :class="['excutetip',isexecuted?'done':'']">{{isexecuted?$t('datasource.transformer.filterexecuted'):$t('datasource.transformer.filterunexe')}}</span>
-    </div>
+    </div> -->
   </div>
 </template>
 <script>
@@ -141,6 +146,7 @@ export default {
             )
           )
         this.$store.commit('app/SET_RESULTTB_SHOW',true)
+        this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'filterResTb');
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {

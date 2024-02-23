@@ -1,8 +1,8 @@
 <template>
   <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight}">
     <div class="title-block">
-      <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
-      <!-- <span class='el-icon-close'></span> -->
+      <span class="title">{{ $t(`datasource.transformer.${title}`) }}</span>
+      <span class='el-icon-close' @click="showtable=false"></span>
     </div>
     <el-table
       border
@@ -21,7 +21,7 @@
         :label="item"
       ></el-table-column>
     </el-table>
-    <div class="block-page">
+    <!-- <div class="block-page">
       <el-pagination
         :class="['pagination', totalCount < 10 ? 'hide' : '']"
         :page-size="pageSize"
@@ -31,7 +31,7 @@
         @current-change="handleCurrentChange"
       >
       </el-pagination>
-    </div>
+    </div> -->
   </div>
 </template>
 <script>
@@ -47,7 +47,7 @@ export default {
     return {
       loading: true,
       isFixed: false,
-      columns: ["Name", "Output1", "Output2", "Output3"],
+      columns: [],
       tableData: [],
       pageTableData: [],
       pageSize: 20,
@@ -56,6 +56,7 @@ export default {
       showtable: false,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mappingCol: "SubTableName",
       defaultHeight:510
     };
   },
@@ -111,10 +112,11 @@ export default {
       this.$set(
         this,
         "pageTableData",
-        this.tableData.slice(
-          (this.currentPage - 1) * this.pageSize,
-          this.currentPage * this.pageSize
-        )
+        this.tableData
+        // this.tableData.slice(
+        //   (this.currentPage - 1) * this.pageSize,
+        //   this.currentPage * this.pageSize
+        // )
       );
     },
     handleCurrentChange(val) {
@@ -134,29 +136,40 @@ export default {
       let columns = Object.keys(data[0]).filter((item) => {
         return !hiddenCols.includes(item);
       });
+      this.columns = columns;
       this.totalCount = columns.length;
-      this.tableData = columns
-        .map((key) => {
-          let obj = {};
-          obj["Name"] = key;
-          obj["Value"] = data
-            .map((val) => {
-              return val[key];
-            })
-            .join(";");
-          return obj;
-        })
-        .map((val) => {
-          let final = {};
-          final["Output1"] = null;
-          final["Output2"] = null;
-          final["Output3"] = null;
-          final["Name"] = val["Name"];
-          val["Value"].split(";").map((v, ind) => {
-            final["Output" + (ind + 1)] = v;
-          });
-          return final;
-        });
+      if (this.$store.state.app.resultTbTitle == 'mappingResTb') {
+        const index = this.columns.indexOf(this.mappingCol);
+        if (index > 0) {
+          this.columns.splice(index, 1);
+          this.columns.unshift(this.mappingCol);
+        }
+      }
+      this.tableData = data.slice(0,this.limitOffset);
+
+      // this.tableData = columns
+        // .map((key) => {
+        //   let obj = {};
+        //   obj["Name"] = key;
+        //   obj["Value"] = data
+        //     .map((val) => {
+        //       return val[key];
+        //     })
+        //     .join(";");
+        //   return obj;
+        // })
+        // .map((val) => {
+        //   let final = {};
+        //   final["Output1"] = null;
+        //   final["Output2"] = null;
+        //   final["Output3"] = null;
+        //   final["Name"] = val["Name"];
+        //   val["Value"].split(";").map((v, ind) => {
+        //     final["Output" + (ind + 1)] = v;
+        //   });
+        //   return final;
+        // });
+
       const timer = setTimeout(() => {
         clearTimeout(timer)
         const targetRow =
@@ -175,17 +188,25 @@ export default {
       this.setPageTableData();
     },
   },
-  watch: {
-    "$store.state.app.resultCurrentPage": {
-      deep: true,
-      handler(val) {
-        if (val > 20) {
-          this.handleCurrentChange(Math.floor(val / this.pageSize) + 1);
-        } else {
-          this.handleCurrentChange(1);
-        }
-      },
+  computed: {
+    title() {
+      return this.$store.state.app.resultTbTitle
     },
+    limitOffset() {
+      return this.$store.state.app.limitOffset
+    }
+  },
+  watch: {
+    // "$store.state.app.resultCurrentPage": {
+    //   deep: true,
+    //   handler(val) {
+    //     if (val > 20) {
+    //       this.handleCurrentChange(Math.floor(val / this.pageSize) + 1);
+    //     } else {
+    //       this.handleCurrentChange(1);
+    //     }
+    //   },
+    // },
     "$store.state.app.showresulttb": {
       deep: true,
       handler(val, oldval) {
