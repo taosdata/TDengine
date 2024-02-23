@@ -607,7 +607,7 @@ impl DataSourceDefinition {
                                 endpoint_str.push_str(value.as_str());
                             }
                         } else if dsn.driver == "opcua" {
-                            if let Some(value) = dsn.get("security_mode") {
+                            if let Some(value) = dsn.remove("security_mode") {
                                 security_mode
                                     .get_or_insert(Default::default())
                                     .value
@@ -619,7 +619,7 @@ impl DataSourceDefinition {
                                     .value
                                     .replace(value.to_string());
                             }
-                            if let Some(value) = dsn.get("certificate") {
+                            if let Some(value) = dsn.remove("certificate") {
                                 certificate
                                     .get_or_insert(Default::default())
                                     .value
