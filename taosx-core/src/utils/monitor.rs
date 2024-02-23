@@ -53,6 +53,7 @@ pub fn update_sub_connector_process_metrics(
     sys: &sysinfo::System,
     taosx_id: String,
     parent_process_id: sysinfo::Pid,
+    monitor_interval: f64,
 ) {
     let mut living_sub_processes = Vec::<SubInfo>::new();
     loop {
@@ -103,8 +104,10 @@ pub fn update_sub_connector_process_metrics(
                 let mem = sub_process.memory() as f64 / sys.total_memory() as f64 * 100.0;
                 gauge!("process_memory_percent", labels.clone()).set(mem);
                 let disk = sub_process.disk_usage();
-                gauge!("process_disk_read_bytes", labels.clone()).set(disk.read_bytes as f64);
-                gauge!("process_disk_written_bytes", labels.clone()).set(disk.written_bytes as f64);
+                gauge!("process_disk_read_bytes", labels.clone())
+                    .set(disk.read_bytes as f64 / monitor_interval);
+                gauge!("process_disk_written_bytes", labels.clone())
+                    .set(disk.written_bytes as f64 / monitor_interval);
                 gauge!("process_uptime", labels.clone()).set(sub_process.run_time() as f64);
                 living_sub_processes.push(sub_info);
             }
