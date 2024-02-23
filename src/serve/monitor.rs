@@ -136,9 +136,14 @@ impl Monitor {
             let process_id = process_id.unwrap();
             loop {
                 interval.tick().await;
-                let _ =
-                    process_metrics(&mut sys, taosx_id, process_id, controller.clone(), duration)
-                        .await;
+                let _ = process_metrics(
+                    &mut sys,
+                    taosx_id,
+                    process_id,
+                    controller.clone(),
+                    monitor_interval,
+                )
+                .await;
             }
         });
         let tasks = self.tasks.clone();
@@ -256,7 +261,7 @@ pub async fn process_metrics(
     taosx_id: &'static str,
     process_id: sysinfo::Pid,
     controller: TaskControllerRef,
-    duration: Duration,
+    monitor_interval: u64,
 ) -> anyhow::Result<()> {
     sys.refresh_all();
     let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
@@ -273,18 +278,25 @@ pub async fn process_metrics(
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
         gauge!("process_memory_percent", &labels).set(mem);
         let disk = ps.disk_usage();
-        gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64);
-        gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
+        gauge!("process_disk_read_bytes", &labels)
+            .set(disk.read_bytes as f64 / monitor_interval as f64);
+        gauge!("process_disk_written_bytes", &labels)
+            .set(disk.written_bytes as f64 / monitor_interval as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
     // task summeries
     let (running_tasks, completed_tasks, failed_tasks) =
-        controller.get_task_summaries(duration.as_secs()).await;
+        controller.get_task_summaries(monitor_interval).await;
     gauge!("running_tasks", &labels).set(running_tasks as f64);
     gauge!("completed_tasks", &labels).set(completed_tasks as f64);
     gauge!("failed_tasks", &labels).set(failed_tasks as f64);
     // connector process metrics
-    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
+    update_sub_connector_process_metrics(
+        sys,
+        taosx_id.to_string(),
+        process_id,
+        monitor_interval as f64,
+    );
     Ok(())
 }
 

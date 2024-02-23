@@ -374,7 +374,13 @@ fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, ag
     tokio::spawn(async move {
         let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
-            let _ = process_metrics(&mut sys, taosx_id, agent_id, process_id);
+            let _ = process_metrics(
+                &mut sys,
+                taosx_id,
+                agent_id,
+                process_id,
+                monitor_interval as f64,
+            );
             collect_interval.tick().await;
         }
     });
@@ -385,6 +391,7 @@ pub fn process_metrics(
     taosx_id: &'static str,
     agent_id: &'static str,
     process_id: sysinfo::Pid,
+    monitor_interval: f64,
 ) -> anyhow::Result<()> {
     sys.refresh_all();
     let labels = [
@@ -405,12 +412,13 @@ pub fn process_metrics(
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
         gauge!("process_memory_percent", &labels).set(mem);
         let disk = ps.disk_usage();
-        gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64);
-        gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
+        gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64 / monitor_interval);
+        gauge!("process_disk_written_bytes", &labels)
+            .set(disk.written_bytes as f64 / monitor_interval);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
     // connecotor process metrics
-    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
+    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id, monitor_interval);
     Ok(())
 }
 
