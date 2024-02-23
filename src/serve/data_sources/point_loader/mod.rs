@@ -291,6 +291,14 @@ pub async fn get_point_file_template(driver: &str, lang: &str) -> anyhow::Result
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
+fn get_safe_string_for_csv(s: &String) -> String {
+    let mut safe_str = s.clone();
+    if safe_str.contains(",") {
+        safe_str = format!("\"{}\"", safe_str.replace("\"", "\"\"") );
+    }
+    safe_str
+}
+
 async fn get_all_points(
     from: String,
     via: Option<i64>,
@@ -359,11 +367,15 @@ async fn get_all_points(
                     let mut i = 1;
 
                     data.iter().for_each(|item| {
+                        // 转义id 和 name, 使其可以安全的包含在csv文件中
+                        let safe_id = get_safe_string_for_csv(&item.id);
+                        let safe_name = get_safe_string_for_csv(&(item.name.clone().unwrap_or("".to_string())));
+
                         let point_item = format!(
                             "{},{},1,opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
                             i,
-                            item.id,
-                            item.name.clone().unwrap_or("".to_string())
+                            safe_id,
+                            safe_name
                         );
                         result.push_str(point_item.as_str());
                         i += 1;
