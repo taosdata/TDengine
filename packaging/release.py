@@ -121,7 +121,7 @@ def get_install_path():
 
 def get_package_name():
     target = "taosx"
-    if release_info.Target == "agent":
+    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
         target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
         return  f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
@@ -554,7 +554,7 @@ def package_on_windows():
     target = taosx_name
     sub_directory = "taosX"
     app_before_install_txt = "info_before_install.txt"
-    if release_info.Target == "agent":
+    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
         target = taosx_agent_name
     cmd = f'iscc /F"{release_info.PackageName}" '\
         f'/DMyAppVersion="{release_info.TdengineVersion}" '\
