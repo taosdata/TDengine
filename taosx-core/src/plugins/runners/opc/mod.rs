@@ -103,8 +103,15 @@ pub async fn opc_to_taos(
         .map_err(|err| anyhow::anyhow!("select_all_points config error: {}", err.to_string()))?
         .unwrap_or(false);
 
+    let mut certificate_files = vec![];
     if select_all_points {
         handle_select_all_points(&mut from).await?;
+    } else {
+        // 将文件中的内容写入到临时文件中，然后将文件路径写入到 DSN 中
+        certificate_files.push(get_temp_file(&mut from, "certificate"));
+        certificate_files.push(get_temp_file(&mut from, "private_key"));
+        certificate_files.push(get_temp_file(&mut from, "auth_certificate"));
+        certificate_files.push(get_temp_file(&mut from, "auth_private_key"));
     }
 
     let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
@@ -234,6 +241,7 @@ pub async fn opc_to_taos(
                     tracing::info!("All IPC handlers have been finished");
                 });
                 let _ = temp_path.close();
+                tracing::info!("centificate file {}", certificate_files.len()); 
                 tracing::info!("Release IPC port");
                 port_pool.put(ipc_port).await;
             };

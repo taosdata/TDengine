@@ -252,10 +252,11 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let f = NamedFile::open(file_path)?;
                 let mut reader = Reader::from_reader(f.file());
 
+                // skip +1， is the header
                 let data: Vec<OpcPoint> = reader
                     .records()
                     .into_iter()
-                    .skip(page * page_size)
+                    .skip(page * page_size + 1)
                     .take(page_size)
                     .map(|record| {
                         let record = record.unwrap();
