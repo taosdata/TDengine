@@ -117,7 +117,11 @@ pub async fn opc_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    tracing::info!("Using opc config file {}", config_path.display());
+    tracing::info!(
+        "opc_to_taos using opc config file {} \n{}",
+        config_path.display(),
+        toml
+    );
     // save the temporary file to task dir
     match task_id {
         Some(task_id) => {

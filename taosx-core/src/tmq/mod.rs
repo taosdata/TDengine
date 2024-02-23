@@ -196,6 +196,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
         replica = true;
     } else {
         if from.get("replica").is_some() {
+            tracing::info!("Active-StandBy mode, set `msg.consume.excluded=1`");
             from.set("msg.consume.excluded", "1");
             replica = true;
         }
