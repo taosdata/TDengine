@@ -109,7 +109,7 @@ int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
 
   mDebug("mndSetSinkTaskInfo to sma or table, taskId:%s", pTask->id.idStr);
 
-  if (pStream->smaId != 0) {
+  if (pStream->smaId != 0 && pStream->subTableWithoutMd5 != 1) {
     pInfo->type = TASK_OUTPUT__SMA;
     pInfo->smaSink.smaId = pStream->smaId;
   } else {
