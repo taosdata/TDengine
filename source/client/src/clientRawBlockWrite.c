@@ -1001,6 +1001,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
       tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
       taosArrayPush(tBatch.req.pArray, pCreateReq);
+      tBatch.req.source = TD_REQ_FROM_TAOX;
 
       taosHashPut(pVgroupHashmap, &pInfo.vgId, sizeof(pInfo.vgId), &tBatch, sizeof(tBatch));
     } else {  // add to the correct vgroup
@@ -1276,7 +1277,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
     return terrno;
   }
   SVAlterTbReq   req = {0};
-  SDecoder       coder = {0};
+  SDecoder       dcoder = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
   SRequestObj*   pRequest = NULL;
   SQuery*        pQuery = NULL;
@@ -1297,8 +1298,8 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   // decode and process req
   void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
-  tDecoderInit(&coder, data, len);
-  if (tDecodeSVAlterTbReq(&coder, &req) < 0) {
+  tDecoderInit(&dcoder, data, len);
+  if (tDecodeSVAlterTbReq(&dcoder, &req) < 0) {
     code = TSDB_CODE_INVALID_PARA;
     goto end;
   }
@@ -1340,14 +1341,36 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   pVgData->vg = pInfo;
-  pVgData->pData = taosMemoryMalloc(metaLen);
-  if (NULL == pVgData->pData) {
+
+  int         tlen = 0;
+  req.source = TD_REQ_FROM_TAOX;
+  tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
+  if(code != 0){
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  memcpy(pVgData->pData, meta, metaLen);
-  ((SMsgHead*)pVgData->pData)->vgId = htonl(pInfo.vgId);
-  pVgData->size = metaLen;
+  tlen += sizeof(SMsgHead);
+  void* pMsg = taosMemoryMalloc(tlen);
+  if (NULL == pMsg) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  ((SMsgHead*)pMsg)->vgId = htonl(pInfo.vgId);
+  ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+  void*    pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  SEncoder coder = {0};
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
+  code = tEncodeSVAlterTbReq(&coder, &req);
+  if(code != 0){
+    tEncoderClear(&coder);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  tEncoderClear(&coder);
+
+  pVgData->pData = pMsg;
+  pVgData->size = tlen;
+
   pVgData->numOfTables = 1;
   taosArrayPush(pArray, &pVgData);
 
@@ -1387,7 +1410,7 @@ end:
   if (pVgData) taosMemoryFreeClear(pVgData->pData);
   taosMemoryFreeClear(pVgData);
   destroyRequest(pRequest);
-  tDecoderClear(&coder);
+  tDecoderClear(&dcoder);
   qDestroyQuery(pQuery);
   terrno = code;
   return code;

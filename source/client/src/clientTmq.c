@@ -389,7 +389,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
   if (strcasecmp(key, "msg.consume.excluded") == 0) {
-    conf->sourceExcluded = taosStr2int64(value);
+    conf->sourceExcluded = (taosStr2int64(value) != 0) ? TD_REQ_FROM_TAOX : 0;
     return TMQ_CONF_OK;
   }
 
@@ -1611,17 +1611,39 @@ SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   return pRspObj;
 }
 
-SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
-  SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
-  pRspObj->resType = RES_TYPE__TMQ;
 
+void changeByteEndian(char* pData){
+  char* p = pData;
+
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  // version:
+  int32_t blockVersion = *(int32_t*)p;
+  ASSERT(blockVersion == BLOCK_VERSION_1);
+  *(int32_t*)p = BLOCK_VERSION_2;
+
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  int32_t cols = *(int32_t*)p;
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(uint64_t);
+  // check fields
+  p += cols * (sizeof(int8_t) + sizeof(int32_t));
+
+  int32_t* colLength = (int32_t*)p;
+  for (int32_t i = 0; i < cols; ++i) {
+    colLength[i] = htonl(colLength[i]);
+  }
+}
+
+static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows, SMqRspObj* pRspObj) {
   (*numOfRows) = 0;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
 
   pRspObj->vgId = pWrapper->vgHandle->vgId;
   pRspObj->resIter = -1;
-  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqDataRsp));
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
@@ -1633,41 +1655,44 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg,
   }
   // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
-    int64_t                  rows = htobe64(pRetrieve->numOfRows);
+    void* pRetrieve = taosArrayGetP(pRspObj->rsp.blockData, i);
+    void* rawData = NULL;
+    int64_t rows = 0;
+    // deal with compatibility
+    if(*(int64_t*)pRetrieve == 0){
+      rawData = ((SRetrieveTableRsp*)pRetrieve)->data;
+      rows = htobe64(((SRetrieveTableRsp*)pRetrieve)->numOfRows);
+    }else if(*(int64_t*)pRetrieve == 1){
+      rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
+      rows = htobe64(((SRetrieveTableRspForTmq*)pRetrieve)->numOfRows);
+    }
+
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
-
-    if (needTransformSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
-      SSchemaWrapper* schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
-      if (schema) {
+    changeByteEndian(rawData);
+    if (needTransformSchema) { //withSchema is false if subscribe subquery, true if subscribe db or stable
+      SSchemaWrapper *schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
+      if(schema){
         taosArrayPush(pRspObj->rsp.blockSchema, &schema);
       }
     }
   }
+}
 
+SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
+  SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
+  pRspObj->resType = RES_TYPE__TMQ;
+  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqDataRsp));
+  tmqBuildRspFromWrapperInner(pWrapper, pVg, numOfRows, pRspObj);
   return pRspObj;
 }
 
 SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
   SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
   pRspObj->resType = RES_TYPE__TMQ_METADATA;
-  tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
-  tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
-  pRspObj->vgId = pWrapper->vgHandle->vgId;
-  pRspObj->resIter = -1;
   memcpy(&pRspObj->rsp, &pWrapper->taosxRsp, sizeof(STaosxRsp));
 
-  pRspObj->resInfo.totalRows = 0;
-  pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-
-  // extract the rows in this data packet
-  for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
-    int64_t                  rows = htobe64(pRetrieve->numOfRows);
-    pVg->numOfRows += rows;
-    (*numOfRows) += rows;
-  }
+  tmqBuildRspFromWrapperInner(pWrapper, pVg, numOfRows, (SMqRspObj*)pRspObj);
   return pRspObj;
 }
 

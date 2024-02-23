@@ -31,10 +31,10 @@
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
 
-static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
-static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
+static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
+static int32_t  mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
@@ -181,15 +181,28 @@ _OVER:
   return pRow;
 }
 
-static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
-  SVgObj *pVgroup = pObj;
+static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
+  SSdb    *pSdb = pMnode->pSdb;
+  SSdbRow *pRow = NULL;
+  SVgObj  *pVgroup = NULL;
+  int      code = -1;
+
+  pRow = mndVgroupActionDecode(pRaw);
+  if (pRow == NULL) goto _OVER;
+  pVgroup = sdbGetRowObj(pRow);
+  if (pVgroup == NULL) goto _OVER;
 
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   if (maxVgId > pVgroup->vgId) {
     mError("trans:%d, vgroup id %d already in use. maxVgId:%d", pTrans->id, pVgroup->vgId, maxVgId);
-    return -1;
+    goto _OVER;
   }
-  return 0;
+
+  code = 0;
+_OVER:
+  if (pVgroup) mndVgroupActionDelete(pSdb, pVgroup);
+  taosMemoryFreeClear(pRow);
+  return code;
 }
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup) {
