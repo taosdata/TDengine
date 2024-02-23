@@ -3,10 +3,10 @@
 
 #include <iostream>
 #include "os.h"
+#include "osTime.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tbase58.h"
-#include "tbase64.h"
 #include "tglobal.h"
 
 using namespace std;
@@ -23,14 +23,17 @@ int main(int argc, char **argv) {
 }
 
 static void checkBase58Codec(uint8_t *pRaw, int32_t rawLen, int32_t index) {
-  char *pEnc = base58_encode((const uint8_t *)pRaw, rawLen);
+  int64_t start = taosGetTimestampUs();
+  char   *pEnc = base58_encode((const uint8_t *)pRaw, rawLen);
   ASSERT_NE(nullptr, pEnc);
 
   int32_t encLen = strlen(pEnc);
-  std::cout << "index:" << index << ", encLen is " << encLen << std::endl;
+  int64_t endOfEnc = taosGetTimestampUs();
+  std::cout << "index:" << index << ", encLen is " << encLen << ", cost:" << endOfEnc - start << " us" << std::endl;
   int32_t decLen = 0;
   char   *pDec = (char *)base58_decode((const char *)pEnc, encLen, &decLen);
-  std::cout << "index:" << index << ", decLen is " << decLen << std::endl;
+  std::cout << "index:" << index << ", decLen is " << decLen << ", cost:" << taosGetTimestampUs() - endOfEnc << " us"
+            << std::endl;
   ASSERT_NE(nullptr, pDec);
   ASSERT_EQ(rawLen, decLen);
   ASSERT_LE(rawLen, encLen);
@@ -51,7 +54,7 @@ TEST(TD_BASE_CODEC_TEST, tbase58_test) {
   // 1. normal case
   // string blend with char and '\0'
   rawLen = TEST_LEN_MAX;
-  for (int32_t i = 0; i < TEST_LEN_MAX; i += 1000) {
+  for (int32_t i = 0; i < TEST_LEN_MAX; i += 500) {
     checkBase58Codec(pRaw, rawLen, i);
     pRaw[i] = i & 127;
   }
@@ -61,7 +64,7 @@ TEST(TD_BASE_CODEC_TEST, tbase58_test) {
     pRaw[i] = i & 127;
   }
   checkBase58Codec(pRaw, TEST_LEN_MAX, 0);
-  for (int32_t i = 0; i < TEST_LEN_MAX; i += 1000) {
+  for (int32_t i = 0; i < TEST_LEN_MAX; i += 500) {
     rawLen = i;
     checkBase58Codec(pRaw, rawLen, i);
   }
