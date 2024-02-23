@@ -64,6 +64,7 @@ pub struct R<T> {
     pub data: Option<T>,
     pub msg: Option<String>,
 }
+
 impl<T> R<T> {
     pub fn success(data: T) -> Self {
         Self {
@@ -116,6 +117,7 @@ pub struct OpcPoint {
     pub id: String,
     pub name: Option<String>,
 }
+
 impl OpcPoint {
     pub fn new(id: String, name: String) -> Self {
         Self {
@@ -392,8 +394,8 @@ fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
 
     if demo {
         header.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,double,quality,ts,rts,,,temperature\n");
-        header.push_str("2,ns=3;i=1011,1,opc_{type},t_{ns}_{id},val,val + 10,int,quality,ts,rts,ts + 8h,rts + 8h,pressure\n");
-        header.push_str("3,ns=5;s=hw202401250013,1,opc_{type},t_{ns}_{id},val,,,quality,ts,rts,ts - 6s,rts - 6s,current\n");
+        header.push_str("2,ns=3;i=1011,1,opc_{type},t_{ns}_{id},val,val + 10,int,quality,ts,rts,ts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,pressure\n");
+        header.push_str("3,ns=5;s=hw202401250013,1,opc_{type},t_{ns}_{id},val,,,quality,ts,rts,ts - 6 * 1000,rts - 6 * 1000,current\n");
     }
 
     header
@@ -410,8 +412,8 @@ fn get_opcda_csv_header(lang: &str, demo: bool) -> String {
 
     if demo {
         header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");
-        header.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val + 10,,quality,ts,rts,ts + 8h,rts + 8h,pressure\n");
-        header.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,ts - 6s,rts - 6s,current\n");
+        header.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val + 10,,quality,ts,rts,ts + 8*3600*1000,rts + 8*3600*1000,pressure\n");
+        header.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,ts - 6*1000,rts - 6*1000,current\n");
     }
 
     header
