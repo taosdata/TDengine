@@ -1379,9 +1379,11 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
   }
 
+/*
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
   }
+*/
 
   if (TSDB_CODE_SUCCESS == code) {
     pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);

@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#if 0
+#if 1
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 2 //4096
 #define MJOIN_HJOIN_CART_THRESHOLD 10
 #define MJOIN_BLK_SIZE_LIMIT 0 //10485760
@@ -94,6 +94,9 @@ typedef struct SMJoinTableCtx {
 
   int32_t        blkId;
   SQueryStat     inputStat;
+
+  uint64_t       lastInGid;
+  SSDataBlock*   remainInBlk;
 
   SMJoinColMap*  primCol;
   char*          primData;
@@ -237,6 +240,7 @@ typedef struct SMJoinWindowCtx {
   bool                       lowerRowsAcq;
   bool                       eqRowsAcq;
   bool                       greaterRowsAcq;
+  bool                       groupJoin;
 
   int64_t                    seqGrpId;
   int64_t                    winBeginTs;
@@ -275,22 +279,28 @@ typedef struct SMJoinExecInfo {
   int64_t expectRows;
 } SMJoinExecInfo;
 
+typedef struct SMJoinRetrieveCtx {
+  bool         grpRetrieve;
+  uint64_t     lastGid[2];
+  SSDataBlock* remainBlk[2];
+} SMJoinRetrieveCtx;
 
 typedef struct SMJoinOperatorInfo {
-  SOperatorInfo*   pOperator;
-  int32_t          joinType;
-  int32_t          subType;
-  int32_t          inputTsOrder;
-  int32_t          errCode;
-  SMJoinTableCtx   tbs[2];
-  SMJoinTableCtx*  build;
-  SMJoinTableCtx*  probe;
-  SFilterInfo*     pFPreFilter;
-  SFilterInfo*     pPreFilter;
-  SFilterInfo*     pFinFilter;
-  joinImplFp       joinFp;
-  SMJoinCtx        ctx;
-  SMJoinExecInfo   execInfo;
+  SOperatorInfo*    pOperator;
+  int32_t           joinType;
+  int32_t           subType;
+  int32_t           inputTsOrder;
+  int32_t           errCode;
+  SMJoinTableCtx    tbs[2];
+  SMJoinTableCtx*   build;
+  SMJoinTableCtx*   probe;
+  SMJoinRetrieveCtx retrieveCtx;
+  SFilterInfo*      pFPreFilter;
+  SFilterInfo*      pPreFilter;
+  SFilterInfo*      pFinFilter;
+  joinImplFp        joinFp;
+  SMJoinCtx         ctx;
+  SMJoinExecInfo    execInfo;
 } SMJoinOperatorInfo;
 
 #define MJOIN_DS_REQ_INIT(_pOp) ((_pOp)->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)(_pOp)->pOperatorGetParam->value)->initDownstream)

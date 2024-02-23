@@ -1293,6 +1293,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTagEqCond);
       nodesDestroyNode(pLogicNode->pTagOnCond);
       nodesDestroyNode(pLogicNode->pFullOnCond);
+      nodesDestroyList(pLogicNode->pLeftEqNodes);
+      nodesDestroyList(pLogicNode->pRightEqNodes);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {

@@ -2787,7 +2787,7 @@ void handleCaseEnd() {
 
 }  // namespace
 
-#if 0
+#if 1
 #if 1
 TEST(innerJoin, noCondTest) {
   SJoinTestParam param;
@@ -2890,7 +2890,7 @@ TEST(innerJoin, fullCondTest) {
 #endif
 
 
-#if 0
+#if 1
 #if 1
 TEST(leftOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -2992,7 +2992,7 @@ TEST(leftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(fullOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -3095,7 +3095,7 @@ TEST(fullOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(leftSemiJoin, noCondTest) {
   SJoinTestParam param;
@@ -3198,7 +3198,7 @@ TEST(leftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(leftAntiJoin, noCondTest) {
   SJoinTestParam param;
@@ -3301,7 +3301,7 @@ TEST(leftAntiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(leftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;

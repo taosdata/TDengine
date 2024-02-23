@@ -900,6 +900,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   pJoin->pJLimit = nodesCloneNode(pJoinLogicNode->pJLimit);
   pJoin->node.inputTsOrder = pJoinLogicNode->node.inputTsOrder;
   pJoin->seqWinGroup = pJoinLogicNode->seqWinGroup;
+  pJoin->grpJoin = pJoinLogicNode->grpJoin;
 
   SDataBlockDescNode* pLeftDesc = NULL;
   SDataBlockDescNode* pRightDesc = NULL;

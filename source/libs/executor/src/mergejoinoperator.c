@@ -847,6 +847,8 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 }
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
+  pJoin->retrieveCtx.grpRetrieve = pJoinNode->grpJoin;
+  
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
        || (JOIN_STYPE_WIN == pJoin->subType)) {
     return mJoinInitWindowCtx(pJoin, pJoinNode);

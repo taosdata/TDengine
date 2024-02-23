@@ -138,10 +138,13 @@ typedef struct SJoinLogicNode {
   SNode*         pTagEqCond;
   SNode*         pTagOnCond;
   SNode*         pFullOnCond; // except prim eq cond
+  SNodeList*     pLeftEqNodes;
+  SNodeList*     pRightEqNodes;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
   bool           seqWinGroup;
+  bool           grpJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -503,6 +506,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNodeList*   pTargets;
   SQueryStat   inputStat[2];  
   bool         seqWinGroup;
+  bool         grpJoin;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {

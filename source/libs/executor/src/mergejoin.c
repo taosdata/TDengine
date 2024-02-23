@@ -35,11 +35,13 @@ int32_t mWinJoinDumpGrpCache(SMJoinWindowCtx* pCtx) {
   int32_t buildGrpNum = taosArrayGetSize(cache->grps);
   int64_t buildTotalRows = TMIN(cache->rowNum, pCtx->jLimit);
 
-  pCtx->finBlk->info.id.groupId = pCtx->seqWinGrp ? pCtx->seqGrpId : 0;
+  pCtx->finBlk->info.id.groupId = (pCtx->seqWinGrp || pCtx->groupJoin) ? pCtx->seqGrpId : 0;
 
   if (buildGrpNum <= 0 || buildTotalRows <= 0) {
-    MJ_ERR_RET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true, pCtx->seqWinGrp));    
-    pCtx->seqGrpId++;
+    MJ_ERR_RET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true, pCtx->seqWinGrp));   
+    if (pCtx->seqWinGrp) {
+      pCtx->seqGrpId++;
+    }
     return TSDB_CODE_SUCCESS;
   }
   
@@ -87,9 +89,8 @@ int32_t mWinJoinDumpGrpCache(SMJoinWindowCtx* pCtx) {
     if (cache->grpIdx >= buildGrpNum) {
       cache->grpIdx = 0;
       ++probeGrp->readIdx; 
-      pCtx->seqGrpId++;
-      
       if (pCtx->seqWinGrp) {
+        pCtx->seqGrpId++;
         break;
       }
     }
@@ -2954,7 +2955,10 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
   pCtx->pJoin = pJoin;
   pCtx->lastTs = INT64_MIN;
   pCtx->seqWinGrp = pJoinNode->seqWinGroup;
-  pCtx->seqGrpId = 1;
+  pCtx->groupJoin = pJoinNode->grpJoin;
+  if (pCtx->seqWinGrp) {
+    pCtx->seqGrpId = 1;
+  }
 
   switch (pJoinNode->subType) {
     case JOIN_STYPE_ASOF:
