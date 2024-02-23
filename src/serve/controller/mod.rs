@@ -690,12 +690,17 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua"
+            "opc"
+            | "opcua"
             | "opcda"
-            | "influxdb"
             | "pi"
+            | "pibackfill"
+            | "mqtt"
+            | "influxdb"
+            | "opentsdb"
             | taosx_core::runners::kafka::KAFKA_ID
-            | "mqtt" => {
+            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
+            | "csv" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -823,6 +828,12 @@ impl TaskController {
         // get tdengine server version and handle compatibility
         let server_version = get_server_version(&taos).await?;
         let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
+        // skip license check for newadd connectors in old version
+        let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
+        if !(a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3)) && !connectors_old.contains(&connector)
+        {
+            return Ok(());
+        }
         let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
             format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
         } else {
@@ -975,12 +986,17 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua"
+            "opc"
+            | "opcua"
             | "opcda"
-            | "influxdb"
             | "pi"
+            | "pibackfill"
+            | "mqtt"
+            | "influxdb"
+            | "opentsdb"
             | taosx_core::runners::kafka::KAFKA_ID
-            | "mqtt" => {
+            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
+            | "csv" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
