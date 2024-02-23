@@ -387,6 +387,7 @@
 #define TK_NO_BATCH_SCAN    607
 #define TK_SORT_FOR_GROUP   608
 #define TK_PARTITION_FIRST  609
+#define TK_PARA_TABLES_SORT  610
 
 
 #define TK_NK_NIL 65535

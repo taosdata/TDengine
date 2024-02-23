@@ -20,13 +20,13 @@ import CDemo from "./_sub_c.mdx";
 
 # 介绍
 ## 主题
-与 kafka 一样，你需要定义 topic, TDengine 的 topic 有三种，可以是数据库，超级表，或者一个 `SELECT` 语句，具体的语法参见 [CREATE TOPIC](../../12-taos-sql/13-tmq)。与其他消息队列软件相比，这是 TDengine 数据订阅功能的最大的优势，它提供了更大的灵活性，数据的颗粒度可以由应用随时调整，而且数据的过滤与预处理交给 TDengine，而不是应用完成，有效的减少传输的数据量与应用的复杂度。
+与 kafka 一样，你需要定义 topic, TDengine 的 topic 有三种，可以是数据库，超级表，或者一个 `SELECT` 语句，具体的语法参见 [CREATE TOPIC](../../taos-sql/tmq)。与其他消息队列软件相比，这是 TDengine 数据订阅功能的最大的优势，它提供了更大的灵活性，数据的颗粒度可以由应用随时调整，而且数据的过滤与预处理交给 TDengine，而不是应用完成，有效的减少传输的数据量与应用的复杂度。
 
 如下图，每个 topic 涉及到的数据表可能分布在多个 vnode（相当于 kafka 里的 partition） 上，每个 vnode 上的数据保存在 WAL(Write-Ahead-Log) 文件中，WAL 文件里的数据是顺序写入的（由于 WAL 文件中存储的不只有数据，还有元数据，写入消息等，所以数据的版本号不是连续的）。
 
 ![img_5.png](img_5.png)
 
-TDengine 会为 WAL 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制，用户可以按需指定 WAL 文件保留的时间以及大小（详见 [CREATE DATABASE](../../12-taos-sql/02-database) 语句，由于消费是通过 WAL 实现的，所以应该根据写入消费速度来确定 WAL 的保存时长）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎。
+TDengine 会为 WAL 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制，用户可以按需指定 WAL 文件保留的时间以及大小（详见 [CREATE DATABASE](../../taos-sql/database) 语句，由于消费是通过 WAL 实现的，所以应该根据写入消费速度来确定 WAL 的保存时长）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎。
 
 对于 `SELECT` 语句形式的 topic，在消费时，TDengine 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，将数据推送给消费者。
 
@@ -66,7 +66,7 @@ TDengine 会为 WAL 文件自动创建索引以支持快速随机访问，并提
 
 # 语法说明
 
-具体的语法参见 [数据订阅](../../12-taos-sql/13-tmq)
+具体的语法参见 [数据订阅](../../taos-sql/tmq)
 
 # 消费参数
 
@@ -91,220 +91,223 @@ TDengine 会为 WAL 文件自动创建索引以支持快速随机访问，并提
 不同语言下， TMQ 订阅相关的 API 及数据结构如下（详细的接口说明可以参考连接器章节，注意consumer结构不是线程安全的，在一个线程使用consumer时，不要在另一个线程close这个consumer）：
 
 <Tabs defaultValue="java" groupId="lang">
-    
-    <TabItem value="c" label="C">
+<TabItem value="c" label="C">
 
-        ```c
-        typedef struct tmq_t      tmq_t;
-        typedef struct tmq_conf_t tmq_conf_t;
-        typedef struct tmq_list_t tmq_list_t;
+```c
+    typedef struct tmq_t      tmq_t;
+    typedef struct tmq_conf_t tmq_conf_t;
+    typedef struct tmq_list_t tmq_list_t;
 
-        typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
+    typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
-        typedef enum tmq_conf_res_t {
-            TMQ_CONF_UNKNOWN = -2,
-            TMQ_CONF_INVALID = -1,
-            TMQ_CONF_OK = 0,
-        } tmq_conf_res_t;
+    typedef enum tmq_conf_res_t {
+        TMQ_CONF_UNKNOWN = -2,
+        TMQ_CONF_INVALID = -1,
+        TMQ_CONF_OK = 0,
+    } tmq_conf_res_t;
 
-        typedef struct tmq_topic_assignment {
-            int32_t vgId;
-            int64_t currentOffset;
-            int64_t begin;
-            int64_t end;
-        } tmq_topic_assignment;
+    typedef struct tmq_topic_assignment {
+        int32_t vgId;
+        int64_t currentOffset;
+        int64_t begin;
+        int64_t end;
+    } tmq_topic_assignment;
 
-        DLL_EXPORT tmq_conf_t    *tmq_conf_new();
-        DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
-        DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
-        DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT tmq_conf_t    *tmq_conf_new();
+    DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
+    DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
+    DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 
-        DLL_EXPORT tmq_list_t *tmq_list_new();
-        DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
-        DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
-        DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
-        DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
+    DLL_EXPORT tmq_list_t *tmq_list_new();
+    DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
+    DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
+    DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
+    DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
 
-        DLL_EXPORT tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
-        DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
-        DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
-        DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-        DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
-        DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
-        DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
-        DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
-        DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-        DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
-        DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,int32_t *numOfAssignment);
-        DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
-        DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-        DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
-        DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+    DLL_EXPORT tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+    DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
+    DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
+    DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
+    DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
+    DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
+    DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
+    DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+    DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,int32_t *numOfAssignment);
+    DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
+    DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
+    DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
+    DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
-        DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
-        DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
-        DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-        DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
-        DLL_EXPORT const char *tmq_err2str(int32_t code);
-        ```
-    </TabItem>
-    <TabItem value="java" label="Java">
+    DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+    DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
+    DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+    DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);
+```
 
-        ```java
-        void subscribe(Collection<String> topics) throws SQLException;
+下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
 
-        void unsubscribe() throws SQLException;
+</TabItem>
+<TabItem value="java" label="Java">
 
-        Set<String> subscription() throws SQLException;
+```java
+void subscribe(Collection<String> topics) throws SQLException;
 
-            ConsumerRecords<V> poll(Duration timeout) throws SQLException;
+void unsubscribe() throws SQLException;
 
-                Set<TopicPartition> assignment() throws SQLException;
-                    long position(TopicPartition partition) throws SQLException;
-                    Map<TopicPartition, Long> position(String topic) throws SQLException;
-                    Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
-                    Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
-                    Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
+Set<String> subscription() throws SQLException;
 
-                    void seek(TopicPartition partition, long offset) throws SQLException;
-                    void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException;
-                        void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
+ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 
-                            void commitSync() throws SQLException;
-                            void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException;
+Set<TopicPartition> assignment() throws SQLException;
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long> position(String topic) throws SQLException;
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
 
-                            void close() throws SQLException;
-                            ```
+void seek(TopicPartition partition, long offset) throws SQLException;
+void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException;
+void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
 
-    </TabItem>
+void commitSync() throws SQLException;
+void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException;
 
-    <TabItem value="Python" label="Python">
+void close() throws SQLException;
+```
 
-        ```python
-        class Consumer:
-        def subscribe(self, topics):
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+class Consumer:
+    def subscribe(self, topics):
         pass
 
-        def unsubscribe(self):
+    def unsubscribe(self):
         pass
 
-        def poll(self, timeout: float = 1.0):
+    def poll(self, timeout: float = 1.0):
         pass
 
-        def assignment(self):
+    def assignment(self):
         pass
 
-        def seek(self, partition):
+    def seek(self, partition):
         pass
 
-        def close(self):
+    def close(self):
         pass
 
-        def commit(self, message):
+    def commit(self, message):
         pass
-        ```
+```
 
-    </TabItem>
+</TabItem>
 
-    <TabItem label="Go" value="Go">
+<TabItem label="Go" value="Go">
 
-        ```go
-        func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
+```go
+func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
-        // 出于兼容目的保留 rebalanceCb 参数，当前未使用
-        func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
-        // 出于兼容目的保留 rebalanceCb 参数，当前未使用
-        func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
-        func (c *Consumer) Poll(timeoutMs int) tmq.Event
+func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
-        // 出于兼容目的保留 tmq.TopicPartition 参数，当前未使用
-        func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
+// 出于兼容目的保留 tmq.TopicPartition 参数，当前未使用
+func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
-        func (c *Consumer) Unsubscribe() error
+func (c *Consumer) Unsubscribe() error
 
-        func (c *Consumer) Close() error
-        ```
+func (c *Consumer) Close() error
+```
 
-    </TabItem>
+</TabItem>
 
-    <TabItem label="Rust" value="Rust">
+<TabItem label="Rust" value="Rust">
 
-        ```rust
-        impl TBuilder for TmqBuilder
-        fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error>
-        fn build(&self) -> Result<Self::Target, Self::Error>
+```rust
+impl TBuilder for TmqBuilder
+  fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error>
+  fn build(&self) -> Result<Self::Target, Self::Error>
 
-        impl AsAsyncConsumer for Consumer
-        async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+impl AsAsyncConsumer for Consumer
+  async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
         &mut self,
         topics: I,
-        ) -> Result<(), Self::Error>;
-        fn stream(
+    ) -> Result<(), Self::Error>;
+  fn stream(
         &self,
-        ) -> Pin<
-            Box<
+    ) -> Pin<
+        Box<
             dyn '_
                 + Send
                 + futures::Stream<
                     Item = Result<(Self::Offset, MessageSet<Self::Meta, Self::Data>), Self::Error>,
                 >,
-                >,
-            >;
-          async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
+        >,
+    >;
+  async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
 
-          async fn unsubscribe(self);
-        ```
+  async fn unsubscribe(self);
+```
 
-        可在 <https://docs.rs/taos> 上查看详细 API 说明。
+可在 <https://docs.rs/taos> 上查看详细 API 说明。
 
-    </TabItem>
+</TabItem>
 
-    <TabItem label="Node.JS" value="Node.JS">
+<TabItem label="Node.JS" value="Node.JS">
 
-        ```js
-        function TMQConsumer(config)
-    
-        function subscribe(topic)
-    
-        function consume(timeout)
-    
-        function subscription()
-    
-        function unsubscribe()
-    
-        function commit(msg)
-    
-        function close()
-        ```
+```js
+function TMQConsumer(config)
 
-    </TabItem>
+function subscribe(topic)
 
-    <TabItem value="C#" label="C#">
+function consume(timeout)
 
-        ```csharp
-        class ConsumerBuilder<TValue>
-    
-        ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)
-    
-        public IConsumer<TValue> Build()
-    
-        void Subscribe(IEnumerable<string> topics)
-    
-        void Subscribe(string topic)
-    
-        ConsumeResult<TValue> Consume(int millisecondsTimeout)
-    
-        List<string> Subscription()
-    
-        void Unsubscribe()
-    
-        List<TopicPartitionOffset> Commit()
-    
-        void Close()
-        ```
-    </TabItem>
+function subscription()
+
+function unsubscribe()
+
+function commit(msg)
+
+function close()
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+class ConsumerBuilder<TValue>
+
+ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)
+
+public IConsumer<TValue> Build()
+
+void Subscribe(IEnumerable<string> topics)
+
+void Subscribe(string topic) 
+
+ConsumeResult<TValue> Consume(int millisecondsTimeout)
+
+List<string> Subscription()
+
+void Unsubscribe()
+ 
+List<TopicPartitionOffset> Commit()
+
+void Close()
+```
+
+</TabItem>
 </Tabs>
 
 # 数据订阅示例
@@ -334,163 +337,164 @@ CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 对于不同编程语言，其设置方式如下：
 
 <Tabs defaultValue="java" groupId="lang">
+<TabItem value="c" label="C">
 
-    <TabItem value="c" label="C">
-        ```c
-        /* 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
-           自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 */
-        tmq_conf_t* conf = tmq_conf_new();
-        tmq_conf_set(conf, "enable.auto.commit", "true");
-        tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-        tmq_conf_set(conf, "group.id", "cgrpName");
-        tmq_conf_set(conf, "td.connect.user", "root");
-        tmq_conf_set(conf, "td.connect.pass", "taosdata");
-        tmq_conf_set(conf, "auto.offset.reset", "latest");
-        tmq_conf_set(conf, "msg.with.table.name", "true");
-        tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+```c
+/* 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
+   自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 */
+tmq_conf_t* conf = tmq_conf_new();
+tmq_conf_set(conf, "enable.auto.commit", "true");
+tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
+tmq_conf_set(conf, "group.id", "cgrpName");
+tmq_conf_set(conf, "td.connect.user", "root");
+tmq_conf_set(conf, "td.connect.pass", "taosdata");
+tmq_conf_set(conf, "auto.offset.reset", "latest");
+tmq_conf_set(conf, "msg.with.table.name", "true");
+tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
-        tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
-        tmq_conf_destroy(conf);
-        ```
-    </TabItem>
+tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+tmq_conf_destroy(conf);
+```
 
-    <TabItem value="java" label="Java">
+</TabItem>
+<TabItem value="java" label="Java">
 
-        对于 Java 程序，还可以使用如下配置项：
-        
-        | 参数名称                      | 类型   | 参数说明                                                                                                                      |
-        | ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-        | `td.connect.type` | string | 连接类型，"jni" 指原生连接，"ws" 指 websocket 连接，默认值为 "jni" |
-        | `bootstrap.servers`           | string | 连接地址，如 `localhost:6030`                                                                                                 |
-        | `value.deserializer`          | string | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
-        | `value.deserializer.encoding` | string | 指定字符串解析的字符集                                                                                                        |  |
-        
-        需要注意：此处使用 `bootstrap.servers` 替代 `td.connect.ip` 和 `td.connect.port`，以提供与 Kafka 一致的接口。
-        
-        ```java
-        Properties properties = new Properties();
-        properties.setProperty("enable.auto.commit", "true");
-        properties.setProperty("auto.commit.interval.ms", "1000");
-        properties.setProperty("group.id", "cgrpName");
-        properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
-        properties.setProperty("td.connect.user", "root");
-        properties.setProperty("td.connect.pass", "taosdata");
-        properties.setProperty("auto.offset.reset", "latest");
-        properties.setProperty("msg.with.table.name", "true");
-        properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
-        
-        TaosConsumer<Meters> consumer = new TaosConsumer<>(properties);
-        
-        /* value deserializer definition. */
-        import com.taosdata.jdbc.tmq.ReferenceDeserializer;
-        
-        public class MetersDeserializer extends ReferenceDeserializer<Meters> {
-        }
-        ```
-    </TabItem>
+对于 Java 程序，还可以使用如下配置项：
 
-    <TabItem label="Go" value="Go">
-    
-        ```go
-        conf := &tmq.ConfigMap{
-         "group.id":                     "test",
-         "auto.offset.reset":            "latest",
-         "td.connect.ip":                "127.0.0.1",
-         "td.connect.user":              "root",
-         "td.connect.pass":              "taosdata",
-         "td.connect.port":              "6030",
-         "client.id":                    "test_tmq_c",
-         "enable.auto.commit":           "false",
-         "msg.with.table.name":          "true",
-        }
-        consumer, err := NewConsumer(conf)
-        ```
-    
-    </TabItem>
+| 参数名称                      | 类型   | 参数说明                                                                                                                      |
+| ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `td.connect.type` | string | 连接类型，"jni" 指原生连接，"ws" 指 websocket 连接，默认值为 "jni" |
+| `bootstrap.servers`           | string | 连接地址，如 `localhost:6030`                                                                                                 |
+| `value.deserializer`          | string | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
+| `value.deserializer.encoding` | string | 指定字符串解析的字符集                                                                                                        |  |
 
-    <TabItem label="Rust" value="Rust">
-    
-        ```rust
-        let mut dsn: Dsn = "taos://".parse()?;
-        dsn.set("group.id", "group1");
-        dsn.set("client.id", "test");
-        dsn.set("auto.offset.reset", "latest");
-        
-        let tmq = TmqBuilder::from_dsn(dsn)?;
-        
-        let mut consumer = tmq.build()?;
-        ```
-    
-    </TabItem>
+需要注意：此处使用 `bootstrap.servers` 替代 `td.connect.ip` 和 `td.connect.port`，以提供与 Kafka 一致的接口。
 
-    <TabItem value="Python" label="Python">
-    
-        Python 语言下引入 `taos` 库的 `Consumer` 类，创建一个 Consumer 示例：
-        
-        ```python
-        from taos.tmq import Consumer
-        
-        # Syntax: `consumer = Consumer(configs)`
-        #
-        # Example:
-        consumer = Consumer(
-            {
-                "group.id": "local",
-                "client.id": "1",
-                "enable.auto.commit": "true",
-                "auto.commit.interval.ms": "1000",
-                "td.connect.ip": "127.0.0.1",
-                "td.connect.user": "root",
-                "td.connect.pass": "taosdata",
-                "auto.offset.reset": "latest",
-                "msg.with.table.name": "true",
-            }
-        )
-        ```
-    
-    </TabItem>
+```java
+Properties properties = new Properties();
+properties.setProperty("enable.auto.commit", "true");
+properties.setProperty("auto.commit.interval.ms", "1000");
+properties.setProperty("group.id", "cgrpName");
+properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
+properties.setProperty("td.connect.user", "root");
+properties.setProperty("td.connect.pass", "taosdata");
+properties.setProperty("auto.offset.reset", "latest");
+properties.setProperty("msg.with.table.name", "true");
+properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
-    <TabItem label="Node.JS" value="Node.JS">
-    
-        ```js
-        // 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
-        // 自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数
-        
-        let consumer = taos.consumer({
-        'enable.auto.commit': 'true',
-          'auto.commit.interval.ms','1000',
-                'group.id': 'tg2',
-          'td.connect.user': 'root',
-          'td.connect.pass': 'taosdata',
-          'auto.offset.reset','latest',
-          'msg.with.table.name': 'true',
-          'td.connect.ip','127.0.0.1',
-                'td.connect.port','6030'
-                });
-        ```
-    
-    </TabItem>
+TaosConsumer<Meters> consumer = new TaosConsumer<>(properties);
 
-    <TabItem value="C#" label="C#">
-    
-            ```csharp
-            var cfg = new Dictionary<string, string>()
-            {
-                { "group.id", "group1" },
-            { "auto.offset.reset", "latest" },
-            { "td.connect.ip", "127.0.0.1" },
-            { "td.connect.user", "root" },
-            { "td.connect.pass", "taosdata" },
-            { "td.connect.port", "6030" },
-            { "client.id", "tmq_example" },
-            { "enable.auto.commit", "true" },
-            { "msg.with.table.name", "false" },
-            };
-            var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
-            ```
-    
-    </TabItem>
-    
+/* value deserializer definition. */
+import com.taosdata.jdbc.tmq.ReferenceDeserializer;
+
+public class MetersDeserializer extends ReferenceDeserializer<Meters> {
+}
+```
+
+</TabItem>
+
+<TabItem label="Go" value="Go">
+
+```go
+conf := &tmq.ConfigMap{
+ "group.id":                     "test",
+ "auto.offset.reset":            "latest",
+ "td.connect.ip":                "127.0.0.1",
+ "td.connect.user":              "root",
+ "td.connect.pass":              "taosdata",
+ "td.connect.port":              "6030",
+ "client.id":                    "test_tmq_c",
+ "enable.auto.commit":           "false",
+ "msg.with.table.name":          "true",
+}
+consumer, err := NewConsumer(conf)
+```
+
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+
+```rust
+let mut dsn: Dsn = "taos://".parse()?;
+dsn.set("group.id", "group1");
+dsn.set("client.id", "test");
+dsn.set("auto.offset.reset", "latest");
+
+let tmq = TmqBuilder::from_dsn(dsn)?;
+
+let mut consumer = tmq.build()?;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+Python 语言下引入 `taos` 库的 `Consumer` 类，创建一个 Consumer 示例：
+
+```python
+from taos.tmq import Consumer
+
+# Syntax: `consumer = Consumer(configs)`
+#
+# Example:
+consumer = Consumer(
+    {
+        "group.id": "local",
+        "client.id": "1",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": "1000",
+        "td.connect.ip": "127.0.0.1",
+        "td.connect.user": "root",
+        "td.connect.pass": "taosdata",
+        "auto.offset.reset": "latest",
+        "msg.with.table.name": "true",
+    }
+)
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+// 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
+// 自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 
+
+let consumer = taos.consumer({
+  'enable.auto.commit': 'true',
+  'auto.commit.interval.ms','1000',
+  'group.id': 'tg2',
+  'td.connect.user': 'root',
+  'td.connect.pass': 'taosdata',
+  'auto.offset.reset','latest',
+  'msg.with.table.name': 'true',
+  'td.connect.ip','127.0.0.1',
+  'td.connect.port','6030'  
+  });
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+var cfg = new Dictionary<string, string>()
+{
+    { "group.id", "group1" },
+    { "auto.offset.reset", "latest" },
+    { "td.connect.ip", "127.0.0.1" },
+    { "td.connect.user", "root" },
+    { "td.connect.pass", "taosdata" },
+    { "td.connect.port", "6030" },
+    { "client.id", "tmq_example" },
+    { "enable.auto.commit", "true" },
+    { "msg.with.table.name", "false" },
+};
+var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+```
+
+</TabItem>
+
 </Tabs>
     
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
@@ -500,78 +504,77 @@ CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 一个 consumer 支持同时订阅多个 topic。
     
 <Tabs defaultValue="java" groupId="lang">
+<TabItem value="c" label="C">
 
-    <TabItem value="c" label="C">
-    
-        ```c
-        // 创建订阅 topics 列表
-        tmq_list_t* topicList = tmq_list_new();
-        tmq_list_append(topicList, "topicName");
-        // 启动订阅
-        tmq_subscribe(tmq, topicList);
-        tmq_list_destroy(topicList);
-        
-        ```
-    
-    </TabItem>
-    <TabItem value="java" label="Java">
-    
-        ```java
-        List<String> topics = new ArrayList<>();
-        topics.add("tmq_topic");
-        consumer.subscribe(topics);
-        ```
-    
-    </TabItem>
-    <TabItem value="Go" label="Go">
+```c
+// 创建订阅 topics 列表
+tmq_list_t* topicList = tmq_list_new();
+tmq_list_append(topicList, "topicName");
+// 启动订阅
+tmq_subscribe(tmq, topicList);
+tmq_list_destroy(topicList);
+  
+```
 
-        ```go
-        err = consumer.Subscribe("example_tmq_topic", nil)
-        if err != nil {
-            panic(err)
-        }
-        ```
+</TabItem>
+<TabItem value="java" label="Java">
 
-    </TabItem>
-    <TabItem value="Rust" label="Rust">
+```java
+List<String> topics = new ArrayList<>();
+topics.add("tmq_topic");
+consumer.subscribe(topics);
+```
 
-        ```rust
-        consumer.subscribe(["tmq_meters"]).await?;
-        ```
+</TabItem>
+<TabItem value="Go" label="Go">
 
-    </TabItem>
+```go
+err = consumer.Subscribe("example_tmq_topic", nil)
+if err != nil {
+ panic(err)
+}
+```
 
-    <TabItem value="Python" label="Python">
+</TabItem>
+<TabItem value="Rust" label="Rust">
 
-        ```python
-        consumer.subscribe(['topic1', 'topic2'])
-        ```
+```rust
+consumer.subscribe(["tmq_meters"]).await?;
+```
 
-    </TabItem>
+</TabItem>
 
-    <TabItem label="Node.JS" value="Node.JS">
+<TabItem value="Python" label="Python">
 
-        ```js
-        // 创建订阅 topics 列表
-        let topics = ['topic_test']
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
 
-        // 启动订阅
-        consumer.subscribe(topics);
-        ```
+</TabItem>
 
-    </TabItem>
+<TabItem label="Node.JS" value="Node.JS">
 
-    <TabItem value="C#" label="C#">
+```js
+// 创建订阅 topics 列表
+let topics = ['topic_test']
 
-        ```csharp
-        // 创建订阅 topics 列表
-        List<String> topics = new List<string>();
-        topics.add("tmq_topic");
-        // 启动订阅
-        consumer.Subscribe(topics);
-        ```
+// 启动订阅
+consumer.subscribe(topics);
+```
 
-    </TabItem>
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+// 创建订阅 topics 列表
+List<String> topics = new List<string>();
+topics.add("tmq_topic");
+// 启动订阅
+consumer.Subscribe(topics);
+```
+
+</TabItem>
 
 </Tabs>
 
@@ -580,135 +583,134 @@ CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 以下代码展示了不同语言下如何对 TMQ 消息进行消费。
 
 <Tabs defaultValue="java" groupId="lang">
+<TabItem value="c" label="C">
 
-    <TabItem value="c" label="C">
+```c
+// 消费数据
+while (running) {
+  TAOS_RES* msg = tmq_consumer_poll(tmq, timeOut);
+  msg_process(msg);
+}  
+```
 
-        ```c
-        // 消费数据
-        while (running) {
-            TAOS_RES* msg = tmq_consumer_poll(tmq, timeOut);
-            msg_process(msg);
-        }
-        ```
+这里是一个 **while** 循环，每调用一次 tmq_consumer_poll()，获取一个消息，该消息与普通查询返回的结果集完全相同，可以使用相同的解析 API 完成消息内容的解析。
 
-        这里是一个 **while** 循环，每调用一次 tmq_consumer_poll()，获取一个消息，该消息与普通查询返回的结果集完全相同，可以使用相同的解析 API 完成消息内容的解析。
+</TabItem>
+<TabItem value="java" label="Java">
 
-    </TabItem>
-    <TabItem value="java" label="Java">
-    
-        ```java
-        while(running){
-            ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
-            for (Meters meter : meters) {
-            processMsg(meter);
-        }
-        }
-        ```
-    
-    </TabItem>
+```java
+while(running){
+  ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
+    for (Meters meter : meters) {
+      processMsg(meter);
+    }    
+}
+```
 
-    <TabItem value="Go" label="Go">
+</TabItem>
 
-        ```go
-        for {
-            ev := consumer.Poll(0)
-            if ev != nil {
-            switch e := ev.(type) {
-            case *tmqcommon.DataMessage:
-            fmt.Println(e.Value())
-            case tmqcommon.Error:
-            fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
-            panic(e)
-        }
-            consumer.Commit()
-        }
-        }
-        ```
+<TabItem value="Go" label="Go">
 
-    </TabItem>
+```go
+for {
+ ev := consumer.Poll(0)
+ if ev != nil {
+  switch e := ev.(type) {
+  case *tmqcommon.DataMessage:
+   fmt.Println(e.Value())
+  case tmqcommon.Error:
+   fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+   panic(e)
+  }
+  consumer.Commit()
+ }
+}
+```
 
-    <TabItem value="Rust" label="Rust">
+</TabItem>
 
-        ```rust
-        {
-            let mut stream = consumer.stream();
+<TabItem value="Rust" label="Rust">
 
-            while let Some((offset, message)) = stream.try_next().await? {
-            // get information from offset
+```rust
+{
+    let mut stream = consumer.stream();
 
-            // the topic
-            let topic = offset.topic();
-            // the vgroup id, like partition id in kafka.
-            let vgroup_id = offset.vgroup_id();
-            println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+    while let Some((offset, message)) = stream.try_next().await? {
+        // get information from offset
 
-            if let Some(data) = message.into_data() {
+        // the topic
+        let topic = offset.topic();
+        // the vgroup id, like partition id in kafka.
+        let vgroup_id = offset.vgroup_id();
+        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+
+        if let Some(data) = message.into_data() {
             while let Some(block) = data.fetch_raw_block().await? {
-            // one block for one table, get table name if needed
-            let name = block.table_name();
-            let records: Vec<Record> = block.deserialize().try_collect()?;
-            println!(
-            "** table: {}, got {} records: {:#?}\n",
-            name.unwrap(),
-            records.len(),
-            records
-            );
+                // one block for one table, get table name if needed
+                let name = block.table_name();
+                let records: Vec<Record> = block.deserialize().try_collect()?;
+                println!(
+                    "** table: {}, got {} records: {:#?}\n",
+                    name.unwrap(),
+                    records.len(),
+                    records
+                );
+            }
         }
-        }
-            consumer.commit(offset).await?;
-        }
-        }
-        ```
+        consumer.commit(offset).await?;
+    }
+}
+```
 
-    </TabItem>
-    <TabItem value="Python" label="Python">
+</TabItem>
+<TabItem value="Python" label="Python">
 
-        ```python
-        while True:
-        res = consumer.poll(100)
-        if not res:
+```python
+while True:
+    res = consumer.poll(100)
+    if not res:
         continue
-        err = res.error()
-        if err is not None:
+    err = res.error()
+    if err is not None:
         raise err
-        val = res.value()
+    val = res.value()
 
-        for block in val:
+    for block in val:
         print(block.fetchall())
-        ```
+```
 
-    </TabItem>
+</TabItem>
 
-    <TabItem label="Node.JS" value="Node.JS">
+<TabItem label="Node.JS" value="Node.JS">
 
-        ```js
-        while(true){
-            msg = consumer.consume(200);
-            // process message(consumeResult)
-            console.log(msg.topicPartition);
-            console.log(msg.block);
-            console.log(msg.fields)
-        }
-        ```
+```js
+while(true){
+  msg = consumer.consume(200);
+  // process message(consumeResult)
+  console.log(msg.topicPartition);
+  console.log(msg.block);
+  console.log(msg.fields)
+}
+```
 
-    </TabItem>
+</TabItem>
 
-    <TabItem value="C#" label="C#">
+<TabItem value="C#" label="C#">
 
-        ```csharp
-        // 消费数据
-        while (true)
-        {
-            using (var result = consumer.Consume(500))
-        {
-            if (result == null) continue;
-            ProcessMsg(result);
-            consumer.Commit();
-        }
-        }
-        ```
+```csharp
+// 消费数据
+while (true)
+{
+    using (var result = consumer.Consume(500))
+    {
+        if (result == null) continue;
+        ProcessMsg(result);
+        consumer.Commit();
+    }
+}
+```
 
-    </TabItem>
+</TabItem>
 
 </Tabs>
 
@@ -717,80 +719,79 @@ CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 消费结束后，应当取消订阅。
 
 <Tabs defaultValue="java" groupId="lang">
-    
-    <TabItem value="c" label="C">
+<TabItem value="c" label="C">
 
-        ```c
-        /* 取消订阅 */
-        tmq_unsubscribe(tmq);
+```c
+/* 取消订阅 */
+tmq_unsubscribe(tmq);
 
-        /* 关闭消费者对象 */
-        tmq_consumer_close(tmq);
-        ```
+/* 关闭消费者对象 */
+tmq_consumer_close(tmq);
+```
 
-    </TabItem>
-    <TabItem value="java" label="Java">
+</TabItem>
+<TabItem value="java" label="Java">
 
-        ```java
-        /* 取消订阅 */
-        consumer.unsubscribe();
+```java
+/* 取消订阅 */
+consumer.unsubscribe();
 
-        /* 关闭消费 */
-        consumer.close();
-        ```
+/* 关闭消费 */
+consumer.close();
+```
 
-    </TabItem>
-    
-    <TabItem value="Go" label="Go">
+</TabItem>
 
-        ```go
-        /* Unsubscribe */
-        _ = consumer.Unsubscribe()
+<TabItem value="Go" label="Go">
 
-        /* Close consumer */
-        _ = consumer.Close()
-        ```
+```go
+/* Unsubscribe */
+_ = consumer.Unsubscribe()
 
-    </TabItem>
-    
-    <TabItem value="Rust" label="Rust">
+/* Close consumer */
+_ = consumer.Close()
+```
 
-        ```rust
-        consumer.unsubscribe().await;
-        ```
+</TabItem>
 
-    </TabItem>
+<TabItem value="Rust" label="Rust">
 
-    <TabItem value="Python" label="Python">
+```rust
+consumer.unsubscribe().await;
+```
 
-        ```py
-        # 取消订阅
-        consumer.unsubscribe()
-        # 关闭消费
-        consumer.close()
-        ```
+</TabItem>
 
-    </TabItem>
-    <TabItem label="Node.JS" value="Node.JS">
+<TabItem value="Python" label="Python">
 
-        ```js
-        consumer.unsubscribe();
-        consumer.close();
-        ```
+```py
+# 取消订阅
+consumer.unsubscribe()
+# 关闭消费
+consumer.close()
+```
 
-    </TabItem>
+</TabItem>
+<TabItem label="Node.JS" value="Node.JS">
 
-    <TabItem value="C#" label="C#">
+```js
+consumer.unsubscribe();
+consumer.close();
+```
 
-        ```csharp
-        // 取消订阅
-        consumer.Unsubscribe();
+</TabItem>
 
-        // 关闭消费
-        consumer.Close();
-        ```
+<TabItem value="C#" label="C#">
 
-    </TabItem>
+```csharp
+// 取消订阅
+consumer.Unsubscribe();
+
+// 关闭消费
+consumer.Close();
+```
+
+</TabItem>
 
 </Tabs>
 
@@ -800,41 +801,41 @@ CREATE TOPIC topic_name AS SELECT ts, c1, c2, c3 FROM tmqdb.stb WHERE c1 > 1;
 
 <Tabs defaultValue="java" groupId="lang">
 
-    <TabItem label="C" value="c">
-      <CDemo />
-    </TabItem>
+<TabItem label="C" value="c">
+  <CDemo />
+</TabItem>
 
-    <TabItem label="Java" value="java">
-        <Tabs defaultValue="native">
-            <TabItem value="native" label="本地连接">
-                <Java />
-            </TabItem>
-            <TabItem value="ws" label="WebSocket 连接">
-                <JavaWS />
-            </TabItem>
-        </Tabs>
-    </TabItem>
+<TabItem label="Java" value="java">
+<Tabs defaultValue="native">
+<TabItem value="native" label="本地连接">
+<Java />
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+<JavaWS />
+</TabItem>
+</Tabs>
+</TabItem>
 
-    <TabItem label="Go" value="Go">
-       <Go/>
-    </TabItem>
+<TabItem label="Go" value="Go">
+   <Go/>
+</TabItem>
 
-    <TabItem label="Rust" value="Rust">
-        <Rust />
-    </TabItem>
+<TabItem label="Rust" value="Rust">
+    <Rust />
+</TabItem>
 
-    <TabItem label="Python" value="Python">
-        <Python />
-    </TabItem>
+<TabItem label="Python" value="Python">
+    <Python />
+</TabItem>
 
-    <TabItem label="Node.JS" value="Node.JS">
-       <Node/>
-    </TabItem>
+<TabItem label="Node.JS" value="Node.JS">
+   <Node/>
+</TabItem>
 
-    <TabItem label="C#" value="C#">
-       <CSharp/>
-    </TabItem>
-    
+<TabItem label="C#" value="C#">
+   <CSharp/>
+</TabItem>
+
 </Tabs>
 
 #订阅高级功能

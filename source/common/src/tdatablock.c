@@ -791,23 +791,6 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
 
     colDataAssignNRows(pDstCol, 0, pColData, startIndex, rowCount);
-    /*
-    for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
-      bool isNull = false;
-      if (pBlock->pBlockAgg == NULL) {
-        isNull = colDataIsNull_s(pColData, j);
-      } else {
-        isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
-      }
-
-      if (isNull) {
-        colDataSetNULL(pDstCol, j - startIndex);
-      } else {
-        char* p = colDataGetData(pColData, j);
-        colDataSetVal(pDstCol, j - startIndex, p, false);
-      }
-    }
-    */
   }
 
   pDst->info.rows = rowCount;
