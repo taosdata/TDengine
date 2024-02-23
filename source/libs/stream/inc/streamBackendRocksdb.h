@@ -17,7 +17,7 @@
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
 #include "rocksdb/c.h"
-//#include "streamInt.h"
+// #include "streamInt.h"
 #include "streamState.h"
 #include "tcommon.h"
 
@@ -243,11 +243,6 @@ int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
-
-// int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
-
-// STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
-// void            taskDbDestroy(void* pDb, bool flush);
 
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
