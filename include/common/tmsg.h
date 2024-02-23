@@ -2604,6 +2604,7 @@ typedef struct {
   SArray*  pVgroupVerList;
   // 3.3.0.0
   SArray*  pCols;  // array of SField
+  int64_t  smaId;
 } SCMCreateStreamReq;
 
 typedef struct {
