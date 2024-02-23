@@ -651,6 +651,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
   pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
   pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
+  pTableScan->paraTablesSort = pScanLogicNode->paraTablesSort;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1617,6 +1618,8 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
     case INTERVAL_ALGO_STREAM_SEMI:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
+    case INTERVAL_ALGO_STREAM_MID:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL;
     case INTERVAL_ALGO_STREAM_SINGLE:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
     case SESSION_ALGO_STREAM_FINAL:
@@ -1749,6 +1752,27 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   return code;
 }
 
+static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                          SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pWindowLogicNode,
+      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT : QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT));
+  if (NULL == pCount) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCount->windowCount = pWindowLogicNode->windowCount;
+  pCount->windowSliding = pWindowLogicNode->windowSliding;
+
+  int32_t  code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pCount->window, pWindowLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pCount;
+  } else {
+    nodesDestroyNode((SNode*)pCount);
+  }
+
+  return code;
+}
+
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
   switch (pWindowLogicNode->winType) {
@@ -1760,6 +1784,8 @@ static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildr
       return createStateWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
     case WINDOW_TYPE_EVENT:
       return createEventWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
+    case WINDOW_TYPE_COUNT:
+      return createCountWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
     default:
       break;
   }
@@ -2164,6 +2190,8 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->level = pLogicSubplan->level;
   pSubplan->rowsThreshold = 4096;
   pSubplan->dynamicRowThreshold = false;
+  pSubplan->isView = pCxt->pPlanCxt->isView;
+  pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }

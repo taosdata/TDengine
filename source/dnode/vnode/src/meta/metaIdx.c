@@ -62,6 +62,7 @@ int metaOpenIdx(SMeta *pMeta) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 void metaCloseIdx(SMeta *pMeta) { /* TODO */
 #if 0
   if (pMeta->pIdx) {
@@ -114,3 +115,4 @@ int metaRemoveTableFromIdx(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   return 0;
 }
+#endif

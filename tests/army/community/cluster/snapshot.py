@@ -25,11 +25,17 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
+from frame.srvCtl import *
 
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "countAlwaysReturnValue" : "0"
+        "countAlwaysReturnValue" : "0",
+        "lossyColumns"           : "float,double",
+        "fPrecision"             : "0.000000001",
+        "dPrecision"             : "0.00000000000000001",
+        "ifAdtFse"               : "1",
+        'slowLogScope'           : "insert"
     }
 
     def insertData(self):
@@ -48,6 +54,33 @@ class TDTestCase(TBase):
         sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
         tdSql.execute(sql)
 
+    def checkFloatDouble(self):
+        sql = f"select * from {self.db}.{self.stb} where fc!=100"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = f"select * from {self.db}.{self.stb} where dc!=200"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = f"select avg(fc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 100)
+        sql = f"select avg(dc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 200)
+
+    def alterReplica3(self):
+        sql = f"alter database {self.db} replica 3"
+        tdSql.execute(sql, show=True)
+        time.sleep(2)
+        sc.dnodeStop(2)
+        sc.dnodeStop(3)
+        time.sleep(5)
+        sc.dnodeStart(2)
+        sc.dnodeStart(3)
+
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
     def doAction(self):
         tdLog.info(f"do action.")
         self.flushDb()
@@ -64,7 +97,7 @@ class TDTestCase(TBase):
         self.alterReplica(1)
         self.checkAggCorrect()
         self.compactDb()
-        self.alterReplica(3)
+        self.alterReplica3()
 
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
@@ -85,6 +118,9 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
+        # check float double value ok
+        self.checkFloatDouble()
+
         # save
         self.snapshotAgg()
 
@@ -96,6 +132,10 @@ class TDTestCase(TBase):
 
         # check insert correct again
         self.checkInsertCorrect()
+
+        # check float double value ok
+        self.checkFloatDouble()
+
 
         tdLog.success(f"{__file__} successfully executed")
 

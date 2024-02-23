@@ -109,6 +109,7 @@ typedef struct {
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  char           machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeData;
 
 typedef struct {

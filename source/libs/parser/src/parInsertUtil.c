@@ -211,6 +211,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
                                   bool colMode, bool ignoreColVals) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == pTableCxt) {
+    *pOutput = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -268,12 +269,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOutput = pTableCxt;
-    qDebug("tableDataCxt created, uid:%" PRId64 ", vgId:%d", pTableMeta->uid, pTableMeta->vgId);
-  } else {
-    taosMemoryFree(pTableCxt);
-  }
+  *pOutput = pTableCxt;
+  qDebug("tableDataCxt created, code:%d, uid:%" PRId64 ", vgId:%d", code, pTableMeta->uid, pTableMeta->vgId);
 
   return code;
 }
@@ -343,6 +340,10 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   if (TSDB_CODE_SUCCESS == code) {
     void* pData = *pTableCxt;  // deal scan coverity
     code = taosHashPut(pHash, id, idLen, &pData, POINTER_BYTES);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    insDestroyTableDataCxt(*pTableCxt);
   }
   return code;
 }
@@ -651,6 +652,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     goto end;
   }
 
+  pTableCxt->pData->flags |= TD_REQ_FROM_TAOX;
   if(tmp == NULL){
     ret = initTableColSubmitData(pTableCxt);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -660,7 +662,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   }
 
   char* p = (char*)data;
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
+  // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each column
   // length |
   int32_t version = *(int32_t*)data;
   p += sizeof(int32_t);
@@ -718,7 +720,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         goto end;
       }
       fields += sizeof(int8_t) + sizeof(int32_t);
-      if (needChangeLength && version == 1) {
+      if (needChangeLength && version == BLOCK_VERSION_1) {
         pStart += htonl(colLength[j]);
       } else {
         pStart += colLength[j];
@@ -749,7 +751,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             goto end;
           }
           fields += sizeof(int8_t) + sizeof(int32_t);
-          if (needChangeLength && version == 1) {
+          if (needChangeLength && version == BLOCK_VERSION_1) {
             pStart += htonl(colLength[i]);
           } else {
             pStart += colLength[i];

@@ -85,7 +85,6 @@ void varbinary_sql_test() {
 
   // test insert
   pRes = taos_query(taos, "insert into tb2 using stb tags (2, 'tb2_bin1', 093) values (now + 2s, 'nchar1', 892, 0.3)");
-  printf("error:%s", taos_errstr(pRes));
   ASSERT(taos_errno(pRes) != 0);
 
   pRes = taos_query(taos, "insert into tb3 using stb tags (3, 'tb3_bin1', 0x7f829) values (now + 3s, 'nchar1', 0x7f829, 0.3)");
@@ -320,6 +319,60 @@ void varbinary_sql_test() {
     rowIndex++;
   }
   printf("%s result %s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  // test insert string value '\x'
+  pRes = taos_query(taos, "insert into tb5 using stb tags (5, 'tb5_bin1', '\\\\xg') values (now + 4s, 'nchar1', '\\\\xg', 0.3)");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select c2,t3 from stb where t3 = '\\x5C7867'");
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int32_t*    length = taos_fetch_lengths(pRes);
+    void*         data = NULL;
+    uint32_t      size = 0;
+    if(taosAscii2Hex(row[0], length[0], &data, &size) < 0){
+      ASSERT(0);
+    }
+
+    ASSERT(memcmp(data, "\\x5C7867", size) == 0);
+    taosMemoryFree(data);
+
+    if(taosAscii2Hex(row[1], length[1], &data, &size) < 0){
+      ASSERT(0);
+    }
+
+    ASSERT(memcmp(data, "\\x5C7867", size) == 0);
+    taosMemoryFree(data);
+  }
+  taos_free_result(pRes);
+
+  // test insert
+  char tmp [65517*2+3] = {0};
+  tmp[0] = '\\';
+  tmp[1] = 'x';
+  memset(tmp + 2, 48, 65517*2);
+
+  char sql[65517*2+3 + 256] = {0};
+
+  pRes = taos_query(taos, "create stable stb1 (ts timestamp, c2 varbinary(65517)) tags (t1 int, t2 binary(8), t3 varbinary(8))");
+  taos_free_result(pRes);
+
+  sprintf(sql, "insert into tb6 using stb1 tags (6, 'tb6_bin1', '\\\\xg') values (now + 4s, '%s')", tmp);
+  pRes = taos_query(taos, sql);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select c2 from tb6");
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int32_t*    length = taos_fetch_lengths(pRes);
+    void*         data = NULL;
+    uint32_t      size = 0;
+    if(taosAscii2Hex(row[0], length[0], &data, &size) < 0){
+      ASSERT(0);
+    }
+
+    ASSERT(memcmp(data, tmp, size) == 0);
+    taosMemoryFree(data);
+  }
   taos_free_result(pRes);
 
   taos_close(taos);
