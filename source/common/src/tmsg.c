@@ -7699,7 +7699,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI32(&encoder, p->vgId) < 0) return -1;
     if (tEncodeI64(&encoder, p->ver) < 0) return -1;
   }
-
+  if (tEncodeI64(&encoder, pReq->smaId) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7804,6 +7804,9 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
         return -1;
       }
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI64(&decoder, &pReq->smaId)< 0) return -1;
   }
 
   tEndDecode(&decoder);
