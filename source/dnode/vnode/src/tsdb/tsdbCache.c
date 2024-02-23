@@ -21,6 +21,7 @@
 
 #define ROCKS_BATCH_SIZE (4096)
 
+#if 0
 static int32_t tsdbOpenBICache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
@@ -52,6 +53,7 @@ static void tsdbCloseBICache(STsdb *pTsdb) {
     taosThreadMutexDestroy(&pTsdb->biMutex);
   }
 }
+#endif
 
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t    code = 0;
@@ -1627,11 +1629,13 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     goto _err;
   }
 
+#if 0
   code = tsdbOpenBICache(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+#endif
 
   code = tsdbOpenBCache(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1673,7 +1677,9 @@ void tsdbCloseCache(STsdb *pTsdb) {
     taosThreadMutexDestroy(&pTsdb->lruMutex);
   }
 
+#if 0
   tsdbCloseBICache(pTsdb);
+#endif
   tsdbCloseBCache(pTsdb);
   tsdbClosePgCache(pTsdb);
   tsdbCloseRocksCache(pTsdb);
@@ -3447,6 +3453,7 @@ int32_t tsdbCacheGetElems(SVnode *pVnode) {
   return elems;
 }
 
+#if 0
 static void getBICacheKey(int32_t fid, int64_t commitID, char *key, int *len) {
   struct {
     int32_t fid;
@@ -3523,7 +3530,6 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
   return code;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
   int32_t code = 0;
 

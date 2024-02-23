@@ -29,7 +29,7 @@
 
 #define MND_STREAM_MAX_NUM 60
 
-typedef struct SMStreamNodeCheckMsg {
+typedef struct {
   int8_t placeHolder;  // // to fix windows compile error, define place holder
 } SMStreamNodeCheckMsg;
 
@@ -152,7 +152,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
     goto STREAM_DECODE_OVER;
   }
 
-  if (sver != MND_STREAM_VER_NUMBER) {
+  if (sver < 1 || sver > MND_STREAM_VER_NUMBER) {
     terrno = 0;
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto STREAM_DECODE_OVER;
@@ -1544,6 +1544,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
       return -1;
     }
   }
+
+  mInfo("stream:%s,%"PRId64 " start to pause stream", pauseReq.name, pStream->uid);
 
   if (pStream->status == STREAM_STATUS__PAUSE) {
     sdbRelease(pMnode->pSdb, pStream);

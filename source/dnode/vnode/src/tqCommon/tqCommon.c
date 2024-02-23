@@ -612,9 +612,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  streamMetaWLock(pMeta);
-  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, false);
-  streamMetaWUnLock(pMeta);
+  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, true);
 
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
@@ -938,4 +936,11 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
   return taosArrayGetSize(pMeta->pTaskList);
+}
+
+int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+
+  return TSDB_CODE_SUCCESS;
 }
