@@ -8,63 +8,86 @@
         >
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
-        <el-tabs
-          v-model="activeName"
-          v-if="$store.state.app.currentDBType !== 'csv'"
-        >
-          <el-tab-pane
-            :disabled="
-              $store.state.app.currentDBType == 'avevaHistorian' ||
-              $store.state.app.currentDBType == 'csv'
-            "
-            :label="$t('datasource.transformer.msgbodytypes.type1')"
-            name="first"
-          >
-            <!-- <el-radio-group
-              v-model="radio"
-              @change="changeCopyFormat"
-              style="margin-bottom: 15px"
+        <el-row class="mt10">
+          <el-col
+            :span="$store.state.app.currentDBType == 'csv' ? 24: 17"
             >
-              <el-radio v-model="radio" label="1">{{
-                $t("datasource.transformer.jsonformat")
-              }}</el-radio>
-              <el-radio v-model="radio" label="2">{{
-                $t("datasource.transformer.textformat")
-              }}</el-radio></el-radio-group
-            > -->
-          </el-tab-pane>
-          <el-tab-pane
-            :disabled="$store.state.app.currentDBType !== 'avevaHistorian'"
-            :label="$t('datasource.transformer.msgbodytypes.type2')"
-            name="second"
-          >
-            <el-button type="primary" size="small" @click="getMsgBody">{{
-              $t("datasource.transformer.msgbodytypes.retrieve")
-            }}</el-button>
-          </el-tab-pane>
-
-          <el-tab-pane
-            :label="$t('datasource.transformer.msgbodytypes.type3')"
-            name="third"
-          >
-            <el-upload
-              class="upload-demo"
-              action="https://jsonplaceholder.typicode.com/posts/"
-              :on-preview="handlePreview"
-              :on-remove="handleRemove"
-              :before-remove="beforeRemove"
-              :on-change="handleChange"
-              accept=".csv,.json"
-              :on-exceed="handleExceed"
-              :file-list="fileList"
-              style="margin-bottom: 15px"
+              <el-form
+                @submit.native.prevent
+                :model="msgForm"
+                :rules="msgRules"
+                ref="msgForm"
+                >
+                <!-- v-if="radio == '2' && activeName == 'first'" -->
+                <el-form-item
+                  prop="msgbody"
+                  >
+                  <!-- v-if="$store.state.app.currentDBType !== 'avevaHistorian'" -->
+                    <!-- :disabled="
+                      $store.state.app.currentDBType == 'avevaHistorian' ||
+                      $store.state.app.currentDBType == 'csv'
+                    " -->
+                  <el-input
+                    class="msgbody"
+                    v-model="msgForm.msgbody"
+                    :placeholder="$t('datasource.transformer.msgbodytip')"
+                    size="small"
+                    type="textarea"
+                    :autosize="{ minRows: 7, maxRows: 7 }"
+                  ></el-input>
+                </el-form-item>
+              </el-form>
+          </el-col>
+          <el-col :span="7" v-if="$store.state.app.currentDBType !== 'csv'" style="padding-left: 8px">
+            <el-col class="flexBetween">
+              {{
+                $t("datasource.transformer.dataLimit")
+              }}
+              <el-input-number v-model="limitOffset" size="small" :min="0" :max="100" controls-position="right" @change="handleLimit"></el-input-number>
+            </el-col>
+            <el-col
+              name="second"
+              :class="['mt5','msg-right']"
             >
-              <el-button size="small" type="primary">{{
-                $t("datasource.transformer.msgbodytypes.type3")
+              <el-button type="primary" size="small" @click="getMsgBody" :disabled="$store.state.app.currentDBType !== 'avevaHistorian'">{{
+                $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button>
-            </el-upload>
-          </el-tab-pane>
-        </el-tabs>
+            </el-col>
+            <el-col
+              name="third"
+              :class="['mt5','msg-right']"
+            >
+              <el-upload
+                class="upload-demo"
+                action="https://jsonplaceholder.typicode.com/posts/"
+                :on-preview="handlePreview"
+                :on-remove="handleRemove"
+                :before-remove="beforeRemove"
+                :on-success="handleSuccess"
+                :on-progress="handleStart"
+                :on-error="handleError"
+                accept=".csv,.json"
+                :on-exceed="handleExceed"
+                :file-list="fileList"
+                :show-file-list="false"
+              >
+                <el-button size="small" type="primary" :loading="request">{{
+                  $t("datasource.transformer.msgbodytypes.type3")
+                }}</el-button>
+              </el-upload>
+            </el-col>
+            <el-col
+              name="first"
+              :class="['mt5','msg-right']"
+            >
+            <el-button size="small" @click="clearMsgBody">{{
+                $t("datasource.transformer.msgbodytypes.type1")
+              }}</el-button>
+            </el-col>
+          </el-col>
+
+        </el-row>
+       
         <!-- <keep-alive>
           <JsonEditor
             v-if="radio == '1' && activeName == 'first'"
@@ -74,31 +97,7 @@
           ></JsonEditor>
         </keep-alive> -->
 
-        <el-form
-          @submit.native.prevent
-          :model="msgForm"
-          :rules="msgRules"
-          ref="msgForm"
-          >
-          <!-- v-if="radio == '2' && activeName == 'first'" -->
-          <el-form-item
-            prop="msgbody"
-            v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
-          >
-            <el-input
-              :disabled="
-                $store.state.app.currentDBType == 'avevaHistorian' ||
-                $store.state.app.currentDBType == 'csv'
-              "
-              class="msgbody"
-              v-model="msgForm.msgbody"
-              :placeholder="$t('datasource.transformer.msgbodytip')"
-              size="small"
-              type="textarea"
-              :autosize="{ minRows: 5, maxRows: 5 }"
-            ></el-input>
-          </el-form-item>
-        </el-form>
+
       </section>
       <section class="extract">
         <div class="block-title top">
@@ -683,7 +682,7 @@ export default {
         "sum",
         "expr",
       ],
-      st_columnLists: ["Name", "Type", "Expression", "Output1", "Output2"],
+      st_columnLists: ["Name", "Type", "Expression"],
 
       dialogForm: {
         st_name: "",
@@ -746,6 +745,8 @@ export default {
       ],
       currentCol: "",
       mappingParser: {},
+      limitOffset: 5,
+      request: false,
     };
   },
   computed: {
@@ -862,6 +863,9 @@ export default {
       this.msgForm.msgbody = JSON.stringify(result);
       await this.submitParse();
     },
+    clearMsgBody() {
+      this.msgForm.msgbody = ''
+    },
     changeSubname(val) {
       this.subrule.subname = val;
     },
@@ -882,6 +886,7 @@ export default {
     },
     showIndentifyResulttb() {
       this.$store.commit("app/SET_RESULTTB_SHOW", true);
+      this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'parseResTb');
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
           if (document.querySelector(".block-title.top")) {
@@ -911,11 +916,19 @@ export default {
         } 个文件`
       );
     },
-    handleChange(file, fileList) {
+    handleStart() {
+      this.request = true;
+    },
+    handleError() {
+      this.request = false;
+    },
+    handleSuccess(_, file, fileList) {
       Papa.parse(file.raw, {
         header: false,
         complete: (result) => {
           console.log(result.data.join("\n"), "解析后的结果");
+          this.msgForm.msgbody += result.data.join("\n")
+          this.request = false;
         },
       });
     },
@@ -945,21 +958,6 @@ export default {
           return;
         }
         let topparser = null;
-        // let message = "";
-        // if (this.radio == "1") {
-        //   message = this.jsoneditorcont;
-        // } else {
-        //   if (!this.msgForm.msgbody) {
-        //     Message.warning(this.$t("datasource.transformer.msgbodytip"));
-        //     return;
-        //   }
-        //   message = this.msgForm.msgbody;
-        // }
-       
-        // if (this.filterArr.length > 0) {
-        // }
-        // if (this.extractArr.length > 0) {
-        // }
 
         if (this.$store.state.app.currentDBType == "avevaHistorian") {
           topparser = JSON.parse(this.msgForm.msgbody);
@@ -991,9 +989,6 @@ export default {
                 : [].concat(this.generateInput()),
           };
         }
-        // if (this.activeName == "first" && this.radio == "2" && !this.istext) {
-        //   return;
-        // }
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -1047,12 +1042,13 @@ export default {
           );
         });
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-        if (this.filterArr.length > 0) {
-          await this.$refs.filter[0].submitFilter();
-        }
-        if (this.extractArr.length > 0) {
-          await this.$refs.extract[0].submitExtract(true);
-        }
+        // 不需要获取 filter extract 参数
+        // if (this.filterArr.length > 0) {
+        //   await this.$refs.filter[0].submitFilter();
+        // }
+        // if (this.extractArr.length > 0) {
+        //   await this.$refs.extract[0].submitExtract(true);
+        // }
         this.$store.commit("app/SET_ACTIVE_COLS", []);
         this.$store.commit("app/SET_RESULT_PAGE", 1);
         this.columnsArr = (
@@ -1579,21 +1575,32 @@ export default {
           );
           overlapColumns.push(this.tableData[index]["Name"]);
         }
-        this.tableData.map((item) => {
-          item[`Output1`] = "";
-          item[`Output2`] = "";
-          if (overlapColumns.includes(item["Name"])) {
-            outputTBData.map((val, index) => {
-              item[`Output` + (index + 1)] =
-                item["Name"] == "SubTableName"
-                  ? val["__tbname__"]
-                  : this.filterEmpty(val[item["Name"]])
-                  ? val[item["Name"]].toString()
-                  : "";
-            });
-          }
-          return item;
+        // this.tableData.map((item) => {
+        //   item[`Output1`] = "";
+        //   item[`Output2`] = "";
+        //   if (overlapColumns.includes(item["Name"])) {
+        //     outputTBData.map((val, index) => {
+        //       item[`Output` + (index + 1)] =
+        //         item["Name"] == "SubTableName"
+        //           ? val["__tbname__"]
+        //           : this.filterEmpty(val[item["Name"]])
+        //           ? val[item["Name"]].toString()
+        //           : "";
+        //     });
+        //   }
+        //   return item;
+        // });
+        // 预览映射结果table数据
+        let resultTableData = outputTBData.map(item => {
+          item.SubTableName = item['__tbname__'];
+          const { __using__, __tbname__, ...rest } = item;
+          return rest;
         });
+        this.$store.commit('app/SET_RESULTTB_SHOW',true);
+        this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'mappingResTb');
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultTableData);
+        this.$store.commit("app/SET_TRANS_RESULT_NAME",'mappping');
+
         this.setPageTableData();
       } catch (error) {
         console.log(error);
@@ -1650,29 +1657,31 @@ export default {
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
-          if (this.$store.state.app.currentDBType == "mqtt") {
-            if (item.name == "payload") {
-              inputobj["payload"] = msg;
-            } else {
-              inputobj[item.name] =
-                item.type == "timestamp"
-                  ? "" //parsinginZone(new Date())
-                  : item.name;
-            }
-          } else if (this.$store.state.app.currentDBType == "kafka") {
-            if (item.name == "value") {
-              inputobj["value"] = msg;
-            } else {
-              inputobj[item.name] =
-                item.type == "timestamp"
-                  ? "" //parsinginZone(new Date())
-                  : item.name;
+          if (msg) {
+            if (this.$store.state.app.currentDBType == "mqtt") {
+              if (item.name == "payload") {
+                inputobj["payload"] = msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? "" //parsinginZone(new Date())
+                    : item.name;
+              }
+            } else if (this.$store.state.app.currentDBType == "kafka") {
+              if (item.name == "value") {
+                inputobj["value"] = msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? "" //parsinginZone(new Date())
+                    : item.name;
+              }
             }
           }
         });
         return inputobj;
       });
-      return inputList;
+      return inputList.filter(v => JSON.stringify(v) !== '{}');
     },
     submitSuper(data) {
       if (!this.msgForm.msgbody) {
@@ -1906,8 +1915,8 @@ export default {
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"],
             Expression: equalindex > -1 ? defaultmap[equalindex] : "",
-            Output1: "",
-            Output2: "",
+            // Output1: "",
+            // Output2: "",
           };
         });
 
@@ -1917,8 +1926,8 @@ export default {
           exprname: "mapping",
           maptype: ["expression", "string"],
           Expression: "",
-          Output1: "",
-          Output2: "",
+          // Output1: "",
+          // Output2: "",
         });
         this.params_columns.unshift(res.data[0][0]);
         this.setPageTableData();
@@ -2037,6 +2046,9 @@ export default {
         };
       });
     },
+    handleLimit(val) {
+      this.$store.commit("app/SET_LIMIT_OFFSET", val);
+    }
   },
   watch: {
     tableData: {
@@ -2273,6 +2285,13 @@ export default {
 .upload-demo {
   display: flex;
   align-items: baseline;
+  flex: 1;
+  ::v-deep .el-upload {
+    width: 100%;
+    .el-button {
+      width: 100%;
+    }
+  }
 }
 .buttons {
   display: flex;
@@ -2359,6 +2378,29 @@ export default {
     font-size: 16px;
     color: #4259ce;
     font-weight: 600;
+  }
+}
+.mt5 {
+  margin-top: 9px;
+}
+.msg-right {
+  display: flex;
+  flex-wrap: wrap;
+  .el-button {
+    flex: 1;
+  }
+}
+::v-deep {
+  .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 14px !important;
+    }
+}
+.msg_sec {
+  ::v-deep {
+    .el-input-number--small {
+      width: 100px;
+    }
   }
 }
 </style>

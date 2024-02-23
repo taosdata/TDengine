@@ -346,9 +346,10 @@ export default {
         this.timer = setInterval(async () => {
           let { complete } = await checkReadyFile(result.ticket)
           this.complete = complete
+          const randomNum = Math.floor(Math.random() * 5) + 1;
            
           if (!complete) {
-            this.percentage = this.percentage < 95 ? this.percentage + 5 : this.percentage
+            this.percentage = this.percentage < 95 ? this.percentage + randomNum : 99;
           }
         }, 2000);
         this.dialogVisible = false  

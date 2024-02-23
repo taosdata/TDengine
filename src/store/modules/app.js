@@ -97,11 +97,13 @@ const state = {
   activeColumns:[],
   resultCurrentPage:1,
   showresulttb:false,
+  resultTbTitle: '',
   historiandsn:'',
   historianechodata:null,
   connectivityCheckResult: {}, //连通性检查的结果
   complete: false,// 判断数据点位数据是否准备完成 
-  ticket: ''
+  ticket: '',
+  limitOffset: 5,
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -146,6 +148,12 @@ const mutations = {
   },
   SET_RESULTTB_SHOW:(state,data)=>{
     state.showresulttb=data
+  },
+  SET_RESULTTB_TITLE_SHOW:(state,data)=>{
+    state.resultTbTitle=data
+  },
+  SET_LIMIT_OFFSET:(state,data)=>{
+    state.limitOffset=data
   },
   SET_RESULT_PAGE:(state,data)=>{
     state.resultCurrentPage=data
