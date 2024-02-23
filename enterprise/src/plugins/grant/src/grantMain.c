@@ -1724,25 +1724,45 @@ _exit:
 static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
   // basic
   if ((pObj->limitTimeSeries > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurTimeSeries(pMnode) > pObj->limitTimeSeries)) {
+      ((gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode)) > pObj->limitTimeSeries)) {
+    uError("failed to grant check since current number of time series %" PRIi64
+           " larger than the licensed upper limit %" PRIi64,
+           gStatus.curTimeSeries, pObj->limitTimeSeries);
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
   }
-  if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurDnodes(pMnode) > pObj->limitDnodes)) {
+  if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curDnodes = grantGetClusterCurDnodes(pMnode)) > pObj->limitDnodes)) {
+    uError("failed to grant check since current number of dnodes %" PRIi16
+           " larger than the licensed upper limit %" PRIi16,
+           (int16_t)gStatus.curDnodes, pObj->limitDnodes);
     return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
-  if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurCores(pMnode) > pObj->limitCpuCores)) {
+  if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curCpuCores = grantGetClusterCurCores(pMnode)) > pObj->limitCpuCores)) {
+    uError("failed to grant check since current number of cpu cores %d larger than the licensed upper limit %d",
+           gStatus.curCpuCores, pObj->limitCpuCores);
     return TSDB_CODE_GRANT_CPU_LIMITED;
   }
 
   // optional
-  if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurStreams(pMnode) > pObj->limitStreams)) {
+  if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStreams = grantGetClusterCurStreams(pMnode)) > pObj->limitStreams)) {
+    uError("failed to grant check since current number of streams %" PRIi16
+           " larger than the licensed upper limit %" PRIi16,
+           (int16_t)gStatus.curStreams, pObj->limitStreams);
     return TSDB_CODE_GRANT_STREAM_LIMITED;
   }
   if ((pObj->limitSubscriptions > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurTopics(pMnode) > pObj->limitSubscriptions)) {
+      ((gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode)) > pObj->limitSubscriptions)) {
+    uError("failed to grant check since current number of topics %" PRIi16
+           " larger than the licensed upper limit %" PRIi16,
+           (int16_t)gStatus.curSubscriptions, pObj->limitSubscriptions);
     return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
-  if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurViews(pMnode) > pObj->limitViews)) {
+  if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curViews = grantGetClusterCurViews(pMnode)) > pObj->limitViews)) {
+    uError("failed to grant check since current number of views %d larger than the licensed upper limit %d",
+           gStatus.curViews, pObj->limitViews);
     return TSDB_CODE_GRANT_VIEW_LIMITED;
   }
 
