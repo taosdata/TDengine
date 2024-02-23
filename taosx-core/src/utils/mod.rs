@@ -176,8 +176,16 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
         .map(|x| x.parse::<i32>())
         .collect_tuple();
     match res {
-        Some((a, b, c)) => Ok((a?, b?, c?)),
-        None => anyhow::bail!("should have at least 3 elements"),
+        Some((Ok(a), Ok(b), Ok(c))) => Ok((a, b, c)),
+        _ => Err(anyhow::anyhow!("Invalid version string: {}", version)),
+    }
+}
+
+pub async fn get_server_version(taos: &Taos) -> anyhow::Result<String> {
+    let version = taos.server_version().await;
+    match version {
+        Err(err) => anyhow::bail!(format!("Get TDengine server version error: {err:?}")),
+        Ok(version) => Ok(version.to_string()),
     }
 }
 

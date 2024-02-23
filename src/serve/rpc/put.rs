@@ -9,8 +9,11 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
     sink::{handle_lush_message_init, IpcErrorStrategy},
-    utils::trace::{
-        get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
+    utils::{
+        get_main_version_from_server_version, get_server_version,
+        trace::{
+            get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
+        },
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
@@ -130,6 +133,15 @@ impl PutStream {
         let (abort_message_tx, abort_message_rx) = flume::bounded(1);
 
         let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+            // get tdengine server version and handle compatibility
+            let server_version = get_server_version(&taos).await?;
+            let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
+            let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+                format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+            } else {
+                format!("select `{connector}` from information_schema.ins_grants")
+            };
+
             #[cfg(feature = "disable-enterprise-connector-validation")]
             let license: Option<ConnectorLicense> = None;
             #[cfg(not(feature = "disable-enterprise-connector-validation"))]
@@ -137,19 +149,21 @@ impl PutStream {
                 if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
                     None
                 } else {
-                    taos.query_one::<_, String>(&format!(
-                        "select {connector} from information_schema.ins_grants"
-                    ))
-                    .await
-                    .unwrap_or(None)
-                    .and_then(|s| serde_json::from_str(&s).ok())
+                    taos.query_one::<_, String>(&grants_sql)
+                        .await
+                        .unwrap_or(None)
+                        .and_then(|s| serde_json::from_str(&s).ok())
                 };
 
             if let Some(license) = license {
-                if license.is_expired() {
-                    anyhow::bail!(
-                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
-                    )
+                if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+                    if license.is_expired_second() {
+                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    }
+                } else {
+                    if license.is_expired_day() {
+                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    }
                 }
             }
             None

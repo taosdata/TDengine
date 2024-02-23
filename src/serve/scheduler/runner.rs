@@ -19,6 +19,7 @@ use taosx_core::{
     },
     dsv::DataSourceValidation,
     sink::ipc_metric::IpcMetrics,
+    utils::{get_main_version_from_server_version, get_server_version},
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -73,19 +74,29 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
                 "pi" => "pi",
                 _ => unreachable!(),
             };
+            // get tdengine server version and handle compatibility
+            let server_version = get_server_version(&taos).await?;
+            let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
+            let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+                format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+            } else {
+                format!("select `{connector}` from information_schema.ins_grants")
+            };
             let license: Option<ConnectorLicense> = taos
-                .query_one::<_, String>(format!(
-                    "select `{connector}` from information_schema.ins_grants"
-                ))
+                .query_one::<_, String>(grants_sql)
                 .await
                 .unwrap_or(None)
                 .and_then(|s| serde_json::from_str(&s).ok());
 
             if let Some(license) = license {
-                if license.is_expired() {
-                    anyhow::bail!(
-                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.",
-                    )
+                if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+                    if license.is_expired_second() {
+                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    }
+                } else {
+                    if license.is_expired_day() {
+                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    }
                 }
             }
         }
