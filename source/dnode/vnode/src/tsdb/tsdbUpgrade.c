@@ -97,10 +97,24 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         SBrinRecord record = {
             .suid = pBlockIdx->suid,
             .uid = pBlockIdx->uid,
-            .firstKey = dataBlk->minKey.ts,
-            .firstKeyVer = dataBlk->minKey.version,
-            .lastKey = dataBlk->maxKey.ts,
-            .lastKeyVer = dataBlk->maxKey.version,
+            .firstKey =
+                (STsdbRowKey){
+                    .key =
+                        (SRowKey){
+                            .ts = dataBlk->minKey.ts,
+                            .numOfPKs = 0,
+                        },
+                    .version = dataBlk->minKey.version,
+                },
+            .lastKey =
+                (STsdbRowKey){
+                    .key =
+                        (SRowKey){
+                            .ts = dataBlk->maxKey.ts,
+                            .numOfPKs = 0,
+                        },
+                    .version = dataBlk->maxKey.version,
+                },
             .minVer = dataBlk->minVer,
             .maxVer = dataBlk->maxVer,
             .blockOffset = dataBlk->aSubBlock->offset,
@@ -119,7 +133,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         code = tBrinBlockPut(ctx->brinBlock, &record);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        if (BRIN_BLOCK_SIZE(ctx->brinBlock) >= ctx->maxRow) {
+        if (ctx->brinBlock->numOfRecords >= ctx->maxRow) {
           SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
           code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
                                         ctx->brinBlkArray, ctx->bufArr, &range);
@@ -128,7 +142,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
       }
     }
 
-    if (BRIN_BLOCK_SIZE(ctx->brinBlock) > 0) {
+    if (ctx->brinBlock->numOfRecords > 0) {
       SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
       code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
                                     ctx->brinBlkArray, ctx->bufArr, &range);

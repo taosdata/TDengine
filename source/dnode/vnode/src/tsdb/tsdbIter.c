@@ -147,12 +147,11 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
       }
 
       // SBrinBlock
-      if (iter->dataData->brinBlockIdx >= BRIN_BLOCK_SIZE(iter->dataData->brinBlock)) {
+      if (iter->dataData->brinBlockIdx >= iter->dataData->brinBlock->numOfRecords) {
         break;
       }
 
-      for (; iter->dataData->brinBlockIdx < BRIN_BLOCK_SIZE(iter->dataData->brinBlock);
-           iter->dataData->brinBlockIdx++) {
+      for (; iter->dataData->brinBlockIdx < iter->dataData->brinBlock->numOfRecords; iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
         tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
 

@@ -94,7 +94,7 @@ typedef struct STsdbRowKey      STsdbRowKey;
 #define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
 #define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
   ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
-#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
+#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE) * PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
 #define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
 #define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
 
@@ -283,7 +283,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid);
+int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 // tsdbMerge.c ==============================================================================================
 typedef struct {

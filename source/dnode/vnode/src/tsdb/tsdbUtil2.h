@@ -112,52 +112,47 @@ int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *reco
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record);
 
 // SBrinRecord ----------
-typedef union {
-  struct {
-    int64_t dataArr1[10];
-    int32_t dataArr2[5];
-  };
-  struct {
-    int64_t suid;
-    int64_t uid;
-    int64_t firstKey;
-    int64_t firstKeyVer;
-    int64_t lastKey;
-    int64_t lastKeyVer;
-    int64_t minVer;
-    int64_t maxVer;
-    int64_t blockOffset;
-    int64_t smaOffset;
-    int32_t blockSize;
-    int32_t blockKeySize;
-    int32_t smaSize;
-    int32_t numRow;
-    int32_t count;
-  };
+typedef struct {
+  int64_t     suid;
+  int64_t     uid;
+  STsdbRowKey firstKey;
+  STsdbRowKey lastKey;
+  int64_t     minVer;
+  int64_t     maxVer;
+  int64_t     blockOffset;
+  int64_t     smaOffset;
+  int32_t     blockSize;
+  int32_t     blockKeySize;
+  int32_t     smaSize;
+  int32_t     numRow;
+  int32_t     count;
 } SBrinRecord;
 
-typedef union {
-  struct {
-    TARRAY2(int64_t) dataArr1[10];
-    TARRAY2(int32_t) dataArr2[5];
+typedef struct {
+  int8_t  numOfPKs;
+  int32_t numOfRecords;
+  union {
+    SBuffer buffers[15];
+    struct {
+      SBuffer suids;
+      SBuffer uids;
+      SBuffer firstKeyTimestamps;
+      SBuffer firstKeyVersions;
+      SBuffer lastKeyTimestamps;
+      SBuffer lastKeyVersions;
+      SBuffer minVers;
+      SBuffer maxVers;
+      SBuffer blockOffsets;
+      SBuffer smaOffsets;
+      SBuffer blockSizes;
+      SBuffer blockKeySizes;
+      SBuffer smaSizes;
+      SBuffer numRows;
+      SBuffer counts;
+    };
   };
-  struct {
-    TARRAY2(int64_t) suid[1];
-    TARRAY2(int64_t) uid[1];
-    TARRAY2(int64_t) firstKey[1];
-    TARRAY2(int64_t) firstKeyVer[1];
-    TARRAY2(int64_t) lastKey[1];
-    TARRAY2(int64_t) lastKeyVer[1];
-    TARRAY2(int64_t) minVer[1];
-    TARRAY2(int64_t) maxVer[1];
-    TARRAY2(int64_t) blockOffset[1];
-    TARRAY2(int64_t) smaOffset[1];
-    TARRAY2(int32_t) blockSize[1];
-    TARRAY2(int32_t) blockKeySize[1];
-    TARRAY2(int32_t) smaSize[1];
-    TARRAY2(int32_t) numRow[1];
-    TARRAY2(int32_t) count[1];
-  };
+  SValueColumn firstKeyPKs[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumn lastKeyPKs[TD_MAX_PRIMARY_KEY_COL];
 } SBrinBlock;
 
 typedef struct {
@@ -169,18 +164,21 @@ typedef struct {
   int32_t   numRec;
   int32_t   size[15];
   int8_t    cmprAlg;
-  int8_t    rsvd[7];
+  int8_t    numOfPKs;  // number of primary keys
+  int8_t    rsvd[6];
 } SBrinBlk;
 
 typedef TARRAY2(SBrinBlk) TBrinBlkArray;
 
-#define BRIN_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
+#define BRIN_BLOCK_SIZE(db) ((db)->numOfRecords)
 
 int32_t tBrinBlockInit(SBrinBlock *brinBlock);
 int32_t tBrinBlockDestroy(SBrinBlock *brinBlock);
 int32_t tBrinBlockClear(SBrinBlock *brinBlock);
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record);
 int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record);
+int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buffer);
+int32_t tBrinBlockDecode(const SBuffer *buffer, SBrinBlk *brinBlk, SBrinBlock *brinBlock);
 
 // other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);

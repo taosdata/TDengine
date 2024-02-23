@@ -105,56 +105,230 @@ int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecor
 
 // SBrinRecord ----------
 int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
-    TARRAY2_INIT(&brinBlock->dataArr1[i]);
+  brinBlock->numOfPKs = 0;
+  brinBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
+    tBufferInit(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
-    TARRAY2_INIT(&brinBlock->dataArr2[i]);
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnInit(&brinBlock->firstKeyPKs[i]);
+    tValueColumnInit(&brinBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
-    TARRAY2_DESTROY(&brinBlock->dataArr1[i], NULL);
+  brinBlock->numOfPKs = 0;
+  brinBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
+    tBufferDestroy(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
-    TARRAY2_DESTROY(&brinBlock->dataArr2[i], NULL);
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnDestroy(&brinBlock->firstKeyPKs[i]);
+    tValueColumnDestroy(&brinBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
-    TARRAY2_CLEAR(&brinBlock->dataArr1[i], NULL);
+  brinBlock->numOfPKs = 0;
+  brinBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
+    tBufferClear(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
-    TARRAY2_CLEAR(&brinBlock->dataArr2[i], NULL);
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnClear(&brinBlock->firstKeyPKs[i]);
+    tValueColumnClear(&brinBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
   int32_t code;
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
-    code = TARRAY2_APPEND(&brinBlock->dataArr1[i], record->dataArr1[i]);
+
+  ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
+
+  if (brinBlock->numOfRecords == 0) {
+    brinBlock->numOfPKs = record->firstKey.key.numOfPKs;
+  }
+
+  ASSERT(brinBlock->numOfPKs == record->firstKey.key.numOfPKs);
+  code = tBufferAppend(&brinBlock->suids, &record->suid, sizeof(record->suid));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->uids, &record->uid, sizeof(record->uid));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->firstKeyTimestamps, &record->firstKey.key.ts, sizeof(record->firstKey.key.ts));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->firstKeyVersions, &record->firstKey.version, sizeof(record->firstKey.version));
+  if (code) return code;
+  for (int32_t i = 0; i < record->firstKey.key.numOfPKs; ++i) {
+    code = tValueColumnAppend(&brinBlock->firstKeyPKs[i], &record->firstKey.key.pks[i]);
     if (code) return code;
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
-    code = TARRAY2_APPEND(&brinBlock->dataArr2[i], record->dataArr2[i]);
+  code = tBufferAppend(&brinBlock->lastKeyTimestamps, &record->lastKey.key.ts, sizeof(record->lastKey.key.ts));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->lastKeyVersions, &record->lastKey.version, sizeof(record->lastKey.version));
+  if (code) return code;
+  for (int32_t i = 0; i < record->lastKey.key.numOfPKs; ++i) {
+    code = tValueColumnAppend(&brinBlock->lastKeyPKs[i], &record->lastKey.key.pks[i]);
     if (code) return code;
   }
+  code = tBufferAppend(&brinBlock->minVers, &record->minVer, sizeof(record->minVer));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->maxVers, &record->maxVer, sizeof(record->maxVer));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->blockOffsets, &record->blockOffset, sizeof(record->blockOffset));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->smaOffsets, &record->smaOffset, sizeof(record->smaOffset));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->blockSizes, &record->blockSize, sizeof(record->blockSize));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->blockKeySizes, &record->blockKeySize, sizeof(record->blockKeySize));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->smaSizes, &record->smaSize, sizeof(record->smaSize));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->numRows, &record->numRow, sizeof(record->numRow));
+  if (code) return code;
+  code = tBufferAppend(&brinBlock->counts, &record->count, sizeof(record->count));
+  if (code) return code;
+
+  brinBlock->numOfRecords++;
+
   return 0;
 }
 
 int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
-  if (idx >= BRIN_BLOCK_SIZE(brinBlock)) return TSDB_CODE_OUT_OF_RANGE;
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
-    record->dataArr1[i] = TARRAY2_GET(&brinBlock->dataArr1[i], idx);
+  int32_t code;
+
+  if (idx < 0 || idx >= brinBlock->numOfRecords) {
+    return TSDB_CODE_OUT_OF_RANGE;
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
-    record->dataArr2[i] = TARRAY2_GET(&brinBlock->dataArr2[i], idx);
+
+  code = tBufferGet(&brinBlock->suids, idx, sizeof(record->suid), &record->suid);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->uids, idx, sizeof(record->uid), &record->uid);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->firstKeyTimestamps, idx, sizeof(record->firstKey.key.ts), &record->firstKey.key.ts);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->firstKeyVersions, idx, sizeof(record->firstKey.version), &record->firstKey.version);
+  if (code) return code;
+  for (record->firstKey.key.numOfPKs = 0; record->firstKey.key.numOfPKs < brinBlock->numOfPKs;
+       record->firstKey.key.numOfPKs++) {
+    code = tValueColumnGet(&brinBlock->firstKeyPKs[record->firstKey.key.numOfPKs], idx,
+                           &record->firstKey.key.pks[record->firstKey.key.numOfPKs]);
+    if (code) return code;
   }
+  code = tBufferGet(&brinBlock->lastKeyTimestamps, idx, sizeof(record->lastKey.key.ts), &record->lastKey.key.ts);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->lastKeyVersions, idx, sizeof(record->lastKey.version), &record->lastKey.version);
+  if (code) return code;
+  for (record->lastKey.key.numOfPKs = 0; record->lastKey.key.numOfPKs < brinBlock->numOfPKs;
+       record->lastKey.key.numOfPKs++) {
+    code = tValueColumnGet(&brinBlock->lastKeyPKs[record->lastKey.key.numOfPKs], idx,
+                           &record->lastKey.key.pks[record->lastKey.key.numOfPKs]);
+    if (code) return code;
+  }
+  code = tBufferGet(&brinBlock->minVers, idx, sizeof(record->minVer), &record->minVer);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->maxVers, idx, sizeof(record->maxVer), &record->maxVer);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->blockOffsets, idx, sizeof(record->blockOffset), &record->blockOffset);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->smaOffsets, idx, sizeof(record->smaOffset), &record->smaOffset);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->blockSizes, idx, sizeof(record->blockSize), &record->blockSize);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->blockKeySizes, idx, sizeof(record->blockKeySize), &record->blockKeySize);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->smaSizes, idx, sizeof(record->smaSize), &record->smaSize);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->numRows, idx, sizeof(record->numRow), &record->numRow);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->counts, idx, sizeof(record->count), &record->count);
+  if (code) return code;
+
+  return 0;
+}
+
+int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buffer) {
+  int32_t  code;
+  SBuffer *helperBuffer = NULL;  // TODO
+
+  brinBlk->dp[0].size = 0;
+  brinBlk->numRec = brinBlock->numOfRecords;
+  brinBlk->numOfPKs = brinBlock->numOfPKs;
+
+  // minTbid
+  code = tBufferGet(&brinBlock->suids, 0, sizeof(brinBlk->minTbid.suid), &brinBlk->minTbid.suid);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->uids, 0, sizeof(brinBlk->minTbid.uid), &brinBlk->minTbid.uid);
+  if (code) return code;
+  // maxTbid
+  code =
+      tBufferGet(&brinBlock->suids, brinBlock->numOfRecords - 1, sizeof(brinBlk->maxTbid.suid), &brinBlk->maxTbid.suid);
+  if (code) return code;
+  code = tBufferGet(&brinBlock->uids, brinBlock->numOfRecords - 1, sizeof(brinBlk->maxTbid.uid), &brinBlk->maxTbid.uid);
+  if (code) return code;
+  // minVer and maxVer
+  const int64_t *minVers = (int64_t *)tBufferGetData(&brinBlock->minVers);
+  const int64_t *maxVers = (int64_t *)tBufferGetData(&brinBlock->maxVers);
+  brinBlk->minVer = minVers[0];
+  brinBlk->maxVer = maxVers[0];
+  for (int32_t i = 1; i < brinBlock->numOfRecords; ++i) {
+    if (minVers[i] < brinBlk->minVer) brinBlk->minVer = minVers[i];
+    if (maxVers[i] > brinBlk->maxVer) brinBlk->maxVer = maxVers[i];
+  }
+
+  // compress data
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
+    SBuffer      *bf = &brinBlock->buffers[i];
+    SCompressInfo info = {
+        .cmprAlg = brinBlk->cmprAlg,
+    };
+
+    if (tBufferGetSize(bf) == 8 * brinBlock->numOfRecords) {
+      info.dataType = TSDB_DATA_TYPE_BIGINT;
+    } else if (tBufferGetSize(bf) == 4 * brinBlock->numOfRecords) {
+      info.dataType = TSDB_DATA_TYPE_INT;
+    } else {
+      ASSERT(0);
+    }
+
+    code = tCompressData(tBufferGetData(bf), tBufferGetSize(bf), &info, buffer, helperBuffer);
+    if (code) return code;
+    brinBlk->size[i] = info.compressedSize;
+    brinBlk->dp[0].size += info.compressedSize;
+  }
+
+  // encode primary keys
+  SValueColumnCompressInfo firstKeyPKsInfos[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumnCompressInfo lastKeyPKsInfos[TD_MAX_PRIMARY_KEY_COL];
+
+  for (int32_t i = 0; i < brinBlk->numOfPKs; ++i) {
+    SValueColumn *vc = &brinBlock->firstKeyPKs[i];
+    firstKeyPKsInfos[i].cmprAlg = brinBlk->cmprAlg;
+    code = tValueColumnCompress(vc, &firstKeyPKsInfos[i], buffer, helperBuffer);
+    if (code) return code;
+  }
+
+  for (int32_t i = 0; i < brinBlk->numOfPKs; ++i) {
+    SValueColumn *vc = &brinBlock->lastKeyPKs[i];
+    lastKeyPKsInfos[i].cmprAlg = brinBlk->cmprAlg;
+    code = tValueColumnCompress(vc, &lastKeyPKsInfos[i], buffer, helperBuffer);
+    if (code) return code;
+  }
+
+  return 0;
+}
+
+int32_t tBrinBlockDecode(const SBuffer *buffer, SBrinBlk *brinBlk, SBrinBlock *brinBlock) {
+  // if (brinBlk->fmtVersion == 0) {
+  //   return tBrinBlockDecodeVersion0(buffer, brinBlk, brinBlock);
+  // } else if (brinBlk->fmtVersion == 1) {
+  //   return tBrinBlockDecodeVersion1(buffer, brinBlk, brinBlock);
+  // } else {
+  //   ASSERT(0);
+  // }
   return 0;
 }
 

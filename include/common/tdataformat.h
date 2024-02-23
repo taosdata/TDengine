@@ -95,13 +95,26 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // SValueColumn ================================
+typedef struct {
+  int8_t  cmprAlg;               // filled by caller
+  int8_t  type;                  // filled by compress
+  int32_t originalDataSize;      // filled by compress
+  int32_t compressedDataSize;    // filled by compress
+  int32_t originalOffsetSize;    // filled by compress
+  int32_t compressedOffsetSize;  // filled by compress
+} SValueColumnCompressInfo;
+
 int32_t tValueColumnInit(SValueColumn *valCol);
 int32_t tValueColumnDestroy(SValueColumn *valCol);
 int32_t tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
-int32_t tValueColumnCompress(SValueColumn *valCol, SBuffer *buffer);
-int32_t tValueColumnDecompress(SBuffer *buffer, SValueColumn *valCol);
+int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *compressInfo, SBuffer *buffer,
+                             SBuffer *helperBuffer);
+int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColumnCompressInfo *compressInfo,
+                               SValueColumn *valCol, SBuffer *helperBuffer);
+int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBufferWriter *writer);
+int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
@@ -297,6 +310,18 @@ struct SValueColumn {
   SBuffer  data;
   SBuffer  offsets;
 };
+
+typedef struct {
+  int8_t  dataType;        // fill by caller
+  int8_t  cmprAlg;         // fill by caller
+  int32_t originalSize;    // fill by compress
+  int32_t compressedSize;  // fill by compress
+} SCompressInfo;
+
+int32_t tCompressData(const void *input, int32_t inputSize, SCompressInfo *cmprInfo, SBuffer *buffer,
+                      SBuffer *helperBuffer);
+int32_t tDecompressData(const void *input, int32_t inputSize, const SCompressInfo *cmprInfo, SBuffer *buffer,
+                        SBuffer *helperBuffer);
 
 #endif
 

@@ -73,11 +73,19 @@ static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capa
   return 0;
 }
 
-static int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size) {
+static FORCE_INLINE int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size) {
   int32_t code = tBufferEnsureCapacity(buffer, buffer->size + size);
   if (code) return code;
   memcpy((char *)buffer->data + buffer->size, data, size);
   buffer->size += size;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tBufferGet(SBuffer *buffer, int32_t index, uint32_t size, void *data) {
+  if (index < 0 || (index + 1) * size > buffer->size) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  memcpy(data, (char *)buffer->data + index * size, size);
   return 0;
 }
 

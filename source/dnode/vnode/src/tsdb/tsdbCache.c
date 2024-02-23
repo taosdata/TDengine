@@ -2550,7 +2550,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       goto _err;
     }
 
-    state->iBrinRecord = BRIN_BLOCK_SIZE(&state->brinBlock) - 1;
+    state->iBrinRecord = state->brinBlock.numOfRecords - 1;
     state->state = SFSNEXTROW_BRINBLOCK;
   }
 

@@ -3860,14 +3860,214 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
   return 0;
 }
 
-int32_t tValueColumnCompress(SValueColumn *valCol, SBuffer *buffer) {
-  // TODO
-  ASSERT(0);
+int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *compressInfo, SBuffer *buffer,
+                             SBuffer *helperBuffer) {
+  int32_t       code;
+  SCompressInfo info;
+
+  compressInfo->type = valCol->type;
+
+  if (IS_VAR_DATA_TYPE(valCol->type)) {
+    info.dataType = TSDB_DATA_TYPE_INT;
+    info.cmprAlg = compressInfo->cmprAlg;
+    code =
+        tCompressData(tBufferGetData(&valCol->offsets), tBufferGetSize(&valCol->offsets), &info, buffer, helperBuffer);
+    if (code) return code;
+
+    compressInfo->originalOffsetSize = info.originalSize;
+    compressInfo->compressedOffsetSize = info.compressedSize;
+  } else {
+    compressInfo->originalOffsetSize = 0;
+    compressInfo->compressedOffsetSize = 0;
+  }
+
+  info.dataType = valCol->type;
+  info.cmprAlg = compressInfo->cmprAlg;
+  code = tCompressData(tBufferGetData(&valCol->data), tBufferGetSize(&valCol->data), &info, buffer, helperBuffer);
+  if (code) return code;
+  compressInfo->originalDataSize = info.originalSize;
+  compressInfo->compressedDataSize = info.compressedSize;
+
   return 0;
 }
 
-int32_t tValueColumnDecompress(SBuffer *buffer, SValueColumn *valCol) {
-  ASSERT(0);
-  // TODO
+int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColumnCompressInfo *compressInfo,
+                               SValueColumn *valCol, SBuffer *helperBuffer) {
+  int32_t       code;
+  SCompressInfo info;
+
+  tValueColumnClear(valCol);
+
+  valCol->type = compressInfo->type;
+  if (IS_VAR_DATA_TYPE(valCol->type)) {
+    ASSERT(inputSize == compressInfo->compressedOffsetSize + compressInfo->compressedDataSize);
+
+    info.dataType = TSDB_DATA_TYPE_INT;
+    info.cmprAlg = compressInfo->cmprAlg;
+    info.originalSize = compressInfo->originalOffsetSize;
+    info.compressedSize = compressInfo->compressedOffsetSize;
+    code = tDecompressData(input, compressInfo->compressedOffsetSize, &info, &valCol->offsets, helperBuffer);
+    if (code) return code;
+
+    valCol->numOfValues = compressInfo->originalOffsetSize / tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  } else {
+    ASSERT(inputSize == compressInfo->compressedDataSize);
+    valCol->numOfValues = compressInfo->originalDataSize / tDataTypes[valCol->type].bytes;
+  }
+
+  info.dataType = valCol->type;
+  info.cmprAlg = compressInfo->cmprAlg;
+  info.originalSize = compressInfo->originalDataSize;
+  info.compressedSize = compressInfo->compressedDataSize;
+  code = tDecompressData((char *)input + compressInfo->compressedOffsetSize, compressInfo->compressedDataSize, &info,
+                         &valCol->data, helperBuffer);
+  if (code) return code;
+
+  return 0;
+}
+
+int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBufferWriter *writer) {
+  int32_t code;
+  uint8_t formatVersion = 0;
+
+  // format version
+  code = tBufferPutU8(writer, formatVersion);
+  if (code) return code;
+
+  // struct info
+  code = tBufferPutI8(writer, compressInfo->cmprAlg);
+  if (code) return code;
+  code = tBufferPutI8(writer, compressInfo->type);
+  if (code) return code;
+  code = tBufferPutI32v(writer, compressInfo->originalDataSize);
+  if (code) return code;
+  code = tBufferPutI32v(writer, compressInfo->compressedDataSize);
+  if (code) return code;
+  code = tBufferPutI32v(writer, compressInfo->originalOffsetSize);
+  if (code) return code;
+  code = tBufferPutI32v(writer, compressInfo->compressedOffsetSize);
+  if (code) return code;
+
+  return 0;
+}
+
+int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo) {
+  int32_t code;
+  uint8_t formatVersion;
+
+  // format version
+  code = tBufferGetU8(reader, &formatVersion);
+  if (code) return code;
+
+  if (formatVersion == 0) {
+    code = tBufferGetI8(reader, &compressInfo->cmprAlg);
+    if (code) return code;
+    code = tBufferGetI8(reader, &compressInfo->type);
+    if (code) return code;
+    code = tBufferGetI32v(reader, &compressInfo->originalDataSize);
+    if (code) return code;
+    code = tBufferGetI32v(reader, &compressInfo->compressedDataSize);
+    if (code) return code;
+    code = tBufferGetI32v(reader, &compressInfo->originalOffsetSize);
+    if (code) return code;
+    code = tBufferGetI32v(reader, &compressInfo->compressedOffsetSize);
+    if (code) return code;
+  } else {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  return 0;
+}
+
+int32_t tCompressData(const void *input, int32_t inputSize, SCompressInfo *cmprInfo, SBuffer *buffer,
+                      SBuffer *helperBuffer) {
+  cmprInfo->originalSize = inputSize;
+
+  if (cmprInfo->cmprAlg == NO_COMPRESSION) {
+    cmprInfo->compressedSize = inputSize;
+    return tBufferAppend(buffer, input, inputSize);
+  } else {
+    SBuffer  hBuffer;
+    SBuffer *extraBuffer = helperBuffer;
+    int32_t  extraSizeNeeded = inputSize + COMP_OVERFLOW_BYTES;
+
+    tBufferInit(&hBuffer);
+
+    int32_t code = tBufferEnsureCapacity(buffer, buffer->size + extraSizeNeeded);
+    if (code) return code;
+
+    if (cmprInfo->cmprAlg == TWO_STAGE_COMP) {
+      if (extraBuffer == NULL) {
+        extraBuffer = &hBuffer;
+      }
+
+      code = tBufferEnsureCapacity(extraBuffer, extraSizeNeeded);
+      if (code) return code;
+    }
+
+    cmprInfo->compressedSize = tDataTypes[cmprInfo->dataType].compFunc(  //
+        (void *)input,                                                   // input
+        inputSize,                                                       // input size
+        inputSize / tDataTypes[cmprInfo->dataType].bytes,                // number of elements
+        tBufferGetDataEnd(buffer),                                       // output
+        extraSizeNeeded,                                                 // output size
+        cmprInfo->cmprAlg,                                               // compression algorithm
+        tBufferGetData(extraBuffer),                                     // helper buffer
+        extraSizeNeeded                                                  // extra buffer size
+    );
+    if (cmprInfo->compressedSize < 0) {
+      tBufferDestroy(&hBuffer);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+
+    buffer->size += cmprInfo->compressedSize;
+    tBufferDestroy(&hBuffer);
+  }
+
+  return 0;
+}
+
+int32_t tDecompressData(const void *input, int32_t inputSize, const SCompressInfo *cmprInfo, SBuffer *buffer,
+                        SBuffer *helperBuffer) {
+  if (cmprInfo->cmprAlg == NO_COMPRESSION) {
+    ASSERT(inputSize == cmprInfo->originalSize);
+    return tBufferAppend(buffer, input, inputSize);
+  } else {
+    SBuffer  hBuffer;
+    SBuffer *extraBuffer = helperBuffer;
+    int32_t  code;
+
+    tBufferInit(&hBuffer);
+
+    code = tBufferEnsureCapacity(buffer, cmprInfo->originalSize);
+    if (code) return code;
+
+    if (cmprInfo->cmprAlg == TWO_STAGE_COMP) {
+      if (extraBuffer == NULL) {
+        extraBuffer = &hBuffer;
+      }
+      code = tBufferEnsureCapacity(extraBuffer, cmprInfo->originalSize + COMP_OVERFLOW_BYTES);
+      if (code) return code;
+    }
+
+    int32_t decompressedSize = tDataTypes[cmprInfo->dataType].decompFunc(
+        (void *)input,                                                  // input
+        inputSize,                                                      // inputSize
+        cmprInfo->originalSize / tDataTypes[cmprInfo->dataType].bytes,  // number of elements
+        tBufferGetDataEnd(buffer),                                      // output
+        cmprInfo->originalSize,                                         // output size
+        cmprInfo->cmprAlg,                                              // compression algorithm
+        extraBuffer,                                                    // helper buffer
+        cmprInfo->originalSize + COMP_OVERFLOW_BYTES                    // extra buffer size
+    );
+    if (decompressedSize < 0) {
+      tBufferDestroy(&hBuffer);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+    ASSERT(decompressedSize == cmprInfo->originalSize);
+    buffer->size += decompressedSize;
+    tBufferDestroy(&hBuffer);
+  }
+
   return 0;
 }

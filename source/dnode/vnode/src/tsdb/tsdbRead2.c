@@ -591,7 +591,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     }
 
     // 1. time range check
-    if (pRecord->firstKey > w.ekey || pRecord->lastKey < w.skey) {
+    if (pRecord->firstKey.key.ts > w.ekey || pRecord->lastKey.key.ts < w.skey) {
       continue;
     }
 
@@ -609,11 +609,11 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    if (pScanInfo->filesetWindow.skey > pRecord->firstKey) {
-      pScanInfo->filesetWindow.skey = pRecord->firstKey;
+    if (pScanInfo->filesetWindow.skey > pRecord->firstKey.key.ts) {
+      pScanInfo->filesetWindow.skey = pRecord->firstKey.key.ts;
     }
-    if (pScanInfo->filesetWindow.ekey < pRecord->lastKey) {
-      pScanInfo->filesetWindow.ekey = pRecord->lastKey;
+    if (pScanInfo->filesetWindow.ekey < pRecord->lastKey.key.ts) {
+      pScanInfo->filesetWindow.ekey = pRecord->lastKey.key.ts;
     }
 
     pBlockNum->numOfBlocks += 1;
@@ -744,9 +744,9 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
   int32_t endPos = -1;
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
 
-  if (asc && pReader->info.window.ekey >= pRecord->lastKey) {
+  if (asc && pReader->info.window.ekey >= pRecord->lastKey.key.ts) {
     endPos = pRecord->numRow - 1;
-  } else if (!asc && pReader->info.window.skey <= pRecord->firstKey) {
+  } else if (!asc && pReader->info.window.skey <= pRecord->firstKey.key.ts) {
     endPos = 0;
   } else {
     int64_t key = asc ? pReader->info.window.ekey : pReader->info.window.skey;
@@ -889,8 +889,12 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
 
 static void blockInfoToRecord(SBrinRecord* record, SFileDataBlockInfo* pBlockInfo) {
   record->uid = pBlockInfo->uid;
-  record->firstKey = pBlockInfo->firstKey;
-  record->lastKey = pBlockInfo->lastKey;
+  record->firstKey = (STsdbRowKey){
+      .key = {.ts = pBlockInfo->firstKey, .numOfPKs = 0},
+  };
+  record->lastKey = (STsdbRowKey){
+      .key = {.ts = pBlockInfo->lastKey, .numOfPKs = 0},
+  };
   record->minVer = pBlockInfo->minVer;
   record->maxVer = pBlockInfo->maxVer;
   record->blockOffset = pBlockInfo->blockOffset;
@@ -933,9 +937,10 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
 
   // row index of dump info remain the initial position, let's find the appropriate start position.
   if ((pDumpInfo->rowIndex == 0 && asc) || (pDumpInfo->rowIndex == pRecord->numRow - 1 && (!asc))) {
-    if (asc && pReader->info.window.skey <= pRecord->firstKey && pReader->info.verRange.minVer <= pRecord->minVer) {
+    if (asc && pReader->info.window.skey <= pRecord->firstKey.key.ts &&
+        pReader->info.verRange.minVer <= pRecord->minVer) {
       // pDumpInfo->rowIndex = 0;
-    } else if (!asc && pReader->info.window.ekey >= pRecord->lastKey &&
+    } else if (!asc && pReader->info.window.ekey >= pRecord->lastKey.key.ts &&
                pReader->info.verRange.maxVer >= pRecord->maxVer) {
       // pDumpInfo->rowIndex = pRecord->numRow - 1;
     } else {  // find the appropriate the start position in current block, and set it to be the current rowIndex
@@ -948,8 +953,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
         tsdbError(
             "%p failed to locate the start position in current block, global index:%d, table index:%d, brange:%" PRId64
             "-%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64 " %s",
-            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey, pRecord->lastKey, pRecord->minVer,
-            pRecord->maxVer, pReader->idStr);
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey.key.ts, pRecord->lastKey.key.ts,
+            pRecord->minVer, pRecord->maxVer, pReader->idStr);
         return TSDB_CODE_INVALID_PARA;
       }
 
@@ -1058,7 +1063,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
       setBlockAllDumped(pDumpInfo, ts, pReader->info.order);
     }
   } else {
-    int64_t ts = asc ? pRecord->lastKey : pRecord->firstKey;
+    int64_t ts = asc ? pRecord->lastKey.key.ts : pRecord->firstKey.key.ts;
     setBlockAllDumped(pDumpInfo, ts, pReader->info.order);
   }
 
@@ -1068,8 +1073,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
   int32_t unDumpedRows = asc ? pRecord->numRow - pDumpInfo->rowIndex : pDumpInfo->rowIndex + 1;
   tsdbDebug("%p copy file block to sdatablock, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
             ", rows:%d, remain:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", uid:%" PRIu64 " elapsed time:%.2f ms, %s",
-            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey, pRecord->lastKey, dumpedRows,
-            unDumpedRows, pRecord->minVer, pRecord->maxVer, pBlockInfo->uid, elapsedTime, pReader->idStr);
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey.key.ts, pRecord->lastKey.key.ts,
+            dumpedRows, unDumpedRows, pRecord->minVer, pRecord->maxVer, pBlockInfo->uid, elapsedTime, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1131,8 +1136,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
 
   tsdbDebug("%p load file block into buffer, global index:%d, index in table block list:%d, brange:%" PRId64 "-%" PRId64
             ", rows:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", elapsed time:%.2f ms, %s",
-            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey, pRecord->lastKey, pRecord->numRow,
-            pRecord->minVer, pRecord->maxVer, elapsedTime, pReader->idStr);
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pRecord->firstKey.key.ts, pRecord->lastKey.key.ts,
+            pRecord->numRow, pRecord->minVer, pRecord->maxVer, elapsedTime, pReader->idStr);
 
   pReader->cost.blockLoadTime += elapsedTime;
   pDumpInfo->allDumped = false;
@@ -1235,9 +1240,9 @@ static int32_t setFileBlockActiveInBlockIter(STsdbReader* pReader, SDataBlockIte
 static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* pRec, int32_t order) {
   // it is the last block in current file, no chance to overlap with neighbor blocks.
   if (ASCENDING_TRAVERSE(order)) {
-    return pBlock->lastKey == pRec->firstKey;
+    return pBlock->lastKey == pRec->firstKey.key.ts;
   } else {
-    return pBlock->firstKey == pRec->lastKey;
+    return pBlock->firstKey == pRec->lastKey.key.ts;
   }
 }
 

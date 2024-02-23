@@ -33,9 +33,12 @@ static int32_t tBufferDestroy(SBuffer *buffer);
 static int32_t tBufferClear(SBuffer *buffer);
 static int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity);
 static int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size);
-#define tBufferGetSize(buffer)     ((buffer)->size)
-#define tBufferGetCapacity(buffer) ((buffer)->capacity)
-#define tBufferGetData(buffer)     ((buffer)->data)
+static int32_t tBufferGet(SBuffer *buffer, int32_t index, uint32_t size, void *data);
+#define tBufferGetSize(buffer)        ((buffer)->size)
+#define tBufferGetCapacity(buffer)    ((buffer)->capacity)
+#define tBufferGetData(buffer)        ((buffer)->data)
+#define tBufferGetDataAt(buffer, idx) ((char *)(buffer)->data + (idx))
+#define tBufferGetDataEnd(buffer)     ((char *)(buffer)->data + (buffer)->size)
 
 // SBufferWriter
 #define BUFFER_WRITER_INITIALIZER(forward, offset, buffer) ((SBufferWriter){forward, offset, buffer})
