@@ -1036,7 +1036,7 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
       ++pMemFile->numMemPages;
     }
     {
-      fseek(pMemFile->pTdFile, pageId * pMemFile->pageSize, SEEK_SET);
+      fseeko(pMemFile->pTdFile, ((int64_t)pageId) * pMemFile->pageSize, SEEK_SET);
       fread(pEntry->data, pMemFile->pageSize, 1, pMemFile->pTdFile);      
       SSortMemPageEntry* tail = pMemFile->pagesTail;
       tail->next = pEntry;
