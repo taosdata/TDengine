@@ -177,6 +177,13 @@
     }                                                                 \
   } while (0)
 
+#define GRANT_CHECK_ERROR_LOG(item, cv, lv)                            \
+  do {                                                                 \
+    uError("failed to grant check since current number of %s %" PRIi64 \
+           " is larger than the licensed upper limit %" PRIi64,        \
+           (item), (int64_t)(cv), (int64_t)(lv));                      \
+  } while (0)
+
 #ifdef GRANTS_CFG
 #define GRANT_VERSION ("cloud")
 #else
@@ -1724,25 +1731,35 @@ _exit:
 static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
   // basic
   if ((pObj->limitTimeSeries > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurTimeSeries(pMnode) > pObj->limitTimeSeries)) {
+      ((gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode)) > pObj->limitTimeSeries)) {
+    GRANT_CHECK_ERROR_LOG("time series", gStatus.curTimeSeries, pObj->limitTimeSeries);
     return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
   }
-  if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurDnodes(pMnode) > pObj->limitDnodes)) {
+  if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curDnodes = grantGetClusterCurDnodes(pMnode)) > pObj->limitDnodes)) {
+    GRANT_CHECK_ERROR_LOG("dnodes", gStatus.curDnodes, pObj->limitDnodes);
     return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
-  if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurCores(pMnode) > pObj->limitCpuCores)) {
+  if ((pObj->limitCpuCores > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curCpuCores = grantGetClusterCurCores(pMnode)) > pObj->limitCpuCores)) {
+    GRANT_CHECK_ERROR_LOG("cpu cores", gStatus.curCpuCores, pObj->limitCpuCores);
     return TSDB_CODE_GRANT_CPU_LIMITED;
   }
 
   // optional
-  if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurStreams(pMnode) > pObj->limitStreams)) {
+  if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStreams = grantGetClusterCurStreams(pMnode)) > pObj->limitStreams)) {
+    GRANT_CHECK_ERROR_LOG("streams", gStatus.curStreams, pObj->limitStreams);
     return TSDB_CODE_GRANT_STREAM_LIMITED;
   }
   if ((pObj->limitSubscriptions > GRANT_UNIQ_UNLIMITED) &&
-      (grantGetClusterCurTopics(pMnode) > pObj->limitSubscriptions)) {
+      ((gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode)) > pObj->limitSubscriptions)) {
+    GRANT_CHECK_ERROR_LOG("topics", gStatus.curSubscriptions, pObj->limitSubscriptions);
     return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
-  if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) && (grantGetClusterCurViews(pMnode) > pObj->limitViews)) {
+  if ((pObj->limitViews > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curViews = grantGetClusterCurViews(pMnode)) > pObj->limitViews)) {
+    GRANT_CHECK_ERROR_LOG("views", gStatus.curViews, pObj->limitViews);
     return TSDB_CODE_GRANT_VIEW_LIMITED;
   }
 
@@ -2044,14 +2061,10 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (isDataIn) {
-    if (expire == GRANT_UNIQ_UNLIMITED) {
-      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
-               curVal, limit, expire, GRANT_UNIQ_UNLIMITED_S);
-    } else {
-      grantSecondsToString(expire, ts);
-      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
-               curVal, limit, expire, ts);
-    }
+    if (expire != GRANT_UNIQ_UNLIMITED) grantSecondsToString(expire, ts);
+    snprintf(qBuf, colLen,
+             "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
+             curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
     snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
