@@ -108,9 +108,10 @@ static void deregisterRequest(SRequestObj *pRequest) {
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
       sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
-    } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
-      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
-    }
+    } 
+  }
+  if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
   }
 
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
