@@ -509,6 +509,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
           if (pRange->range.minVer == 0) {
             pChkInfo->checkpointVer = 0;
             pChkInfo->processedVer = 0;
+            pChkInfo->nextProcessVer = 1;
             stDebug("s-task:%s update the processedVer to 0 from -1 due to compatible purpose", pTask->id.idStr);
           }
         }
