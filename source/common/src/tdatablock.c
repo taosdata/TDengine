@@ -2139,7 +2139,7 @@ bool alreadyAddGroupId(char* ctbName) {
     _location--;
   }
 
-  return ctbName[_location] == '_' && len - 1 - _location > 15;  // 15 means the min length of groupid
+  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
