@@ -462,6 +462,13 @@ class TDTestCase:
         ## self.test_query_with_drop_tsma()
         ## self.test_query_with_add_tag()
         ## self.test_union()
+        self.test_query_sub_table()
+
+    def test_query_sub_table(self):
+        sql = 'select avg(c1) from t1'
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
+        self.tsma_tester.check_sql(sql, ctx)
+
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')

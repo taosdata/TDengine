@@ -2656,6 +2656,7 @@ int32_t ctgLaunchGetTbTSMATask(SCtgTask* pTask) {
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   int32_t fetchIdx = 0, baseResIdx = 0;
 
+  // TODO test multi tables from multi dbs
   for (int32_t idx = 0; idx < dbNum; ++idx) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, idx);
     CTG_ERR_RET(ctgGetTbTSMAFromCache(pCtg, pCtx, idx, &fetchIdx, baseResIdx, pReq->pTables));

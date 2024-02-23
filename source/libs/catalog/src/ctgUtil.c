@@ -511,6 +511,7 @@ void ctgClearHandle(SCatalog* pCtg) {
   ctgMetaRentInit(&pCtg->dbRent, gCtgMgmt.cfg.dbRentSec, CTG_RENT_DB, sizeof(SDbCacheInfo));
   ctgMetaRentInit(&pCtg->stbRent, gCtgMgmt.cfg.stbRentSec, CTG_RENT_STABLE, sizeof(SSTableVersion));
   ctgMetaRentInit(&pCtg->viewRent, gCtgMgmt.cfg.viewRentSec, CTG_RENT_VIEW, sizeof(SViewVersion));
+  ctgMetaRentInit(&pCtg->tsmaRent, gCtgMgmt.cfg.tsmaRentSec, CTG_RENT_TSMA, sizeof(STSMAVersion));
 
   pCtg->dbCache = taosHashInit(gCtgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
                                HASH_ENTRY_LOCK);
