@@ -4,7 +4,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Subcommand};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
-use reqwest::Url;
 use serde::Deserialize;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Taos};
 
@@ -488,8 +487,6 @@ impl Cli {
             } => {
                 tracing::info!("starting replication to {}", endpoint);
                 tracing::info!("replicating databases: {:?}", databases);
-                let _ =
-                    Url::parse(&endpoint).map_err(|err| anyhow!("invalid endpoint: {}", err))?;
                 println!("starting replication to {}", endpoint);
                 config.assert_server_alive().await?;
                 println!("taosX server is alive");
