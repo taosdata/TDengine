@@ -87,6 +87,7 @@ static const signed char index_58[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
+  const char *pb = value;
   const char *pe = value + inlen;
   uint8_t     buf[TBASE_BUF_SIZE] = {0};
   uint8_t    *pbuf = &buf[0];
@@ -98,20 +99,22 @@ uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < inlen; ++i) {
-    if (value[i] == 0) {
+  while (pb != pe) {
+    if (*pb == 0) {
       terrno = TSDB_CODE_INVALID_PARA;
       return NULL;
     }
+    ++pb;
   }
 
-  while (*value && isspace(*value)) ++value;
-  while (*value == '1') {
+  pb = value;
+  while (pb != pe && *pb && isspace(*pb)) ++pb;
+  while (pb != pe && *pb == '1') {
     ++nz;
-    ++value;
+    ++pb;
   }
 
-  size = (int32_t)(pe - value) * 733 / 1000 + 1;
+  size = (int32_t)(pe - pb) * 733 / 1000 + 1;
   if (size > TBASE_BUF_SIZE) {
     if (!(pbuf = taosMemoryCalloc(1, size))) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -120,8 +123,8 @@ uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
     bfree = true;
   }
 
-  while (*value && !isspace(*value)) {
-    int32_t num = index_58[(uint8_t)*value];
+  while (pb != pe && *pb && !isspace(*pb)) {
+    int32_t num = index_58[(uint8_t)*pb];
     if (num == -1) {
       terrno = TSDB_CODE_INVALID_PARA;
       if (bfree) taosMemoryFree(pbuf);
@@ -134,11 +137,11 @@ uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
       num >>= 8;
     }
     len = i;
-    ++value;
+    ++pb;
   }
 
-  while (isspace(*value)) ++value;
-  if (*value != 0) {
+  while (pb != pe && isspace(*pb)) ++pb;
+  if (*pb != 0) {
     if (bfree) taosMemoryFree(pbuf);
     return NULL;
   }
