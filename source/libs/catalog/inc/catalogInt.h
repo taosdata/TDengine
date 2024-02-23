@@ -263,6 +263,7 @@ typedef struct SCtgViewsCtx {
 } SCtgViewsCtx;
 
 typedef enum {
+  FETCH_TB_META,
   FETCH_TSMA_FOR_TB,
   FETCH_PROGRESS_FOR_TSMA,
 } CTG_TSMA_FETCH_TYPE;
