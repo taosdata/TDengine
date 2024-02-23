@@ -382,11 +382,12 @@ pub async fn generate_config_from_csv(
                         };
                         stable
                     } else {
-                        if stable_prefix.is_none() {
-                            stable_prefix = Some(String::from("opc"));
-                        }
                         None
                     };
+
+                    if stable.is_none() && stable_prefix.is_none() {
+                        stable_prefix = Some(String::from("opc"));
+                    }
 
                     // enabled
                     let code = record_map.get("tbname").unwrap();
