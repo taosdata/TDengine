@@ -24,6 +24,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tms_memleak.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
