@@ -1250,7 +1250,7 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
     }                                           \
   } while (0)
 
-static int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
+int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
   ASSERT(tv1->type == tv2->type);
 
   switch (tv1->type) {

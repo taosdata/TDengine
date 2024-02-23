@@ -29,7 +29,8 @@ struct SSttFileReader {
   TSttBlkArray    sttBlkArray[1];
   TStatisBlkArray statisBlkArray[1];
   TTombBlkArray   tombBlkArray[1];
-  uint8_t        *bufArr[5];
+  uint8_t        *bufArr[5];  // TODO: remove here
+  SBuffer        *buffers;
 };
 
 // SSttFileReader
@@ -471,25 +472,68 @@ _exit:
 int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *statisBlock) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  code = tRealloc(&reader->config->bufArr[0], statisBlk->dp->size);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbReadFile(reader->fd, statisBlk->dp->offset, reader->config->bufArr[0], statisBlk->dp->size, 0);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   int64_t size = 0;
+
+  // load data from file
+  code = tBufferEnsureCapacity(&reader->buffers[0], statisBlk->dp->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->fd, statisBlk->dp->offset, reader->buffers[0].data, statisBlk->dp->size, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // decode data
   tStatisBlockClear(statisBlock);
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
-    code =
-        tsdbDecmprData(reader->config->bufArr[0] + size, statisBlk->size[i], TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
-                       &reader->config->bufArr[1], sizeof(int64_t) * statisBlk->numRec, &reader->config->bufArr[2]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  statisBlock->numOfPKs = statisBlk->numOfPKs;
+  statisBlock->numOfRecords = statisBlk->numRec;
 
-    code = TARRAY2_APPEND_BATCH(statisBlock->dataArr + i, reader->config->bufArr[1], statisBlk->numRec);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
+    SCompressInfo info = {
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .cmprAlg = statisBlk->cmprAlg,
+        .compressedSize = statisBlk->size[i],
+        .originalSize = statisBlk->numRec * sizeof(int64_t),
+    };
 
+    code = tDecompressData(tBufferGetDataAt(&reader->buffers[0], size), statisBlk->size[i], &info,
+                           &statisBlock->buffers[i], &reader->buffers[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
     size += statisBlk->size[i];
+  }
+
+  if (statisBlk->numOfPKs > 0) {
+    SValueColumnCompressInfo firstKeyInfos[TD_MAX_PRIMARY_KEY_COL];
+    SValueColumnCompressInfo lastKeyInfos[TD_MAX_PRIMARY_KEY_COL];
+    SBufferReader            bfReader;
+
+    tBufferReaderInit(&bfReader, true, size, &reader->buffers[0]);
+
+    // decode compress info
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&bfReader, &firstKeyInfos[i]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&bfReader, &lastKeyInfos[i]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    size = bfReader.offset;
+
+    // decode value columns
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), firstKeyInfos[i].compressedDataSize,
+                                    &firstKeyInfos[i], &statisBlock->firstKeyPKs[i], &reader->buffers[1]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      size += firstKeyInfos[i].compressedDataSize;
+    }
+
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), lastKeyInfos[i].compressedDataSize,
+                                    &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], &reader->buffers[1]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      size += lastKeyInfos[i].compressedDataSize;
+    }
   }
 
   ASSERT(size == statisBlk->dp->size);
@@ -524,7 +568,8 @@ struct SSttFileWriter {
   // helper data
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
-  uint8_t *bufArr[5];
+  uint8_t *bufArr[5];  // TODO: remove this
+  SBuffer *buffers;
 };
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
@@ -595,45 +640,88 @@ _exit:
 }
 
 static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
-  if (STATIS_BLOCK_SIZE(writer->staticBlock) == 0) return 0;
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  STbStatisRecord record;
+  STbStatisBlock *statisBlock = writer->staticBlock;
+  SStatisBlk      statisBlk = {0};
 
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  SStatisBlk statisBlk[1] = {{
-      .dp[0] =
-          {
-              .offset = writer->file->size,
-              .size = 0,
-          },
-      .minTbid =
-          {
-              .suid = TARRAY2_FIRST(writer->staticBlock->suid),
-              .uid = TARRAY2_FIRST(writer->staticBlock->uid),
-          },
-      .maxTbid =
-          {
-              .suid = TARRAY2_LAST(writer->staticBlock->suid),
-              .uid = TARRAY2_LAST(writer->staticBlock->uid),
-          },
-      .numRec = STATIS_BLOCK_SIZE(writer->staticBlock),
-      .cmprAlg = writer->config->cmprAlg,
-  }};
-
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; i++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->staticBlock->dataArr + i),
-                        TARRAY2_DATA_LEN(&writer->staticBlock->dataArr[i]), TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &statisBlk->size[i], &writer->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], statisBlk->size[i]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    statisBlk->dp->size += statisBlk->size[i];
-    writer->file->size += statisBlk->size[i];
+  if (statisBlock->numOfRecords == 0) {
+    return 0;
   }
 
-  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, statisBlk);
+  statisBlk.dp->offset = writer->file->size;
+  statisBlk.dp->size = 0;
+  statisBlk.numRec = statisBlock->numOfRecords;
+  statisBlk.cmprAlg = writer->config->cmprAlg;
+  statisBlk.numOfPKs = statisBlock->numOfPKs;
+
+  tStatisBlockGet(statisBlock, 0, &record);
+  statisBlk.minTbid.suid = record.suid;
+  statisBlk.minTbid.uid = record.uid;
+
+  tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
+  statisBlk.maxTbid.suid = record.suid;
+  statisBlk.maxTbid.uid = record.uid;
+
+  // compress each column
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlk.size); i++) {
+    SCompressInfo info = {
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .cmprAlg = statisBlk.cmprAlg,
+    };
+
+    tBufferClear(&writer->buffers[0]);
+    code = tCompressData(tBufferGetData(&statisBlock->buffers[i]), tBufferGetSize(&statisBlock->buffers[i]), &info,
+                         &writer->buffers[0], &writer->buffers[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbWriteFile(writer->fd, writer->file->size, tBufferGetData(&writer->buffers[0]), info.compressedSize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    statisBlk.size[i] = info.compressedSize;
+    statisBlk.dp->size += info.compressedSize;
+    writer->file->size += info.compressedSize;
+  }
+
+  // compress primary keys
+  if (statisBlk.numOfPKs > 0) {
+    SBufferWriter            bfWriter;
+    SValueColumnCompressInfo compressInfo = {.cmprAlg = statisBlk.cmprAlg};
+
+    tBufferClear(&writer->buffers[0]);
+    tBufferClear(&writer->buffers[1]);
+    tBufferWriterInit(&bfWriter, true, 0, &writer->buffers[0]);
+
+    for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
+      code =
+          tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, &writer->buffers[1], &writer->buffers[2]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tValueColumnCompressInfoEncode(&compressInfo, &bfWriter);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
+      code = tValueColumnCompress(&statisBlock->lastKeyPKs[i], &compressInfo, &writer->buffers[1], &writer->buffers[2]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tValueColumnCompressInfoEncode(&compressInfo, &bfWriter);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    code = tsdbWriteFile(writer->fd, writer->file->size, writer->buffers[0].data, writer->buffers[0].size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->file->size += writer->buffers[0].size;
+    statisBlk.dp->size += writer->buffers[0].size;
+
+    code = tsdbWriteFile(writer->fd, writer->file->size, writer->buffers[1].data, writer->buffers[1].size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->file->size += writer->buffers[1].size;
+    statisBlk.dp->size += writer->buffers[1].size;
+  }
+
+  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   tStatisBlockClear(writer->staticBlock);
@@ -918,14 +1006,8 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDBKEY key[1];
-  if (row->row.type == TSDBROW_ROW_FMT) {
-    key->ts = row->row.pTSRow->ts;
-    key->version = row->row.version;
-  } else {
-    key->ts = row->row.pBlockData->aTSKEY[row->row.iRow];
-    key->version = row->row.pBlockData->aVersion[row->row.iRow];
-  }
+  STsdbRowKey key;
+  tsdbRowGetKey(&row->row, &key);
 
   if (writer->ctx->tbid->uid != row->uid) {
     writer->ctx->tbid->suid = row->suid;
@@ -939,18 +1021,22 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     STbStatisRecord record = {
         .suid = row->suid,
         .uid = row->uid,
-        .firstKey = key->ts,
-        .lastKey = key->ts,
+        .firstKey = key.key,
+        .lastKey = key.key,
         .count = 1,
     };
     code = tStatisBlockPut(writer->staticBlock, &record);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    ASSERT(key->ts >= TARRAY2_LAST(writer->staticBlock->lastKey));
+    // update last key and count
+    STbStatisRecord record;
 
-    if (key->ts > TARRAY2_LAST(writer->staticBlock->lastKey)) {
-      TARRAY2_LAST(writer->staticBlock->count)++;
-      TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;
+    tStatisBlockGet(writer->staticBlock, writer->staticBlock->numOfRecords, &record);
+
+    if (tRowKeyCmpr(&key.key, &record.lastKey) > 0) {
+      // TODO: update count and last key
+      //   TARRAY2_LAST(writer->staticBlock->count)++;
+      //   TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;
     }
   }
 
@@ -961,7 +1047,7 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   // row to col conversion
-  if (key->version <= writer->config->compactVersion                                                           //
+  if (key.version <= writer->config->compactVersion                                                            //
       && writer->blockData->nRow > 0                                                                           //
       && (writer->blockData->uid                                                                               //
               ? writer->blockData->uid                                                                         //

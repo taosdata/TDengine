@@ -115,6 +115,7 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
                                SValueColumn *valCol, SBuffer *helperBuffer);
 int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBufferWriter *writer);
 int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo);
+int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);

@@ -70,27 +70,29 @@ int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record);
 int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);
 
 // STbStatisRecord ----------
-#define STATIS_RECORD_NUM_ELEM 5
-typedef union {
-  int64_t dataArr[STATIS_RECORD_NUM_ELEM];
-  struct {
-    int64_t suid;
-    int64_t uid;
-    int64_t firstKey;
-    int64_t lastKey;
-    int64_t count;
-  };
+typedef struct {
+  int64_t suid;
+  int64_t uid;
+  SRowKey firstKey;
+  SRowKey lastKey;
+  int64_t count;
 } STbStatisRecord;
 
-typedef union {
-  TARRAY2(int64_t) dataArr[STATIS_RECORD_NUM_ELEM];
-  struct {
-    TARRAY2(int64_t) suid[1];
-    TARRAY2(int64_t) uid[1];
-    TARRAY2(int64_t) firstKey[1];
-    TARRAY2(int64_t) lastKey[1];
-    TARRAY2(int64_t) count[1];
+typedef struct {
+  int8_t  numOfPKs;
+  int32_t numOfRecords;
+  union {
+    SBuffer buffers[5];
+    struct {
+      SBuffer suids;
+      SBuffer uids;
+      SBuffer firstKeyTimestamps;
+      SBuffer lastKeyTimestamps;
+      SBuffer counts;
+    };
   };
+  SValueColumn firstKeyPKs[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumn lastKeyPKs[TD_MAX_PRIMARY_KEY_COL];
 } STbStatisBlock;
 
 typedef struct {
@@ -98,12 +100,13 @@ typedef struct {
   TABLEID   minTbid;
   TABLEID   maxTbid;
   int32_t   numRec;
-  int32_t   size[STATIS_RECORD_NUM_ELEM];
+  int32_t   size[5];
   int8_t    cmprAlg;
-  int8_t    rsvd[7];
+  int8_t    numOfPKs;  // number of primary keys
+  int8_t    rsvd[6];
 } SStatisBlk;
 
-#define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
+#define STATIS_BLOCK_SIZE(db) ((db)->numOfRecords)
 
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
 int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock);

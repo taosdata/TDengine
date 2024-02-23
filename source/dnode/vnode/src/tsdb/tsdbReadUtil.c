@@ -356,7 +356,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record){
+static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -429,7 +429,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     }
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
-      SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
       recordToBlockInfo(&blockInfo, record);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
@@ -464,7 +464,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t index = sup.indexPerTable[pos]++;
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
-    SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
     recordToBlockInfo(&blockInfo, record);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
@@ -722,11 +722,11 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   pBlockLoadInfo->cost.statisElapsedTime += el;
 
   int32_t index = 0;
-  while (index < TARRAY2_SIZE(pStatisBlock->suid) && pStatisBlock->suid->data[index] < suid) {
+  while (index < pStatisBlock->numOfRecords && ((int64_t*)pStatisBlock->suids.data)[index] < suid) {
     ++index;
   }
 
-  if (index >= TARRAY2_SIZE(pStatisBlock->suid)) {
+  if (index >= pStatisBlock->numOfRecords) {
     tStatisBlockDestroy(pStatisBlock);
     taosMemoryFreeClear(pStatisBlock);
     return num;
@@ -744,14 +744,14 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
 
     uint64_t uid = pUidList[uidIndex];
 
-    if (pStatisBlock->uid->data[j] == uid) {
-      num += pStatisBlock->count->data[j];
+    if (((int64_t*)pStatisBlock->uids.data)[j] == uid) {
+      num += ((int64_t*)pStatisBlock->counts.data)[j];
       uidIndex += 1;
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
-    } else if (pStatisBlock->uid->data[j] < uid) {
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+    } else if (((int64_t*)pStatisBlock->uids.data)[j] < uid) {
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
     } else {
       uidIndex += 1;
     }

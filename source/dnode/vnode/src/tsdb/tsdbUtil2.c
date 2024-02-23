@@ -66,40 +66,103 @@ int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
 
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
-    TARRAY2_INIT(&statisBlock->dataArr[i]);
+  statisBlock->numOfPKs = 0;
+  statisBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
+    tBufferInit(&statisBlock->buffers[i]);
+  }
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnInit(&statisBlock->firstKeyPKs[i]);
+    tValueColumnInit(&statisBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
-    TARRAY2_DESTROY(&statisBlock->dataArr[i], NULL);
+  statisBlock->numOfPKs = 0;
+  statisBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
+    tBufferDestroy(&statisBlock->buffers[i]);
+  }
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnDestroy(&statisBlock->firstKeyPKs[i]);
+    tValueColumnDestroy(&statisBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
-    TARRAY2_CLEAR(&statisBlock->dataArr[i], NULL);
+  statisBlock->numOfPKs = 0;
+  statisBlock->numOfRecords = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
+    tBufferClear(&statisBlock->buffers[i]);
+  }
+  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+    tValueColumnClear(&statisBlock->firstKeyPKs[i]);
+    tValueColumnClear(&statisBlock->lastKeyPKs[i]);
   }
   return 0;
 }
 
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record) {
   int32_t code;
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
-    code = TARRAY2_APPEND(&statisBlock->dataArr[i], record->dataArr[i]);
+
+  if (statisBlock->numOfRecords == 0) {
+    statisBlock->numOfPKs = record->firstKey.numOfPKs;
+  }
+
+  ASSERT(statisBlock->numOfPKs == record->firstKey.numOfPKs);
+  ASSERT(statisBlock->numOfPKs == record->lastKey.numOfPKs);
+
+  code = tBufferAppend(&statisBlock->suids, &record->suid, sizeof(record->suid));
+  if (code) return code;
+  code = tBufferAppend(&statisBlock->uids, &record->uid, sizeof(record->uid));
+  if (code) return code;
+  code = tBufferAppend(&statisBlock->firstKeyTimestamps, &record->firstKey.ts, sizeof(record->firstKey.ts));
+  if (code) return code;
+  code = tBufferAppend(&statisBlock->lastKeyTimestamps, &record->lastKey.ts, sizeof(record->lastKey.ts));
+  if (code) return code;
+  code = tBufferAppend(&statisBlock->counts, &record->count, sizeof(record->count));
+  if (code) return code;
+
+  for (int32_t i = 0; i < statisBlock->numOfPKs; ++i) {
+    code = tValueColumnAppend(&statisBlock->firstKeyPKs[i], &record->firstKey.pks[i]);
+    if (code) return code;
+    code = tValueColumnAppend(&statisBlock->lastKeyPKs[i], &record->lastKey.pks[i]);
     if (code) return code;
   }
+
+  statisBlock->numOfRecords++;
   return 0;
 }
 
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record) {
-  if (idx >= STATIS_BLOCK_SIZE(statisBlock)) return TSDB_CODE_OUT_OF_RANGE;
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
-    record->dataArr[i] = TARRAY2_GET(&statisBlock->dataArr[i], idx);
+  int32_t code;
+
+  if (idx < 0 || idx >= statisBlock->numOfRecords) {
+    return TSDB_CODE_OUT_OF_RANGE;
   }
+
+  code = tBufferGet(&statisBlock->suids, idx, sizeof(record->suid), &record->suid);
+  if (code) return code;
+  code = tBufferGet(&statisBlock->uids, idx, sizeof(record->uid), &record->uid);
+  if (code) return code;
+  code = tBufferGet(&statisBlock->firstKeyTimestamps, idx, sizeof(record->firstKey.ts), &record->firstKey.ts);
+  if (code) return code;
+  code = tBufferGet(&statisBlock->lastKeyTimestamps, idx, sizeof(record->lastKey.ts), &record->lastKey.ts);
+  if (code) return code;
+  code = tBufferGet(&statisBlock->counts, idx, sizeof(record->count), &record->count);
+  if (code) return code;
+
+  record->firstKey.numOfPKs = statisBlock->numOfPKs;
+  record->lastKey.numOfPKs = statisBlock->numOfPKs;
+  for (int32_t i = 0; i < statisBlock->numOfPKs; ++i) {
+    code = tValueColumnGet(&statisBlock->firstKeyPKs[i], idx, &record->firstKey.pks[i]);
+    if (code) return code;
+    code = tValueColumnGet(&statisBlock->lastKeyPKs[i], idx, &record->lastKey.pks[i]);
+    if (code) return code;
+  }
+
   return 0;
 }
 
