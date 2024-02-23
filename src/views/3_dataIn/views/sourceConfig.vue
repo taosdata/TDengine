@@ -106,7 +106,7 @@
         <el-button type="primary" @click="save" size="small">{{
           isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
         }}</el-button>
-        <el-button @click="cancel" class="cancel-btn" size="small">{{
+         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
       </section>
@@ -403,6 +403,7 @@ export default {
 
     edit() {
       this.isShowEditBtn = false;
+      this.clearTargetDBWhenDelete();
     },
 
     save() {
@@ -508,10 +509,24 @@ export default {
       try {
         let data = await getDBListReq();
         this.dbList = data.filter((v) => v.name !== "audit" && v.name !== 'log');
+
+        // 在编辑状态下，判断如果 targetDb 不为空，并且 targetDB 不在 dbList 中，则将 targetDB 置空
+        if (this.isCopyable) {
+          this.clearTargetDBWhenDelete();
+        }
+
       } catch (error) {
         console.log(error);
       }
     },
+
+    clearTargetDBWhenDelete() {
+      if (this.sourceForm.targetDB 
+            && !this.dbList.find((v) => v.name === this.sourceForm.targetDB)) {
+          this.sourceForm.targetDB = "";
+        }
+    },
+
     createAgent() {
       this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.$store.commit("SET_DIALOG", {
