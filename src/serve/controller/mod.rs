@@ -22,6 +22,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::utils::{get_main_version_from_server_version, get_server_version};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -819,10 +820,16 @@ impl TaskController {
             _ => unreachable!(),
         };
 
+        // get tdengine server version and handle compatibility
+        let server_version = get_server_version(&taos).await?;
+        let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
+        let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+        } else {
+            format!("select `{connector}` from information_schema.ins_grants")
+        };
         let license: ConnectorLicense = taos
-            .query_one::<_, String>(format!(
-                "select `{connector}` from information_schema.ins_grants"
-            ))
+            .query_one::<_, String>(grants_sql)
             .await
             .context("Cannot retrieve license")?
             .ok_or_else(|| {
@@ -833,23 +840,23 @@ impl TaskController {
                     .with_context(|| format!("Cannot parse license from str: {s}"))
             })?;
 
-        if let Some(days) = license.expired_days() {
-            anyhow::bail!(
-                "The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.",
-                connector, days
-            )
+        // since 3.2.3.0, the expired time is in seconds
+        let expired_days = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+            license.expired_seconds().map(|s| (s / 86400) as u32)
         } else {
-            match license.number {
-                0 => anyhow::bail!("The current connector {connector} is disabled by license."),
-                n if n > 0 => {
-                    if used > n as usize {
-                        anyhow::bail!(
-                            "The current connector {connector} reaches connection number limit({n}) by license"
-                        );
-                    }
+            license.expired_days()
+        };
+        if let Some(days) = expired_days {
+            anyhow::bail!("The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.", connector, days)
+        }
+        match license.number {
+            0 => anyhow::bail!("The current connector {connector} is disabled by license."),
+            n if n > 0 => {
+                if used > n as usize {
+                    anyhow::bail!("The current connector {connector} reaches connection number limit({n}) by license");
                 }
-                _ => (),
             }
+            _ => (),
         }
         Ok(())
     }

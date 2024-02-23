@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicU32, AtomicU64},
     Arc,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use chrono::NaiveDate;
@@ -80,15 +81,16 @@ pub struct Transferred {
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct ConnectorLicense {
-    pub r#type: String,
+    pub r#type: Option<String>,
     pub number: i64,
     pub speed: i64,
     #[serde_as(as = "serde_with::DisplayFromStr")]
-    pub expire: u16,
+    pub expire: u64,
+    pub expire_time: Option<String>,
 }
 
 impl ConnectorLicense {
-    pub fn is_expired(&self) -> bool {
+    pub fn is_expired_day(&self) -> bool {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
@@ -105,6 +107,28 @@ impl ConnectorLicense {
             None
         }
     }
+
+    pub fn is_expired_second(&self) -> bool {
+        let seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        seconds > self.expire as u64
+    }
+
+    pub fn expired_seconds(&self) -> Option<u64> {
+        let seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if seconds > self.expire as u64 {
+            Some((seconds - self.expire as u64) as u64)
+        } else {
+            None
+        }
+    }
 }
 
 #[test]
@@ -112,7 +136,7 @@ fn test_connector_license() {
     let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"19658"}"#;
     let license: ConnectorLicense = serde_json::from_str(s).unwrap();
     dbg!(&license);
-    assert!(license.is_expired());
+    assert!(license.is_expired_day());
 }
 
 pub enum TaskNotify {
