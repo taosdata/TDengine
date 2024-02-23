@@ -1,4 +1,4 @@
-/target
+# /target
 USER_MANUAL.md
 TODO.md
 TDengine
@@ -19,8 +19,8 @@ logs/*
 release
 centos7.target
 vendor
-plugins/opentsdb/target/
-plugins/opc/taosx-opc
-plugins/mqtt/mqtt
-plugins/mqtt/target/
-plugins/opc/target/
+# plugins/opentsdb/target/
+# plugins/opc/taosx-opc
+# plugins/mqtt/mqtt
+# plugins/mqtt/target/
+# plugins/opc/target/
