@@ -141,7 +141,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
     memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
     taosMemoryFreeClear(machineId);
   } else {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && !defined(GRANTS_CFG)
     terrno = TSDB_CODE_DNODE_NO_MACHINE_CODE;
     goto _OVER;
 #endif
@@ -410,9 +410,6 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     dInfo.ep.port = pDnode->port;
     dInfo.offlineReason = pDnode->offlineReason;
     tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
-    tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
-    tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
-    tstrncpy(dInfo.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
     sdbRelease(pSdb, pDnode);
     if (mndIsMnode(pMnode, pDnode->id)) {
       dInfo.isMnode = 1;

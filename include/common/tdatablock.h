@@ -32,6 +32,9 @@ typedef struct SBlockOrderInfo {
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
+#define BLOCK_VERSION_1          1
+#define BLOCK_VERSION_2          2
+
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])

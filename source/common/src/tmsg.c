@@ -7513,6 +7513,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (pReq->alterOriDataLen > 0) {
     if (tEncodeBinary(pCoder, pReq->alterOriData, pReq->alterOriDataLen) < 0) return -1;
   }
+  if (tEncodeI8(pCoder, pReq->source) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -7533,6 +7534,10 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeI32(pCoder, &pReq->alterOriDataLen) < 0) return -1;
   if (pReq->alterOriDataLen > 0) {
     if (tDecodeBinary(pCoder, (uint8_t **)&pReq->alterOriData, NULL) < 0) return -1;
+  }
+
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI8(pCoder, &pReq->source) < 0) return -1;
   }
 
   tEndDecode(pCoder);
@@ -7663,6 +7668,8 @@ int tEncodeSVCreateTbBatchReq(SEncoder *pCoder, const SVCreateTbBatchReq *pReq) 
     if (tEncodeSVCreateTbReq(pCoder, (SVCreateTbReq *)taosArrayGet(pReq->pArray, iReq)) < 0) return -1;
   }
 
+  if (tEncodeI8(pCoder, pReq->source) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -7675,6 +7682,10 @@ int tDecodeSVCreateTbBatchReq(SDecoder *pCoder, SVCreateTbBatchReq *pReq) {
   if (pReq->pReqs == NULL) return -1;
   for (int iReq = 0; iReq < pReq->nReqs; iReq++) {
     if (tDecodeSVCreateTbReq(pCoder, pReq->pReqs + iReq) < 0) return -1;
+  }
+
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI8(pCoder, &pReq->source) < 0) return -1;
   }
 
   tEndDecode(pCoder);
@@ -8034,6 +8045,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       break;
   }
   if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
+  if (tEncodeI8(pEncoder, pReq->source) < 0) return -1;
 
   tEndEncode(pEncoder);
   return 0;
@@ -8093,6 +8105,9 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   pReq->ctimeMs = 0;
   if (!tDecodeIsEnd(pDecoder)) {
     if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (tDecodeI8(pDecoder, &pReq->source) < 0) return -1;
   }
 
   tEndDecode(pDecoder);
@@ -8670,7 +8685,6 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     }
   }
   if (tEncodeI64(pCoder, pSubmitTbData->ctimeMs) < 0) return -1;
-  if (tEncodeI8(pCoder, pSubmitTbData->source) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -8754,12 +8768,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   pSubmitTbData->ctimeMs = 0;
   if (!tDecodeIsEnd(pCoder)) {
     if (tDecodeI64(pCoder, &pSubmitTbData->ctimeMs) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
-    }
-  }
-  if (!tDecodeIsEnd(pCoder)) {
-    if (tDecodeI8(pCoder, &pSubmitTbData->source) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }

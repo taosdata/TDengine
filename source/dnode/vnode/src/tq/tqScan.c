@@ -267,7 +267,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) goto loop_table;
       }
 
-      if ((pSubmitTbDataRet->source & sourceExcluded) != 0) {
+      if ((pSubmitTbDataRet->flags & sourceExcluded) != 0) {
         goto loop_table;
       }
       if (pRsp->withTbName) {
@@ -335,7 +335,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) goto loop_db;
       }
 
-      if ((pSubmitTbDataRet->source & sourceExcluded) != 0) {
+      if ((pSubmitTbDataRet->flags & sourceExcluded) != 0) {
         goto loop_db;
       }
       if (pRsp->withTbName) {

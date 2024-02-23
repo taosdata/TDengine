@@ -285,7 +285,6 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->suid = pSrc->suid;
     pTmp->uid = pSrc->uid;
     pTmp->sver = pSrc->sver;
-    pTmp->source = pSrc->source;
     pTmp->pCreateTbReq = NULL;
     if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
       if (pSrc->pCreateTbReq) {
@@ -654,7 +653,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     goto end;
   }
 
-  pTableCxt->pData->source = SOURCE_TAOSX;
+  pTableCxt->pData->flags |= TD_REQ_FROM_TAOX;
   if(tmp == NULL){
     ret = initTableColSubmitData(pTableCxt);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -722,7 +721,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         goto end;
       }
       fields += sizeof(int8_t) + sizeof(int32_t);
-      if (needChangeLength && version == 1) {
+      if (needChangeLength && version == BLOCK_VERSION_1) {
         pStart += htonl(colLength[j]);
       } else {
         pStart += colLength[j];
@@ -753,7 +752,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             goto end;
           }
           fields += sizeof(int8_t) + sizeof(int32_t);
-          if (needChangeLength && version == 1) {
+          if (needChangeLength && version == BLOCK_VERSION_1) {
             pStart += htonl(colLength[i]);
           } else {
             pStart += colLength[i];

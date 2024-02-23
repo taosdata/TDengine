@@ -101,6 +101,22 @@ add_test(
     COMMAND talgoTest
 )
 
+# tbaseCodecTest
+add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
+target_link_libraries(tbaseCodecTest os util common gtest_main)
+add_test(
+    NAME tbaseCodecTest
+    COMMAND tbaseCodecTest
+)
+
+# tbaseCodecTest
+add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
+target_link_libraries(tbaseCodecTest os util common gtest_main)
+add_test(
+    NAME tbaseCodecTest
+    COMMAND tbaseCodecTest
+)
+
 # bufferTest
 add_executable(bufferTest "bufferTest.cpp")
 target_link_libraries(bufferTest os util gtest_main)
