@@ -147,9 +147,26 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   if (self == NULL) return 1;
   taos_linked_list_node_t *node;
   taos_linked_list_node_t *prev_node = NULL;
+#ifdef TAOS_LOG_ENABLE
+  int32_t count = 0;
+  char tmp[200] = {0};
+
+  count = 0;
+  for (node = self->head; node != NULL; node = node->next) {
+    count++;
+  }
+  sprintf(tmp, "list count:%d", count);
+  TAOS_LOG(tmp);
+#endif
 
   // Locate the node
+#ifdef TAOS_LOG_ENABLE
+  count = 0;
+#endif
   for (node = self->head; node != NULL; node = node->next) {
+#ifdef TAOS_LOG_ENABLE
+    count++;
+#endif
     if (self->compare_fn) {
       if ((*self->compare_fn)(node->item, item) == TAOS_EQUAL) {
         break;
@@ -161,6 +178,11 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
     }
     prev_node = node;
   }
+
+#ifdef TAOS_LOG_ENABLE
+  sprintf(tmp, "remove item:%d", count);
+  TAOS_LOG(tmp);
+#endif
 
   if (node == NULL) return 0;
 
@@ -185,6 +207,17 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   taos_free(node);
   node = NULL;
   self->size--;
+
+#ifdef TAOS_LOG_ENABLE
+  count = 0;
+  for (node = self->head; node != NULL; node = node->next) {
+    count++;
+  }
+
+  sprintf(tmp, "list count:%d", count);
+  TAOS_LOG(tmp);
+#endif
+
   return 0;
 }
 

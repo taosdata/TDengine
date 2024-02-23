@@ -120,17 +120,6 @@ void monInitMonitorFW(){
     taosHashPut(tsMonitor.metrics, metric[i], strlen(metric[i]), &gauge, sizeof(taos_gauge_t *));
   } 
 
-  int32_t vgroup_label_count = 3;
-  const char *vgroup_sample_labels[] = {"cluster_id", "vgroup_id", "database_name"};
-  char *vgroup_metrics[] = {TABLES_NUM, STATUS};
-  for(int32_t i = 0; i < 2; i++){
-    gauge= taos_gauge_new(vgroup_metrics[i], "",  vgroup_label_count, vgroup_sample_labels);
-    if(taos_collector_registry_register_metric(gauge) == 1){
-      taos_counter_destroy(gauge);
-    }
-    taosHashPut(tsMonitor.metrics, vgroup_metrics[i], strlen(vgroup_metrics[i]), &gauge, sizeof(taos_gauge_t *));
-  }
-
   int32_t dnodes_label_count = 3;
   const char *dnodes_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep"};
   char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_SYSTEM,
@@ -316,6 +305,27 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
   SMonVgroupInfo *pInfo = &pMonitor->mmInfo.vgroup;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
+  int32_t vgroup_label_count = 3;
+  const char *vgroup_sample_labels[] = {"cluster_id", "vgroup_id", "database_name"};
+
+  if(taos_collector_registry_deregister_metric(TABLES_NUM) != 0){
+    uError("failed to delete metric "TABLES_NUM);
+  }
+
+  taos_gauge_t *tableNumGauge = taos_gauge_new(TABLES_NUM, "",  vgroup_label_count, vgroup_sample_labels);
+  if(taos_collector_registry_register_metric(tableNumGauge) == 1){
+    taos_counter_destroy(tableNumGauge);
+  }
+
+  if(taos_collector_registry_deregister_metric(STATUS) != 0){
+    uError("failed to delete metric "STATUS);
+  }
+
+  taos_gauge_t *statusGauge = taos_gauge_new(STATUS, "",  vgroup_label_count, vgroup_sample_labels);
+  if(taos_collector_registry_register_metric(statusGauge) == 1){
+    taos_counter_destroy(statusGauge);
+  }
+
   char cluster_id[TSDB_CLUSTER_ID_LEN] = {0};
   snprintf(cluster_id, TSDB_CLUSTER_ID_LEN, "%"PRId64, pMonitor->dmInfo.basic.cluster_id);
 
@@ -329,15 +339,13 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
 
     taos_gauge_t **metric = NULL;
   
-    metric = taosHashGet(tsMonitor.metrics, TABLES_NUM, strlen(TABLES_NUM));
-    taos_gauge_set(*metric, pVgroupDesc->tables_num, sample_labels);
+    taos_gauge_set(tableNumGauge, pVgroupDesc->tables_num, sample_labels);
 
-    metric = taosHashGet(tsMonitor.metrics, STATUS, strlen(STATUS));
     int32_t status = 0;
     if(strcmp(pVgroupDesc->status, "ready") == 0){
       status = 1;
     }
-    taos_gauge_set(*metric, status, sample_labels);
+    taos_gauge_set(statusGauge, status, sample_labels);
  }
 }
 

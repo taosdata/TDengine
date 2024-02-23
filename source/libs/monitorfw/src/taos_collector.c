@@ -108,6 +108,12 @@ int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric) {
   return taos_map_set(self->metrics, metric->name, metric);
 }
 
+int taos_collector_remove_metric(taos_collector_t *self, const char* key){
+  TAOS_ASSERT(self != NULL);
+  if (self == NULL) return 1;
+  return taos_map_delete(self->metrics, key);
+}
+
 taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name){
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return NULL;

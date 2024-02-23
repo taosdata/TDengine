@@ -76,6 +76,8 @@ int taos_collector_destroy_generic(void *gen);
  */
 int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric);
 
+int taos_collector_remove_metric(taos_collector_t *self, const char* key);
+
 taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name);
 
 /**

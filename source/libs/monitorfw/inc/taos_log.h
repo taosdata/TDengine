@@ -18,8 +18,10 @@
 #ifndef TAOS_LOG_H
 #define TAOS_LOG_H
 
+//#define TAOS_LOG_ENABLE
+
 #ifdef TAOS_LOG_ENABLE
-#define TAOS_LOG(msg) printf("%s %s %s %s %d %s\n", __DATE__, __TIME__, __FILE__, __FUNCTION__, __LINE__, msg);
+#define TAOS_LOG(msg) printf("monitor_log %s %s %s %s %d %s\n", __DATE__, __TIME__, __FILE__, __FUNCTION__, __LINE__, msg);
 #else
 #define TAOS_LOG(msg)
 #endif  // TAOS_LOG_ENABLE

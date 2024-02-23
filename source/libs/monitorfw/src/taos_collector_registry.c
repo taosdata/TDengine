@@ -123,6 +123,19 @@ int taos_collector_registry_register_metric(taos_metric_t *metric) {
   return taos_collector_add_metric(default_collector, metric);
 }
 
+int taos_collector_registry_deregister_metric(const char *key) {
+  TAOS_ASSERT(metric != NULL);
+
+  taos_collector_t *default_collector =
+      (taos_collector_t *)taos_map_get(TAOS_COLLECTOR_REGISTRY_DEFAULT->collectors, "default");
+
+  if (default_collector == NULL) {
+    return 1;
+  }
+
+  return taos_collector_remove_metric(default_collector, key);
+}
+
 taos_metric_t *taos_collector_registry_get_metric(char* metric_name){
   TAOS_ASSERT(metric != NULL);
 
@@ -232,7 +245,11 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
   SJson* array = tjsonCreateArray();
   tjsonAddItemToObject(item, "tables", array);
 
-  taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array);
+  if(taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0){
+    TAOS_LOG("failed to load metrics");
+    tjsonDelete(pJson);
+    return NULL;
+  }
 
   if(tjsonGetArraySize(array) == 0){
     tjsonDelete(pJson);

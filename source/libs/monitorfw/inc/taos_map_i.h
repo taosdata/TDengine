@@ -24,6 +24,8 @@ int taos_map_set_free_value_fn(taos_map_t *self, taos_map_node_free_value_fn fre
 
 void *taos_map_get(taos_map_t *self, const char *key);
 
+void *taos_map_get_withoutlock(taos_map_t *self, const char *key);
+
 int taos_map_set(taos_map_t *self, const char *key, void *value);
 
 int taos_map_delete(taos_map_t *self, const char *key);

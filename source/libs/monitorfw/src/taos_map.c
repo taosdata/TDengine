@@ -215,6 +215,14 @@ void *taos_map_get(taos_map_t *self, const char *key) {
   return payload;
 }
 
+void *taos_map_get_withoutlock(taos_map_t *self, const char *key) {
+  TAOS_ASSERT(self != NULL);
+  int r = 0;
+  void *payload =
+    taos_map_get_internal(key, &self->size, &self->max_size, self->keys, self->addrs, self->free_value_fn);
+  return payload;
+}
+
 static int taos_map_set_internal(const char *key, void *value, size_t *size, size_t *max_size, taos_linked_list_t *keys,
                                  taos_linked_list_t **addrs, taos_map_node_free_value_fn free_value_fn,
                                  bool destroy_current_value) {
@@ -368,10 +376,10 @@ static int taos_map_delete_internal(const char *key, size_t *size, size_t *max_s
     taos_map_node_t *current_map_node = (taos_map_node_t *)current_node->item;
     taos_linked_list_compare_t result = taos_linked_list_compare(list, current_map_node, temp_map_node);
     if (result == TAOS_EQUAL) {
-      r = taos_linked_list_remove(list, current_node);
+      r = taos_linked_list_remove(keys, (char*)current_map_node->key);
       if (r) return r;
 
-      r = taos_linked_list_remove(keys, (char *)current_map_node->key);
+      r = taos_linked_list_remove(list, current_node->item);
       if (r) return r;
 
       (*size)--;
