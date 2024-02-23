@@ -58,6 +58,7 @@
               @click="getCsvColumnsData"
               size="small"
               class="nextbtn"
+              :loading="loading"
               >{{ $t("datasource.csvNext") }}</el-button
             >
             <CommonTransformer
@@ -148,6 +149,7 @@ export default {
       localcsv: {},
       dbOptions: [],
       extractArr: [],
+      loading: false,
     };
   },
   async mounted() {
@@ -317,6 +319,7 @@ export default {
 
     async getCsvColumnsData() {
       try {
+        this.loading = true;
         this.showfiletip = false;
         if (this.activeName == "first" && this.fileList.length == 0) {
           this.showfiletip = true;
@@ -348,6 +351,7 @@ export default {
               "csv",
               parseParam
             );
+            this.loading = false
             if (result && result.message) {
               Message.error(result.message);
               return;
@@ -365,6 +369,7 @@ export default {
             "csv",
             parseParam
           );
+          this.loading = false
           if (result && result.message) {
             Message.error(result.message);
             return;
@@ -394,7 +399,9 @@ export default {
         this.showConfig = true;
 
         this.submitUpload();
+        this.loading = false
       } catch (error) {
+        this.loading = false
         error && error.message && Message.error(error.message);
       }
     },

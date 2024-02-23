@@ -103,7 +103,7 @@
           size="small"
           >{{ $t("edit") }}</el-button
         > -->
-        <el-button type="primary" @click="save" size="small">{{
+        <el-button type="primary" @click="save" size="small" :loading="loading">{{
           isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
         }}</el-button>
          <el-button @click="cancel" class="cancel-btn" size="small">{{
@@ -407,6 +407,7 @@ export default {
     },
 
     save() {
+      this.loading = true
       let status = this.$parent.currentTaskStatus;
       if (
         this.isEditable &&
@@ -441,7 +442,10 @@ export default {
         if (valid) {
           if (this.sourceForm.type == "csv") {
             let flag=this.$refs.configform.$refs.csvdata[0].submitUpload()
-            if(!flag)return
+            if(!flag){
+              this.loading = false;
+              return
+            }
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
@@ -463,17 +467,24 @@ export default {
           }
           if (this.sourceForm.type == "csv") {
             await this.$refs.configform.$refs.csvdata[0].$refs.transform.getTransformerParams();
-            if (this.$refs.configform.$refs.csvdata[0].$refs.transform.isbreak) return;
+            if (this.$refs.configform.$refs.csvdata[0].$refs.transform.isbreak) {
+              this.loading = false;
+              return
+            }
             params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.sourceForm.data.parser) {
             await this.$refs.configform.$refs.transform[0].getTransformerParams();
-            if (this.$refs.configform.$refs.transform[0].isbreak) return;
+            if (this.$refs.configform.$refs.transform[0].isbreak) {
+              this.loading = false;
+              return
+            }
             params.parser = this.$store.state.app.transformerfullparams;
           }
           
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);
+            this.loading = false;
             if (result.message) {
               Message.error(result.message);
               return;
@@ -483,6 +494,7 @@ export default {
             this.$refs.form.resetFields();
           } else {
             let result = await AddSource(params);
+            this.loading = false;
             if (result.message) {
               Message.error(result.message);
               return;
@@ -497,6 +509,7 @@ export default {
               .querySelector(".source-ui .left-ui .is-error")
               ?.scrollIntoView();
           });
+          this.loading = false;
           return false;
         }
       });
