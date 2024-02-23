@@ -127,6 +127,7 @@ static int32_t destroySortMemFile(SSortHandle* pHandle);
 static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char** ppPage);
 static void    setExtMemFilePageUnused(SSortMemFile* pMemFile, int32_t pageId);
 static int32_t saveDirtyPagesToExtRowsMemFile(SSortHandle* pHandle);
+static int32_t freeExtRowMemFileWriteBuf(SSortHandle* pHandle);
 
 void tsortSetSingleTableMerge(SSortHandle* pHandle) {
   pHandle->singleTableMerge = true;
@@ -1116,7 +1117,11 @@ static int32_t destroySortMemFile(SSortHandle* pHandle) {
     taosMemoryFree(pCurr);
   }
   tSimpleHashCleanup(pMemFile->mActivePages);
+  pMemFile->mActivePages = NULL;
+
   taosMemoryFree(pMemFile->writePageBuf);
+  pMemFile->writePageBuf = NULL;
+
   fclose(pMemFile->pTdFile);
   taosRemoveFile(pMemFile->memFilePath);
   taosMemoryFree(pMemFile);
@@ -1165,6 +1170,17 @@ static int32_t saveDirtyPagesToExtRowsMemFile(SSortHandle* pHandle) {
   int32_t numWriteBytes = pMemFile->pageSize * (pMemFile->currPageId - pMemFile->startPageId) + pMemFile->currPageOffset + 1;
   fwrite(pMemFile->writePageBuf, numWriteBytes, 1, pMemFile->pTdFile);
   pMemFile->bDirty = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t freeExtRowMemFileWriteBuf(SSortHandle* pHandle) {
+  SSortMemFile* pMemFile = pHandle->pExtRowsMemFile;
+
+  if (pMemFile == NULL) return TSDB_CODE_SUCCESS;
+
+  taosMemoryFree(pMemFile->writePageBuf);
+  pMemFile->writePageBuf = NULL;
+  taosMemoryTrim(0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1585,6 +1601,9 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   }
   taosArrayDestroy(aExtSrc);
   tSimpleHashCleanup(mTableNumRows);
+  if (pHandle->bSortByRowId) {
+    freeExtRowMemFileWriteBuf(pHandle);
+  }
   pHandle->type = SORT_SINGLESOURCE_SORT;
   return TSDB_CODE_SUCCESS;
 }
