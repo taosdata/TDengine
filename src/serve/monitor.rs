@@ -266,7 +266,8 @@ pub async fn process_metrics(
     sys.refresh_all();
     let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
     // system metrics
-    gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
+    let cpu_cores = sys.cpus().len() as f64;
+    gauge!("sys_cpu_cores", &labels).set(cpu_cores);
     gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
     gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
     gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
@@ -274,7 +275,7 @@ pub async fn process_metrics(
     gauge!("process_id", &labels).set(process_id.as_u32() as f64);
     if let Some(ps) = sys.process(process_id) {
         let cpu = ps.cpu_usage();
-        gauge!("process_cpu_percent", &labels).set(cpu as f64);
+        gauge!("process_cpu_percent", &labels).set(cpu as f64 / cpu_cores);
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
         gauge!("process_memory_percent", &labels).set(mem);
         let disk = ps.disk_usage();
@@ -296,6 +297,7 @@ pub async fn process_metrics(
         taosx_id.to_string(),
         process_id,
         monitor_interval as f64,
+        cpu_cores,
     );
     Ok(())
 }

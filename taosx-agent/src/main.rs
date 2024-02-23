@@ -400,7 +400,8 @@ pub fn process_metrics(
         ("agent_id", agent_id),
     ];
     // system metrics
-    gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
+    let cpu_cores = sys.cpus().len() as f64;
+    gauge!("sys_cpu_cores", &labels).set(cpu_cores);
     gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
     gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
     gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
@@ -418,7 +419,13 @@ pub fn process_metrics(
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
     // connecotor process metrics
-    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id, monitor_interval);
+    update_sub_connector_process_metrics(
+        sys,
+        taosx_id.to_string(),
+        process_id,
+        monitor_interval,
+        cpu_cores,
+    );
     Ok(())
 }
 

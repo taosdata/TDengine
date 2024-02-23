@@ -54,6 +54,7 @@ pub fn update_sub_connector_process_metrics(
     taosx_id: String,
     parent_process_id: sysinfo::Pid,
     monitor_interval: f64,
+    cpu_cores: f64,
 ) {
     let mut living_sub_processes = Vec::<SubInfo>::new();
     loop {
@@ -100,7 +101,7 @@ pub fn update_sub_connector_process_metrics(
                 let labels = labels.into_labels();
                 gauge!("process_id", labels.clone()).set(sub_info.sub_pid as f64);
                 let cpu = sub_process.cpu_usage();
-                gauge!("process_cpu_percent", labels.clone()).set(cpu as f64);
+                gauge!("process_cpu_percent", labels.clone()).set(cpu as f64 / cpu_cores);
                 let mem = sub_process.memory() as f64 / sys.total_memory() as f64 * 100.0;
                 gauge!("process_memory_percent", labels.clone()).set(mem);
                 let disk = sub_process.disk_usage();
