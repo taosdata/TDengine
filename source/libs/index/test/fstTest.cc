@@ -1,4 +1,5 @@
 
+#include <gtest/gtest.h>
 #include <algorithm>
 #include <iostream>
 #include <string>
@@ -13,6 +14,12 @@
 #include "tskiplist.h"
 #include "tutil.h"
 void* callback(void* s) { return s; }
+
+class FstEnv : public ::testing::Test {
+ protected:
+  virtual void SetUp() {}
+  virtual void TearDown() {}
+};
 
 static std::string fileName = TD_TMP_DIR_PATH "tindex.tindex";
 class FstWriter {
@@ -154,7 +161,7 @@ class FstReadMemory {
   int32_t     _size;
 };
 
-#define L 100
+#define L 200
 #define M 100
 #define N 100
 
@@ -200,7 +207,7 @@ void checkMillonWriteAndReadOfFst() {
   FstWriter* fw = new FstWriter;
   Performance_fstWriteRecords(fw);
   delete fw;
-  FstReadMemory* fr = new FstReadMemory(1024 * 64 * 1024);
+  FstReadMemory* fr = new FstReadMemory(1024 * 8 * 1024);
 
   if (fr->init()) {
     printf("success to init fst read");
@@ -637,23 +644,31 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
   tfileIteratorDestroy(iter);
 }
 
-int main(int argc, char* argv[]) {
-  // tool to check all kind of fst test
-  // if (argc > 1) { validateTFile(argv[1]); }
-  // if (argc > 4) {
-  // path suid colName ver
-  // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
-  //}
-  checkFstCheckIterator1();
-  // checkFstCheckIterator2();
-  // checkFstCheckIteratorPrefix();
-  // checkFstCheckIteratorRange1();
-  // checkFstCheckIteratorRange2();
-  // checkFstCheckIteratorRange3();
-  // checkFstLongTerm();
-  // checkFstPrefixSearch();
+// int main(int argc, char* argv[]) {
+//   // tool to check all kind of fst test
+//   // if (argc > 1) { validateTFile(argv[1]); }
+//   // if (argc > 4) {
+//   // path suid colName ver
+//   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
+//   //}
+//   checkFstCheckIterator1();
+//   // checkFstCheckIterator2();
+//   // checkFstCheckIteratorPrefix();
+//   // checkFstCheckIteratorRange1();
+//   // checkFstCheckIteratorRange2();
+//   // checkFstCheckIteratorRange3();
+//   // checkFstLongTerm();
+//   // checkFstPrefixSearch();
 
-  // checkMillonWriteAndReadOfFst();
+//   // checkMillonWriteAndReadOfFst();
 
-  return 1;
-}
+//   return 1;
+// }
+TEST_F(FstEnv, checkIterator1) { checkFstCheckIterator1(); }
+TEST_F(FstEnv, checkItertor2) { checkFstCheckIterator2(); }
+TEST_F(FstEnv, checkPrefix) { checkFstCheckIteratorPrefix(); }
+TEST_F(FstEnv, checkRange1) { checkFstCheckIteratorRange1(); }
+TEST_F(FstEnv, checkRange2) { checkFstCheckIteratorRange2(); }
+TEST_F(FstEnv, checkRange3) { checkFstCheckIteratorRange3(); }
+TEST_F(FstEnv, checkLongTerm) { checkFstLongTerm(); }
+TEST_F(FstEnv, checkMillonWriteData) { checkMillonWriteAndReadOfFst(); }

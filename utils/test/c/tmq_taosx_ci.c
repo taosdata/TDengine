@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tmsg.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
@@ -966,7 +967,14 @@ void testConsumeExcluded(int topic_type){
       tmq_raw_data raw = {0};
       tmq_get_raw(msg, &raw);
       if(topic_type == 1){
-        assert(raw.raw_type != 2 && raw.raw_type != 4);
+        assert(raw.raw_type != 2 && raw.raw_type != 4 &&
+               raw.raw_type != TDMT_VND_CREATE_STB &&
+               raw.raw_type != TDMT_VND_ALTER_STB &&
+               raw.raw_type != TDMT_VND_CREATE_TABLE &&
+               raw.raw_type != TDMT_VND_ALTER_TABLE &&
+               raw.raw_type != TDMT_VND_DELETE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB ||
+               raw.raw_type == TDMT_VND_DROP_TABLE);
       }else if(topic_type == 2){
         assert(0);
       }

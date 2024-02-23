@@ -207,9 +207,6 @@ typedef enum _mgmt_table {
 #define TD_CHILD_TABLE  TSDB_CHILD_TABLE
 #define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
 
-#define TD_REQ_FROM_APP  0
-#define TD_REQ_FROM_TAOX 1
-
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
   // VALUE, OPERATOR, FUNCTION and so on.
@@ -759,7 +756,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   int8_t   igExists;
-  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   int8_t   reserved[6];
   tb_uid_t suid;
   int64_t  delay1;
@@ -802,7 +799,7 @@ void    tFreeSMCreateStbRsp(SMCreateStbRsp* pRsp);
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   int8_t   igNotExists;
-  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   int8_t   reserved[6];
   tb_uid_t suid;
   int32_t  sqlLen;
@@ -1613,7 +1610,6 @@ typedef struct {
   SEp     ep;
   char    active[TSDB_ACTIVE_KEY_LEN];
   char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
-  char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeInfo;
 
 typedef struct {
@@ -2661,6 +2657,7 @@ typedef struct SVCreateStbReq {
   SRSmaParam     rsmaParam;
   int32_t        alterOriDataLen;
   void*          alterOriData;
+  int8_t         source;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -2730,6 +2727,7 @@ typedef struct {
     SVCreateTbReq* pReqs;
     SArray*        pArray;
   };
+  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVCreateTbBatchReq;
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
@@ -2822,6 +2820,7 @@ typedef struct {
   int32_t newCommentLen;
   char*   newComment;
   int64_t ctimeMs;  // fill by vnode
+  int8_t  source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -3919,12 +3918,13 @@ int32_t tDeatroySMqHbRsp(SMqHbRsp* pRsp);
 int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
+#define TD_REQ_FROM_APP               0x0
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
+#define TD_REQ_FROM_TAOX              0x8
 
-#define SOURCE_NULL  0
-#define SOURCE_TAOSX 1
+#define TD_REQ_FROM_TAOX_OLD          0x1     // for compatibility
 
 typedef struct {
   int32_t        flags;
@@ -3937,7 +3937,6 @@ typedef struct {
     SArray* aCol;
   };
   int64_t ctimeMs;
-  int8_t  source;
 } SSubmitTbData;
 
 typedef struct {

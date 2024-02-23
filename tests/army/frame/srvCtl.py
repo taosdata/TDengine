@@ -33,14 +33,14 @@ class srvCtl:
     #  control server
     #
 
-    # start
+    # start idx base is 1 
     def dnodeStart(self, idx):
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.starttaosd(idx)
 
         return tdDnodes.starttaosd(idx)
 
-    # stop
+    # stop idx base is 1 
     def dnodeStop(self, idx):
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.stoptaosd(idx)
