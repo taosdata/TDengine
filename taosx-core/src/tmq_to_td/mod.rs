@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
@@ -15,6 +15,62 @@ use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
+
+async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<()> {
+    let target_desc = to.describe(&table).await?;
+    let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
+
+    for l in desc {
+        if let Some(r) = fields.get(l.name()) {
+            // check if the field is equal.
+            if r.is_tag() {
+                bail!(
+                    "Target field is not match the source: expect `{}` as column, but got tag",
+                    l.name()
+                );
+            }
+            if r.ty() != l.ty() {
+                tracing::warn!(
+                    "Target field ({}) is not equal to source({})",
+                    r.sql_repr(),
+                    l.sql_repr()
+                );
+            } else {
+                if r.length() < l.bytes() as usize {
+                    if let Err(err) = to
+                        .exec(format!(
+                            "ALTER TABLE `{}` MODIFY COLUMN {}",
+                            table,
+                            l.sql_repr(),
+                        ))
+                        .await
+                    {
+                        tracing::warn!(
+                            "Modify column `{}` of table `{table}` error: {err:#}, try continue",
+                            l.name()
+                        );
+                    }
+                }
+            }
+        } else {
+            // field does not exist in right side.
+            if let Err(err) = to
+                .exec(format!(
+                    "ALTER TABLE `{}` ADD COLUMN {}",
+                    table,
+                    l.sql_repr(),
+                ))
+                .await
+            {
+                tracing::warn!(
+                    "Add column {} for table {table} error: {err:#}, try continue",
+                    l.name()
+                );
+            }
+        }
+    }
+    Ok(())
+}
 
 #[instrument(skip_all, fields(table, rows))]
 async fn write_data(
@@ -43,7 +99,7 @@ async fn write_data(
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
-                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 => {
+                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 => {
                     // fallback to block-by-block method.
                 }
                 _ => {
@@ -136,6 +192,35 @@ async fn write_data(
                 if let Err(err) = taos.write_raw_block(&raw).await {
                     let code = *err.code().deref();
                     match code {
+                        0x0118 => {
+                            // TODO
+                            // sync schema
+                            let source_stable_name = source.get().await?.query_one::<_, String>("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'").await?;
+                            if let Some(mut source_stable_name) = source_stable_name {
+                                if actions.is_empty() {
+                                    migrate_data_schema(&raw.fields(), &taos, &source_table_name)
+                                        .await?;
+                                } else {
+                                    for action in actions {
+                                        match action {
+                                            Action::RenameTable(rename)
+                                            | Action::RenameSuperTable(rename) => {
+                                                rename.apply_in_place(&mut source_stable_name)?
+                                            }
+                                            _ => (),
+                                        }
+                                    }
+                                    migrate_data_schema(&raw.fields(), &taos, &source_stable_name)
+                                        .await?;
+                                }
+                            } else {
+                                let table = raw.table_name().unwrap();
+                                migrate_data_schema(&raw.fields(), &taos, table).await?;
+                            }
+                            taos.write_raw_block(&raw)
+                                .await
+                                .context("Write raw block into target error after 0x0118 fix")?;
+                        }
                         0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
                             let from = source.get().await?;
                             let database = from

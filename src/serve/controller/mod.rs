@@ -830,7 +830,8 @@ impl TaskController {
         let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
         // skip license check for newadd connectors in old version
         let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
-        if !(a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3)) && !connectors_old.contains(&connector)
+        if !(a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3))
+            && !connectors_old.contains(&connector)
         {
             return Ok(());
         }
