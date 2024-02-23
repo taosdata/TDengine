@@ -184,11 +184,12 @@ _OVER:
 static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
   SSdb    *pSdb = pMnode->pSdb;
   SSdbRow *pRow = NULL;
+  SVgObj  *pVgroup = NULL;
   int      code = -1;
 
   pRow = mndVgroupActionDecode(pRaw);
   if (pRow == NULL) goto _OVER;
-  SVgObj *pVgroup = sdbGetRowObj(pRow);
+  pVgroup = sdbGetRowObj(pRow);
   if (pVgroup == NULL) goto _OVER;
 
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
@@ -199,7 +200,8 @@ static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *p
 
   code = 0;
 _OVER:
-  taosMemoryFree(pRow);
+  if (pVgroup) mndVgroupActionDelete(pSdb, pVgroup);
+  taosMemoryFreeClear(pRow);
   return code;
 }
 

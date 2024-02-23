@@ -256,11 +256,12 @@ _OVER:
 static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
   SSdb    *pSdb = pMnode->pSdb;
   SSdbRow *pRow = NULL;
+  SDbObj  *pNewDb = NULL;
   int      code = -1;
 
   pRow = mndDbActionDecode(pRaw);
   if (pRow == NULL) goto _OVER;
-  SDbObj *pNewDb = sdbGetRowObj(pRow);
+  pNewDb = sdbGetRowObj(pRow);
   if (pNewDb == NULL) goto _OVER;
 
   SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
@@ -272,7 +273,8 @@ static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *p
 
   code = 0;
 _OVER:
-  taosMemoryFree(pRow);
+  if (pNewDb) mndDbActionDelete(pSdb, pNewDb);
+  taosMemoryFreeClear(pRow);
   return code;
 }
 
