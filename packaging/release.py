@@ -109,7 +109,7 @@ def get_taosx_agent_version():
 
 def get_install_path():
     target = "taosx"
-    if release_info.Target == "agent":
+    if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
         target = taosx_agent_name
 
     if release_info.OnlyBuild:
@@ -688,13 +688,13 @@ def test_handle_windows(process):
     elif process == "package":
         print("Calling Package function...")
         package()
-    elif process == "taosx" and release_info.UploadAgent == False:
+    elif process == "taosx" and release_info.UploadAgent == False and release_info.BuildAgent == False:
         print("Calling taosx function...")
         build_and_install_taosx("Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent("Debug")
-    elif process == "explorer" and release_info.UploadAgent == False:
+    elif process == "explorer" and release_info.UploadAgent == False and release_info.BuildAgent == False:
         print("Calling taos-explorer function...")
         build_and_install_taos_explorer("Debug")
     elif process == influxdb_connector:

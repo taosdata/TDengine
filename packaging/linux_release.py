@@ -253,7 +253,7 @@ def make_agent_package(release_info):
 
     os.chdir(os.path.join(release_dir,".."))
 
-    filename = f"{release_dir}-agent-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}.tar.gz"
+    filename = f"{release_dir}.tar.gz"
     code = os.system(f"tar -czvf {filename} $(basename {release_dir})")
     if code != 0:
         raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
