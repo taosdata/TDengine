@@ -3248,7 +3248,6 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
     // TODO test no db cache, select from another db
     for (int32_t i = 0; i < tbNum; ++i) {
       ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      //ctgAddTSMAFetch();
       taosArrayPush(pCtx->pResList, &(SMetaData){0});
     }
     return TSDB_CODE_SUCCESS;
