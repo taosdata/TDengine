@@ -488,6 +488,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
   void* pFileStore = getStateFileStore(pFileState);
   SStreamStateCur* pCur = streamStateSessionSeekKeyPrev_rocksdb(pFileStore, pWinKey);
   if (pCur) {
+    pCur->pStreamFileState = pFileState;
     SSessionKey key = {0};
     void* pVal = NULL;
     int len = 0;

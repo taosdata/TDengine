@@ -392,7 +392,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
               pReader->msg.ver);
 
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-      if ((pSubmitTbData->source & sourceExcluded) != 0) {
+      if ((pSubmitTbData->flags & sourceExcluded) != 0) {
         pReader->nextBlk += 1;
         continue;
       }

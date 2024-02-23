@@ -99,6 +99,9 @@ void setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId,
                                                    (void**)&pCurWin->winInfo.pStatePos, &size);
       }
     }
+    if (ts < pCurWin->winInfo.sessionWin.win.ekey) {
+      pBuffInfo->rebuildWindow = true;
+    }
   } else {
     code = pAggSup->stateStore.streamStateCountWinAddIfNotExist(
         pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount, (void**)&pCurWin->winInfo.pStatePos, &size);

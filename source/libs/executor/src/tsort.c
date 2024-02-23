@@ -1543,10 +1543,13 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     if (pBlk != NULL) {
       SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrigOrder->slotId);
       int64_t firstRowTs = *(int64_t*)tsCol->pData;
-      if ((pOrigOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs)  ||
-          (pOrigOrder->order == TSDB_ORDER_DESC && firstRowTs < pHandle->currMergeLimitTs)) {
-            continue;
-          }
+      if ((pOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs)  ||
+          (pOrder->order == TSDB_ORDER_DESC && firstRowTs < pHandle->currMergeLimitTs)) {
+        if (bExtractedBlock) {
+          blockDataDestroy(pBlk);
+	      }
+        continue;
+      }
     }
 
     if (pBlk != NULL) {
@@ -1572,10 +1575,11 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       code = sortBlocksToExtSource(pHandle, aBlkSort, aExtSrc);
 
       if (code != TSDB_CODE_SUCCESS) {
-        tSimpleHashCleanup(mUidBlk);
-        taosArrayDestroy(aBlkSort);
-        taosArrayDestroy(aExtSrc);
-        return code;
+        for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
+          blockDataDestroy(taosArrayGetP(aBlkSort, i));
+        }
+        taosArrayClear(aBlkSort);
+        break;	
       }
 
       int64_t el = taosGetTimestampUs() - p;
@@ -1588,6 +1592,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       szSort = 0;
       qDebug("source %zu created", taosArrayGetSize(aExtSrc));
     }
+
     if (pBlk == NULL) {
       break;
     }
@@ -1603,6 +1608,9 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   }
 
   tSimpleHashCleanup(mUidBlk);
+  for (int i = 0; i < taosArrayGetSize(aBlkSort); ++i) {
+    blockDataDestroy(taosArrayGetP(aBlkSort, i));
+  }
   taosArrayDestroy(aBlkSort);
   tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
   if (!tsortIsClosed(pHandle)) {
@@ -1614,7 +1622,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     freeExtRowMemFileWriteBuf(pHandle);
   }
   pHandle->type = SORT_SINGLESOURCE_SORT;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
