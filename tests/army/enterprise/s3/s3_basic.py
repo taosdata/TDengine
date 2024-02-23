@@ -28,12 +28,12 @@ from frame import *
 from frame.eos import *
 
 #  
-# 192.168.1.52 MINIO S3 API KEY: MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa
+# 192.168.1.52 MINIO S3 
 #
 
 '''
 s3EndPoint     http://192.168.1.52:9000
-s3AccessKey    MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa
+s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
 s3BucketName   ci-bucket
 s3UploadDelaySec 60
 '''
@@ -42,7 +42,7 @@ s3UploadDelaySec 60
 class TDTestCase(TBase):
     updatecfgDict = {
         's3EndPoint': 'http://192.168.1.52:9000', 
-        's3AccessKey': 'MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa', 
+        's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
         's3BucketName': 'ci-bucket',
         's3BlockSize': '10240',
         's3BlockCacheSize': '320',
@@ -78,26 +78,27 @@ class TDTestCase(TBase):
         self.trimDb(True)
 
         rootPath = sc.clusterRootPath()
-        cmd = f"ls {rootPath}/dnode1/data20/vnode/vnode*/tsdb/*.data"
+        cmd = f"ls {rootPath}/dnode1/data2*/vnode/vnode*/tsdb/*.data"
         tdLog.info(cmd)
         loop = 0
         rets = []
-        while loop < 500:
+        while loop < 180:
+            time.sleep(3)
             rets = eos.runRetList(cmd)
             cnt = len(rets)
             if cnt == 0:
                 tdLog.info("All data file upload to server over.")
-                break
-            time.sleep(3)
+                break            
             self.trimDb(True)
-            loop += 1
-            tdLog.info(f"loop={loop} data files have {cnt} wait 5s...")
-            if loop == 4:
+            tdLog.info(f"loop={loop} no upload {cnt} data files wait 3s retry ...")
+            if loop == 0:
                 sc.dnodeStop(1)
                 time.sleep(2)
                 sc.dnodeStart(1)
+            loop += 1
+                
         if len(rets) > 0:
-            tdLog.exit(f"s3 can not upload all data to server. data files={rets}")
+            tdLog.exit(f"s3 can not upload all data to server. data files cnt={len(rets)} list={rets}")
 
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
