@@ -110,9 +110,9 @@ void monInitMonitorFW(){
   char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_SYSTEM,
                            MEM_TOTAL, DISK_ENGINE, DISK_USED, DISK_TOTAL, NET_IN,
                            NET_OUT, IO_READ, IO_WRITE, IO_READ_DISK, IO_WRITE_DISK, /*ERRORS,*/
-                           VNODES_NUM, MASTERS, HAS_MNODE, HAS_QNODE, HAS_SNODE, DNODE_STATUS,
+                           VNODES_NUM, MASTERS, HAS_MNODE, HAS_QNODE, HAS_SNODE,
                            DNODE_LOG_ERROR, DNODE_LOG_INFO, DNODE_LOG_DEBUG, DNODE_LOG_TRACE};
-  for(int32_t i = 0; i < 26; i++){
+  for(int32_t i = 0; i < 25; i++){
     gauge= taos_gauge_new(dnodes_gauges[i], "",  dnodes_label_count, dnodes_sample_labels);
     if(taos_collector_registry_register_metric(gauge) == 1){
       taos_counter_destroy(gauge);
@@ -502,16 +502,29 @@ void monGenDnodeInfoTable(SMonInfo *pMonitor) {
 }
 
 void monGenDnodeStatusInfoTable(SMonInfo *pMonitor){
+  if(taos_collector_registry_deregister_metric(DNODE_STATUS) != 0){
+    uError("failed to delete metric "DNODE_STATUS);
+  }
+
   if(pMonitor->dmInfo.basic.cluster_id == 0) {
     uError("failed to generate dnode info table since cluster_id is 0");
     return;
   }
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
+  taos_gauge_t *gauge = NULL;
+
+  int32_t dnodes_label_count = 3;
+  const char *dnodes_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep"};
+
+  gauge= taos_gauge_new(DNODE_STATUS, "",  dnodes_label_count, dnodes_sample_labels);
+  if(taos_collector_registry_register_metric(gauge) == 1){
+    taos_counter_destroy(gauge);
+  }
+
   char cluster_id[TSDB_CLUSTER_ID_LEN];
   snprintf(cluster_id, TSDB_CLUSTER_ID_LEN, "%"PRId64, pMonitor->dmInfo.basic.cluster_id);
-
-  taos_gauge_t **metric = NULL;  
+ 
   //dnodes status
 
   SMonClusterInfo *pClusterInfo = &pMonitor->mmInfo.cluster;
@@ -524,13 +537,11 @@ void monGenDnodeStatusInfoTable(SMonInfo *pMonitor){
 
     const char *sample_labels[] = {cluster_id, dnode_id, pDnodeDesc->dnode_ep};
 
-    metric = taosHashGet(tsMonitor.metrics, DNODE_STATUS, strlen(DNODE_STATUS));
-
     int32_t status = 0;
     if(strcmp(pDnodeDesc->status, "ready") == 0){
       status = 1;
     }
-    taos_gauge_set(*metric, status, sample_labels);
+    taos_gauge_set(gauge, status, sample_labels);
   }
 }
 
