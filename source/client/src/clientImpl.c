@@ -880,19 +880,21 @@ static bool incompletaFileParsing(SNode* pStmt) {
   return QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pStmt) ? false : ((SVnodeModifyOpStmt*)pStmt)->fileProcessing;
 }
 
-void continuePostSubQuery(SRequestObj* pRequest, TAOS_ROW row) {
+void continuePostSubQuery(SRequestObj* pRequest, SSDataBlock* pBlock) {
   SSqlCallbackWrapper* pWrapper = pRequest->pWrapper;
-  int32_t              code = nodesAcquireAllocator(pWrapper->pParseCtx->allocatorId);
+
+  int32_t code = nodesAcquireAllocator(pWrapper->pParseCtx->allocatorId);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t analyseStart = taosGetTimestampUs();
-    code = qContinueParsePostQuery(pWrapper->pParseCtx, pRequest->pQuery, (void**)row);
+    code = qContinueParsePostQuery(pWrapper->pParseCtx, pRequest->pQuery, pBlock);
     pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = qContinuePlanPostQuery(pRequest->pPostPlan);
   }
-  nodesReleaseAllocator(pWrapper->pParseCtx->allocatorId);
 
+  nodesReleaseAllocator(pWrapper->pParseCtx->allocatorId);
   handleQueryAnslyseRes(pWrapper, NULL, code);
 }
 
@@ -916,6 +918,43 @@ void returnToUser(SRequestObj* pRequest) {
   }
 }
 
+static SSDataBlock* createResultBlock(TAOS_RES* pRes, int32_t numOfRows) {
+  int64_t lastTs = 0;
+
+  TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
+  int32_t numOfFields = taos_num_fields(pRes);
+
+  SSDataBlock* pBlock = createDataBlock();
+
+  for(int32_t i = 0; i < numOfFields; ++i) {
+    SColumnInfoData colInfoData = createColumnInfoData(pResFields[i].type, pResFields[i].bytes, i + 1);
+    blockDataAppendColInfo(pBlock, &colInfoData);
+  }
+
+  blockDataEnsureCapacity(pBlock, numOfRows);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    TAOS_ROW pRow = taos_fetch_row(pRes);
+    int64_t  ts = *(int64_t*)pRow[0];
+    if (lastTs < ts) {
+      lastTs = ts;
+    }
+
+    for(int32_t j = 0; j < numOfFields; ++j) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, j);
+      colDataSetVal(pColInfoData, i, pRow[j], false);
+    }
+
+    tscDebug("lastKey:%" PRId64 " vgId:%d, vgVer:%" PRId64, ts, *(int32_t*)pRow[1], *(int64_t*)pRow[2]);
+  }
+
+  pBlock->info.window.ekey = lastTs;
+  pBlock->info.rows = numOfRows;
+
+  tscDebug("lastKey:%"PRId64" numOfRows:%d from all vgroups", lastTs, numOfRows);
+  return pBlock;
+}
+
 void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
   SRequestObj* pRequest = (SRequestObj*)res;
   if (pRequest->code) {
@@ -923,19 +962,17 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
     return;
   }
 
-  TAOS_ROW row = NULL;
-  if (rowNum > 0) {
-    row = taos_fetch_row(res);  // for single row only now
-  }
-
+  SSDataBlock* pBlock = createResultBlock(res, rowNum);
   SRequestObj* pNextReq = acquireRequest(pRequest->relation.nextRefId);
   if (pNextReq) {
-    continuePostSubQuery(pNextReq, row);
+    continuePostSubQuery(pNextReq, pBlock);
     releaseRequest(pRequest->relation.nextRefId);
   } else {
     tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
+
+  blockDataDestroy(pBlock);
 }
 
 void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
@@ -1117,6 +1154,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                         .pAstRoot = pQuery->pRoot,
                         .showRewrite = pQuery->showRewrite,
+                        .isView = pWrapper->pParseCtx->isView,
+                        .isAudit = pWrapper->pParseCtx->isAudit,
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
@@ -1795,6 +1834,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
   char* p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
@@ -1810,7 +1850,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
 
   char* pStart = p + len;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = htonl(colLength[i]);
+    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -1873,6 +1913,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   tscDebug("start to convert form json format string");
 
   char*   p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
   int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
   if (dataLen <= 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -1908,8 +1949,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* pStart = p;
   char* pStart1 = p1;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = htonl(colLength[i]);
-    int32_t colLen1 = htonl(colLength1[i]);
+    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen1 = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength1[i]) : colLength1[i];
     if (ASSERT(colLen < dataLen)) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -1968,7 +2009,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       }
       colLen1 = len;
       totalLen += colLen1;
-      colLength1[i] = htonl(len);
+      colLength1[i] = (blockVersion == BLOCK_VERSION_1) ? htonl(len) : len;
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       len = numOfRows * sizeof(int32_t);
       memcpy(pStart1, pStart, len);
@@ -2057,7 +2098,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLength[i] = htonl(colLength[i]);
+    if(blockVersion == BLOCK_VERSION_1){
+      colLength[i] = htonl(colLength[i]);
+    }
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2077,6 +2120,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
     pStart += colLength[i];
   }
+
+  // bool blankFill = *(bool*)p;
+  p += sizeof(bool);
 
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);

@@ -162,14 +162,19 @@ class AutoGen:
             tdLog.info(f" insert data i={i}")
             values = ""
 
-        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")    
+        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")
+        return ts
 
-    # insert data 
-    def insert_data(self, cnt):
+    def insert_data(self, cnt, bContinue=False):
+        if not bContinue:
+            self.ts = 1600000000000
+
+        currTs = 1600000000000
         for i in range(self.child_cnt):
             name = f"{self.child_name}{i}"
-            self.insert_data_child(name, cnt, self.batch_size, 1)
+            currTs = self.insert_data_child(name, cnt, self.batch_size, 1)
 
+        self.ts = currTs
         tdLog.info(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")
 
     # insert same timestamp to all childs

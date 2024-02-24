@@ -121,6 +121,7 @@ typedef struct SScanLogicNode {
   bool          filesetDelimited; // returned blocks delimited by fileset
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
   SArray*       pFuncTypes; // for last, last_row
+  bool          paraTablesSort; // for table merge scan
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -244,7 +245,8 @@ typedef enum EWindowType {
   WINDOW_TYPE_INTERVAL = 1,
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -257,6 +259,7 @@ typedef enum EWindowAlgorithm {
   SESSION_ALGO_STREAM_FINAL,
   SESSION_ALGO_STREAM_SINGLE,
   SESSION_ALGO_MERGE,
+  INTERVAL_ALGO_STREAM_MID,
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
@@ -281,6 +284,8 @@ typedef struct SWindowLogicNode {
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   bool             isPartTb;
+  int64_t          windowCount;
+  int64_t          windowSliding;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -439,6 +444,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igCheckUpdate;
   bool           filesetDelimited;
   bool           needCountEmptyTable;
+  bool           paraTablesSort;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -587,6 +593,7 @@ typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamMidIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
@@ -628,6 +635,14 @@ typedef struct SEventWinodwPhysiNode {
 } SEventWinodwPhysiNode;
 
 typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+
+typedef struct SCountWinodwPhysiNode {
+  SWindowPhysiNode window;
+  int64_t          windowCount;
+  int64_t          windowSliding;
+} SCountWinodwPhysiNode;
+
+typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;
@@ -713,8 +728,10 @@ typedef struct SSubplan {
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
   bool           showRewrite;
-  int32_t        rowsThreshold;
+  bool           isView;
+  bool           isAudit;
   bool           dynamicRowThreshold;
+  int32_t        rowsThreshold;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

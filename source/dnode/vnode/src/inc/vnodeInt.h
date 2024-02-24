@@ -214,6 +214,13 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
+int32_t tsdbCacheNewTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
+int32_t tsdbCacheDropTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
+int32_t tsdbCacheDropSubTables(STsdb* pTsdb, SArray* uids, tb_uid_t suid);
+int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
+int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
+int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
+int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
@@ -235,7 +242,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
@@ -268,8 +275,6 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaInit();

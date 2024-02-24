@@ -49,7 +49,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   return 0;
 }
 
-int32_t tqStreamOneTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
+int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
   int32_t vgId = pMeta->vgId;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -317,82 +317,24 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   if (pTask == NULL) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
+    tDeleteStreamRetrieveReq(&req);
     return -1;
+  }
+
+  int32_t code = 0;
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    code = streamProcessRetrieveReq(pTask, &req);
+  } else {
+    req.srcNodeId = pTask->info.nodeId;
+    req.srcTaskId = pTask->id.taskId;
+    code = broadcastRetrieveMsg(pTask, &req);
   }
 
   SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-  streamProcessRetrieveReq(pTask, &req, &rsp);
+  sendRetrieveRsp(&req, &rsp);
 
   streamMetaReleaseTask(pMeta, pTask);
   tDeleteStreamRetrieveReq(&req);
-  return 0;
-}
-
-int32_t tqStreamTaskProcessScanHistoryFinishReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
-
-  // deserialize
-  SStreamScanHistoryFinishReq req = {0};
-
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  tDecodeStreamScanHistoryFinishReq(&decoder, &req);
-  tDecoderClear(&decoder);
-
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.downstreamTaskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process scan history finish msg, failed to find task:0x%x, it may be destroyed", pMeta->vgId,
-            req.downstreamTaskId);
-    return -1;
-  }
-
-  tqDebug("s-task:%s receive scan-history finish msg from task:0x%x", pTask->id.idStr, req.upstreamTaskId);
-
-  int32_t code = streamProcessScanHistoryFinishReq(pTask, &req, &pMsg->info);
-  streamMetaReleaseTask(pMeta, pTask);
-  return code;
-}
-
-int32_t tqStreamTaskProcessScanHistoryFinishRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
-
-  // deserialize
-  SStreamCompleteHistoryMsg req = {0};
-
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  tDecodeCompleteHistoryDataMsg(&decoder, &req);
-  tDecoderClear(&decoder);
-
-  if (pMeta->role == NODE_ROLE_FOLLOWER) {
-    tqError("s-task:0x%x (vgId:%d) not handle the scan-history finish rsp, since it becomes follower",
-            req.upstreamTaskId, pMeta->vgId);
-    return TASK_DOWNSTREAM_NOT_LEADER;
-  }
-
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process scan history finish rsp, failed to find task:0x%x, it may be destroyed", pMeta->vgId,
-            req.upstreamTaskId);
-    return -1;
-  }
-
-  int32_t remain = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
-  if (remain > 0) {
-    tqDebug("s-task:%s scan-history finish rsp received from downstream task:0x%x, unfinished remain:%d",
-            pTask->id.idStr, req.downstreamId, remain);
-  } else {
-    tqDebug(
-        "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
-        "completed msg",
-        pTask->id.idStr, req.downstreamId);
-    code = streamProcessScanHistoryFinishRsp(pTask);
-  }
-
-  streamMetaReleaseTask(pMeta, pTask);
   return code;
 }
 
@@ -615,7 +557,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   streamMetaWUnLock(pMeta);
 
   if (code < 0) {
-    tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks,
+    tqError("failed to add s-task:0x%x into vgId:%d meta, existed:%d, code:%s", vgId, taskId, numOfTasks,
             tstrerror(code));
     tFreeStreamTask(pTask);
     return code;
@@ -630,9 +572,10 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
 
       if (restored) {
         SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
-        if (p != NULL && (p->info.fillHistory == 0)) {
-          tqStreamOneTaskStartAsync(pMeta, cb, streamId, taskId);
+        if ((p != NULL) && (p->info.fillHistory == 0)) {
+          tqStreamStartOneTaskAsync(pMeta, cb, streamId, taskId);
         }
+
         if (p != NULL) {
           streamMetaReleaseTask(pMeta, p);
         }
@@ -663,10 +606,13 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pHTaskId = &pTask->hTaskInfo.id;
       streamMetaUnregisterTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-      tqDebug("vgId:%d drop fill-history task:0x%x dropped firstly", vgId, (int32_t)pHTaskId->taskId);
+      tqDebug("s-task:0x%x vgId:%d drop fill-history task:0x%x firstly", pReq->taskId, vgId,
+              (int32_t)pHTaskId->taskId);
     }
     streamMetaReleaseTask(pMeta, pTask);
   }
+
+  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, true);
 
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
@@ -990,4 +936,11 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
   return taosArrayGetSize(pMeta->pTaskList);
+}
+
+int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+
+  return TSDB_CODE_SUCCESS;
 }

@@ -1,0 +1,249 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(3);
+sleep 1000
+
+sql insert into t1 values(1648791213000,0,1,1,1.0);
+sql insert into t1 values(1648791213001,9,2,2,1.1);
+sql insert into t1 values(1648791213009,0,3,3,1.0);
+
+
+sql insert into t1 values(1648791223000,0,1,1,1.0);
+sql insert into t1 values(1648791223001,9,2,2,1.1);
+sql insert into t1 values(1648791223009,0,3,3,1.0);
+
+$loop_count = 0
+loop2:
+
+sleep 300
+print 1 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop2
+endi
+
+if $data02 != 6 then
+  print ======data02=$data02
+  goto loop2
+endi
+
+if $data03 != 3 then
+  print ======data03=$data03
+  goto loop2
+endi
+
+# row 1
+if $data11 != 3 then
+  print ======data11=$data11
+  goto loop2
+endi
+
+if $data12 != 6 then
+  print ======data12=$data12
+  goto loop2
+endi
+
+if $data13 != 3 then
+  print ======data13=$data13
+  goto loop2
+endi
+
+
+
+print step2
+print =============== create database
+sql create database test2 vgroups 4;
+sql use test2;
+
+sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt2 as select  _wstart as s, count(*) c1,  sum(b), max(c) from st partition by tbname count_window(3)
+sleep 1000
+
+sql insert into t1 values(1648791213000,0,1,1,1.0);
+sql insert into t1 values(1648791213001,9,2,2,1.1);
+sql insert into t1 values(1648791213009,0,3,3,1.0);
+
+sql insert into t2 values(1648791213000,0,1,1,1.0);
+sql insert into t2 values(1648791213001,9,2,2,1.1);
+sql insert into t2 values(1648791213009,0,3,3,1.0);
+
+sql insert into t1 values(1648791223000,0,1,1,1.0);
+sql insert into t1 values(1648791223001,9,2,2,1.1);
+sql insert into t1 values(1648791223009,0,3,3,1.0);
+
+sql insert into t2 values(1648791223000,0,1,1,1.0);
+sql insert into t2 values(1648791223001,9,2,2,1.1);
+sql insert into t2 values(1648791223009,0,3,3,1.0);
+
+$loop_count = 0
+loop3:
+
+sleep 300
+print 1 sql select * from streamt;
+sql select * from streamt2 order by 1,2;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop3
+endi
+
+if $data02 != 6 then
+  print ======data02=$data02
+  goto loop3
+endi
+
+if $data03 != 3 then
+  print ======data03=$data03
+  goto loop3
+endi
+
+# row 1
+if $data11 != 3 then
+  print ======data11=$data11
+  goto loop3
+endi
+
+if $data12 != 6 then
+  print ======data12=$data12
+  goto loop3
+endi
+
+if $data13 != 3 then
+  print ======data13=$data13
+  goto loop3
+endi
+
+# row 2
+if $data21 != 3 then
+  print ======data21=$data21
+  goto loop3
+endi
+
+if $data22 != 6 then
+  print ======data22=$data22
+  goto loop3
+endi
+
+if $data23 != 3 then
+  print ======data23=$data23
+  goto loop3
+endi
+
+# row 3
+if $data31 != 3 then
+  print ======data31=$data31
+  goto loop3
+endi
+
+if $data32 != 6 then
+  print ======data32=$data32
+  goto loop3
+endi
+
+if $data33 != 3 then
+  print ======data33=$data33
+  goto loop3
+endi
+
+print step3
+print =============== create database
+sql create database test3 vgroups 1;
+sql use test3;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql insert into t1 values(1648791213000,0,1,1,1.0);
+sql insert into t1 values(1648791213001,9,2,2,1.1);
+sql insert into t1 values(1648791213009,0,3,3,1.0);
+
+sleep 500
+
+sql create stream streams3 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt3 as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(3);
+sleep 1000
+
+sql insert into t1 values(1648791223000,0,1,1,1.0);
+sql insert into t1 values(1648791223001,9,2,2,1.1);
+sql insert into t1 values(1648791223009,0,3,3,1.0);
+
+$loop_count = 0
+loop4:
+
+sleep 300
+print 1 sql select * from streamt3;
+sql select * from streamt3;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop4
+endi
+
+if $data02 != 6 then
+  print ======data02=$data02
+  goto loop4
+endi
+
+if $data03 != 3 then
+  print ======data03=$data03
+  goto loop4
+endi
+
+# row 1
+if $data11 != 3 then
+  print ======data11=$data11
+  goto loop4
+endi
+
+if $data12 != 6 then
+  print ======data12=$data12
+  goto loop4
+endi
+
+if $data13 != 3 then
+  print ======data13=$data13
+  goto loop4
+endi
+
+print count0 end
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -94,67 +94,67 @@ taosBenchmark -f <json file>
 
 ## Command-line argument in detail
 
-- **-f/--file <json file\>** :
+- **-f/--file &lt;json file&gt;** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
 
-- **-c/--config-dir <dir\>** :
+- **-c/--config-dir &lt;dir&gt;** :
   specify the directory where the TDengine cluster configuration file. The default path is `/etc/taos`.
 
-- **-h/--host <host\>** :
+- **-h/--host &lt;host&gt;** :
   Specify the FQDN of the TDengine server to connect to. The default value is localhost.
 
-- **-P/--port <port\>** :
+- **-P/--port &lt;port&gt;** :
   The port number of the TDengine server to connect to, the default value is 6030.
 
-- **-I/--interface <insertMode\>** :
+- **-I/--interface &lt;insertMode&gt;** :
   Insert mode. Options are taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface writing, parameter binding interface writing, schemaless interface writing, RESTful schemaless interface writing (provided by taosAdapter). The default value is taosc.
 
-- **-u/--user <user\>** :
+- **-u/--user &lt;user&gt;** :
   User name to connect to the TDengine server. Default is root.
 
 - **-U/--supplement-insert ** :
   Supplementally insert data without create database and table, optional, default is off.
 
-- **-p/--password <passwd\>** :
+- **-p/--password &lt;passwd&gt;** :
   The default password to connect to the TDengine server is `taosdata`.
 
-- **-o/--output <file\>** :
+- **-o/--output &lt;file&gt;** :
   specify the path of the result output file, the default value is `. /output.txt`.
 
-- **-T/--thread <threadNum\>** :
+- **-T/--thread &lt;threadNum&gt;** :
   The number of threads to insert data. Default is 8.
 
-- **-B/--interlace-rows <rowNum\>** :
+- **-B/--interlace-rows &lt;rowNum&gt;** :
   Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
 
-- **-i/--insert-interval <timeInterval\>** :
+- **-i/--insert-interval &lt;timeInterval&gt;** :
   Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.
 
-- **-r/--rec-per-req <rowNum\>** :
+- **-r/--rec-per-req &lt;rowNum&gt;** :
   Writing the number of rows of records per request to TDengine, the default value is 30000.
 
-- **-t/--tables <tableNum\>** :
+- **-t/--tables &lt;tableNum&gt;** :
   Specify the number of sub-tables. The default is 10000.
 
-- **-S/--timestampstep <stepLength\>** :
+- **-S/--timestampstep &lt;stepLength&gt;** :
   Timestamp step for inserting data in each child table in ms, default is 1.
 
-- **-n/--records <recordNum\>** :
+- **-n/--records &lt;recordNum&gt;** :
   The default value of the number of records inserted in each sub-table is 10000.
 
-- **-d/--database <dbName\>** :
+- **-d/--database &lt;dbName&gt;** :
   The name of the database used, the default value is `test`.
 
-- **-b/--data-type <colType\>** :
+- **-b/--data-type &lt;colType&gt;** :
   specify the type of the data columns of the super table. It defaults to three columns of type FLOAT, INT, and FLOAT if not used.
 
-- **-l/--columns <colNum\>** :
+- **-l/--columns &lt;colNum&gt;** :
   specify the number of columns in the super table. If both this parameter and `-b/--data-type` is set, the final result number of columns is the greater of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column type defaults to INT, for example: `-l 5 -b float,double`, then the final column is `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number of columns specified by `-b/--data-type`, then the result is the column and type specified by `-b/--data-type`, e.g.: `-l 3 -b float,double,float,bigint`. The last column is `FLOAT,DOUBLE, FLOAT,BIGINT`.
 
-- **-L/--partial-col-num <colNum\> ** :
+- **-L/--partial-col-num &lt;colNum&gt; ** :
   Specify first numbers of columns has data. Rest of columns' data are NULL. Default is all columns have data.
 
-- **-A/--tag-type <tagType\>** :
+- **-A/--tag-type &lt;tagType&gt;** :
   The tag column type of the super table. nchar and binary types can both set the length, for example:
 
 ```
@@ -168,10 +168,10 @@ Note: In some shells, such as bash, "()" needs to be escaped, so the above comma
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
-- **-w/--binwidth <length\>**:
+- **-w/--binwidth &lt;length&gt;**:
   specify the default length for nchar and binary types. The default value is 64.
 
-- **-m/--table-prefix <tablePrefix\>** :
+- **-m/--table-prefix &lt;tablePrefix&gt;** :
   The prefix of the sub-table name, the default value is "d".
 
 - **-E/--escape-character** :
@@ -192,25 +192,25 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-y/--answer-yes** :
   Switch parameter that requires the user to confirm at the prompt to continue. The default value is false.
 
-- **-O/--disorder <Percentage\>** :
+- **-O/--disorder &lt;Percentage&gt;** :
   Specify the percentage probability of disordered data, with a value range of [0,50]. The default is 0, i.e., there is no disordered data.
 
-- **-R/--disorder-range <timeRange\>** :
+- **-R/--disorder-range &lt;timeRange&gt;** :
   Specify the timestamp range for the disordered data. It leads the resulting disorder timestamp as the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
 
-- **-F/--prepared_rand <Num\>** :
+- **-F/--prepared_rand &lt;Num&gt;** :
   Specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
-- **-a/--replica <replicaNum\>** :
+- **-a/--replica &lt;replicaNum&gt;** :
   Specify the number of replicas when creating the database. The default value is 1.
 
-- **-k/--keep-trying <NUMBER\>** :
+- **-k/--keep-trying &lt;NUMBER&gt;** :
   Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- **-z/--trying-interval <NUMBER\>** :
+- **-z/--trying-interval &lt;NUMBER&;gt;** :
   Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
-- **-v/--vgroups <NUMBER\>** :
+- **-v/--vgroups &lt;NUMBER&gt;** :
   Specify vgroups number for creating a database, only valid with daemon version 3.0+
 
 - **-V/--version** :
@@ -226,7 +226,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 The parameters listed in this section apply to all function modes.
 
 - **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
-**cfgdir**: specify the TDengine client configuration file's directory. The default path is /etc/taos.
+**cfgdir**: specify the TDengine client configuration file's directory. The default path is `/etc/taos`.
 
 - **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
 

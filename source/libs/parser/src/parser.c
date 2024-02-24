@@ -233,14 +233,17 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
   return parseInsertSql(pCxt, &pQuery, pCatalogReq, pMetaData);
 }
 
-int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow) {
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_CREATE_STREAM_STMT:
-      code = translatePostCreateStream(pCxt, pQuery, pResRow);
+    case QUERY_NODE_CREATE_STREAM_STMT: {
+      code = translatePostCreateStream(pCxt, pQuery, pBlock);
       break;
-    case QUERY_NODE_CREATE_INDEX_STMT:
-      code = translatePostCreateSmaIndex(pCxt, pQuery, pResRow);
+    }
+    case QUERY_NODE_CREATE_INDEX_STMT: {
+      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
+      break;
+    }
     default:
       break;
   }

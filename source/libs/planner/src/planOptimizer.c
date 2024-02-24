@@ -338,6 +338,7 @@ static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan)
   if (pScan->sortPrimaryKey || pScan->scanSeq[0] > 1 || pScan->scanSeq[1] > 1) {
     return;
   }
+  pScan->node.outputTsOrder = (SCAN_ORDER_ASC == scanOrder) ? ORDER_ASC : ORDER_DESC;
   switch (scanOrder) {
     case SCAN_ORDER_ASC:
       pScan->scanSeq[0] = 1;
@@ -1449,6 +1450,134 @@ static int32_t sortPrimaryKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
   }
   return sortPrimaryKeyOptimizeImpl(pCxt, pLogicSubplan, pSort);
 }
+
+static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SJoinLogicNode* pJoin) {
+  SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  SScanLogicNode* pScan = NULL;
+  SLogicNode* pChild = NULL;
+  SNode** pChildPos = NULL;
+  EOrder targetOrder = 0;
+  SSHashObj* pTables = NULL;
+  
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) && ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+    pScan = (SScanLogicNode*)pLeft;
+    pChild = pRight;
+    pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    targetOrder = pScan->node.outputTsOrder;
+  } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) && ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+    pScan = (SScanLogicNode*)pRight;
+    pChild = pLeft;
+    pChildPos = &pJoin->node.pChildren->pHead->pNode;
+    targetOrder = pScan->node.outputTsOrder;
+  } else {
+    pChild = pRight;
+    pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    targetOrder = pLeft->outputTsOrder;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  bool res = false;
+  SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+  if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode* pOrderByNode = NULL;
+
+  collectTableAliasFromNodes((SNode*)pChild, &pTables);  
+  if (NULL != tSimpleHashGet(pTables, ((SColumnNode*)pOp->pLeft)->tableAlias, strlen(((SColumnNode*)pOp->pLeft)->tableAlias))) {
+    pOrderByNode = pOp->pLeft;
+  } else if (NULL != tSimpleHashGet(pTables, ((SColumnNode*)pOp->pRight)->tableAlias, strlen(((SColumnNode*)pOp->pRight)->tableAlias))) {
+    pOrderByNode = pOp->pRight;
+  }
+
+  tSimpleHashCleanup(pTables);
+
+  if (NULL == pOrderByNode) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SSortLogicNode* pSort = (SSortLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
+  if (NULL == pSort) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pSort->node.outputTsOrder = targetOrder;
+  pSort->node.pTargets = nodesCloneList(pChild->pTargets);
+  if (NULL == pSort->node.pTargets) {
+    nodesDestroyNode((SNode *)pSort);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  pSort->groupSort = false;
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  if (NULL == pOrder) {
+    nodesDestroyNode((SNode *)pSort);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
+  pOrder->order = targetOrder;
+  pOrder->pExpr = nodesCloneNode(pOrderByNode);
+  pOrder->nullOrder = (ORDER_ASC == pOrder->order) ? NULL_ORDER_FIRST : NULL_ORDER_LAST;
+  if (!pOrder->pExpr) {
+    nodesDestroyNode((SNode *)pSort);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pChild->pParent = (SLogicNode*)pSort;
+  nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pChild);
+  *pChildPos = (SNode*)pSort;
+  pSort->node.pParent = (SLogicNode*)pJoin;;
+
+_return:
+
+  pCxt->optimized = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static bool sortForJoinOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode)) {
+    return false;
+  }
+  
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (pNode->pChildren->length != 2 || !pJoin->hasSubQuery || pJoin->isLowLevelJoin) {
+    return false;
+  }
+
+  SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+
+  if (ORDER_ASC != pLeft->outputTsOrder && ORDER_DESC != pLeft->outputTsOrder) {
+    return false;
+  }
+  if (ORDER_ASC != pRight->outputTsOrder && ORDER_DESC != pRight->outputTsOrder) {
+    return false;
+  }
+
+  if (pLeft->outputTsOrder == pRight->outputTsOrder) {
+    return false;
+  }
+
+  return true;
+}
+
+
+static int32_t sortForJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, sortForJoinOptMayBeOptimized);
+  if (NULL == pJoin) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return sortForJoinOptimizeImpl(pCxt, pLogicSubplan, pJoin);
+}
+
 
 static bool smaIndexOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || NULL == pNode->pParent ||
@@ -2848,6 +2977,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     }
     nodesClearList(cxt.pLastCols);
   }
+  nodesClearList(cxt.pOtherCols);
 
   pAgg->hasLastRow = false;
   pAgg->hasLast = false;
@@ -4197,6 +4327,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
+  {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
   {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
