@@ -816,6 +816,7 @@ impl TaskController {
             "influxdb" => "influxdb",
             "opentsdb" => "opentsdb",
             "pi" => "pi",
+            "pibackfill" => "pi",
             taosx_core::runners::kafka::KAFKA_ID => "kafka",
             taosx_core::runners::historian::AVEVA_HISTORIAN_ID => "avevahistorian",
             "mqtt" => "mqtt",
