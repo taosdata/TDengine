@@ -129,6 +129,9 @@ sql       show topics
 sql       show subscriptions
 sql       show functions
 sql_error show grants
+sql_error show grants full;
+sql_error show grants logs;
+sql_error show cluster machines;
 sql       show queries
 sql       show connections
 sql       show apps
@@ -166,6 +169,9 @@ sql select * from information_schema.ins_topics
 sql select * from information_schema.ins_subscriptions
 sql select * from information_schema.ins_streams
 sql_error select * from information_schema.ins_grants
+sql_error select * from information_schema.ins_grants_full
+sql_error select * from information_schema.ins_grants_logs
+sql_error select * from information_schema.ins_machines
 sql_error select * from information_schema.ins_vgroups
 sql select * from information_schema.ins_configs
 sql_error select * from information_schema.ins_dnode_variables
