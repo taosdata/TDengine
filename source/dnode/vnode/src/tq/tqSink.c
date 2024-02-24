@@ -186,14 +186,14 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
       buildCtbNameAddGroupId(pCreateTableReq->name, gid);
-      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
+//      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
-      tqDebug("copy name:%s", pDataBlock->info.parTbName);
+//      tqDebug("copy name:%s", pDataBlock->info.parTbName);
     }
   } else {
     pCreateTableReq->name = buildCtbNameByGroupId(stbFullName, gid);
-    tqDebug("gen name from stbFullName:%s gid:%"PRId64, stbFullName, gid);
+//    tqDebug("gen name from stbFullName:%s gid:%"PRId64, stbFullName, gid);
   }
 }
 
