@@ -399,7 +399,7 @@ static int32_t getViewMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCac
 
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta, bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
-
+  
   if (pParCxt->async) {
     code = getTableMetaFromCache(pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
