@@ -119,6 +119,7 @@ typedef struct SLeftValueNode {
 typedef enum EHintOption {
   HINT_NO_BATCH_SCAN = 1,
   HINT_BATCH_SCAN,
+  HINT_PARA_TABLES_SORT  
 } EHintOption;
 
 typedef struct SHintNode {

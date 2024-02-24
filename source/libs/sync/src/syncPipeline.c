@@ -206,7 +206,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     }
 
     if (pLogStore->syncLogGetEntry(pLogStore, index, &pEntry) < 0) {
-      sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
+      sWarn("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
       break;
     }
 
@@ -1235,7 +1235,7 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
   } else {
     *pInBuf = false;
     if (pNode->pLogStore->syncLogGetEntry(pNode->pLogStore, index, &pEntry) < 0) {
-      sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
+      sWarn("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
     }
   }
   return pEntry;
@@ -1251,7 +1251,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
 
   pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
   if (pEntry == NULL) {
-    sError("vgId:%d, failed to get raft entry for index:%" PRId64 "", pNode->vgId, index);
+    sWarn("vgId:%d, failed to get raft entry for index:%" PRId64 "", pNode->vgId, index);
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
       if (pMgr) {

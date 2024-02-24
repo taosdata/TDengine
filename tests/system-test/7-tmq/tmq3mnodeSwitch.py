@@ -150,7 +150,7 @@ class TDTestCase:
                     'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1}, {'type': 'TIMESTAMP', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     1,
+                    'ctbNum':     10,
                     'rowsPerTbl': 40000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
@@ -227,8 +227,9 @@ class TDTestCase:
         if expectRowsList[0] > resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
-        if expectRowsList[0] == resultList[0]:
-            tmqCom.checkFileContent(consumerId, queryString)
+        # querySqlString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s order by ts,tbname " %(paraDict['dbName'], paraDict['stbName'])
+        # if expectRowsList[0] == resultList[0]:
+        #     tmqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):

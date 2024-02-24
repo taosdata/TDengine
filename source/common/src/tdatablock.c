@@ -2162,7 +2162,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = 1;
+  *version = BLOCK_VERSION_1;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2259,7 +2259,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   int32_t version = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
-  ASSERT(version == 1);
+  ASSERT(version == BLOCK_VERSION_1);
 
   // total length sizeof(int32_t)
   int32_t dataLen = *(int32_t*)pStart;

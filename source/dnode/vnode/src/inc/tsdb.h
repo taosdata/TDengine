@@ -74,6 +74,7 @@ typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SBlkInfo         SBlkInfo;
 typedef struct STsdbDataIter2   STsdbDataIter2;
 typedef struct STsdbFilterInfo  STsdbFilterInfo;
+typedef struct STFileSystem     STFileSystem;
 
 #define TSDBROW_ROW_FMT ((int8_t)0x0)
 #define TSDBROW_COL_FMT ((int8_t)0x1)
@@ -359,6 +360,8 @@ struct STsdb {
   TdThreadMutex        biMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
+  // compact monitor
+  struct SCompMonitor *pCompMonitor;
 };
 
 struct TSDBKEY {

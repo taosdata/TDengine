@@ -311,6 +311,21 @@ static const SSysDbTableSchema userUserPrivilegesSchema[] = {
     {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
+static const SSysDbTableSchema userCompactsSchema[] = {
+    {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userCompactsDetailSchema[] = {
+    {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "finished", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -337,6 +352,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false},
     {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
     {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), false},
+    {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
+    {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

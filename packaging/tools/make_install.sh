@@ -408,7 +408,6 @@ function install_taosadapter_config() {
 }
 
 function install_log() {
-  ${csudo}rm -rf ${log_dir} || :
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
   ${csudo}ln -s ${log_dir} ${install_main_dir}/log > /dev/null 2>&1
 }

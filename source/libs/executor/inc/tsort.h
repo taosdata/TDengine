@@ -194,6 +194,10 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+/**
+ * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
+*/
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
 #ifdef __cplusplus
 }
 #endif

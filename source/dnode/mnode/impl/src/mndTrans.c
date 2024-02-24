@@ -599,6 +599,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     pTrans->originRpcType = pReq->msgType;
   }
 
+  mInfo("trans:%d, create transaction:%s, origin:%s", pTrans->id, pTrans->opername, opername);
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
@@ -845,6 +847,8 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if(pTrans == NULL) return -1;
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
@@ -1415,7 +1419,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     pTrans->stage = TRN_STAGE_COMMIT;
     mInfo("trans:%d, stage from redoAction to commit", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS || code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mInfo("trans:%d, stage keep on redoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {

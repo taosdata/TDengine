@@ -725,6 +725,25 @@ void    tFreeStreamObj(SStreamObj* pObj);
 //   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 // } SStreamCheckpointObj;
 
+typedef struct {
+  int32_t compactDetailId;
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+} SCompactDetailObj;
+
+typedef struct {
+  int32_t compactId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;
+  SArray* compactDetail;
+} SCompactObj;
+
 #ifdef __cplusplus
 }
 #endif

@@ -30,6 +30,7 @@
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo     binfo;
   SAggSupporter      aggSup;
+  SExprSupp          scalarSupp;         // supporter for perform scalar function
   SGroupResInfo      groupResInfo;
   SWindowRowsSup     winSup;
   bool               reptScan;  // next round scan
@@ -1417,6 +1418,10 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     }
 
     pBInfo->pRes->info.scanFlag = pBlock->info.scanFlag;
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+    }    
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
@@ -1541,6 +1546,8 @@ void destroySWindowOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSupp);
+  
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }
@@ -1580,6 +1587,16 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
   pInfo->reptScan = false;
   pInfo->binfo.inputTsOrder = pSessionNode->window.node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pSessionNode->window.node.outputTsOrder;
+
+  if (pSessionNode->window.pExprs != NULL) {
+    int32_t    numOfScalar = 0;
+    SExprInfo* pScalarExprInfo = createExprInfo(pSessionNode->window.pExprs, NULL, &numOfScalar);
+    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar, &pTaskInfo->storageAPI.functionStore);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+  }
+
   code = filterInitFromNode((SNode*)pSessionNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

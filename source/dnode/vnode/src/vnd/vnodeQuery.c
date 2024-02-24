@@ -48,7 +48,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
+    goto _exit4;
   }
 
   metaRsp.dbId = pVnode->config.dbId;
@@ -58,7 +58,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
-    goto _exit;
+    goto _exit4;
   }
 
   // query meta
@@ -66,7 +66,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
-    goto _exit;
+    goto _exit3;
   }
 
   metaRsp.tableType = mer1.me.type;
@@ -80,7 +80,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
     strcpy(metaRsp.stbName, mer2.me.name);
     metaRsp.suid = mer2.me.uid;
@@ -124,6 +124,12 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
 _exit:
+  taosMemoryFree(metaRsp.pSchemas);
+_exit2:
+  metaReaderClear(&mer2);
+_exit3:
+  metaReaderClear(&mer1);
+_exit4:
   rpcMsg.info = pMsg->info;
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
@@ -140,9 +146,6 @@ _exit:
     *pMsg = rpcMsg;
   }
 
-  taosMemoryFree(metaRsp.pSchemas);
-  metaReaderClear(&mer2);
-  metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -424,9 +427,9 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables) {
-  SVnode* pVnodeObj = pVnode;
-  SVnodeCfg* pConf = &pVnodeObj->config;
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
+  SVnode    *pVnodeObj = pVnode;
+  SVnodeCfg *pConf = &pVnodeObj->config;
 
   if (dbname) {
     *dbname = pConf->dbname;
@@ -445,7 +448,7 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* num
   }
 }
 
-int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
+int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);
   } else {
@@ -695,12 +698,12 @@ void *vnodeGetIdx(void *pVnode) {
     return NULL;
   }
 
-  return metaGetIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIdx(((SVnode *)pVnode)->pMeta);
 }
 
 void *vnodeGetIvtIdx(void *pVnode) {
   if (pVnode == NULL) {
     return NULL;
   }
-  return metaGetIvtIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }

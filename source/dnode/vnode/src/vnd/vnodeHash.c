@@ -24,14 +24,6 @@ struct SVHashEntry {
   void*        obj;
 };
 
-struct SVHashTable {
-  uint32_t (*hash)(const void*);
-  int32_t (*compare)(const void*, const void*);
-  int32_t       numEntries;
-  uint32_t      numBuckets;
-  SVHashEntry** buckets;
-};
-
 static int32_t vHashRehash(SVHashTable* ht, uint32_t newNumBuckets) {
   SVHashEntry** newBuckets = (SVHashEntry**)taosMemoryCalloc(newNumBuckets, sizeof(SVHashEntry*));
   if (newBuckets == NULL) {
