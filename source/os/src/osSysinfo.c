@@ -905,8 +905,15 @@ void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
   int64_t cur_receive_bytes = 0;
   int64_t cur_transmit_bytes = 0;
   if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
-    *receive_bytes = cur_receive_bytes - last_receive_bytes;
-    *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    if(last_receive_bytes > 0 && last_receive_bytes > 0){
+      *receive_bytes = cur_receive_bytes - last_receive_bytes;
+      *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    }
+    else{
+      *receive_bytes = 0;
+      *transmit_bytes = 0;
+    }
+
     last_receive_bytes = cur_receive_bytes;
     last_transmit_bytes = cur_transmit_bytes;
   } else {
