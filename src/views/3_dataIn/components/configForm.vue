@@ -79,7 +79,7 @@
           <template v-else-if="item.type == 'advanced'">
             <el-collapse 
               :class='`advanced-${lang}`'
-              v-model="isEditable ? 'one' : item.collapsed" 
+              v-model="activeName" 
               accordion>
               <el-collapse-item name='one'>
                 <template slot="title">
@@ -186,6 +186,9 @@ export default {
   computed: {
     lang() {
       return getBrowserLang() == 'zh' ? 'zh': 'en'
+    },
+    activeName() {
+      return this.isEditable ? 'one' : ''
     }
   },
   watch: {
