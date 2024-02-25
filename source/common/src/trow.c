@@ -231,7 +231,7 @@ bool tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCe
   return true;
 }
 
-#ifdef BUILD_NO_CALL
+// #ifdef BUILD_NO_CALL
 const uint8_t tdVTypeByte[2][3] = {{
                                        // 2 bits
                                        TD_VTYPE_NORM_BYTE_II,
@@ -439,13 +439,14 @@ bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal) {
   return true;
 }
 
-int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t rowType) {
   STColumn *pTColumn;
   SColVal  *pColVal;
   int32_t   nColVal = taosArrayGetSize(pArray);
   int32_t   varDataLen = 0;
   int32_t   maxVarDataLen = 0;
   int32_t   iColVal = 0;
+  int32_t   nBound = 0;
   void     *varBuf = NULL;
   bool      isAlloc = false;
 
@@ -457,6 +458,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
       pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
     } else {
       pColVal = NULL;
+    }
+    if (pColVal && !COL_VAL_IS_NONE(pColVal)) {
+      ++nBound;
     }
 
     if (iColumn == 0) {
@@ -512,10 +516,11 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
     }
   }
 
-  SRowBuilder rb = {0};
+  SRowBuilder rb = {.rowType = rowType};
   tdSRowInit(&rb, pTSchema->version);
-  tdSRowSetInfo(&rb, pTSchema->numOfCols, pTSchema->numOfCols, pTSchema->flen);
+  tdSRowSetInfo(&rb, pTSchema->numOfCols, nBound, pTSchema->flen);
   tdSRowResetBuf(&rb, *ppRow);
+  int32_t iBound = 0;
 
   iColVal = 0;
   for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
@@ -529,21 +534,28 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
         valType = TD_VTYPE_NONE;
       } else if (COL_VAL_IS_NULL(pColVal)) {
         valType = TD_VTYPE_NULL;
+        ++iBound;
       } else if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         varDataSetLen(varBuf, pColVal->value.nData);
         if (pColVal->value.nData != 0) {
           memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
         }
         val = varBuf;
+        ++iBound;
       } else {
         val = (const void *)&pColVal->value.val;
+        ++iBound;
       }
     } else {
       // pColVal = NULL;
       valType = TD_VTYPE_NONE;
     }
 
-    tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, pTColumn->offset, iColVal);
+    if (TD_IS_TP_ROW(rb.pBuf)) {
+      tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, pTColumn->offset, iColVal);
+    } else {
+      tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, rb.offset, iBound);
+    }
 
     ++iColVal;
   }
@@ -761,11 +773,11 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
 
 int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val, bool isCopyVarData,
                               int8_t colType, int16_t colIdx, int32_t offset, col_id_t colId) {
-  if ((offset < (int32_t)sizeof(SKvRowIdx)) || (colIdx < 1)) {
+  if (colIdx < 1) {
     terrno = TSDB_CODE_INVALID_PARA;
+    ASSERTS(0, "colIdx is %" PRIi64, colIdx);
     return terrno;
   }
-  offset -= sizeof(SKvRowIdx);
   --colIdx;
 
 #ifdef TD_SUPPORT_BITMAP
@@ -779,6 +791,7 @@ int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
   SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(row), offset);
   pColIdx->colId = colId;
   pColIdx->offset = TD_ROW_LEN(row);  // the offset include the TD_ROW_HEAD_LEN
+  pBuilder->offset += sizeof(SKvRowIdx);
   if (valType == TD_VTYPE_NORM) {
     char *ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
     if (IS_VAR_DATA_TYPE(colType)) {
@@ -904,6 +917,7 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
       TD_ROW_SET_LEN(pBuilder->pBuf, len);
       TD_ROW_SET_SVER(pBuilder->pBuf, pBuilder->sver);
       TD_ROW_SET_NCOLS(pBuilder->pBuf, pBuilder->nBoundCols);
+      pBuilder->offset = 0;
       break;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
@@ -1056,7 +1070,7 @@ int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int
 void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SCellVal  cv = {0};
-  SValue    value = {0};
+  // SValue    value = {0};
 
   ASSERT((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
 
@@ -1085,4 +1099,3 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     }
   }
 }
-#endif
