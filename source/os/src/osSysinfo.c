@@ -590,10 +590,6 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
         }
       }
     }
-    else{
-      *cpu_system = 0;
-      *cpu_engine = 0;
-    }
 
     lastSysUsed = curSysUsed;
     lastSysTotal = curSysTotal;
