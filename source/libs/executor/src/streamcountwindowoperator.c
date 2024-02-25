@@ -331,7 +331,6 @@ static SSDataBlock* buildCountResult(SOperatorInfo* pOperator) {
 
 int32_t doStreamCountEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
-  return 0;
   if (!pInfo) {
     return 0;
   }
