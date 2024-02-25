@@ -452,17 +452,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    int32_t newLen = pSource->varmeta.offset[numOfRows - 1];
-    if (newLen != -1) {
-      if (pSource->info.type == TSDB_DATA_TYPE_JSON) {
-        newLen += getJsonValueLen(pSource->pData + newLen);
-      } else {
-        newLen += varDataTLen(pSource->pData + newLen);
-      }
-    } else {
-      newLen = pSource->varmeta.length;
-    }
-
+    int32_t newLen = pSource->varmeta.length;
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (pColumnInfoData->varmeta.allocLen < newLen) {
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
@@ -1699,7 +1689,17 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    // pColInfoData->varmeta.length = pColInfoData->varmeta.offset[n];
+    int32_t newLen = pColInfoData->varmeta.offset[n - 1];
+    if (newLen != -1) {
+      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+        newLen += getJsonValueLen(pColInfoData->pData + newLen);
+      } else {
+        newLen += varDataTLen(pColInfoData->pData + newLen);
+      }
+    } else {
+      newLen = pColInfoData->varmeta.length;
+    }
+    pColInfoData->varmeta.length = newLen;
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
