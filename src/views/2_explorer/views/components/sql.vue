@@ -10,7 +10,7 @@
     <div class="sqlInput">
       <codemirror
         style="height: 100%"
-        :placeholder="$t('console.sqlTip')"
+        :placeholder="sqlTip"
         ref="sqlStr"
         @blur="blur"
         @inputRead="cursorActivity"
@@ -83,7 +83,8 @@
           ch: 0,
         },
         comIns: null,
-        isCondition: false
+        isCondition: false,
+        sqlTip: '',
       };
     },
     computed: {
@@ -104,6 +105,9 @@
       addSql() {
         return this.$store.state.console.addSql;
       },
+      // sqlTip() {
+      //   return this.$t('console.sqlTip')
+      // }
     },
     watch: {
       addSql(newVal) {
@@ -127,6 +131,14 @@
           this.isCondition = true
         } else {
           this.isCondition = false
+        }
+      },
+      "$i18n.locale": {
+        deep: true,
+        handler(val) {
+          console.log('99',val);
+          // this.sqlTip = this.$t('console.sqlTip')
+          this.sqlTip = val
         }
       }
     },

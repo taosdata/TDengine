@@ -68,7 +68,7 @@
                 :disabled="tabDisabled(child, item)"
               >
                 <FormItem
-                  v-if="tabContentShow(child, item)"
+                  v-show="tabContentShow(child, item)"
                   :config="child"
                   :data="data[item.field]"
                   :parent="parent + item.field + '.'"
@@ -79,7 +79,7 @@
           <template v-else-if="item.type == 'advanced'">
             <el-collapse 
               :class='`advanced-${lang}`'
-              v-model="item.collapsed" 
+              v-model="isEditable ? 'one' : item.collapsed" 
               accordion>
               <el-collapse-item name='one'>
                 <template slot="title">

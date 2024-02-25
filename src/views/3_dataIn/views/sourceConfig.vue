@@ -1,6 +1,6 @@
 <template>
   <div class="source-ui">
-    <div :class="['left-ui']">
+    <div :class="['left-ui', isShowEditBtn ? 'readable': '']">
       <el-form
         :model="sourceForm"
         ref="form"
@@ -95,15 +95,15 @@
         <!-- <el-button @click="cancel" type="primary" class="preview-btn" size="small">{{
           $t("preview")
         }}</el-button> -->
-        <!-- <el-button
+        <el-button
           v-if="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
           size="small"
           >{{ $t("edit") }}</el-button
-        > -->
-        <el-button type="primary" @click="save" size="small" :loading="loading">{{
+        >
+        <el-button v-else type="primary" @click="save" size="small" :loading="loading">{{
           isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
         }}</el-button>
          <el-button @click="cancel" class="cancel-btn" size="small">{{
@@ -584,20 +584,20 @@ export default {
       box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
     }
   }
-  // .left-ui.readable {
-  //   position: relative;
-  //   &::before {
-  //     content: "";
-  //     display: block;
-  //     background: #f2f6fc40;
-  //     position: absolute;
-  //     top: 0;
-  //     left: 0;
-  //     right: 0;
-  //     bottom: 0;
-  //     z-index: 100;
-  //   }
-  // }
+  .left-ui.readable {
+    position: relative;
+    &::before {
+      content: "";
+      display: block;
+      background: #f2f6fc40;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+    }
+  }
 
   .left-ui {
     flex-shrink: 0;

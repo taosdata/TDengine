@@ -2313,6 +2313,8 @@ export default {
   display: flex;
   justify-content: space-between;
   margin-top: 15px;
+  z-index: 101;
+  position: relative;
 }
 .pagination {
   margin-top: 0px !important;

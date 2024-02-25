@@ -1149,7 +1149,7 @@ export default {
       targetSt: "目标超级表",
       mutiple: "多条件查询以分号分隔",
       msgbody: "示例消息体",
-      msgbodytip: "请直接输入 Payload 示例，也可点击右侧按钮从服务器获取 Payload 或者从文件上传 Payload。请注意 Payload 示例 默认只处理 10 行，您可以修改该配置但上限是 100 行。",
+      msgbodytip: "请直接输入 Payload 示例，也可点击右侧按钮从服务器获取 Payload 或者从文件上传 Payload。请注意 Payload 示例 默认只处理 5 行，您可以修改该配置但上限是 100 行。",
       searchSResult: "输入完后按enter键查询",
       tablenametip: "请输入表名称",
       mapcalculate: "请先计算mapping值",
