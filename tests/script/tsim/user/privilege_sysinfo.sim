@@ -99,7 +99,8 @@ sql select * from d2.stb2
 sql select * from d2.ctb2
 sql select * from d2.ntb2
 
-$loop_cnt = 0
+$loop_cnt = 5
+$loop_idx = 0
 $loop_flag = 0
 
 loop_check_sysinfo_0:
@@ -279,19 +280,19 @@ sql select * from performance_schema.perf_trans
 sql select * from performance_schema.perf_apps
 
 loop_check_switch:
-if $loop_cnt > 5 then
+if $loop_idx > $loop_cnt then
   goto loop_check_end
 endi
-$loop_cnt = $loop_cnt + 1
+$loop_idx = $loop_idx + 1
 
 if $loop_flag == 0 then
   system taos -P7100 -s 'alter user sysinfo0 sysinfo 1'
-  sleep 2000
+  sleep 3000
   $loop_flag = 1
   goto loop_check_sysinfo_1
 else
   system taos -P7100 -s 'alter user sysinfo0 sysinfo 0'
-  sleep 2000
+  sleep 3000
   $loop_flag = 0
   goto loop_check_sysinfo_0
 endi
