@@ -290,7 +290,6 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       curWin.winInfo.pStatePos->beUpdated = true;
       SSessionKey key = {0};
       getSessionHashKey(&curWin.winInfo.sessionWin, &key);
-      qDebug("===stream=== window close %" PRId64, key.win.skey);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
     }
 
