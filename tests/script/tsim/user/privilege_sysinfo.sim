@@ -296,7 +296,6 @@ else
   $loop_flag = 0
   goto loop_check_sysinfo_0
 endi
-goto loop_check_sysinfo_0
 
 loop_check_end:
 print =============== check end
