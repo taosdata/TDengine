@@ -281,7 +281,7 @@
           fixed="right"
         >
           <template slot-scope="scope">
-            <!-- <el-tooltip
+            <el-tooltip
               placement="bottom"
               effect="light"
               :content="
@@ -295,11 +295,11 @@
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
-                @click="view(scope.row, scope.row.status.toLowerCase())"
+                @click="edit(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-view"
               ></el-button>
-            </el-tooltip> -->
-            <el-tooltip
+            </el-tooltip>
+            <!-- <el-tooltip
               placement="bottom"
               effect="light"
               :content="
@@ -316,7 +316,7 @@
                 @click="edit(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-edit"
               ></el-button>
-            </el-tooltip>
+            </el-tooltip> -->
             <el-tooltip
               placement="bottom"
               effect="light"
