@@ -444,6 +444,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
   SColVal  *pColVal;
   int32_t   nColVal = taosArrayGetSize(pArray);
   int32_t   varDataLen = 0;
+  int32_t   nonVarDataLen = 0;
   int32_t   maxVarDataLen = 0;
   int32_t   iColVal = 0;
   int32_t   nBound = 0;
@@ -488,16 +489,26 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
             }
           }
         }
+      } else {
+        if(pColVal && COL_VAL_IS_VALUE(pColVal)) {
+          nonVarDataLen += TYPE_BYTES[pTColumn->type];
+        }
       }
     }
 
     ++iColVal;
   }
 
-  if (!(*ppRow)) {
-    *ppRow = (STSRow *)taosMemoryCalloc(
-        1, sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1));
-    isAlloc = true;
+  int32_t rowTotalLen = 0;
+  if (rowType == TD_ROW_TP) {
+    rowTotalLen = sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1);
+  } else {
+    rowTotalLen = sizeof(STSRow) + sizeof(col_id_t) + varDataLen + nonVarDataLen + (nBound - 1) * sizeof(SKvRowIdx) +
+                  TD_BITMAP_BYTES(nBound - 1);
+  }
+    if (!(*ppRow)) {
+      *ppRow = (STSRow *)taosMemoryCalloc(1, rowTotalLen);
+      isAlloc = true;
   }
 
   if (!(*ppRow)) {
@@ -554,7 +565,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
     if (TD_IS_TP_ROW(rb.pBuf)) {
       tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, pTColumn->offset, iColVal);
     } else {
-      tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, rb.offset, iBound);
+      tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, rb.offset, iBound - 1);
     }
 
     ++iColVal;

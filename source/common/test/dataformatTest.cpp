@@ -461,13 +461,14 @@ TEST(testCase, AllNormTest) {
   char *data[14] = {
       "1653694220000", "10", "20", "10.1", "10.1", "binary10", "nchar10", "10", "10", "10", "10", "20", "30", "40"};
 
-  // genTestData((const char **)&data, nCols, &pArray);
+  genTestData((const char **)&data, nCols, &pArray);
 
-  // tdSTSRowNew(pArray, pTSchema, &row, TD_ROW_TP);
-  // debugPrintTSRow(row, pTSchema, __func__, __LINE__);
-  // tdSRowPrint(row, pTSchema, __func__);
-  // checkTSRow((const char **)&data, row, pTSchema);
+  tdSTSRowNew(pArray, pTSchema, &row, TD_ROW_TP);
+  debugPrintTSRow(row, pTSchema, __func__, __LINE__);
+  tdSRowPrint(row, pTSchema, __func__);
+  checkTSRow((const char **)&data, row, pTSchema);
 
+  taosMemoryFreeClear(row);
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
 }
@@ -485,17 +486,15 @@ TEST(testCase, NoneTest) {
 
   // ts timestamp,  c1 int,  c2 bigint,  c3 float,  c4 double,  c5 binary(10),  c6 nchar(10),  c7 tinyint,  c8 smallint,
   // c9 bool c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned
-  // const int8_t rowType[nRows] = {TD_ROW_TP, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV,
-  //                                TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_TP, TD_ROW_KV, TD_ROW_KV,
-  //                                TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_TP};
-  const int8_t rowType[nRows] = {TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV,
-                                 TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_TP, TD_ROW_KV, TD_ROW_KV,
+  const int8_t rowType[nRows] = {TD_ROW_TP, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV,
+                                 TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_TP, TD_ROW_KV, TD_ROW_KV,
                                  TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_KV, TD_ROW_TP};
+
 const char  *data[nRows][nCols] = {
-    // {"1653694220000", "no", "20", "10.1", "10.1", "binary10", "no", "10", "10", "nu", "10", "20", "30", "40"},
-    // {"1653694220001", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
-    // {"1653694220002", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
-    // {"1653694220003", "10", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
+    {"1653694220000", "no", "20", "10.1", "10.1", "binary10", "no", "10", "10", "nu", "10", "20", "30", "40"},
+    {"1653694220001", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
+    {"1653694220002", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
+    {"1653694220003", "10", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
     {"1653694220004", "no", "20", "no", "no", "no", "nchar10", "no", "no", "no", "no", "no", "no", "no"},
     {"1653694220005", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu"},
     {"1653694220006", "no", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu"},
@@ -517,7 +516,6 @@ const char  *data[nRows][nCols] = {
       "no"}};
 
 for (int r = 0; r < nRows; ++r) {
-  printf("%s:%d index:%d\n", __func__, __LINE__, r);
   genTestData((const char **)&data[r], nCols, &pArray);
   tdSTSRowNew(pArray, pTSchema, &row, rowType[r]);
   debugPrintTSRow(row, pTSchema, __func__, __LINE__);  // debug print
