@@ -15,8 +15,10 @@ use std::{
 
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
+use kafka::producer::DefaultHasher;
 use rand::seq::SliceRandom;
 use serde::Deserialize;
+use serde_json::de;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
@@ -2578,9 +2580,20 @@ async fn realtime(
             time_range
         );
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         todo.tables
             .scan_async(|table| {
+                let mut hasher = DefaultHasher::new();
+                table.hash(&mut hasher);
+                tracing::debug!(
+                    "table={}, stable={:?}, hash={}",
+                    table.table,
+                    table.stable,
+                    hasher.finish(),
+                );
                 if scanned.contains(table) {
+                    tracing::debug!("table={} is already scanned.", table.table);
                     return;
                 }
                 scanned.insert(table.clone());
