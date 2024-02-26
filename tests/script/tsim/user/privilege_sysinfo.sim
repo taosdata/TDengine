@@ -236,7 +236,7 @@ sql       show create table d2.stb2;
 sql       show create table d2.ctb2;
 sql       show create table d2.ntb2;
 sql       show local variables;
-sql_error show dnode 1 variables;
+sql       show dnode 1 variables;
 sql       show variables;
 
 
@@ -269,7 +269,7 @@ sql select * from information_schema.ins_grants_logs
 sql select * from information_schema.ins_machines
 sql select * from information_schema.ins_vgroups
 sql select * from information_schema.ins_configs
-sql_error select * from information_schema.ins_dnode_variables
+sql select * from information_schema.ins_dnode_variables
 
 print =============== check performance_schema of sysinfo 1
 sql use performance_schema;
