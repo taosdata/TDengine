@@ -15,10 +15,8 @@ use std::{
 
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
-use kafka::producer::DefaultHasher;
 use rand::seq::SliceRandom;
 use serde::Deserialize;
-use serde_json::de;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
@@ -2564,7 +2562,8 @@ async fn realtime(
         now -= excursion;
     }
     // now is the separator of history and future data.
-
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
     // check if need retro back.
     if !opts.restro.is_zero() {
         // trace back to some duration.
@@ -2580,8 +2579,6 @@ async fn realtime(
             time_range
         );
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
         todo.tables
             .scan_async(|table| {
                 let mut hasher = DefaultHasher::new();
@@ -2630,7 +2627,17 @@ async fn realtime(
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
             .scan_async(|item| {
+                let mut hasher = DefaultHasher::new();
+                item.hash(&mut hasher);
+                tracing::debug!(
+                    "debug scan_async end={:?}, table={}, stable={:?}, hash={}",
+                    end,
+                    item.table,
+                    item.stable.as_ref().unwrap(),
+                    hasher.finish(),
+                );
                 if scanned.contains(item) {
+                    tracing::debug!("table={} is already scanned.", item.table);
                     return;
                 }
                 scanned.insert(item.clone());
