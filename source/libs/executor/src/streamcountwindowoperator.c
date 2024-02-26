@@ -438,7 +438,7 @@ void doResetCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock) {
       pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentNext(pAggSup->pState, &key);
     }
     while (1) {
-      SSessionKey tmpKey = {0};
+      SSessionKey tmpKey = {.groupId = gpDatas[i], .win.skey = INT64_MIN, .win.ekey = INT64_MIN};
       int32_t code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &tmpKey, (void **)&pPos, &size);
       if (code != TSDB_CODE_SUCCESS || tmpKey.win.skey > endDatas[i]) {
         pAggSup->stateStore.streamStateFreeCur(pCur);
