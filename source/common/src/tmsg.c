@@ -4313,24 +4313,24 @@ int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   return tlen;
 }
 
-int32_t tDeserializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->payloadLen) < 0) return -1;
-  if (pReq->payloadLen > 0) {
-    pReq->payload = taosMemoryMalloc(pReq->payloadLen);
-    if (pReq->payload == NULL) return -1;
-    if (tDecodeCStrTo(&decoder, pReq->payload) < 0) return -1;
-  }
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
+//   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->payloadLen) < 0) return -1;
+//   if (pReq->payloadLen > 0) {
+//     pReq->payload = taosMemoryMalloc(pReq->payloadLen);
+//     if (pReq->payload == NULL) return -1;
+//     if (tDecodeCStrTo(&decoder, pReq->payload) < 0) return -1;
+//   }
 
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tEndDecode(&decoder);
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 void tFreeSShowReq(SShowReq *pReq) { taosMemoryFreeClear(pReq->payload); }
 
@@ -4583,34 +4583,34 @@ void tFreeSSTbHbRsp(SSTbHbRsp *pRsp) {
   taosArrayDestroy(pRsp->pIndexRsp);
 }
 
-int32_t tSerializeSShowRsp(void *buf, int32_t bufLen, SShowRsp *pRsp) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
+// int32_t tSerializeSShowRsp(void *buf, int32_t bufLen, SShowRsp *pRsp) {
+//   SEncoder encoder = {0};
+//   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI64(&encoder, pRsp->showId) < 0) return -1;
-  if (tEncodeSTableMetaRsp(&encoder, &pRsp->tableMeta) < 0) return -1;
-  tEndEncode(&encoder);
+//   if (tStartEncode(&encoder) < 0) return -1;
+//   if (tEncodeI64(&encoder, pRsp->showId) < 0) return -1;
+//   if (tEncodeSTableMetaRsp(&encoder, &pRsp->tableMeta) < 0) return -1;
+//   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
+//   int32_t tlen = encoder.pos;
+//   tEncoderClear(&encoder);
+//   return tlen;
+// }
 
-int32_t tDeserializeSShowRsp(void *buf, int32_t bufLen, SShowRsp *pRsp) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSShowRsp(void *buf, int32_t bufLen, SShowRsp *pRsp) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pRsp->showId) < 0) return -1;
-  if (tDecodeSTableMetaRsp(&decoder, &pRsp->tableMeta) < 0) return -1;
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI64(&decoder, &pRsp->showId) < 0) return -1;
+//   if (tDecodeSTableMetaRsp(&decoder, &pRsp->tableMeta) < 0) return -1;
 
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tEndDecode(&decoder);
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
-void tFreeSShowRsp(SShowRsp *pRsp) { tFreeSTableMetaRsp(&pRsp->tableMeta); }
+// void tFreeSShowRsp(SShowRsp *pRsp) { tFreeSTableMetaRsp(&pRsp->tableMeta); }
 
 int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
@@ -4918,17 +4918,17 @@ int32_t tSerializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
   return tlen;
 }
 
-int32_t tDeserializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->reserved) < 0) return -1;
-  tEndDecode(&decoder);
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->reserved) < 0) return -1;
+//   tEndDecode(&decoder);
 
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
   SEncoder encoder = {0};
@@ -4943,17 +4943,17 @@ int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pR
   return tlen;
 }
 
-int32_t tDeserializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->tick) < 0) return -1;
-  tEndDecode(&decoder);
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI64(&decoder, &pReq->tick) < 0) return -1;
+//   tEndDecode(&decoder);
 
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tEncodeSReplica(SEncoder *pEncoder, SReplica *pReplica) {
   if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
@@ -5818,17 +5818,17 @@ int32_t tSerializeSForceBecomeFollowerReq(void *buf, int32_t bufLen, SForceBecom
   return tlen;
 }
 
-int32_t tDeserializeSForceBecomeFollowerReq(void *buf, int32_t bufLen, SForceBecomeFollowerReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSForceBecomeFollowerReq(void *buf, int32_t bufLen, SForceBecomeFollowerReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
-  tEndDecode(&decoder);
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+//   tEndDecode(&decoder);
 
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *pReq) {
   SEncoder encoder = {0};

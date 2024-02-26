@@ -1628,14 +1628,14 @@ typedef struct {
 } SMTimerReq;
 
 int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
-int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
+// int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct {
   int64_t tick;
 } SMStreamTickReq;
 
 int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
-int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+// int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
 
 typedef struct {
   int32_t  id;
@@ -1936,7 +1936,7 @@ typedef struct {
 } SShowReq;
 
 int32_t tSerializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
-int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
+// int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
 void    tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
@@ -1944,9 +1944,9 @@ typedef struct {
   STableMetaRsp tableMeta;
 } SShowRsp, SVShowTablesRsp;
 
-int32_t tSerializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
-int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
-void    tFreeSShowRsp(SShowRsp* pRsp);
+// int32_t tSerializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
+// int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
+// void    tFreeSShowRsp(SShowRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -2204,7 +2204,7 @@ typedef struct {
 } SForceBecomeFollowerReq;
 
 int32_t tSerializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
-int32_t tDeserializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
+// int32_t tDeserializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
 
 typedef struct {
   int32_t vgId;
