@@ -2609,13 +2609,13 @@ async fn realtime(
             "spawn sync task for range: {:?}.",
             time_range
         );
-        let mut scaned = std::collections::HashSet::<LegacyTableItem>::new();
+        let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
             .scan_async(|item| {
-                if scaned.contains(item) {
+                if scanned.contains(item) {
                     return;
                 }
-                scaned.insert(item.clone());
+                scanned.insert(item.clone());
                 let LegacyTableItem {
                     stable,
                     table,
