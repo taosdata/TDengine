@@ -79,9 +79,11 @@ impl DsSampleIn {
 
     pub fn to_schema(&self) -> anyhow::Result<arrow::datatypes::Schema> {
         let schema = match &self.parser.parse {
-            None => Self::to_schema_by_first_input(&self.input),
+            None => None,
             Some(parse) => Self::to_schema_by_parse(parse),
         };
+
+        let schema = Self::to_schema_by_first_input(&self.input, schema);
 
         if schema.is_none() {
             anyhow::bail!("Could not infer schema from sample data");
@@ -111,6 +113,7 @@ impl DsSampleIn {
 
     fn to_schema_by_first_input(
         input: &Vec<LinkedHashMap<String, serde_json::Value>>,
+        schema: Option<arrow::datatypes::Schema>,
     ) -> Option<arrow::datatypes::Schema> {
         if input.is_empty() {
             return None;
@@ -136,7 +139,14 @@ impl DsSampleIn {
                         }
                     }
                 };
-                Field::new(name, dt, true)
+                let dt = match &schema {
+                    Some(schema) => schema
+                        .field_with_name(name)
+                        .map(|f| f.data_type())
+                        .unwrap_or(&dt),
+                    None => &dt,
+                };
+                Field::new(name, dt.clone(), true)
             })
             .collect_vec();
 
