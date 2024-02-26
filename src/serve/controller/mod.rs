@@ -699,8 +699,7 @@ impl TaskController {
             | "influxdb"
             | "opentsdb"
             | taosx_core::runners::kafka::KAFKA_ID
-            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
-            | "csv" => {
+            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -996,8 +995,7 @@ impl TaskController {
             | "influxdb"
             | "opentsdb"
             | taosx_core::runners::kafka::KAFKA_ID
-            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
-            | "csv" => {
+            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
