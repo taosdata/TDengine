@@ -25,24 +25,24 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
+#include "cos.h"
 #include "rsync.h"
 #include "streamInt.h"
-#include "cos.h"
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
+// int main(int argc, char **argv) {
+//   testing::InitGoogleTest(&argc, argv);
 
-  if (taosInitCfg("/etc/taos/", NULL, NULL, NULL, NULL, 0) != 0) {
-    printf("error");
-  }
-  if (s3Init() < 0) {
-    return -1;
-  }
-  strcpy(tsSnodeAddress, "127.0.0.1");
-  int ret = RUN_ALL_TESTS();
-  s3CleanUp();
-  return ret;
-}
+//   if (taosInitCfg("/etc/taos/", NULL, NULL, NULL, NULL, 0) != 0) {
+//     printf("error");
+//   }
+//   if (s3Init() < 0) {
+//     return -1;
+//   }
+//   strcpy(tsSnodeAddress, "127.0.0.1");
+//   int ret = RUN_ALL_TESTS();
+//   s3CleanUp();
+//   return ret;
+// }
 
 TEST(testCase, checkpointUpload_Test) {
   stopRsync();

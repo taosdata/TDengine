@@ -21,6 +21,10 @@
 #include "streamState.h"
 #include "tcommon.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct SCfComparator {
   rocksdb_comparator_t** comp;
   int32_t                numOfComp;
@@ -253,4 +257,9 @@ int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
 void     bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
