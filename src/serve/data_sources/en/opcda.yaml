@@ -60,20 +60,22 @@ datasets:
       selectable: true
     params:
       - name: root
-        display: root node
+        display: Root node
         description: |
           Query all child nodes starting from this node.
+        placeholder: For example root.parent
         hint:
           type: str
       - name: pattern
-        display: regex pattern for name
+        display: Regex pattern
         description: |
-          The data point TagName need to match the regular expression.
+          Match the data point TagName.
         hint:
           type: str
       - name: table_primary_key
         display: Primary Key
-        description:
+        description: |
+          The selected value will be the primary key of target table, original_ts represents the time when OPC service recieve data from data points, and received_ts represents the time when the taosX task received data from OPC server.
         required: true
         value: original_ts
         hint:
