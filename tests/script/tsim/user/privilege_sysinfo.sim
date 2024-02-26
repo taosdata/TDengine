@@ -99,8 +99,14 @@ sql select * from d2.stb2
 sql select * from d2.ctb2
 sql select * from d2.ntb2
 
-print =============== check show
+$loop_cnt = 5
+$loop_idx = 0
+$loop_flag = 0
+
+loop_check_sysinfo_0:
+print =============== check show of sysinfo 0
 sql_error show users
+sql_error show user privileges
 sql_error show cluster
 sql_error select * from information_schema.ins_dnodes
 sql_error select * from information_schema.ins_mnodes
@@ -142,7 +148,7 @@ sql_error show dnode 1 variables;
 sql       show variables;
 
 
-print =============== check information_schema
+print =============== check information_schema of sysinfo 0
 sql show databases
 if $rows != 3 then
   return -1
@@ -154,13 +160,14 @@ sql_error select * from information_schema.ins_mnodes
 sql_error select * from information_schema.ins_modules
 sql_error select * from information_schema.ins_qnodes
 sql_error select * from information_schema.ins_cluster
+sql_error select * from information_schema.ins_users
+sql_error select * from information_schema.ins_user_privileges
 sql select * from information_schema.ins_databases
 sql select * from information_schema.ins_functions
 sql select * from information_schema.ins_indexes
 sql select * from information_schema.ins_stables
 sql select * from information_schema.ins_tables
 sql select * from information_schema.ins_tags
-sql select * from information_schema.ins_users
 sql select * from information_schema.ins_topics
 sql select * from information_schema.ins_subscriptions
 sql select * from information_schema.ins_streams
@@ -169,12 +176,116 @@ sql_error select * from information_schema.ins_vgroups
 sql select * from information_schema.ins_configs
 sql_error select * from information_schema.ins_dnode_variables
 
-print =============== check performance_schema
+print =============== check performance_schema of sysinfo 0
 sql use performance_schema;
 sql select * from performance_schema.perf_connections
 sql select * from performance_schema.perf_queries
 sql select * from performance_schema.perf_consumers
 sql select * from performance_schema.perf_trans
 sql select * from performance_schema.perf_apps
+
+goto loop_check_switch
+
+loop_check_sysinfo_1:
+print =============== check show of sysinfo 1
+sql       show users
+sql       show user privileges
+sql       show cluster
+sql       select * from information_schema.ins_dnodes
+sql       select * from information_schema.ins_mnodes
+sql       show snodes
+sql       select * from information_schema.ins_qnodes
+sql       show dnodes
+sql       show snodes
+sql       show qnodes
+sql       show mnodes
+sql       show db.vgroups
+sql_error show db.stables
+sql_error show db.tables
+sql       show indexes from stb from db
+sql       show databases
+sql       show d2.vgroups
+sql       show d2.stables
+sql       show d2.tables
+sql       show indexes from stb2 from d2
+#sql_error show create database db
+sql_error show create table db.stb;
+sql_error show create table db.ctb;
+sql_error show create table db.ntb;
+sql       show streams
+sql       show consumers
+sql       show topics
+sql       show subscriptions
+sql       show functions
+sql       show grants
+sql       show queries
+sql       show connections
+sql       show apps
+sql       show transactions
+sql       show create database d2
+sql       show create table d2.stb2;
+sql       show create table d2.ctb2;
+sql       show create table d2.ntb2;
+sql       show local variables;
+sql       show dnode 1 variables;
+sql       show variables;
+
+
+print =============== check information_schema of sysinfo 1
+sql show databases
+if $rows != 3 then
+  return -1
+endi
+
+sql use information_schema;
+sql select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_mnodes
+sql_error select * from information_schema.ins_modules
+sql select * from information_schema.ins_qnodes
+sql select * from information_schema.ins_cluster
+sql select * from information_schema.ins_users
+sql select * from information_schema.ins_user_privileges
+sql select * from information_schema.ins_databases
+sql select * from information_schema.ins_functions
+sql select * from information_schema.ins_indexes
+sql select * from information_schema.ins_stables
+sql select * from information_schema.ins_tables
+sql select * from information_schema.ins_tags
+sql select * from information_schema.ins_topics
+sql select * from information_schema.ins_subscriptions
+sql select * from information_schema.ins_streams
+sql select * from information_schema.ins_grants
+sql select * from information_schema.ins_vgroups
+sql select * from information_schema.ins_configs
+sql select * from information_schema.ins_dnode_variables
+
+print =============== check performance_schema of sysinfo 1
+sql use performance_schema;
+sql select * from performance_schema.perf_connections
+sql select * from performance_schema.perf_queries
+sql select * from performance_schema.perf_consumers
+sql select * from performance_schema.perf_trans
+sql select * from performance_schema.perf_apps
+
+loop_check_switch:
+if $loop_idx > $loop_cnt then
+  goto loop_check_end
+endi
+$loop_idx = $loop_idx + 1
+
+if $loop_flag == 0 then
+  system taos -P7100 -s 'alter user sysinfo0 sysinfo 1'
+  sleep 3000
+  $loop_flag = 1
+  goto loop_check_sysinfo_1
+else
+  system taos -P7100 -s 'alter user sysinfo0 sysinfo 0'
+  sleep 3000
+  $loop_flag = 0
+  goto loop_check_sysinfo_0
+endi
+
+loop_check_end:
+print =============== check end
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
