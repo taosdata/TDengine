@@ -82,7 +82,7 @@ pub struct TaskConfig {
     pub time_window: Duration,
     pub retrieve_interval: Duration,
     pub tolerance: Duration,
-    pub sample: usize,
+    pub sample_data_limit: usize,
     // advanced options
     pub advanced_options: AdvancedOptions,
 }
@@ -103,7 +103,7 @@ impl TaskConfig {
             time_window: Self::parse_time_window(dsn)?,
             retrieve_interval: Self::parse_retrieve_interval(dsn)?,
             tolerance: Self::parse_tolerance(dsn)?,
-            sample: Self::parse_sample(dsn)?,
+            sample_data_limit: Self::parse_sample_data_limit(dsn)?,
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
         })
     }
@@ -324,22 +324,22 @@ impl TaskConfig {
             .unwrap_or(Duration::milliseconds(0)))
     }
 
-    fn parse_sample(dsn: &Dsn) -> anyhow::Result<usize> {
+    fn parse_sample_data_limit(dsn: &Dsn) -> anyhow::Result<usize> {
         Ok(dsn
             .params
-            .get("sample")
+            .get("sample_data_limit")
             .map(|s| {
-                let sample = s.parse::<usize>().map_err(|err| {
+                let sample_data_limit = s.parse::<usize>().map_err(|err| {
                     anyhow::anyhow!(
-                        "failed to parse sample amount: {}, cause: {}",
+                        "failed to parse sample_data_limit: {}, cause: {}",
                         s.to_string(),
                         err.to_string()
                     )
                 })?;
-                if sample <= 0 {
-                    bail!("sample amount must be greater than 0");
+                if sample_data_limit <= 0 {
+                    bail!("sample_data_limit must be greater than 0");
                 }
-                Ok(sample)
+                Ok(sample_data_limit)
             })
             .transpose()?
             .unwrap_or(3))
