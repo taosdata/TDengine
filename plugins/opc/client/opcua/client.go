@@ -694,18 +694,14 @@ func (c *UAClient) doSubBatch(base uint, nodes []*ua.NodeID) error {
 	for i := uint(0); i < subItemTimes; i++ {
 		indexBase := i * maxOperations
 		subNodes := nodes[indexBase : indexBase+maxOperations]
-		err = c.doSubItems(int(indexBase+base), subNodes, sub)
-		if err != nil {
-			return err
-		}
+		//ignore error
+		c.doSubItems(int(indexBase+base), subNodes, sub)
 	}
 	if len(nodes)%int(maxOperations) != 0 {
 		indexBase := subItemTimes * maxOperations
 		subNodes := nodes[indexBase:]
-		err = c.doSubItems(int(indexBase+base), subNodes, sub)
-		if err != nil {
-			return err
-		}
+		//ignore error
+		c.doSubItems(int(indexBase+base), subNodes, sub)
 	}
 	c.handleSubCallback(sub, ch)
 	return nil
