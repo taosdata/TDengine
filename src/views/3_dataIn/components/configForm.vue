@@ -67,14 +67,12 @@
                 :name="child.name"
                 :disabled="tabDisabled(child, item)"
               >
-              <keep-alive>
                 <FormItem
                   v-if="tabContentShow(child, item)"
                   :config="child"
                   :data="data[item.field]"
                   :parent="parent + item.field + '.'"
                 />
-              </keep-alive>
               </el-tab-pane>
             </el-tabs>
           </template>

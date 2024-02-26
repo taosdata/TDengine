@@ -61,9 +61,10 @@ export default {
   },
   watch: {},
   created() {
-    if(this.isEdit) {
-      this.handleFiles()
-    }
+    // if(this.isEdit) {
+    // }
+    // 在新增或者编辑时切换 tab 都能保持上传的文件列表
+    this.handleFiles()
   },
   mounted() {},
   methods: {

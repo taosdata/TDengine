@@ -2,6 +2,7 @@
   <div class="dataset-result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight, 'top': defaultTop}">
     <div class="title-block">
       <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
+      <span class='el-icon-close' @click="showtable=false"></span>
     </div>
     <el-table
       border
