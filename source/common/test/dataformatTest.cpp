@@ -418,7 +418,8 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
     checkSColVal(data[i], &cv, pTSchema->columns[i].type);
   }
 
-  STSRowIter rowIter = {.pSchema = pTSchema};
+  STSRowIter rowIter = {0};
+  rowIter.pSchema = pTSchema;
   tdSTSRowIterReset(&rowIter, row);
   for (int32_t i = 0; i < pTSchema->numOfCols; ++i) {
     STColumn *pCol = pTSchema->columns + i;
