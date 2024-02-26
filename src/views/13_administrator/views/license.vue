@@ -24,6 +24,9 @@
       >
       </el-table-column>
     </el-table> -->
+    <p class="title">
+      <span>{{ $t("topic.basicDatabaseFeatures") }}</span>
+    </p>
     <el-descriptions class="margin-top" title="" :column="3">
       <el-descriptions-item :label="$t('topic.clusterId')" :labelStyle="style">
         <span>{{ clusterId }}</span>
@@ -47,12 +50,37 @@
         </span>
       </el-descriptions-item>
     </el-descriptions>
+    <template v-if="!version_no_later_than_3230" >
+      <p class="title">
+        <span>{{ $t("topic.advancedDatabaseFeatures") }}</span>
+      </p>
+      <el-table style="margin-top: 20px" :data="advancedTableData" size="mini">
+        <el-table-column :label="$t('topic.advancedFeatures')" prop="display_name"></el-table-column>
+        <el-table-column :label="$t('topic.number')" prop="limits">
+          <template slot-scope="scope">
+            <span>{{
+              formatLimits(scope.row.limits)
+            }}</span>
+          </template>
+        </el-table-column>
+        <!-- 占位 -->
+        <el-table-column />
+        <el-table-column
+          :label="$t('topic.expire_time')"
+          prop="expireTime"
+        >
+          <template slot-scope="scope">
+            <span>{{ expireTime(scope.row.expireTime) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
     <p class="title">
       <span>{{ $t("topic.connectors") }}</span>
     </p>
     <el-table style="margin-top: 20px" :data="tableData" size="mini">
       <el-table-column :label="$t('topic.type')" prop="type"></el-table-column>
-      <el-table-column :label="$t('topic.number')" prop="number">
+      <el-table-column :label="$t('topic.tasks')" prop="number">
         <template slot-scope="scope">
           <span>{{
             scope.row.number == -1 ? "unlimited" : scope.row.number
@@ -177,6 +205,7 @@ export default {
       licenseList: [],
       columns: [],
       tableData: [],
+      advancedTableData: [],
       parsinginZone,
       version_no_later_than_3230: false,
     };
@@ -282,18 +311,7 @@ export default {
             });
 
             this.tableData = array
-              .filter((item) =>
-                [
-                  "opc_da",
-                  "opc_ua",
-                  "pi",
-                  "kafka",
-                  "influxdb",
-                  "mqtt",
-                  "opentsdb",
-                  "avevahistorian",
-                ].includes(item.grant_name)
-              )
+              .filter((item) => item.limits.indexOf("{") == 0)
               .map((data) => {
                 return {
                   ...JSON.parse(data.limits),
@@ -301,7 +319,10 @@ export default {
                   expire_time: data.expireTime,
                 };
               });
-            console.log("this.tableData", this.tableData);
+              this.advancedTableData = array
+                .filter((item) => item.limits.indexOf("{") == -1)
+                
+              console.log("this.tableData", this.tableData, this.advancedTableData);
           });
         }
         this.loading = false;
@@ -335,6 +356,14 @@ export default {
         return parsinginZone(data, "YYYY-MM-DD");
       }
     },
+    formatLimits(data) {
+      if (data) {
+        console.log('data',data);
+        return data == 'unlimited' ? 'unlimited' : data.split('/')[1]
+      } else {
+        return 'n/a'
+      }
+    }
   },
 };
 </script>
