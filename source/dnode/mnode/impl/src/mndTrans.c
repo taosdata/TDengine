@@ -1100,7 +1100,10 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
 
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
-  if (topHalf) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  if (topHalf) {
+    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  }
 
   int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pAction->pRaw);
   if (code == 0 || terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
