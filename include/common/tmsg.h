@@ -1324,14 +1324,13 @@ typedef struct {
 } SDnodeListReq;
 
 int32_t tSerializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
-int32_t tDeserializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
 
 typedef struct {
   int32_t useless;  // useless
 } SServerVerReq;
 
 int32_t tSerializeSServerVerReq(void* buf, int32_t bufLen, SServerVerReq* pReq);
-int32_t tDeserializeSServerVerReq(void* buf, int32_t bufLen, SServerVerReq* pReq);
+// int32_t tDeserializeSServerVerReq(void* buf, int32_t bufLen, SServerVerReq* pReq);
 
 typedef struct {
   char ver[TSDB_VERSION_LEN];
@@ -1907,7 +1906,7 @@ typedef struct {
 } SShowVariablesReq;
 
 int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
-int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
+// int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];

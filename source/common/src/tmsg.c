@@ -3280,18 +3280,6 @@ int32_t tSerializeSDnodeListReq(void *buf, int32_t bufLen, SDnodeListReq *pReq) 
   return tlen;
 }
 
-int32_t tDeserializeSDnodeListReq(void *buf, int32_t bufLen, SDnodeListReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->rowNum) < 0) return -1;
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
-  return 0;
-}
-
 int32_t tSerializeSServerVerReq(void *buf, int32_t bufLen, SServerVerReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -3305,17 +3293,17 @@ int32_t tSerializeSServerVerReq(void *buf, int32_t bufLen, SServerVerReq *pReq) 
   return tlen;
 }
 
-int32_t tDeserializeSServerVerReq(void *buf, int32_t bufLen, SServerVerReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSServerVerReq(void *buf, int32_t bufLen, SServerVerReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
 
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tEndDecode(&decoder);
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tSerializeSServerVerRsp(void *buf, int32_t bufLen, SServerVerRsp *pRsp) {
   SEncoder encoder = {0};
@@ -4233,17 +4221,17 @@ int32_t tSerializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesReq
   return tlen;
 }
 
-int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
 
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tEndDecode(&decoder);
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->name) < 0) return -1;
