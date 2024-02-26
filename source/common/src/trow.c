@@ -137,6 +137,7 @@ int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pVa
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
   if (!pBitmap || colIdx < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -177,16 +178,19 @@ int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pVal
   }
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
   switch (bitmapMode) {
     case 0:
       tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
       break;
+#if 0
     case -1:
     case 1:
       tdGetBitmapValTypeI(pBitmap, colIdx, pValType);
       break;
+#endif
     default:
       terrno = TSDB_CODE_INVALID_PARA;
       return TSDB_CODE_FAILED;
@@ -628,7 +632,7 @@ bool tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCell
 
   return true;
 }
-
+#if 0
 int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType) {
   if (!pBitmap || colIdx < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -678,6 +682,7 @@ int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType) {
   }
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_t offset, int16_t colIdx) {
 #ifdef TD_SUPPORT_BITMAP
@@ -854,7 +859,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
 
   return 0;
 }
-
+#if 0
 int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
                               int32_t allNullLen, int32_t boundNullLen) {
   if ((boundNullLen > 0) && (allNullLen > 0) && (nBoundCols > 0)) {
@@ -890,6 +895,7 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
 #endif
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
   pBuilder->pBuf = (STSRow *)pBuf;
@@ -1065,10 +1071,12 @@ int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int
     case 0:
       tdSetBitmapValTypeII(pBitmap, colIdx, valType);
       break;
+#if 0
     case -1:
     case 1:
       tdSetBitmapValTypeI(pBitmap, colIdx, valType);
       break;
+#endif
     default:
       terrno = TSDB_CODE_INVALID_PARA;
       return TSDB_CODE_FAILED;
