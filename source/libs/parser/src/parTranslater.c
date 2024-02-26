@@ -1678,11 +1678,11 @@ static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
 
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (isMultiResFunc(pOp->pLeft)) {
-    generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
+    generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT, ((SExprNode*)(pOp->pLeft))->userAlias);
     return DEAL_RES_ERROR;
   }
   if (isMultiResFunc(pOp->pRight)) {
-    generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+    generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT, ((SExprNode*)(pOp->pRight))->userAlias);
     return DEAL_RES_ERROR;
   }
 

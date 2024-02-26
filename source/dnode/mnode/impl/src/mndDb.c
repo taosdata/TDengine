@@ -41,7 +41,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
-static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj);
+static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
 static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
@@ -256,17 +256,29 @@ _OVER:
   return pRow;
 }
 
-static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, void *pObj) {
-  SDbObj *pNewDb = pObj;
+static int32_t mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw) {
+  SSdb    *pSdb = pMnode->pSdb;
+  SSdbRow *pRow = NULL;
+  SDbObj  *pNewDb = NULL;
+  int      code = -1;
+
+  pRow = mndDbActionDecode(pRaw);
+  if (pRow == NULL) goto _OVER;
+  pNewDb = sdbGetRowObj(pRow);
+  if (pNewDb == NULL) goto _OVER;
 
   SDbObj *pOldDb = sdbAcquire(pMnode->pSdb, SDB_DB, pNewDb->name);
   if (pOldDb != NULL) {
     mError("trans:%d, db name already in use. name: %s", pTrans->id, pNewDb->name);
     sdbRelease(pMnode->pSdb, pOldDb);
-    return -1;
+    goto _OVER;
   }
 
-  return 0;
+  code = 0;
+_OVER:
+  if (pNewDb) mndDbActionDelete(pSdb, pNewDb);
+  taosMemoryFreeClear(pRow);
+  return code;
 }
 
 static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
@@ -884,10 +896,10 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   return terrno;
 }
 
-static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
   if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) {
     sdbFreeRaw(pRedoRaw);
     return -1;
   }
@@ -943,7 +955,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   mndTransSetDbName(pTrans, pOld->name, NULL);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
-  if (mndSetAlterDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
+  if (mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -1120,10 +1132,10 @@ _OVER:
   return code;
 }
 
-static int32_t mndSetDropDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
   if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
 
   return 0;
@@ -1257,7 +1269,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
     goto _OVER;
   }
 
-  if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndSetDropDbPrepareLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/

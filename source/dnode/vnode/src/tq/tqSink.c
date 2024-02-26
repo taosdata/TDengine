@@ -72,7 +72,7 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
       if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0) {
-        buildCtbNameAddGruopId(name, groupId);
+        buildCtbNameAddGroupId(name, groupId);
       }
     } else if (stbFullName) {
       name = buildCtbNameByGroupId(stbFullName, groupId);
@@ -185,23 +185,26 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
         !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
-      buildCtbNameAddGruopId(pCreateTableReq->name, gid);
+      buildCtbNameAddGroupId(pCreateTableReq->name, gid);
+//      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
+//      tqDebug("copy name:%s", pDataBlock->info.parTbName);
     }
   } else {
     pCreateTableReq->name = buildCtbNameByGroupId(stbFullName, gid);
+//    tqDebug("gen name from stbFullName:%s gid:%"PRId64, stbFullName, gid);
   }
 }
 
 static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock,
                                             SStreamTask* pTask, int64_t suid) {
-  tqDebug("s-task:%s build create table msg", pTask->id.idStr);
-
   STSchema* pTSchema = pTask->outputInfo.tbSink.pTSchema;
   int32_t   rows = pDataBlock->info.rows;
   SArray*   tagArray = taosArrayInit(4, sizeof(STagVal));
-  ;
+
+  tqDebug("s-task:%s build create %d table(s) msg", pTask->id.idStr, rows);
+
   int32_t code = 0;
 
   SVCreateTbBatchReq reqs = {0};
@@ -670,7 +673,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     } else {
       if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1 &&
           !isAutoTableName(dstTableName) && !alreadyAddGroupId(dstTableName) && groupId != 0) {
-        buildCtbNameAddGruopId(dstTableName, groupId);
+        tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
+        buildCtbNameAddGroupId(dstTableName, groupId);
       }
     }
 
