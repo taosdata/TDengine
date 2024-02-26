@@ -2609,30 +2609,34 @@ async fn realtime(
             "spawn sync task for range: {:?}.",
             time_range
         );
+        let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
-            .scan_async(
-                |LegacyTableItem {
-                     stable,
-                     table,
-                     vgroup_id: _,
-                     mtlf,
-                 }| {
-                    if *mtlf {
-                        scheduler
-                            .send_blocking(Todo::Sparse(table.clone(), time_range.clone(), None))
-                            .unwrap();
-                    } else {
-                        scheduler
-                            .send_blocking(Todo::Data(
-                                stable.clone(),
-                                table.clone(),
-                                time_range.clone(),
-                                None,
-                            ))
-                            .unwrap();
-                    }
-                },
-            )
+            .scan_async(|item| {
+                if scanned.contains(item) {
+                    return;
+                }
+                scanned.insert(item.clone());
+                let LegacyTableItem {
+                    stable,
+                    table,
+                    vgroup_id: _,
+                    mtlf,
+                } = item;
+                if *mtlf {
+                    scheduler
+                        .send_blocking(Todo::Sparse(table.clone(), time_range.clone(), None))
+                        .unwrap();
+                } else {
+                    scheduler
+                        .send_blocking(Todo::Data(
+                            stable.clone(),
+                            table.clone(),
+                            time_range.clone(),
+                            None,
+                        ))
+                        .unwrap();
+                }
+            })
             .await;
         start = end;
         info!(
