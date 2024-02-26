@@ -10,7 +10,7 @@
     <div class="sqlInput">
       <codemirror
         style="height: 100%"
-        :placeholder="sqlTip"
+        :placeholder="$t('console.sqlTip')"
         ref="sqlStr"
         @blur="blur"
         @inputRead="cursorActivity"
@@ -84,7 +84,6 @@
         },
         comIns: null,
         isCondition: false,
-        sqlTip: '',
       };
     },
     computed: {
@@ -133,14 +132,6 @@
           this.isCondition = false
         }
       },
-      "$i18n.locale": {
-        deep: true,
-        handler(val) {
-          console.log('99',val);
-          // this.sqlTip = this.$t('console.sqlTip')
-          this.sqlTip = val
-        }
-      }
     },
     mounted() {
       this.$BusOnAndAutoOff("console/sql/focus", () => {
