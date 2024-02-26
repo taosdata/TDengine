@@ -2577,8 +2577,13 @@ async fn realtime(
             "spawning retro task for range: {:?}.",
             time_range
         );
+        let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
             .scan_async(|table| {
+                if scanned.contains(table) {
+                    return;
+                }
+                scanned.insert(table.clone());
                 scheduler
                     .send_blocking(Todo::Data(
                         table.stable.clone(),
