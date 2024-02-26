@@ -101,6 +101,12 @@
       :visible.sync="dialogVisible"
       :close-on-click-modal="false"
       width="500px">
+      <div slot="title">
+        <div class="el-dialog_cus_itle">{{ $t('dataIn.filterPointTitle') }}</div>
+        <DocsContent
+          :content="$t('dataIn.filterPoinDesc')"
+        />
+      </div>
       <div>
         <el-form 
         size="small" 
@@ -112,14 +118,14 @@
             :label="$t('dataIn.rootNode')"
             prop="root"
           >
-            <el-input style="width: 300px" v-model="info.root"></el-input>
+            <el-input style="width: 300px" v-model="info.root" :placeholder="$t('dataIn.rootNodePlaceholder')"></el-input>
           </el-form-item>
           <el-form-item
             :label="$t('dataIn.namespace')"
             prop="namespaces"
             v-if="isOpcUa"
           >
-            <el-select style="width: 300px" v-model="info.namespaces" :multiple="true">
+            <el-select style="width: 300px" v-model="info.namespaces" :multiple="true" :placeholder="$t('dataIn.namespacePlaceholder')">
               <el-option
                 v-for="item in namespaceList"
                 :key="item.label"
@@ -131,7 +137,7 @@
             :label="$t('dataIn.pointRegexp')"
             prop="pattern"
           >
-            <el-input style="width: 300px" v-model="info.pattern"></el-input>
+            <el-input style="width: 300px" v-model="info.pattern" :placeholder="$t('dataIn.pointRegexpPlaceholder')"></el-input>
           </el-form-item>
         </el-form>
       </div>
@@ -149,6 +155,7 @@ import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTick
 import { getDsnData } from '../utils';
 import { downloadFileBlob } from '@/utils/file';
 import { handleDownload } from '../utils';
+import DocsContent from '@/views/support/components/editorContentDisplay.vue'
 
 export default {
   props: {
@@ -162,7 +169,7 @@ export default {
     }
   },
   inject: ['getCurrentDefinition', 'sourceParent'],
-  components: { uploadCsv },
+  components: { uploadCsv, DocsContent },
   data() {
     this.textMap = {};
     return {
@@ -435,5 +442,11 @@ export default {
   position: absolute;
   width: 150px;
   // left: 18px;
+}
+.el-dialog_cus_itle {
+  line-height: 26px;
+  font-weight: 500;
+  font-size: 20px;
+  color: #4d6992;
 }
 </style>
