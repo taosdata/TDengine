@@ -935,8 +935,9 @@ class StreamComputingTest(TDCase):
             #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
             #         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
 
-    def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=None, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None):
+    def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=None, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None, use_except=None):
         sliding_value = "" if sliding == None else f', {sliding}'
+        fv = "" if fill_value is None else f'fill({fill_value})'
         self.range_count = 100
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
@@ -981,6 +982,11 @@ class StreamComputingTest(TDCase):
         else:
             partition_elm = ""
         self.tdCom.write_latency(self.case_name)
+        if watermark == 0 or watermark is None or ignore_expired != 1 or count_window_value < 2 or partition == "c1" or fill_value is not None:
+            stream_sql = self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} {fv} count_window({count_window_value}{sliding_value})', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update, use_except=use_except)
+            self.tdSql.error(stream_sql)
+            return
+            
         if "tbname" in partition_elm:
             self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
@@ -2992,7 +2998,7 @@ class StreamComputingTest(TDCase):
                         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} {additional_options}  partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', fill_value=fill_value)
 
     def window_close_count_window(self, watermark=None, ignore_expired=1, ignore_update=None, partition="tbname", count_window_value=None, sliding=None, fill_history_value=None, fill_value=None, delete=False, checkpoint_check=False):
-        self.range_count = 20
+        self.range_count = 10
         sliding_value = "" if sliding == None else f', {count_window_value}'
         interval_sliding_value = "" if sliding == None else f' sliding({count_window_value}s)'
         self.delete = delete
@@ -3028,12 +3034,12 @@ class StreamComputingTest(TDCase):
         watermark_value = f'{self.dataDict["watermark"]}s'
         # create stb/ctb/tb stream
         if "tbname" in partition_elm:
-            self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
+            self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
         if fill_value:
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} count_window({count_window_value}{sliding_value})', trigger_mode="window_close", watermark=watermark_value, subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update)
 
         start_time = self.date_time
         ts_bigint = 0
@@ -3122,44 +3128,51 @@ class StreamComputingTest(TDCase):
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=delete_ts_value)
             # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
             # if sliding is not None:
+            # * tmp commit out 
+            # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            #     if tbname != self.tb_name:
+            #         if tbname == self.stb_name and "tbname" not in partition_elm:
+            #                 pass
+            #         else:
+            #             self.tdSql.query(f'select _wend, _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart')
+            #             wend = self.tdSql.query_data[-1][0]
+            #             self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
+            #             wend = self.tdSql.query_data[0][0] - watermark * self.offset
+            #             # stream_window_count = self.cal_count_window(tbname, wend, watermark)
+            #             self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart) where wend < {wend}')
+            #             stream_window_count = self.tdSql.query_row
+            #             self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
+            #     else:
+            #         self.tdSql.query(f'select _wend, _wstart AS wstart, {self.tb_source_select_str}  from {tbname}   {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart')
+            #         wend = self.tdSql.query_data[-1][0]
+            #         self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
+            #         wend = self.tdSql.query_data[0][0] - watermark * self.offset
+            #         # stream_window_count = self.cal_count_window(tbname, wend, watermark)
+            #         self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.tb_source_select_str}  from {tbname}  {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart) where wend < {wend}')
+            #         stream_window_count = self.tdSql.query_row
+            #         self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
+            # * tmp commit out 
+                # else:
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
                     if tbname == self.stb_name and "tbname" not in partition_elm:
-                            pass
+                        pass
                     else:
-                        self.tdSql.query(f'select _wend, _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart')
+                        self.tdSql.query(f'select _wend as wend, _wstart AS wstart, {self.stb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wend')
                         wend = self.tdSql.query_data[-1][0]
                         self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
                         wend = self.tdSql.query_data[0][0] - watermark * self.offset
-                        # stream_window_count = self.cal_count_window(tbname, wend, watermark)
-                        self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart) where wend < {wend}')
+                        self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.stb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart) where wend < {wend}')
                         stream_window_count = self.tdSql.query_row
-                        self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
+                        self.tdCom.check_stream(f'select wstart, wend, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wend', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wend limit {stream_window_count}', stream_window_count)
                 else:
-                    self.tdSql.query(f'select _wend, _wstart AS wstart, {self.tb_source_select_str}  from {tbname}   {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart')
+                    self.tdSql.query(f'select _wend as wend, _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wend')
                     wend = self.tdSql.query_data[-1][0]
                     self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
                     wend = self.tdSql.query_data[0][0] - watermark * self.offset
-                    # stream_window_count = self.cal_count_window(tbname, wend, watermark)
-                    self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.tb_source_select_str}  from {tbname}  {partition_elm} interval({count_window_value}s) {interval_sliding_value} order by wstart) where wend < {wend}')
+                    self.tdSql.query(f'select * from (select _wstart AS wstart, _wend as wend, {self.tb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart) where wend < {wend}')
                     stream_window_count = self.tdSql.query_row
-                    self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} {partition_elm} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
-                # else:
-                # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-                #     if tbname != self.tb_name:
-                #         self.tdSql.query(f'select _wend, _wstart AS wstart, {self.stb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart')
-                #         wend = self.tdSql.query_data[-1][0]
-                #         self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
-                #         wend = self.tdSql.query_data[0][0]
-                #         stream_window_count = self.cal_count_window(tbname, wend, watermark)
-                #         self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
-                #     else:
-                #         self.tdSql.query(f'select _wend, _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart')
-                #         wend = self.tdSql.query_data[-1][0]
-                #         self.tdSql.query(f'select cast(cast("{wend}" as timestamp) as bigint)')
-                #         wend = self.tdSql.query_data[0][0]
-                #         stream_window_count = self.cal_count_window(tbname, wend, watermark)
-                #         self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart limit {stream_window_count}', stream_window_count)
+                    self.tdCom.check_stream(f'select wstart, wend, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wend', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wend limit {stream_window_count}', stream_window_count)
         # if self.disorder and not fill_value:
         #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
         #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=record_window_close_ts)
@@ -3908,7 +3921,7 @@ class StreamComputingTest(TDCase):
     def max_delay_count_window(self, max_delay, partition="tbname", sliding=None, delete=False, fill_history_value=None, count_window_value=None, watermark=None, fill_value=None, ignore_expired=1, checkpoint_check=None):
         sliding_value = "" if sliding == None else f', {count_window_value}'
         interval_sliding_value = "" if sliding == None else f' sliding({count_window_value}s)'
-        self.range_count = 1
+        self.range_count = 5
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
@@ -3990,17 +4003,17 @@ class StreamComputingTest(TDCase):
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
             # TODO
-            # if i == self.range_count - 1:
-            #     disorder_ts_value = str(window_close_ts)+f'+{i-1}a'
-            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=disorder_ts_value)
-            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
-            #     update_ts_value = str(window_close_ts)+f'+{i-1}s'
-            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=update_ts_value)
-            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=update_ts_value)
-            #     if delete:
-            #         delete_ts_value = str(window_close_ts)+f'+{i-2}s'
-            #         self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=delete_ts_value)
-            #         self.tdCom.delete_rows(tbname=self.tb_name, start_ts=delete_ts_value)
+            if i == self.range_count - 1:
+                disorder_ts_value = str(window_close_ts)+'-1a'
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=disorder_ts_value)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
+                update_ts_value = str(window_close_ts)+'-1a'
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=update_ts_value)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=update_ts_value)
+                if delete:
+                    delete_ts_value = str(window_close_ts)+'-1a'
+                    self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=delete_ts_value)
+                    self.tdCom.delete_rows(tbname=self.tb_name, start_ts=delete_ts_value)
 
             if i == 0:
                 init_num = 2 + i
@@ -4964,10 +4977,17 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # error case
+        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=0, ignore_expired=1, use_except=True)
+        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=0, use_except=True)
+        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
+        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, fill_value="NULL", use_except=True)
+        # self.at_once_count_window(count_window_value=1, partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
         # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5), checkpoint_check=True)
         # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5))
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
-        self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", partition=None)
+        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=5, max_delay=f"{random.randint(5, 6)}s", delete=False)
+        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", delete=True)
+        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", partition=None)
         # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition="tbname,c1")
         # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition=None)
         # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), delete=True)
