@@ -1681,6 +1681,17 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    int32_t newLen = pColInfoData->varmeta.offset[n - 1];
+    if (newLen != -1) {
+      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+        newLen += getJsonValueLen(pColInfoData->pData + newLen);
+      } else {
+        newLen += varDataTLen(pColInfoData->pData + newLen);
+      }
+    } else {
+      newLen = pColInfoData->varmeta.length;
+    }
+    pColInfoData->varmeta.length = newLen;
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
