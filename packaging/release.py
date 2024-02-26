@@ -731,7 +731,7 @@ if __name__ == '__main__':
     elif release_info.OS.lower() == 'windows':
         init_install_directory()
         for task in sub_module:
-            if taosx_name == task.Name:
+            if taosx_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
                 print("build taosx")
                 build_and_install_taosx(task.VersionMode)
             elif taosx_agent_name == task.Name:
@@ -752,7 +752,7 @@ if __name__ == '__main__':
             elif opentsdb_connector == task.Name:
                 print("build opentsdb_connector")
                 build_and_install_opentsdb(task.VersionMode)
-            elif taos_explorer_name == task.Name:
+            elif taos_explorer_name == task.Name and release_info.UploadAgent == False and release_info.BuildAgent == False:
                 print("build taos_explorer")
                 build_and_install_taos_explorer(task.VersionMode)
         init_release_directory()
