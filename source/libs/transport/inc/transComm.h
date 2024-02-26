@@ -427,6 +427,8 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */
