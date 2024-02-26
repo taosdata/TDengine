@@ -82,6 +82,7 @@ pub struct TaskConfig {
     pub time_window: Duration,
     pub retrieve_interval: Duration,
     pub tolerance: Duration,
+    pub sample: usize,
     // advanced options
     pub advanced_options: AdvancedOptions,
 }
@@ -102,6 +103,7 @@ impl TaskConfig {
             time_window: Self::parse_time_window(dsn)?,
             retrieve_interval: Self::parse_retrieve_interval(dsn)?,
             tolerance: Self::parse_tolerance(dsn)?,
+            sample: Self::parse_sample(dsn)?,
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
         })
     }
@@ -320,6 +322,27 @@ impl TaskConfig {
             })
             .transpose()?
             .unwrap_or(Duration::milliseconds(0)))
+    }
+
+    fn parse_sample(dsn: &Dsn) -> anyhow::Result<usize> {
+        Ok(dsn
+            .params
+            .get("sample")
+            .map(|s| {
+                let sample = s.parse::<usize>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse sample amount: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                if sample <= 0 {
+                    bail!("sample amount must be greater than 0");
+                }
+                Ok(sample)
+            })
+            .transpose()?
+            .unwrap_or(3))
     }
 }
 

@@ -75,7 +75,12 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // input: get top N record from table
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
     let mut rows = client
-        .top_n(3, config.table, config.begin_datetime, config.end_datetime)
+        .top_n(
+            config.sample,
+            config.table,
+            config.begin_datetime,
+            config.end_datetime,
+        )
         .await?
         .into_row_stream();
     while let Some(row) = rows.try_next().await? {
