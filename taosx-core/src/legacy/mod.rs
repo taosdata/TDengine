@@ -1579,7 +1579,7 @@ async fn sync_specified_tables_with_workers(
     let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
         tracing::info!(tables = todo.tables.len(), "Scanning tables ...");
-        todo.tables.scan(|item| {
+        todo.tables.scan(|item: &LegacyTableItem| {
             if let Err(err) = items_tx.send(item.clone()) {
                 tracing::error!("Send item error: {err:#}",);
             }
@@ -2958,19 +2958,20 @@ async fn legacy_to_taos_impl(
                         if updates.tables.is_empty() {
                             return Ok::<_, anyhow::Error>(());
                         }
+                        // debug
                         // sync data of the updated tables.
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            &updates,
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
-                            schema_polling_file_mutex.clone(),
-                        )
-                        .await
-                        .context("Spawn data syncing of the updated tables error")?;
+                        // sync_specified_tables_with_workers(
+                        //     &schema_polling_scheduler,
+                        //     &schema_polling_pool,
+                        //     schema_polling_source_opts.query.clone(),
+                        //     &updates,
+                        //     schema_polling_target_opts.clone(),
+                        //     schema_polling_source_opts.workers as _,
+                        //     &schema_polling_task_id,
+                        //     schema_polling_file_mutex.clone(),
+                        // )
+                        // .await
+                        // .context("Spawn data syncing of the updated tables error")?;
                         Ok::<_, anyhow::Error>(())
                     });
                 }
