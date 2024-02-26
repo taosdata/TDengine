@@ -60,7 +60,7 @@ extern char* tsMonFwUri;
 #define CPU_SYSTEM DNODE_TABLE":cpu_system"
 #define CPU_CORE DNODE_TABLE":cpu_cores"
 #define MEM_ENGINE DNODE_TABLE":mem_engine"
-#define MEM_SYSTEM DNODE_TABLE":mem_system"
+#define MEM_SYSTEM DNODE_TABLE":mem_free"
 #define MEM_TOTAL DNODE_TABLE":mem_total"
 #define DISK_ENGINE DNODE_TABLE":disk_engine"
 #define DISK_USED DNODE_TABLE":disk_used"
