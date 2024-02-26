@@ -1848,7 +1848,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
     // must check update info first.
-    bool update = pInfo->stateStore.updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId]);
+    bool update = pInfo->stateStore.updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId], pInfo->igExpired);
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedStreamWindow(&win, pBlock->info.id.groupId, pInfo->pState, &pInfo->twAggSup, &pInfo->stateStore);
     if ((update || closedWin) && out) {

@@ -192,7 +192,7 @@ TSKEY updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t p
   return maxTs;
 }
 
-bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
+bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts, bool igExpired) {
   int32_t res = TSDB_CODE_FAILED;
 
   SUpdateKey updateKey = {
@@ -220,7 +220,9 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
 
   int32_t size = taosHashGetSize(pInfo->pMap);
   if ((!pMapMaxTs && size < DEFAULT_MAP_SIZE) || (pMapMaxTs && *pMapMaxTs < ts)) {
-    taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), &ts, sizeof(TSKEY));
+    if (!igExpired) {
+      taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), &ts, sizeof(TSKEY));
+    }
     // pSBf may be a null pointer
     if (pSBf) {
       res = tScalableBfPutNoCheck(pSBf, &updateKey, sizeof(SUpdateKey));
