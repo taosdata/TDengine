@@ -129,7 +129,7 @@ int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   return code;
 }
 
-static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock) {
+static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, SExecTaskInfo* pTaskInfo, SFilterInfo* pFilterInfo, SSDataBlock* pBlock) {
   SResultRow* pResultRow = NULL;
   for (int32_t i = 0; i < taosArrayGetSize(pCountSup->pWinStates); i++) {
     SCountWindowResult* pBuff = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow);
@@ -143,6 +143,7 @@ static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, S
     clearWinStateBuff(pBuff);
     clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
   }
+  doFilter(pBlock, pFilterInfo, NULL);
 }
 
 static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
@@ -177,7 +178,7 @@ static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
     if (pInfo->groupId == 0) {
       pInfo->groupId = pBlock->info.id.groupId;
     } else if (pInfo->groupId != pBlock->info.id.groupId) {
-      buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pRes);
+      buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pOperator->exprSupp.pFilterInfo, pRes);
       pInfo->groupId = pBlock->info.id.groupId;
     }
 
@@ -187,7 +188,7 @@ static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
     }
   }
 
-  buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pRes);
+  buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pOperator->exprSupp.pFilterInfo, pRes);
   return pRes->info.rows == 0 ? NULL : pRes;
 }
 
@@ -245,6 +246,11 @@ SOperatorInfo* createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   }
 
   pInfo->countSup.stateIndex = 0;
+
+  code = filterInitFromNode((SNode*)pCountWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
