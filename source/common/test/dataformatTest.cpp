@@ -428,13 +428,14 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
     if (!tdSTSRowIterFetch(&rowIter, pCol->colId, pCol->type, &cv)) {
       break;
     }
+
+    colVal.cid = pCol->colId;
+    colVal.type = pCol->type;
     if (tdValTypeIsNone(cv.valType)) {
-      colVal = COL_VAL_NONE(pCol->colId, pCol->type);
+      colVal.flag = CV_FLAG_NONE;
     } else if (tdValTypeIsNull(cv.valType)) {
-      colVal = COL_VAL_NULL(pCol->colId, pCol->type);
+      colVal.flag = CV_FLAG_NULL;
     } else {
-      colVal.cid = pCol->colId;
-      colVal.type = pCol->type;
       colVal.flag = CV_FLAG_VALUE;
 
       if (IS_VAR_DATA_TYPE(pCol->type)) {
