@@ -102,6 +102,31 @@ class TDTestCase(TBase):
         allRows = self.insert_rows * self.childtable_count
         tdSql.checkFirstValue(sql, allRows)
 
+    def checkShow(self):
+        # not support
+        sql = "show accounts;"
+        tdSql.error(sql)
+
+        # check result
+        sql = "SHOW CLUSTER;"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        sql = "SHOW COMPACTS;"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "SHOW COMPACT 1;"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
+        # run to check crash 
+        sqls = [
+            "show scores;",
+            "SHOW CLUSTER VARIABLES",
+            "SHOW BNODES;",
+        ]
+        tdSql.executes(sqls)
+
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
