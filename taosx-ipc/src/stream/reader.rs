@@ -584,185 +584,195 @@ pub struct LushMessageInsert {
 }
 
 mod arrow_to_taos {
-    use arrow::datatypes::TimeUnit;
-    use taos_query::prelude::{ColumnView, Itertools};
-
     use crate::prelude::IpcDataType;
+    use arrow::datatypes::TimeUnit;
+    use taos_query::prelude::ColumnView;
 
-    #[derive(thiserror::Error, Debug)]
-    pub enum ParseError {
-        #[error("Parse {0} to bool error: {1}")]
-        ParseBoolError(String, std::str::ParseBoolError),
-        #[error("Parse {0} to integer error: {1}")]
-        ParseIntError(String, std::num::ParseIntError),
-        #[error("Parse {0} to float error: {1}")]
-        ParseFloatError(String, std::num::ParseFloatError),
-        #[error("Null is not supported")]
-        NullIsNotSupported,
-    }
-
-    pub fn parse_str_into(
-        ty: &IpcDataType,
-        data: Vec<Option<&str>>,
-    ) -> Result<ColumnView, ParseError> {
+    /// parse arrow array to column view, unsupported value will be ignored(as NULL)
+    pub fn parse_str_into(ty: &IpcDataType, data: Vec<Option<&str>>) -> ColumnView {
         let view = match ty {
             crate::prelude::IpcDataType::Null => {
-                return Err(ParseError::NullIsNotSupported);
+                unreachable!("null is not supported");
             }
             crate::prelude::IpcDataType::Bool => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<bool>()
-                                .map_err(|err| ParseError::ParseBoolError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse bool from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_bools(v)
             }
             crate::prelude::IpcDataType::UInt8 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<u8>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse u8 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_unsigned_tiny_ints(v)
             }
             crate::prelude::IpcDataType::UInt16 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<u16>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse u16 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_unsigned_small_ints(v)
             }
             crate::prelude::IpcDataType::UInt32 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<u32>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse u32 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_unsigned_ints(v)
             }
             crate::prelude::IpcDataType::UInt64 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<u64>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse u64 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_unsigned_big_ints(v)
             }
             crate::prelude::IpcDataType::Int8 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<i8>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse i8 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_tiny_ints(v)
             }
             crate::prelude::IpcDataType::Int16 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<i16>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse i16 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_small_ints(v)
             }
             crate::prelude::IpcDataType::Int32 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<i32>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse i32 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_ints(v)
             }
             crate::prelude::IpcDataType::Int64 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<i64>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse i64 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_big_ints(v)
             }
             crate::prelude::IpcDataType::Float32 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<f32>()
-                                .map_err(|err| ParseError::ParseFloatError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse f32 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_floats(v)
             }
             crate::prelude::IpcDataType::Float64 => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
                             v.parse::<f64>()
-                                .map_err(|err| ParseError::ParseFloatError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse f64 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 ColumnView::from_doubles(v)
             }
             crate::prelude::IpcDataType::Timestamp(time_unit) => {
                 let v = data
                     .into_iter()
                     .map(|v| {
-                        v.map(|v| {
+                        v.and_then(|v| {
+                            // TODO: support parse timestamp from string
                             v.parse::<i64>()
-                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                                .map_err(|err| {
+                                    tracing::error!("parse i64 from `{}` error: {}", v, err,)
+                                })
+                                .ok()
                         })
-                        .transpose()
                     })
-                    .try_collect::<_, Vec<_>, _>()?;
+                    .collect::<Vec<_>>();
                 match time_unit {
                     TimeUnit::Second => todo!(),
                     TimeUnit::Millisecond => ColumnView::from_millis_timestamp(v),
@@ -776,7 +786,7 @@ mod arrow_to_taos {
             crate::prelude::IpcDataType::NChar(_) => ColumnView::from_nchar::<&str, _, _, _>(data),
             crate::prelude::IpcDataType::Json => ColumnView::from_json::<&str, _, _, _>(data),
         };
-        Ok(view)
+        view
     }
 }
 
@@ -1203,7 +1213,7 @@ pub fn parse_column_view_with_types(
                         })
                         .collect_vec();
 
-                    arrow_to_taos::parse_str_into(ty, data).unwrap()
+                    arrow_to_taos::parse_str_into(ty, data)
                 }
                 DataType::FixedSizeBinary(_) => todo!(),
                 DataType::LargeBinary => todo!(),
@@ -1213,7 +1223,7 @@ pub fn parse_column_view_with_types(
                     let data = (0..a.len())
                         .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
                         .collect_vec();
-                    arrow_to_taos::parse_str_into(ty, data).unwrap()
+                    arrow_to_taos::parse_str_into(ty, data)
                 }
                 DataType::LargeUtf8 => todo!(),
                 DataType::List(_) => todo!(),

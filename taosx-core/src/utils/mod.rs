@@ -11,6 +11,31 @@ pub mod port_pool;
 pub mod sql;
 pub mod trace;
 
+pub fn value_equals(value: &Value, other: &Value) -> bool {
+    match (value, other) {
+        (Value::Null(l0), Value::Null(r0)) => l0 == r0,
+        (Value::Bool(l0), Value::Bool(r0)) => l0 == r0,
+        (Value::TinyInt(l0), Value::TinyInt(r0)) => l0 == r0,
+        (Value::SmallInt(l0), Value::SmallInt(r0)) => l0 == r0,
+        (Value::Int(l0), Value::Int(r0)) => l0 == r0,
+        (Value::BigInt(l0), Value::BigInt(r0)) => l0 == r0,
+        (Value::Float(l0), Value::Float(r0)) => l0 == r0,
+        (Value::Double(l0), Value::Double(r0)) => l0 == r0,
+        (Value::VarChar(l0) | Value::NChar(l0), Value::VarChar(r0) | Value::NChar(r0)) => l0 == r0,
+        (Value::Timestamp(l0), Value::Timestamp(r0)) => l0 == r0,
+        (Value::UTinyInt(l0), Value::UTinyInt(r0)) => l0 == r0,
+        (Value::USmallInt(l0), Value::USmallInt(r0)) => l0 == r0,
+        (Value::UInt(l0), Value::UInt(r0)) => l0 == r0,
+        (Value::UBigInt(l0), Value::UBigInt(r0)) => l0 == r0,
+        (Value::Json(l0), Value::Json(r0)) => l0 == r0,
+        (Value::VarBinary(l0), Value::VarBinary(r0)) => l0 == r0,
+        (Value::Decimal(l0), Value::Decimal(r0)) => l0 == r0,
+        (Value::Blob(l0), Value::Blob(r0)) => l0 == r0,
+        (Value::MediumBlob(l0), Value::MediumBlob(r0)) => l0 == r0,
+        _ => false,
+    }
+}
+
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     let mut dsn = dsn.clone();
     dsn.password.take();
