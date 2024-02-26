@@ -575,7 +575,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
           !isAutoTableName(pDataBlock->info.parTbName) &&
           !alreadyAddGroupId(pDataBlock->info.parTbName) &&
           groupId != 0){
-        buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
+        buildCtbNameAddGroupId(pDataBlock->info.parTbName, groupId);
       }
     } else {
       buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId, pDataBlock->info.parTbName);
