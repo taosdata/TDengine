@@ -1189,7 +1189,6 @@ static int32_t freeExtRowMemFileWriteBuf(SSortHandle* pHandle) {
 
   taosMemoryFree(pMemFile->writePageBuf);
   pMemFile->writePageBuf = NULL;
-  taosMemoryTrim(0);
   return TSDB_CODE_SUCCESS;
 }
 
