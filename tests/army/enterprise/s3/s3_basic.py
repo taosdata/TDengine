@@ -58,7 +58,7 @@ class TDTestCase(TBase):
 
         tdSql.execute(f"use {self.db}")
         # come from s3_basic.json
-        self.childtable_count = 4
+        self.childtable_count = 6
         self.insert_rows = 1000000
         self.timestamp_step = 1000
 
