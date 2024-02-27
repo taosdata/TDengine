@@ -861,10 +861,10 @@ export default {
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
       );
+      dsn += `&sample_data_limit=${this.limitOffset}`
       let result = await getHistorianMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
-        this.limitOffset,
         this.sourceParent.sourceForm.agent
       );
       this.msgForm.msgbody = JSON.stringify(result);
@@ -1121,10 +1121,10 @@ export default {
     async echoParser(value) {
       if (this.$store.state.app.currentDBType == "avevaHistorian") {
         let dsn = this.$store.state.app.historiandsn;
+        dsn += `&sample_data_limit=${this.limitOffset}`
         let result = await getHistorianMsgbody(
           this.$store.state.app.currentDBType,
           encodeURIComponent(dsn),
-          this.limitOffset,
           this.sourceParent.sourceForm.agent
         );
         this.msgForm.msgbody = JSON.stringify(result);
