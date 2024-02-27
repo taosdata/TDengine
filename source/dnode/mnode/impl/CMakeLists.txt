@@ -26,6 +26,10 @@ target_link_libraries(
     mnode scheduler sdb wal transport cjson sync monitor executor qworker stream parser audit monitorfw
 )
 
+IF (DEFINED GRANT_CFG_INCLUDE_DIR)
+  add_definitions(-DGRANTS_CFG)
+ENDIF()
+
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(mnode grant)
   ADD_DEFINITIONS(-D_GRANT)
