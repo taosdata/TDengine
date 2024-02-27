@@ -23,6 +23,7 @@ use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tokio::sync::RwLock;
 use tracing::instrument;
+
 #[derive(Parser, Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]
 pub struct MonitorCfg {
@@ -39,14 +40,27 @@ pub struct MonitorCfg {
     )]
     pub port: u16,
 
-    /// Interval(in second) for reporting metrics to taosKeeper. default to 30s.
     #[clap(
         long = "monitor-interval",
         env = "MONITOR_INTERVAL",
         global = true,
-        default_value = "30"
+        default_value = "10",
+        value_parser=less_than_10
     )]
     pub interval: u64,
+}
+
+fn less_than_10(s: &str) -> Result<u64, String> {
+    let val = s.parse::<u64>().map_err(|e| format!("{e}"))?;
+    let min = 1;
+    let max = 10;
+    if val > max {
+        Err(format!("exceeds maximum of {max}"))
+    } else if val < min {
+        Err(format!("less than minimum of {min}"))
+    } else {
+        Ok(val)
+    }
 }
 
 impl MonitorCfg {
