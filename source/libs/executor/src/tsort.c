@@ -1012,12 +1012,6 @@ static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
   return (int32_t)(pStart - (char*)buf);
 }
 
-// pageId * pageSize == pageStartOffset in file. write in pages
-// when pass the page boundaries, the page is move to the front(old). 
-// find hash from pageid to page entry. if the page can not be found, 
-//   1) unused inactive pages, 2) then new pages if not exceeding mem limit, 3) then active pages
-// new pages is added or moved to the back.
-
 static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char** ppPage) {
   SSortMemFile* pMemFile = pHandle->pExtRowsMemFile;
   SSortMemPageEntry** ppPageEntry = tSimpleHashGet(pMemFile->mActivePages, &pageId, sizeof(pageId));
