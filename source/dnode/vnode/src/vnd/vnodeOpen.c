@@ -484,7 +484,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   snprintf(pVnode->monitor.strDnodeId, TSDB_NODE_ID_LEN, "%"PRId32, pVnode->config.syncCfg.nodeInfo[0].nodeId);
   snprintf(pVnode->monitor.strVgId, TSDB_VGROUP_ID_LEN, "%"PRId32, pVnode->config.vgId);
 
-  if(pVnode->monitor.insertCounter == NULL){
+  if(tsEnableMonitor && pVnode->monitor.insertCounter == NULL){
     taos_counter_t *counter = NULL;
     counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
     if(counter == NULL){
@@ -501,9 +501,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
         counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
         vInfo("vgId:%d, get metric from registry:%p",TD_VID(pVnode), counter);
       }
-      pVnode->monitor.insertCounter = counter;
-      vInfo("vgId:%d, succeed to set metric:%p",TD_VID(pVnode), counter);      
     }
+    pVnode->monitor.insertCounter = counter;
+    vInfo("vgId:%d, succeed to set metric:%p",TD_VID(pVnode), counter);         
   }
 
   return pVnode;
