@@ -123,7 +123,7 @@ impl ConnectorLicense {
         if expire_time > now {
             return None;
         } else {
-            return Some(now - expire_time);
+            return Some(chrono::Duration::seconds((now - expire_time).num_seconds()));
         }
     }
 }
