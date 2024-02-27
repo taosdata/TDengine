@@ -592,7 +592,15 @@ pub struct TaskState {
 
 impl TaskState {
     pub async fn new(task: Task, global: &GlobalState) -> Self {
-        let strategy = task.trigger.as_ref().unwrap_or(Strategy::DEFAULT);
+        let mut local_strategy = Strategy::const_new();
+        let strategy = if let Some(v) = task.trigger.as_ref() {
+            v
+        } else {
+            if task.from.starts_with("csv") {
+                local_strategy = local_strategy.never_resume();
+            }
+            &local_strategy
+        };
         let schedule = strategy.schedule();
         let task_id = task.id;
 
