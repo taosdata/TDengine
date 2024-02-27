@@ -11,7 +11,7 @@
     </el-radio-group>
     <section
       v-show="isAll != '*'"
-      class="flexStart"
+      class="flexStart mb20"
     >
       <uploadCsv
         v-model="value"
@@ -182,7 +182,7 @@ export default {
 
       },
       ticket: '',
-      percentage: 10,
+      percentage: 5,
       complete: false,
     };
   },
@@ -353,8 +353,8 @@ export default {
         this.timer = setInterval(async () => {
           let { complete } = await checkReadyFile(result.ticket)
           this.complete = complete
-          const randomNum = Math.floor(Math.random() * 5) + 1;
-           
+          const randomNum = Math.floor(Math.random() * 4);
+
           if (!complete) {
             this.percentage = this.percentage < 95 ? this.percentage + randomNum : 99;
           }
@@ -375,7 +375,7 @@ export default {
       this.requestIng = false
       setTimeout(() => {
         this.progressVisble = false;
-        this.percentage = 10;
+        this.percentage = 5;
       },500)
     },
     format(percentage) {
