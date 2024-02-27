@@ -119,7 +119,7 @@ datasets:
   - category: csv_config_file
     display: Upload CSV
     description: |
-      Please download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points. Or download data points according to the specified filter rules, and download in the format designed by the CSV template.
+      Please download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.
     target:
       name: csv_config_file
       description: |
