@@ -147,6 +147,21 @@ void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remov
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
 // SColData ================================
+typedef struct {
+  int8_t  cmprAlg;
+  int8_t  columnFlag;
+  int8_t  flag;
+  int8_t  dataType;
+  int16_t columnId;
+  int32_t numOfValues;
+  int32_t bitmapOriginalSize;
+  int32_t bitmapCompressedSize;
+  int32_t offsetOriginalSize;
+  int32_t offsetCompressedSize;
+  int32_t dataOriginalSize;
+  int32_t dataCompressedSize;
+} SColDataCompressInfo;
+
 typedef void *(*xMallocFn)(void *, int32_t);
 void          tColDataDestroy(void *ph);
 void          tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -157,6 +172,10 @@ int32_t       tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool for
 void          tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t       tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t       tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+int32_t       tColDataCompress(SColData *colData, int8_t cmprAlg, SColDataCompressInfo *info, SBuffer *buffer,
+                               SBuffer *helperBuffer);
+int32_t       tColDataDecompress(void *input, int32_t inputSize, const SColDataCompressInfo *info, SColData *colData,
+                                 SBuffer *helperBuffer);
 extern void   (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 // for stmt bind
@@ -319,9 +338,9 @@ typedef struct {
   int32_t compressedSize;  // fill by compress
 } SCompressInfo;
 
-int32_t tCompressData(const void *input, int32_t inputSize, SCompressInfo *cmprInfo, SBuffer *buffer,
+int32_t tCompressData(const void *input, int32_t inputSize, SCompressInfo *info, SBuffer *buffer,
                       SBuffer *helperBuffer);
-int32_t tDecompressData(const void *input, int32_t inputSize, const SCompressInfo *cmprInfo, SBuffer *buffer,
+int32_t tDecompressData(const void *input, int32_t inputSize, const SCompressInfo *info, SBuffer *buffer,
                         SBuffer *helperBuffer);
 
 #endif
