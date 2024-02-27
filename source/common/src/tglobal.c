@@ -353,9 +353,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -539,7 +537,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
   return 0;
 }
 
@@ -604,7 +603,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
-  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0)
     return -1;
 
@@ -680,8 +679,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER,
                   CFG_DYN_NONE) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16,
-                  (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2),
+                  CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
@@ -699,10 +698,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorLogProtocol", tsMonitorLogProtocol, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "monitorIntervalForBasic", tsMonitorIntervalForBasic, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+  if (cfgAddInt32(pCfg, "monitorIntervalForBasic", tsMonitorIntervalForBasic, 1, 200000, CFG_SCOPE_SERVER,
+                  CFG_DYN_NONE) != 0)
     return -1;
   if (cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-    
+
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -760,8 +760,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
-  if (cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
-    return -1;
+  if (cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
@@ -852,7 +851,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
     pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
   }
@@ -1169,7 +1168,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMonitorLogProtocol = cfgGetItem(pCfg, "monitorLogProtocol")->bval;
   tsMonitorIntervalForBasic = cfgGetItem(pCfg, "monitorIntervalForBasic")->i32;
   tsMonitorForceV2 = cfgGetItem(pCfg, "monitorForceV2")->i32;
-  
+
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
   tsAuditInterval = cfgGetItem(pCfg, "auditInterval")->i32;
