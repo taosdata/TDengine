@@ -18,16 +18,16 @@
                 "drop": "yes",
                 "vgroups": 2,
                 "replica": 1,
-                "duration":"10d",
+                "duration":"15d",
                 "flush_each_batch":"yes",
-                "keep": "30d,60d,100d"
+                "keep": "60d,100d,200d"
             },
             "super_tables": [
                 {
                     "name": "stb",
                     "child_table_exists": "no",
-                    "childtable_count": 6,
-                    "insert_rows": 1000000,
+                    "childtable_count": 2,
+                    "insert_rows": 2000000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "timestamp_step": 1000,
