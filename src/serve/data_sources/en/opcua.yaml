@@ -119,7 +119,7 @@ datasets:
   - category: csv_config_file
     display: Upload CSV
     description: |
-      Use OPC UA point configuration file.
+      Please download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.
     target:
       name: csv_config_file
       description: |
@@ -146,7 +146,7 @@ datasets:
         display: Root node ID
         description: |
           Query all child nodes starting from this node.
-        placesholder: For example ns=1;i=1001
+        placeholder: For example ns=1;i=1001
         hint:
           type: str
       - name: namespaces
@@ -158,7 +158,7 @@ datasets:
           type: str
       - name: pattern
         display: Regex pattern
-        placeholder: Match the data point name or id
+        description: Match the data point name or id
         hint:
           type: str
 

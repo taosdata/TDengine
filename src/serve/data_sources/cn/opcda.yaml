@@ -34,7 +34,7 @@ datasets:
   - category: csv_config_file
     display: 上传 CSV 配置文件
     description: |
-      使用 CSV 文件进行配置。
+      您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
     target:
       name: csv_config_file
       description:
