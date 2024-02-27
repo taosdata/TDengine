@@ -313,8 +313,6 @@ impl StopCondition {
 }
 
 impl Strategy {
-    pub const DEFAULT: &'static Self = &Self::const_new();
-
     pub const fn const_new() -> Self {
         Self {
             schedule: None,
@@ -322,6 +320,11 @@ impl Strategy {
             healthy: Healthy::const_new(),
             interval: None,
         }
+    }
+
+    pub fn never_resume(mut self) -> Self {
+        self.resume = ResumeStrategy::Never;
+        self
     }
 
     #[allow(dead_code)]
