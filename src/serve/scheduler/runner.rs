@@ -31,6 +31,7 @@ use uuid::Uuid;
 
 use crate::serve::controller::{
     agent::Activity,
+    license::{LicenseKind, LicenseValidator},
     load_breakpoints,
     trigger::{Schedule, StopCondition, Strategy},
     AgentAction, Status, Task, TaskActivity,
@@ -847,6 +848,49 @@ impl TaskJob {
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
+        pub async fn license_tracker(
+            license_tracker_cancellation_token: CancellationToken,
+            license_tracker_state: TaskState,
+            license_tracker_global: GlobalState,
+            task_id: TaskId,
+            jid: Uuid,
+        ) {
+            // Check license for each 8 hours.
+            let mut interval = tokio::time::interval(Duration::from_secs(60 * 60 * 8));
+
+            let (from, to) = (
+                license_tracker_state.task.from.parse().unwrap(),
+                license_tracker_state.task.to.parse().unwrap(),
+            );
+            let validator = LicenseValidator::new(&from, &to);
+            loop {
+                tokio::select! {
+                    _ = license_tracker_cancellation_token.cancelled() => {
+                        tracing::info!("License tracker cancelled");
+                        break;
+                    }
+                    _ = interval.tick() => {
+                        match validator.validate_connector().await {
+                        // match anyhow::Ok(LicenseKind::Edition(anyhow::anyhow!("Community"))) {
+                            Ok(kind) => {
+                                if let Err(err) = kind.ok() {
+                                    tracing::error!(error = %err, task.id = task_id, task.jid = %jid, "License error, suspend task");
+                                    license_tracker_global.send_task_activity(TaskActivity::suspending_with(task_id, format!("License error: {:#}", err)));
+                                    license_tracker_state.operator.suspend();
+                                    license_tracker_cancellation_token.cancel();
+                                } else {
+                                    tracing::info!(task.id = task_id, task.jid = %jid, "License validation tracking ok");
+                                }
+                            }
+                            Err(err) => {
+                                tracing::error!(error = %err, "License validation tracking error");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(agent_id) = opts.task.via {
             // let task_name = self.task.task.name.clone();
             tokio::spawn(async move {
@@ -863,10 +907,24 @@ impl TaskJob {
                 let state = opts;
                 let mut waiting = 0;
                 let cancellation = state.cancellation.clone();
+                let drop_guard = cancellation.clone().drop_guard();
                 tracing::debug!(
                     "spawned new run_task, task.id={} task.rid={}",
                     task_id,
                     run_id
+                );
+                let license_tracker_cancellation_token = cancellation.clone();
+                let license_tracker_state = state.clone();
+                let license_tracker_global = global.clone();
+                tokio::spawn(
+                    license_tracker(
+                        license_tracker_cancellation_token,
+                        license_tracker_state,
+                        license_tracker_global,
+                        task_id,
+                        jid,
+                    )
+                    .in_current_span(),
                 );
                 tokio::select! {
                     _ = cancellation.cancelled() => {
@@ -1250,6 +1308,7 @@ impl TaskJob {
                 };
 
                 tracing::info!("Task {task_id} agent task finished: {:#?}", res);
+                drop(drop_guard);
                 match res {
                     Ok(AgentTaskState::Stopped)
                     | Ok(AgentTaskState::Failed)
@@ -1281,6 +1340,21 @@ impl TaskJob {
                     task.jid = %jid,
                     task.rid = runs,
                     task.agent = opts.task.via
+                );
+
+                let license_tracker_cancellation_token = opts.cancellation.clone();
+                let drop_guard = license_tracker_cancellation_token.clone().drop_guard();
+                let license_tracker_state = opts.clone();
+                let license_tracker_global = global.clone();
+                tokio::spawn(
+                    license_tracker(
+                        license_tracker_cancellation_token,
+                        license_tracker_state,
+                        license_tracker_global,
+                        task_id,
+                        jid,
+                    )
+                    .instrument(span.clone()),
                 );
                 let future = run_task(&global, &opts, &jid).instrument(span);
 
@@ -1371,6 +1445,7 @@ impl TaskJob {
                 }
                 opts.runs.fetch_add(1, Ordering::Release);
                 let _ = tx.send(should_stop);
+                drop(drop_guard);
             });
         }
         self.task.last_waiter.lock().await.replace(rx);
