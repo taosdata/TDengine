@@ -1132,7 +1132,7 @@ export default {
     service_time: "Service time",
     state: "State",
     type: "Type",
-    tasks: "Tasks",
+    tasks: "Connectors",
     number: "Number",
     dnodes: "DNodes",
     connectors: "Data In Tasks",
