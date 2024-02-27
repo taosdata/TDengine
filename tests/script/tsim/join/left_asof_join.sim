@@ -902,7 +902,63 @@ if $data00 != 6 then
   return -1
 endi
 
+sql select _wstart, count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 interval(1s);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data40 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data41 != 1 then
+  return -1
+endi
+if $data50 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
 
+sql select _wstart, count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 interval(1s) having(count(*) > 1);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
 
 sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts >=b.ts and a.col1=a.ts;
 sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts >=b.ts and a.col1 > 1;

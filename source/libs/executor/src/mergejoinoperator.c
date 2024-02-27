@@ -1393,7 +1393,8 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
       doFilter(pBlock, pJoin->pFinFilter, NULL);
     }
     
-    if (pBlock->info.rows > 0 || pOperator->status == OP_EXEC_DONE) {
+    if (pBlock->info.rows > 0 || pOperator->status == OP_EXEC_DONE) {      
+      pBlock->info.dataLoad = 1;
       break;
     }
   }

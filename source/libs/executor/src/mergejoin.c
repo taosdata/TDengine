@@ -3129,7 +3129,7 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
 
   pCtx->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
   blockDataEnsureCapacity(pCtx->finBlk, TMAX(MJOIN_DEFAULT_BLK_ROWS_NUM, MJOIN_BLK_SIZE_LIMIT/pJoinNode->node.pOutputDataBlockDesc->totalRowSize));
-
+  
   if (pJoin->pFPreFilter) {
     pCtx->midBlk = createOneDataBlock(pCtx->finBlk, false);
     blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity);
