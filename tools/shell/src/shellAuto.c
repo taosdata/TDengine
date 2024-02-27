@@ -171,6 +171,7 @@ SWords shellCommands[] = {
     {"show compacts;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
     {"show cluster alive;", 0, 0, NULL},
+    {"show cluster machines;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
@@ -519,6 +520,7 @@ void showHelp() {
     show connections;\n\
     show cluster;\n\
     show cluster alive;\n\
+    show cluster machines;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\

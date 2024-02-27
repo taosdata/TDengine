@@ -117,6 +117,9 @@ class TDTestCase(TBase):
         sql = "SHOW COMPACT 1;"
         tdSql.query(sql)
         tdSql.checkRows(0)
+        sql = "SHOW CLUSTER MACHINES;"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
 
         # run to check crash 
         sqls = [
