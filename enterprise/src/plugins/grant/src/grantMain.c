@@ -672,7 +672,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
 
   // extract known dataIns from grantObj to grantStatus
-  int8_t  knowDataFlag[CONN_TYPE_DYN_MAX] = {0};
+  int8_t  knownDataInAssigned[CONN_TYPE_DYN_MAX] = {0};
   int32_t nDataIn = taosArrayGetSize(pObj->pDataIns);
   if (nDataIn > 0) {
     for (int32_t i = 0; i < TARRAY_SIZE(pObj->pDataIns); ++i) {
@@ -682,13 +682,14 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
         GRANT_EXPIRE_CONVERT(pDataIns->expire, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
         GRANT_VALUE_CONVERT(pDataIns->speed, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
         GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
-        knowDataFlag[j] = 1;
-        taosArrayRemove(pObj->pDataIns, i);  // remove known dataIns
+        
+        knownDataInAssigned[j] = 1;
+        taosArrayRemove(pObj->pDataIns, i);
       }
     }
   }
   for (int32_t j = CONN_TYPE_MAX; j < CONN_TYPE_DYN_MAX; ++j) {
-    if (knowDataFlag[j] == 0) {
+    if (knownDataInAssigned[j] == 0) {
       GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
