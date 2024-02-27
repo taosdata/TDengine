@@ -164,7 +164,6 @@ datasets:
           type: str
       - name: table_primary_key
         display: 主键列
-        description:
         required: true
         value: original_ts
         description: |
