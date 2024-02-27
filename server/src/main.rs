@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use actix_files::NamedFile;
 use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
@@ -19,6 +20,7 @@ use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
 use actix_web::{
+    dev::{fn_service, ServiceRequest, ServiceResponse},
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION},
     middleware::{Compress, Logger},
@@ -115,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_any_header()
                 .max_age(3600)
         };
-        App::new()
+        let app = App::new()
             .wrap(TracingLogger::default())
             .wrap(cors)
             .wrap(Logger::default())
@@ -149,8 +151,25 @@ async fn main() -> anyhow::Result<()> {
                             .content_type(ContentType::html())
                             .body(embed.data)
                     }),
+            );
+
+        if let Some(assets) = args.assets.clone() {
+            let assets = assets.clone();
+            app.service(
+                actix_files::Files::new("/", assets)
+                    .index_file("index.html")
+                    .default_handler(fn_service(move |req: ServiceRequest| async {
+                        let args = req.app_data::<web::Data<Args>>();
+                        let assets = args.unwrap().assets.as_ref().unwrap().clone();
+                        let (req, _) = req.into_parts();
+                        let file = NamedFile::open_async(assets.join("index.html")).await?;
+                        let res = file.into_response(&req);
+                        Ok(ServiceResponse::new(req, res))
+                    }))
+                    .show_files_listing(),
             )
-            .service(
+        } else {
+            app.service(
                 Embed::new("/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
@@ -160,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
                             .body(embed.data)
                     }),
             )
+        }
     });
 
     let addr = args.addr.as_deref().unwrap_or("0.0.0.0");
@@ -598,6 +618,11 @@ struct Args {
     #[clap(skip)]
     #[serde(default)]
     cors: Option<bool>,
+
+    /// Static assets path for debug/test.
+    #[clap(long, global = true, env = "EXPLORER_ASSETS")]
+    #[serde(default)]
+    assets: Option<PathBuf>,
 
     /// For verbosity logging.
     #[clap(flatten)]
