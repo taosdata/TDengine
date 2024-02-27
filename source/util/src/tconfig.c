@@ -442,13 +442,6 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
 }
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
-  pItem->stype = CFG_STYPE_DEFAULT;
-  pItem->name = taosStrdup(name);
-  if (pItem->name == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
   int size = pCfg->array->size;
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *existItem = taosArrayGet(pCfg->array, i);
@@ -456,6 +449,13 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     if (existItem != NULL && strcmp(existItem->name, pItem->name) == 0) {
       return 0;
     }
+  }
+
+  pItem->stype = CFG_STYPE_DEFAULT;
+  pItem->name = taosStrdup(name);
+  if (pItem->name == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
   int32_t len = strlen(name);
