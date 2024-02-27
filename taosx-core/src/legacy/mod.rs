@@ -1579,7 +1579,13 @@ async fn sync_specified_tables_with_workers(
     let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
         tracing::info!(tables = todo.tables.len(), "Scanning tables ...");
-        todo.tables.scan(|item| {
+        let mut scanned = std::collections::HashSet::new();
+        todo.tables.scan(|item: &LegacyTableItem| {
+            if scanned.contains(item) {
+                tracing::warn!("table {} is already scanned.", item.table);
+                return;
+            }
+            scanned.insert(item.clone());
             if let Err(err) = items_tx.send(item.clone()) {
                 tracing::error!("Send item error: {err:#}",);
             }
@@ -2562,8 +2568,6 @@ async fn realtime(
         now -= excursion;
     }
     // now is the separator of history and future data.
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
     // check if need retro back.
     if !opts.restro.is_zero() {
         // trace back to some duration.
@@ -2581,16 +2585,8 @@ async fn realtime(
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
             .scan_async(|table| {
-                let mut hasher = DefaultHasher::new();
-                table.hash(&mut hasher);
-                tracing::debug!(
-                    "table={}, stable={:?}, hash={}",
-                    table.table,
-                    table.stable,
-                    hasher.finish(),
-                );
                 if scanned.contains(table) {
-                    tracing::debug!("table={} is already scanned.", table.table);
+                    tracing::warn!("table {} is already scanned.", table.table);
                     return;
                 }
                 scanned.insert(table.clone());
@@ -2627,17 +2623,8 @@ async fn realtime(
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
         todo.tables
             .scan_async(|item| {
-                let mut hasher = DefaultHasher::new();
-                item.hash(&mut hasher);
-                tracing::debug!(
-                    "debug scan_async end={:?}, table={}, stable={:?}, hash={}",
-                    end,
-                    item.table,
-                    item.stable.as_ref().unwrap(),
-                    hasher.finish(),
-                );
                 if scanned.contains(item) {
-                    tracing::debug!("table={} is already scanned.", item.table);
+                    tracing::warn!("table {} is already scanned.", item.table);
                     return;
                 }
                 scanned.insert(item.clone());
