@@ -935,7 +935,7 @@ class StreamComputingTest(TDCase):
             #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
             #         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
 
-    def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=None, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None, use_except=None):
+    def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=1, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None, use_except=None):
         sliding_value = "" if sliding == None else f', {sliding}'
         fv = "" if fill_value is None else f'fill({fill_value})'
         self.range_count = 100
@@ -982,7 +982,7 @@ class StreamComputingTest(TDCase):
         else:
             partition_elm = ""
         self.tdCom.write_latency(self.case_name)
-        if watermark == 0 or watermark is None or ignore_expired != 1 or count_window_value < 2 or partition == "c1" or fill_value is not None:
+        if use_except:
             stream_sql = self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} {fv} count_window({count_window_value}{sliding_value})', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired, ignore_update=ignore_update, use_except=use_except)
             self.tdSql.error(stream_sql)
             return
@@ -1049,10 +1049,10 @@ class StreamComputingTest(TDCase):
             # # ! TD-28557 
             # TODO to be continued
             if i == self.range_count - 1:
-                disorder_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value}s'
+                disorder_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value+11}s'
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=disorder_ts_value)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
-                delete_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value+1}s'
+                delete_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value+10}s'
                 if self.delete and i%2 != 0:
                     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=delete_ts_value)
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=delete_ts_value)
@@ -1091,7 +1091,7 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select * from {self.ctb_name}')
                     ptn_counter = 0
                     for c1_value in self.tdSql.query_data:
-                        if "c1" in partition and "abs(c1)" not in partition:
+                        if "c1" in str(partition) and "abs(c1)" not in str(partition):
                             if tname != self.stb_name:
                                 tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
                                 self.tdSql.query(f'select count(*) from `{tbname}`')
@@ -1101,7 +1101,7 @@ class StreamComputingTest(TDCase):
                                 tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}')
                                 self.tdSql.query(f'select count(*) from `{tbname}`')
                             # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
-                        elif "abs(c1)" in partition:
+                        elif "abs(c1)" in str(partition):
                         # elif partition == "abs(c1)":
                             abs_c1_value = abs(c1_value[1])
                             if tname != self.stb_name:
@@ -1127,13 +1127,13 @@ class StreamComputingTest(TDCase):
                 self.tdSql.query(f'select * from {self.tb_name}')
                 ptn_counter = 0
                 for c1_value in self.tdSql.query_data:
-                    if "c1" in partition and "abs(c1)" not in partition:
+                    if "c1" in str(partition) and "abs(c1)" not in str(partition):
                         tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition is None:
                         tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}no_partition{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
-                    elif "abs(c1)" in partition:
+                    elif "abs(c1)" in str(partition):
                         abs_c1_value = abs(c1_value[1])
                         tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
@@ -1141,7 +1141,7 @@ class StreamComputingTest(TDCase):
                         tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
-                    if "c1" not in partition or "abs(c1)" in partition:
+                    if "c1" not in str(partition) or "abs(c1)" in str(partition):
                         self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
             # self.tdSql.query(f'select * from {self.tb_name}')
             # self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
@@ -5008,18 +5008,18 @@ class StreamComputingTest(TDCase):
         #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
         #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.partitial_tag_filter_des_select_elm, use_exist_stb=True)
         #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.exchange_tag_filter_des_select_elm, use_exist_stb=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=10, ignore_expired=1, fill_history_value=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=100, ignore_expired=1, fill_history_value=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=random.randint(15, 20), ignore_expired=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, t1", delete=True, watermark=random.randint(15, 20), ignore_expired=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True, checkpoint_check=True, pause=True, resume=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, ignore_update=0, check_stream_task=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, ignore_update=1, check_stream_task=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=False, watermark=100, ignore_expired=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100, ignore_expired=1)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=10, fill_history_value=1)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=100, fill_history_value=1)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=random.randint(15, 20))
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, t1", delete=True, watermark=random.randint(15, 20))
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), check_stream_task=True, checkpoint_check=True, pause=True, resume=True)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=0, check_stream_task=True)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=1, check_stream_task=True)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=False, watermark=100)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100)
         
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100, ignore_expired=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100, ignore_expired=1)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100)
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=1001)
 
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True)
         # ! stream_sql_0204_1.txt
