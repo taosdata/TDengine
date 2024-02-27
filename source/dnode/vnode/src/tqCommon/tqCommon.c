@@ -486,7 +486,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
 }
 
 typedef struct SMStreamCheckpointReadyRspMsg {
-  int8_t placeholder;
+  SMsgHead head;
 }SMStreamCheckpointReadyRspMsg;
 
 int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
