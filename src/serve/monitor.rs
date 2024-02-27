@@ -71,7 +71,7 @@ impl MonitorCfg {
         if other.port != 0 {
             self.port = other.port;
         }
-        if other.interval != 0 {
+        if other.interval >= 1 && other.interval <= 10 {
             self.interval = other.interval;
         }
     }
