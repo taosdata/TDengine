@@ -6,7 +6,7 @@
     "user": "root",
     "password": "taosdata",
     "connection_pool_size": 8,
-    "num_of_records_per_req": 2000,
+    "num_of_records_per_req": 4000,
     "prepared_rand": 1000,
     "thread_count": 2,
     "create_table_thread_count": 1,
@@ -19,6 +19,7 @@
                 "vgroups": 2,
                 "replica": 1,
                 "duration":"10d",
+                "flush_each_batch":"yes",
                 "keep": "30d,60d,100d"
             },
             "super_tables": [

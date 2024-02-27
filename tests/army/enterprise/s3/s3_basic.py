@@ -91,12 +91,10 @@ class TDTestCase(TBase):
                 break            
             self.trimDb(True)
             tdLog.info(f"loop={loop} no upload {cnt} data files wait 3s retry ...")
-            '''
             if loop == 0:
                 sc.dnodeStop(1)
                 time.sleep(2)
                 sc.dnodeStart(1)
-            '''    
             loop += 1
                 
         if len(rets) > 0:
