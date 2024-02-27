@@ -49,6 +49,9 @@ fn labeling(mut file: &File) -> SdResult<()> {
         .expect(&format!("{}", service_template.display()))
         .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
         .replace(DEFAULT_CUS_NAME, &cus_name);
+    if !target_dir.exists() {
+        std::fs::create_dir_all(&target_dir).unwrap();
+    }
     std::fs::write(&target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
@@ -60,6 +63,14 @@ fn labeling(mut file: &File) -> SdResult<()> {
         writeln!(file, r#"pub const TD_VERSION: &str = "{}";"#, version)?;
     } else {
         writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
+    }
+    #[cfg(debug_assertions)]
+    {
+        writeln!(file, r#"pub const IS_DEBUG: bool = true;"#)?;
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        writeln!(file, r#"pub const IS_DEBUG: bool = false;"#)?;
     }
     Ok(())
 }

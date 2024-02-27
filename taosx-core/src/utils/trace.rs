@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 use std::io;
 use std::marker::PhantomData;
+use std::sync::atomic::Ordering;
 
 use chrono::prelude::*;
+use metrics::atomics::AtomicU64;
 use rand::random;
 use tracing::{Span, Subscriber};
 use tracing_core::span::{Attributes, Id, Record};
@@ -337,22 +339,21 @@ pub fn get_stream_id_u64(stream_id: &str) -> u64 {
 }
 
 pub struct RequestID {
-    inner: u64,
+    inner: AtomicU64,
 }
 
 impl RequestID {
-    pub fn new(inital_value: u64) -> Self {
+    pub fn new(initial_value: u64) -> Self {
         RequestID {
-            inner: inital_value,
+            inner: AtomicU64::new(initial_value),
         }
     }
 
     pub fn trace_id_str(&self) -> String {
-        get_data_trace_id_str(self.inner)
+        get_data_trace_id_str(self.inner.load(Ordering::SeqCst))
     }
 
-    pub fn next(&mut self) -> u64 {
-        self.inner += 1;
-        self.inner
+    pub fn next(&self) -> u64 {
+        self.inner.fetch_add(1, Ordering::Acquire) + 1
     }
 }

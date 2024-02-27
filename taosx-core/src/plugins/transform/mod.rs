@@ -8,9 +8,10 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{ops::Range, str::FromStr, sync::Arc};
+use std::{borrow::Cow, ops::Range, str::FromStr, sync::Arc};
 
 use arrow::{
+    array::{Array, BinaryArray, StringArray},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -26,13 +27,23 @@ use taos::{
     },
     JsonMeta, RawBlock, Ty, Value,
 };
-
-mod select;
+use thiserror::Error;
+use tinytemplate::TinyTemplate;
 
 pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
-use thiserror::Error;
-use tinytemplate::TinyTemplate;
+
+use crate::plugins::transform::parse::ArrayForTaos;
+
+use super::expr;
+
+use self::{
+    modeler::{ModeledRecordBatch, Modeler},
+    mutate::Mutate,
+    parse::{FieldParser, ParserImpl},
+};
+
+mod select;
 
 // mod json;
 pub mod constants;
@@ -45,23 +56,17 @@ mod map;
 
 mod modeler;
 mod mutate;
-
-use crate::plugins::transform::parse::ArrayForTaos;
-
-use self::{
-    modeler::{ModeledRecordBatch, Modeler},
-    mutate::Mutate,
-    parse::{FieldParser, ParserImpl},
-};
-
-use super::expr;
+pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
     #[serde(default)]
+    global: Arc<TableOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
 
@@ -98,6 +103,7 @@ impl Pipeline {
                 } else if table.name.contains('.') {
                     return Err(Error::TableNameContainsDot(table.name.clone()));
                 }
+                table.global.get_or_init(|| self.global.clone());
 
                 if let Some(columns) = table.columns.as_ref() {
                     if columns.is_empty() {
@@ -153,7 +159,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -174,7 +180,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         assert_eq!(
             output[0]
                 .fields
@@ -208,7 +214,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -228,7 +234,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         assert_eq!(
             output[0]
                 .fields
@@ -276,7 +282,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -317,7 +323,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -335,7 +341,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -356,7 +362,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         assert_eq!(
             output[0]
                 .fields
@@ -405,7 +411,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output_over_written = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output_over_written = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         assert_eq!(
             output_over_written[0]
                 .fields
@@ -446,7 +452,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -464,7 +470,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -478,7 +484,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -498,7 +504,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -515,7 +521,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -529,7 +535,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -549,7 +555,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -568,7 +574,7 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
 
         assert_eq!(
             output[0]
@@ -597,7 +603,7 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
 
         assert_eq!(
             output[0]
@@ -631,7 +637,7 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
 
         assert_eq!(
             output[0]
@@ -657,7 +663,7 @@ mod pipeline_tests {
         dbg!(&pipeline);
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
 
         assert_eq!(
             output[0]
@@ -688,7 +694,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -702,7 +708,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -722,7 +728,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
@@ -741,7 +747,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
@@ -764,7 +770,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
         let json = serde_json::to_string_pretty(&output).unwrap();
 
         assert_eq!(
@@ -812,7 +818,7 @@ mod pipeline_tests {
         .unwrap();
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
-        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let output = res.iter().map(|m| m.to_modeled_json()).collect_vec();
 
         assert_eq!(
             output[0]
@@ -825,7 +831,7 @@ mod pipeline_tests {
                 ("__using__", DataType::Utf8, IpcDataType::VarChar(128)),
                 (
                     "ts",
-                    DataType::Timestamp(TimeUnit::Millisecond, None),
+                    DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".into())),
                     IpcDataType::Timestamp(TimeUnit::Millisecond)
                 ),
                 ("value", DataType::Float64, IpcDataType::Float64),
@@ -936,6 +942,8 @@ mod pipeline_tests {
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
+    #[serde(default)]
+    global: Arc<TableOptions>,
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
@@ -1075,8 +1083,9 @@ impl Parser {
 
         let mut data = vec![];
         for table in &self.model {
+            let name = table.name.replace("${", "{");
             let mut template = TinyTemplate::new();
-            template.add_template("name", &table.name).unwrap();
+            template.add_template("name", &name).unwrap();
             if let Some(using) = table.using.as_ref() {
                 template.add_template("using", using).unwrap();
             }
@@ -1153,6 +1162,7 @@ impl Parser {
                 let item = MessageArrowRecords {
                     table: meta,
                     records: batch,
+                    opts: self.global.clone(),
                 };
                 data.push(item);
             }
@@ -1286,6 +1296,53 @@ impl MessageTableMeta {
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
+    pub opts: Arc<TableOptions>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TableOptions {
+    // TODO: support case insensitive identifier, including table name and column name.
+    /// Whether identifier is case insensitive. Not work for now.
+    ///
+    /// Default is `false`, which means identifier is case sensitive.
+    #[serde(skip, default)]
+    pub identifier_case_insensitive: bool,
+    /// Replace dot in table name with this string.
+    ///
+    /// For example, if `replace_dot_in_table_name` is set to `_`, then table name `custom.table` will be converted to `custom_table`.
+    ///
+    /// Without this, table name `custom.table` will cause error 0x2617: "The table name cannot contain '.'".
+    ///
+    /// Default is `_`.
+    #[serde(default)]
+    pub replace_dot_in_table_name: String,
+}
+
+impl Default for TableOptions {
+    fn default() -> Self {
+        Self {
+            identifier_case_insensitive: false,
+            replace_dot_in_table_name: "_".to_string(),
+        }
+    }
+}
+impl TableOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn canonical_table_name<'b>(&self, name: &'b str) -> Cow<'b, str> {
+        let dot = name.contains('.');
+        match (self.identifier_case_insensitive, dot) {
+            (true, true) => Cow::Owned(
+                name.to_lowercase()
+                    .replace('.', &self.replace_dot_in_table_name),
+            ),
+            (true, false) => Cow::Owned(name.to_lowercase()),
+            (false, true) => Cow::Owned(name.replace('.', &self.replace_dot_in_table_name)),
+            (false, false) => Cow::Borrowed(name),
+        }
+    }
 }
 
 trait ArrowFieldExt {
@@ -1406,41 +1463,50 @@ impl MessageArrowRecords {
                         | DataType::Utf8
                         | DataType::LargeBinary
                         | DataType::LargeUtf8 => {
-                            let cast_to = field.metadata().get("cast_to");
-                            if cast_to.is_some() {
-                                let cast_to = cast_to.unwrap();
-                                let length = field.metadata().get("length");
-                                if length.is_some() {
-                                    // varchar or nchar
-                                    let res = length.unwrap().parse::<usize>();
-                                    match res {
-                                        Ok(length) => ColumnMeta::Column(Described::new(
-                                            field.name(),
-                                            Ty::from_str(cast_to.as_str()).unwrap(),
-                                            Some(length),
-                                        )),
-                                        Err(err) => {
-                                            tracing::error!(
-                                                "varchar/nchar parse error: {}",
-                                                err.to_string()
-                                            );
-                                            ColumnMeta::Column(Described::new(
+                            if let Some(ty) = field.metadata().get("type") {
+                                let ipc_ty = IpcDataType::from_str(ty.as_str()).unwrap();
+                                ColumnMeta::Tag(Described::new(
+                                    field.name(),
+                                    ipc_ty.ty(),
+                                    ipc_ty.length(),
+                                ))
+                            } else {
+                                let cast_to = field.metadata().get("cast_to");
+                                if cast_to.is_some() {
+                                    let cast_to = cast_to.unwrap();
+                                    let length = field.metadata().get("length");
+                                    if length.is_some() {
+                                        // varchar or nchar
+                                        let res = length.unwrap().parse::<usize>();
+                                        match res {
+                                            Ok(length) => ColumnMeta::Tag(Described::new(
                                                 field.name(),
                                                 Ty::from_str(cast_to.as_str()).unwrap(),
-                                                None,
-                                            ))
+                                                Some(length),
+                                            )),
+                                            Err(err) => {
+                                                tracing::error!(
+                                                    "varchar/nchar parse error: {}",
+                                                    err.to_string()
+                                                );
+                                                ColumnMeta::Tag(Described::new(
+                                                    field.name(),
+                                                    Ty::from_str(cast_to.as_str()).unwrap(),
+                                                    None,
+                                                ))
+                                            }
                                         }
+                                    } else {
+                                        // json
+                                        ColumnMeta::Tag(Described::new(
+                                            field.name(),
+                                            Ty::from_str(cast_to.as_str()).unwrap(),
+                                            None,
+                                        ))
                                     }
                                 } else {
-                                    // json
-                                    ColumnMeta::Column(Described::new(
-                                        field.name(),
-                                        Ty::from_str(cast_to.as_str()).unwrap(),
-                                        None,
-                                    ))
+                                    ColumnMeta::Tag(Described::new(field.name(), field.ty(), None))
                                 }
-                            } else {
-                                ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                             }
                         }
                         _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
@@ -1503,6 +1569,66 @@ impl MessageArrowRecords {
             )
         }
     }
+
+    pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
+        let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
+            .expect("Sql values should be recognizable")?;
+        let tbname = self.opts.canonical_table_name(self.table.name.as_str());
+        if !with_meta || self.table.using.is_none() {
+            return Some(format!("`{}` {}", tbname, col_values));
+        }
+        let using = self.table.using.as_ref().unwrap();
+        let names = self
+            .table
+            .tags
+            .as_ref()
+            .unwrap()
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| format!("`{}`", f.name()))
+            .join(",");
+
+        let tag_values = self
+            .table
+            .tags
+            .as_ref()
+            .unwrap()
+            .columns()
+            .iter()
+            .map(|c| c.taos_value(0).to_sql_value())
+            .join(",");
+
+        Some(format!(
+            "`{}` using `{}` ({}) tags({}) {}",
+            tbname, using, names, tag_values, col_values
+        ))
+    }
+
+    pub fn stable_name(&self) -> Option<&str> {
+        self.table.using.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn max_var_length(&self, field: &str) -> Option<usize> {
+        fn array_max_var_length(array: &dyn Array) -> Option<usize> {
+            match array.data_type() {
+                DataType::Binary => {
+                    let array = array.as_any().downcast_ref::<BinaryArray>().unwrap();
+                    array.iter().map(|v| v.map(|v| v.len()).unwrap_or(0)).max()
+                }
+                DataType::Utf8 => {
+                    let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+                    array.iter().map(|v| v.map(|v| v.len()).unwrap_or(0)).max()
+                }
+                _ => None,
+            }
+        }
+        if let Some(array) = self.records.column_by_name(field) {
+            array_max_var_length(array)
+        } else {
+            array_max_var_length(self.table.tags.as_ref()?.column_by_name(field)?)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1514,6 +1640,7 @@ pub enum Message {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MessageItemDecodedData(Either<JsonMeta, Vec<RawBlock>>);
 
 impl From<JsonMeta> for MessageItemDecodedData {

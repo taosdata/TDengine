@@ -13,7 +13,6 @@ use flume::{Receiver, Sender};
 use futures::FutureExt;
 use futures_util::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-use metrics::counter;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncRows, BorrowedValue, ResultSet, Taos, TaosPool};
 use tokio::{
     sync::oneshot,
@@ -23,14 +22,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
+    core_metrics::{CoreMetrics, TaskMetrics},
     legacy::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap, transform_tbname_with_actions,
     },
-    utils::{breakpoints, metrics_db::MetricsDb},
-    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_BLOCKS,
-    METRICS_LEGACY_CREATED_TABLES, METRICS_LEGACY_POINTS, METRICS_LEGACY_RECORDS,
-    METRICS_LEGACY_TABLES,
+    utils::breakpoints,
+    Action, QueryOpts, TargetOpts, TimeRange,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -78,7 +76,7 @@ impl Debug for Scheduler {
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(worker = worker))]
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -86,14 +84,14 @@ async fn worker(
     receiver: Receiver<Todo>,
     query: Arc<QueryOpts>,
     opts: Arc<TargetOpts>,
-    metrics: Arc<LegacyMetrics>,
-    metrics_db: Option<Arc<MetricsDb>>,
+    metrics_arc: Arc<CoreMetrics>,
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
     task_id: Option<String>,
-    file_mutex: Arc<std::sync::Mutex<()>>,
+    file_mutex: Arc<tokio::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
+    let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
     let mut to = target.get().await?;
@@ -190,7 +188,7 @@ async fn worker(
                                 &opts,
                                 source_is_v3,
                                 &actions,
-                                &metrics,
+                                metrics_arc.clone(),
                             )
                             .await
                             {
@@ -273,8 +271,7 @@ async fn worker(
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
-                                counter!(METRICS_LEGACY_CREATED_TABLES, 1);
-                                metrics.created_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.add_created_tables(1);
                             }
                         }
 
@@ -297,7 +294,7 @@ async fn worker(
                     const MAX_RETRIES: usize = 5;
                     let mut retries = MAX_RETRIES;
                     loop {
-                        let _lock = file_mutex.lock().unwrap();
+                        let _lock = file_mutex.lock().await;
                         match breakpoints::breakpoints_get(&task_id, &table).and_then(|bp| {
                             bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
                                 .transpose()
@@ -315,7 +312,6 @@ async fn worker(
                                 tracing::debug!(
                                     "load breakpoint failed, err: {err} table: {table}, retrying ... {retries} times left"
                                 );
-
                                 if retries > 0 {
                                     retries -= 1;
                                     drop(_lock);
@@ -361,7 +357,6 @@ async fn worker(
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
-                                let partial_metrics = Arc::new(LegacyMetrics::default());
                                 match sync_single_table_partial(
                                     source.clone(),
                                     target.clone(),
@@ -374,51 +369,37 @@ async fn worker(
                                     remap.as_ref(),
                                     &opts,
                                     target_is_v3,
-                                    partial_metrics.clone(),
+                                    metrics_arc.clone(),
                                 )
                                 .await
                                 {
                                     Ok(_) => {
+                                        tracing::debug!(
+                                            "synced table {table} time_range {time_range}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                        );
                                         // set breakpoint async
                                         if let Some(task_id) = task_id.clone() {
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
                                                 // dbg!(&breakpoint);
-                                                tokio::spawn(async move {
-                                                    let _ = breakpoints::breakpoints_set(
+                                                tokio::task::spawn_blocking(move || {
+                                                    if let Err(err) = breakpoints::breakpoints_set(
                                                         &task_id,
                                                         &table_inner,
                                                         &breakpoint,
-                                                    );
+                                                    ) {
+                                                        tracing::warn!(
+                                                            task.id = task_id.as_str(),
+                                                            breakpoints.key = table_inner.as_str(),
+                                                            breakpoints.value = breakpoint.as_str(),
+                                                            "set breakpoint failed, err: {err:#}"
+                                                        );
+                                                    };
                                                 });
                                             }
                                         }
-                                        // metrics
-                                        log::debug!(
-                                            "sync table {table} time_range {time_range} partial metrics: {partial_metrics:#}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                            partial_metrics = &partial_metrics,
-                                        );
-
-                                        let _ = metrics.merge(&partial_metrics);
-
-                                        log::debug!(
-                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                            metrics = metrics,
-                                        );
-
-                                        if let Some(metrics_db) = metrics_db.as_ref() {
-                                            let str_metrics = metrics.to_json();
-                                            log::debug!("str_metrics: {str_metrics}");
-                                            let r = metrics_db.set(&str_metrics);
-                                            if let Err(err) = r {
-                                                log::error!("metrics_db::metrics_set error: {err}");
-                                            }
-                                        }
-
                                         break;
                                     }
                                     Err(err) => {
@@ -431,16 +412,12 @@ async fn worker(
                                             from = source.get().await?;
                                             to = target.get().await?;
                                             retries -= 1;
-                                            tracing::warn!(
-                                    "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
-                                );
+                                            tracing::warn!("[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left");
                                             continue;
                                         } else if err_string.contains("0x263F")
                                             || err_string.contains("Column does not exist")
                                         {
-                                            tracing::info!(
-                                    "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
-                                );
+                                            tracing::info!("[worker:{worker}] sync table {table} error 0x263F: {err:?}, add column");
                                             let st = stable.as_ref().map(|s| s.as_str());
                                             if let Some(stable) = st {
                                                 sync_add_column(&from, &to, stable, remap.as_ref())
@@ -452,9 +429,7 @@ async fn worker(
                                             continue;
                                         }
 
-                                        tracing::error!(
-                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
-                                        );
+                                        tracing::error!("[worker:{worker}] sync table {table} with range {chunk} error: {err:?}, continue next");
                                         if let Some(path) = opts.fails_to.as_ref() {
                                             path.lock().unwrap().write_fmt(format_args!(
                                                 "data\t{}\t{:?}\t{}\n",
@@ -488,8 +463,8 @@ async fn worker(
                                 }
                             }
                             None => {
-                                counter!(METRICS_LEGACY_TABLES, 1);
-                                metrics.tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.total_finished_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.finished_tables.fetch_add(1, Ordering::SeqCst);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
                                 }
@@ -535,7 +510,7 @@ async fn worker(
                     .and_then(|v| v.get(table.as_str()).map(Clone::clone));
                 let mut chunk_err: Option<String> = None;
                 loop {
-                    let partial_metrics = Arc::new(LegacyMetrics::default());
+                    let partial_metrics = metrics_arc.clone();
                     match sync_sparse_stable(
                         source.clone(),
                         target.clone(),
@@ -547,36 +522,18 @@ async fn worker(
                         remap.as_ref(),
                         &opts,
                         target_is_v3,
-                        partial_metrics.clone(),
+                        partial_metrics,
                     )
                     .await
                     {
                         Ok(_) => {
                             // metrics
                             log::debug!(
-                                            "sync table {table} time_range {time_range} partial metrics: {partial_metrics:#}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                            partial_metrics = &partial_metrics,
-                                        );
-
-                            let _ = metrics.merge(&partial_metrics);
-
-                            log::debug!(
                                             "sync table {table} time_range {time_range} total metrics: {metrics:#}",
                                             table = table.as_str(),
                                             time_range = query.time_range,
                                             metrics = metrics,
                                         );
-
-                            if let Some(metrics_db) = metrics_db.as_ref() {
-                                let str_metrics = metrics.to_json();
-                                log::debug!("str_metrics: {str_metrics}");
-                                let r = metrics_db.set(&str_metrics);
-                                if let Err(err) = r {
-                                    log::error!("metrics_db::metrics_set error: {err}");
-                                }
-                            }
 
                             break;
                         }
@@ -637,8 +594,7 @@ async fn worker(
                         }
                     }
                     None => {
-                        counter!(METRICS_LEGACY_TABLES, 1);
-                        metrics.tables.fetch_add(1, Ordering::SeqCst);
+                        metrics.add_finished_tables(1);
                         if let Some(sender) = sender {
                             let _ = sender.send(Ok(()));
                         }
@@ -683,7 +639,6 @@ pub async fn sync_add_column(
 }
 
 impl Scheduler {
-    #[instrument(skip_all)]
     pub async fn new(
         source: TaosPool,
         target: TaosPool,
@@ -691,13 +646,12 @@ impl Scheduler {
         opts: Arc<TargetOpts>,
         workers: u32,
         actions: &Vec<Action>,
-        metrics: Arc<LegacyMetrics>,
-        metrics_db: Option<Arc<MetricsDb>>,
+        metrics: Arc<CoreMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
         task_id: Option<String>,
         cancellation: CancellationToken,
-        file_mutex: Arc<std::sync::Mutex<()>>,
+        file_mutex: Arc<tokio::sync::Mutex<()>>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
@@ -713,7 +667,6 @@ impl Scheduler {
                     query.clone(),
                     opts.clone(),
                     metrics.clone(),
-                    metrics_db.clone(),
                     actions.clone(),
                     source_is_v3,
                     target_is_v3,
@@ -747,6 +700,10 @@ impl Scheduler {
     }
     pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
         self.sender.send_async(todo).await
+    }
+
+    pub fn send_blocking(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
+        self.sender.send(todo)
     }
 
     // pub fn abort(&self) {
@@ -792,7 +749,7 @@ async fn sync_sparse_stable(
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     _target_is_v3: bool,
-    metrics: Arc<LegacyMetrics>,
+    metrics: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tracing::info!(
         "Syncing sparse table {table} with range: {}",
@@ -1037,20 +994,15 @@ async fn sync_sparse_stable(
             target: TaosPool,
             tag_idx: usize,
             recv: flume::Receiver<(usize, String)>,
-            metrics: Arc<LegacyMetrics>,
+            metrics: Arc<CoreMetrics>,
         ) -> anyhow::Result<()> {
+            let metrics = metrics.legacy();
             let to = target.get().await?;
             while let Ok((records, sql)) = recv.recv_async().await {
                 to.exec(sql.as_str()).await?;
-                counter!(METRICS_LEGACY_BLOCKS, 1);
-                counter!(METRICS_LEGACY_RECORDS, records as _);
-                counter!(METRICS_LEGACY_POINTS, records as u64 * tag_idx as u64);
-
-                metrics.blocks.fetch_add(1, Ordering::SeqCst);
-                metrics.records.fetch_add(records as _, Ordering::SeqCst);
-                metrics
-                    .points
-                    .fetch_add(records as u64 * tag_idx as u64, Ordering::SeqCst);
+                metrics.add_success_blocks(1);
+                metrics.add_written_rows(records as _);
+                metrics.add_written_points(records as u64 * tag_idx as u64);
             }
             Ok(())
         }

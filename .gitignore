@@ -30,3 +30,4 @@ centos7.target
 vendor
 plugins/opentsdb/target/
 plugins/opc/taosx-opc
+targets

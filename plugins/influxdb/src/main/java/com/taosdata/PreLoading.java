@@ -3,7 +3,6 @@ package com.taosdata;
 import com.alibaba.fastjson.JSONObject;
 import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
-import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.InfluxdbConfig;
@@ -11,7 +10,6 @@ import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
-import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -31,6 +29,9 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -41,7 +42,9 @@ import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
+import java.time.Instant;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * 预加载
@@ -85,8 +88,10 @@ public class PreLoading implements CommandLineRunner {
     @Override
     public void run(String... args) {
         System.err.println("InfluxDB Connector version: 1.0.0");
-        System.err.println("InfluxDB Connector commit: " + gitProperties.getCommitId());
-        System.err.println("InfluxDB Connector build time: " + gitProperties.getInstant("build.time"));
+        if (gitProperties != null) {
+            System.err.println("InfluxDB Connector commit: " + gitProperties.getCommitId());
+            System.err.println("InfluxDB Connector build time: " + gitProperties.getInstant("build.time"));
+        }
         /** 监控信息及系统初始化 */
         try {
             // 设置启动时间
@@ -218,6 +223,14 @@ public class PreLoading implements CommandLineRunner {
         try {
             // 读取外部toml文件
             String tomlConfig = FileUtils.readAbsoluteFile(externalConfigFile);
+            /** 输出配置（处理token与password） START */
+            String printConfig = tomlConfig;
+            Pattern tokenPattern = Pattern.compile("^token.*\n?$", Pattern.MULTILINE);
+            Pattern passwordPattern = Pattern.compile("^password.*\n?$", Pattern.MULTILINE);
+            printConfig = tokenPattern.matcher(printConfig).replaceAll("token = *");
+            printConfig = passwordPattern.matcher(printConfig).replaceAll("password = *");
+            System.err.println(printConfig);
+            /** 输出配置（处理token与password） END */
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
@@ -252,6 +265,14 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(breakpoints)) {
                 this.taskConfig.setBreakpoint(parseBreakpoint(breakpoints));
             }
+            // 日志级别error/warn/info/debug/trace，配置错误将会设置为error级别
+            if (StringUtils.isNotEmpty(tomlParseResult.getString("task.logLevel", String::new))) {
+                this.taskConfig.setLogLevel(tomlParseResult.getString("task.logLevel", String::new));
+            }
+            LoggerContext loggerContext = LoggerContext.getContext(false);
+            LoggerConfig loggerConfig = loggerContext.getConfiguration().getRootLogger();
+            loggerConfig.setLevel(Level.getLevel(this.taskConfig.getLogLevel().toUpperCase()));
+            loggerContext.updateLoggers();
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
                 this.performanceConfig.setReadWindow(tomlParseResult.getLong("performance.readWindow").intValue());
@@ -310,7 +331,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理工作模式：普通、恢复
      */
-    private void initMode() {
+    /*private void initMode() {
         // 断点续传，需要本地的“读取记录”与“内存队列持久化”两个文件
         if ("resume".equals(this.taskConfig.getMode())) {
             try {
@@ -337,7 +358,7 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
-    }
+    }*/
 
     /**
      * 检查influxdb连通性
@@ -458,6 +479,17 @@ public class PreLoading implements CommandLineRunner {
                     // 放入缓存中
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
                         BucketCache.measurementMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), influxdbMeasurementEntity);
+                    }
+                    // 通过first函数获取每个measurement的最早时间戳
+                    for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
+                        try {
+                            Instant firstTimestamp = influxdbService.getFirstTimestampInRange(influxdbConfig.getOrgId(), influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), taskConfig.getBeginTime());
+                            // 写入内存中
+                            BucketCache.measurementFirstTimestampMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), firstTimestamp);
+                            logger.info("Auto update startTime: bucket: {}, measurement: {}, first: {}", influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), firstTimestamp);
+                        } catch (Exception e) {
+                            logger.error("An exception occurred during getting first  timestamp", e);
+                        }
                     }
                     // 启动BucketThread
                     BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());
@@ -594,7 +626,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理退出信号
      */
-    private void processShutdown() {
+    /*private void processShutdown() {
         // 停止BucketThread、ScheduleThread线程（在ScheduleThread中停止所有BucketDataThread）
         LocalConfig.isRunBucketThread = false;
         LocalConfig.isRunScheduleThread = false;
@@ -639,5 +671,5 @@ public class PreLoading implements CommandLineRunner {
             logger.error("Failed to save read records during system security exit.", e);
         }
         logger.info("The system has executed a secure exit.");
-    }
+    }*/
 }

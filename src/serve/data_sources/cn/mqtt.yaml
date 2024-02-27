@@ -172,14 +172,12 @@ advanced:
         min: 1
         max: 60
     - name: keep_raw_data
-      hidden: true
       display: 保存原始数据
       description: |
         是否保存原始数据？
       hint:
         type: bool
     - name: keep_raw_data_days
-      hidden: true
       display: 最大保留天数
       description: |
         原始数据最大保存天数，默认 1 天。
@@ -191,7 +189,6 @@ advanced:
         max: 365
 
     - name: keep_raw_data_dir
-      hidden: true
       display: 原始数据存储目录
       description: |
         自定义原始数据存储目录，默认存储到系统数据目录下。
@@ -210,7 +207,7 @@ parser:
     - **qos**: 采集点质量。
     - **payload**: 采集数据。
 
-    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，包括，指定表名称和超级表名，设置普通列会标签列等。
+    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，包括，指定表名称和超级表名，设置普通列和标签列等。
   fields:
     - name: ts
       description: 时间戳

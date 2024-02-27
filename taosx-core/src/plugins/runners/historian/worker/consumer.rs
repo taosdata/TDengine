@@ -1,59 +1,106 @@
 use arrow::ipc::writer::StreamWriter;
-use flume::Receiver;
+use flume::{Receiver, Sender};
 use futures_util::TryStreamExt;
-use tiberius::QueryItem;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::historian::arrow::ArrowDataAppender;
+use crate::runners::historian::appender;
+use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::worker::{set_break_point, to_csv_string};
+use crate::runners::set_tcp_keepalive;
 
 pub struct Consumer {
-    query: HistorianQuery,
-    port: u16,
+    id: Option<String>,
+    connect: ConnectConfig,
+    ipc_port: u16,
 }
 
 impl Consumer {
-    pub fn new(query: HistorianQuery, port: u16) -> Self {
-        Self { query, port }
+    pub fn new(id: Option<String>, connect: ConnectConfig, ipc_port: u16) -> Self {
+        Self {
+            id,
+            connect,
+            ipc_port,
+        }
     }
 
-    pub async fn consume(&mut self, receiver: Receiver<TaskConfig>) -> anyhow::Result<()> {
-        let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
-        let schema = appender.schema().clone();
+    pub async fn consume(
+        &mut self,
+        receiver: Receiver<TaskConfig>,
+        logger_tx: Sender<String>,
+    ) -> anyhow::Result<()> {
+        let mut client = HistorianQuery::try_new(self.connect.clone()).await?;
 
-        let socket = format!("127.0.0.1:{}", self.port);
+        let mut rows = client
+            .describe_table(HistorianTable::History)
+            .await?
+            .into_row_stream();
+        let mut column_meta_list = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            let col_meta = appender::column_meta::ColumnMeta::try_new(&row)?;
+            column_meta_list.push(col_meta);
+        }
+        drop(rows);
+        let schema = appender::column_meta::to_schema(column_meta_list)?;
+
+        // IPC Tcp stream
+        let socket = format!("127.0.0.1:{}", self.ipc_port);
         let stream = std::net::TcpStream::connect(socket)?;
-        let ack_stream = stream.try_clone()?;
+        set_tcp_keepalive(&stream)?;
+        stream.set_nonblocking(false)?;
 
-        let (tx, rx) = flume::bounded(0);
+        // ack reader stream
+        let ack_stream = stream.try_clone()?;
+        set_tcp_keepalive(&ack_stream)?;
+        ack_stream.set_read_timeout(None)?;
+
+        // write batch to IPC
+        let (tx, rx) = flume::bounded(100);
         let writer_handler = tokio::task::spawn_blocking(move || {
-            stream.set_nonblocking(false)?;
             let mut writer = StreamWriter::try_new(stream, &schema)?;
+            let mut row_count = 0;
+            let mut batches = 0;
+
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
+                tracing::debug!("migrate history write {} rows to ipc", batch.num_rows());
+
+                row_count += batch.num_rows();
+                batches += 1;
             }
+
+            tracing::debug!(
+                send.batches = batches,
+                send.records = row_count,
+                "sending finished, waiting for persisting"
+            );
             let _ = writer.finish()?;
             anyhow::Ok(())
         });
 
+        // receive ACK from IPC
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
                 if !ack.success() {
-                    tracing::warn!("write records error: {ack:?}",);
+                    tracing::error!("migrate history write records error: {ack:?}",);
                     if let Some(message) = ack.message() {
                         anyhow::bail!("IPC writer error: {message}")
                     }
                 }
             }
-            tracing::info!("ACK reader finished");
+            tracing::info!("migrate history ACK reader finished");
             Ok(())
         });
 
-        while let Ok(task) = receiver.recv_async().await {
+        // query database and send to writer
+        let mut batch_count: u64 = 1;
+        while let Ok(mut task) = receiver.recv_async().await {
+            task.sub_task_id = self.id.clone();
+
             let start = task
                 .begin_datetime
                 .ok_or(anyhow::anyhow!("beginDateTime cannot be None"))?;
@@ -62,37 +109,36 @@ impl Consumer {
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
 
             // query
-            tracing::debug!("execute migrate query, from: {}, to: {}", start, end);
-            let mut rows = self.query.query_history(task.tags, start, end).await?;
-            tracing::debug!("append rows into batch");
-            while let Some(row) = rows.try_next().await? {
-                match row {
-                    QueryItem::Row(row) => {
-                        appender.append_history_row(row).map_err(|err| {
-                            let err_msg = format!("append history row error: {}", err.to_string());
-                            tracing::error!(err_msg);
-                            anyhow::anyhow!(err_msg)
-                        })?;
-                    }
-                    QueryItem::Metadata(_) => {
-                        continue;
-                    }
-                }
+            tracing::debug!(
+                "migrate history batch:{}, execute query from: {}, to: {}",
+                batch_count,
+                start,
+                end
+            );
+
+            let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
+            let stream = client
+                .select_from_history(task.tags.clone(), start, end)
+                .await?;
+            let batches = appender::to_record_batches(stream, batch_size).await?;
+
+            for batch in batches {
+                let _ = logger_tx.send_async(to_csv_string(&batch)?).await;
+                tx.send_async(batch.clone()).await?;
+
+                batch_count += 1;
             }
-            // write batch
-            tracing::debug!("finish batch into records");
-            let batch = appender.finish()?;
-            tracing::debug!("send record batch to writer");
-            tx.send_async(batch.clone()).await?;
-            tracing::debug!("write batch to ipc: {}", batch.num_rows());
+
+            // set break point
+            set_break_point(&task, &end).await?;
         }
         drop(tx);
 
-        tracing::debug!("polling from historian finished");
+        tracing::debug!("migrate history query finished");
         writer_handler.await??;
-        tracing::debug!("write finished");
+        tracing::debug!("migrate history writer finished");
         ack.await??;
-        tracing::debug!("consume task finished");
+        tracing::debug!("migrate history consumer finished");
         Ok(())
     }
 }

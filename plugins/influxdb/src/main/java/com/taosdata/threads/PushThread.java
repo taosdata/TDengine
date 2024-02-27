@@ -9,9 +9,6 @@ import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
-import com.taosdata.netty.consts.NettyConsts;
-import com.taosdata.netty.model.dto.MessageDto;
-import com.taosdata.netty.model.enums.MessageTypeEnums;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.arrow.ArrowUtils;
 import com.taosdata.utils.flux.FluxEnums;
@@ -21,9 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 推送数据线程
@@ -70,9 +65,19 @@ public class PushThread implements Runnable {
     private Map<String, String> fieldMap = new HashMap<>();
 
     /**
+     * 已创建的子表集合
+     */
+    private Set<String> createdSubtableSet = new HashSet<>();
+
+    /**
      * 当前线程/schema的arrow工具类
      */
     private ArrowUtils arrowUtils = null;
+
+    /**
+     * 空跑次数，超过预定次数则断开连接
+     */
+    private int emptyTimes = 0;
 
     @Override
     public void run() {
@@ -88,9 +93,15 @@ public class PushThread implements Runnable {
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
+                    // 判断空跑次数
+                    if (this.emptyTimes++ >= 30000 && this.arrowUtils != null) {
+                        this.channel.writeAndFlush(this.arrowUtils.closeArrow());
+                    }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
                     continue;
+                } else {
+                    this.emptyTimes = 0;
                 }
                 // 速度控制
                 FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), this.performanceConfig.getLimitSpeed());
@@ -151,6 +162,8 @@ public class PushThread implements Runnable {
     private void exit() {
         // 线程结束
         this.logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        // 清除连接信息
+        BucketDataCache.socketMap.remove(this.dataSourceKey);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
@@ -180,7 +193,7 @@ public class PushThread implements Runnable {
                     // 数据写回
                     BucketDataCache.addBucketData(influxdbBucketDataEntityList);
                     // 断开连接
-                    this.channel.close();
+                    this.channel.writeAndFlush(this.arrowUtils.closeArrow());
                     // 中止操作
                     return;
                 }
@@ -191,11 +204,19 @@ public class PushThread implements Runnable {
             if (this.first || this.arrowUtils == null) {
                 this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
             }
-            MessageDto messageDto = new MessageDto();
-            messageDto.setVersion(NettyConsts.VERSION);
-            messageDto.setMsgType(MessageTypeEnums.MSG_REQ.getValue());
-            messageDto.setBody(this.arrowUtils.transform(influxdbBucketDataEntityList, this.first));
-            this.channel.writeAndFlush(messageDto);
+            // 所有子表信息
+            Map<String, Map<String, Object>> subtableMap = new HashMap<>();
+            influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> {
+                if (!createdSubtableSet.contains(influxdbBucketDataEntity.getTable()) && !subtableMap.containsKey(influxdbBucketDataEntity.getTable())) {
+                    subtableMap.put(influxdbBucketDataEntity.getTable(), influxdbBucketDataEntity.getTags());
+                    createdSubtableSet.add(influxdbBucketDataEntity.getTable());
+                }
+            });
+            // 转化并发送数据
+            if (!subtableMap.isEmpty()) {
+                this.channel.writeAndFlush(this.arrowUtils.transformSubtable(subtableMap, this.first));
+            }
+            this.channel.writeAndFlush(this.arrowUtils.transformData(influxdbBucketDataEntityList));
             // 修改当前线程/schema的首条标记
             this.first = false;
             // 记录统计信息

@@ -40,6 +40,10 @@ impl PortPool {
         loop {
             if let Some(index) = bitmap.first_zero() {
                 let port = self.range.start + index as u16;
+                if matches!(port, 6055 | 6060 | 7070) {
+                    bitmap.set(index, true);
+                    continue;
+                }
                 if is_free_tcp(port) {
                     bitmap.set(index, true);
                     return Some(port);

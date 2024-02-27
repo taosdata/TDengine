@@ -1,21 +1,15 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use itertools::Itertools;
-use tiberius::{AuthMethod, Client, Config, QueryItem, QueryStream};
+use tiberius::{AuthMethod, Client, Config, QueryStream};
 use tokio::net::TcpStream;
-use tokio_stream::StreamExt;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use crate::runners::historian::config::connect::ConnectConfig;
-use crate::runners::historian::query::tag::TagMeta;
-
-mod tag;
+use crate::runners::historian::config::HistorianTable;
 
 pub struct HistorianQuery {
     client: Client<Compat<TcpStream>>,
 }
-
-const HISTORY_COLUMNS: &str = "DateTime,TagName,Value,vValue,Quality,QualityDetail,wwTagKey,wwResolution,StartDateTime,SourceTag,SourceServer";
-const LIVE_COLUMNS: &str = "DateTime,TagName,Value,vValue,Quality,QualityDetail,OPCQuality,wwTagKey,SourceTag,SourceServer";
 
 impl HistorianQuery {
     pub async fn try_new(config: ConnectConfig) -> anyhow::Result<Self> {
@@ -32,36 +26,51 @@ impl HistorianQuery {
         Ok(Self { client })
     }
 
-    #[allow(dead_code)]
-    pub async fn get_tags(&mut self) -> anyhow::Result<Vec<TagMeta>> {
-        let tags_query = "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'".to_string();
-        let mut response = self.client.query(tags_query, &[]).await?;
+    async fn connect(
+        host: &String,
+        port: u16,
+        username: &String,
+        password: &String,
+    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
+        let mut config = Config::new();
+        config.host(host);
+        config.port(port);
+        config.database("Runtime");
+        config.authentication(AuthMethod::sql_server(username, password));
+        config.trust_cert();
 
-        let mut tag_meta: Vec<TagMeta> = Vec::new();
-        while let Some(row) = response.try_next().await? {
-            match row {
-                QueryItem::Row(row) => {
-                    tag_meta.push(TagMeta::from_row(&row)?);
-                }
-                _ => {}
-            }
-        }
+        let tcp = TcpStream::connect(config.get_addr()).await?;
+        tcp.set_nodelay(true)?;
+        let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
 
-        Ok(tag_meta)
+        Ok(client)
     }
 
-    pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
-        let sql;
-        sql = format!(
-            "select {} from Runtime.dbo.Live where TagName in ({})",
-            LIVE_COLUMNS,
-            tags.iter().map(|t| { format!("'{}'", t) }).join(",")
-        );
+    pub async fn select_from_tag(
+        &mut self,
+        tag_conditions: Vec<String>,
+    ) -> anyhow::Result<QueryStream> {
+        let sql = select_from_tag_sql(tag_conditions);
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
-    pub async fn query_history(
+    pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
+        let sql;
+
+        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+            sql = "select * from Runtime.dbo.Live where TagName not like 'Sys%'".to_string();
+        } else {
+            sql = format!(
+                "select * from Runtime.dbo.Live where TagName in ({})",
+                tags.iter().map(|t| { format!("'{}'", t) }).join(",")
+            );
+        }
+
+        Ok(self.client.query(sql.as_str(), &[]).await?)
+    }
+
+    pub async fn select_from_history(
         &mut self,
         tags: Vec<String>,
         begin: DateTime<Utc>,
@@ -69,9 +78,11 @@ impl HistorianQuery {
     ) -> anyhow::Result<QueryStream> {
         let sql;
 
+        let begin: DateTime<Local> = DateTime::from(begin);
+        let end: DateTime<Local> = DateTime::from(end);
+
         sql = format!(
-                "select {} from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
-                HISTORY_COLUMNS,
+                "select * from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
                 tags.iter().map(|t| {
                     format!("'{}'", t)
                 }).join(","),
@@ -83,86 +94,160 @@ impl HistorianQuery {
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
-    async fn connect(
-        host: &String,
-        port: u16,
-        username: &String,
-        password: &String,
-    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
-        let mut config = Config::new();
-        config.host(host);
-        config.port(port);
-        config.authentication(AuthMethod::sql_server(username, password));
-        config.trust_cert();
+    pub async fn describe_table(&mut self, table: HistorianTable) -> anyhow::Result<QueryStream> {
+        let sql = match table {
+            HistorianTable::History => "exec sp_columns History".to_string(),
+            HistorianTable::Live => "exec sp_columns Live".to_string(),
+        };
 
-        let tcp = TcpStream::connect(config.get_addr()).await?;
-        tcp.set_nodelay(true)?;
-        let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
-
-        Ok(client)
+        Ok(self.client.query(sql.as_str(), &[]).await?)
     }
+
+    pub async fn top_n(
+        &mut self,
+        top_n: usize,
+        table: HistorianTable,
+        begin_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<QueryStream> {
+        let sql = top_n_sql(top_n, table, begin_time, end_time);
+        Ok(self.client.query(sql.as_str(), &[]).await?)
+    }
+}
+
+/// parameter: tag_conditions like: ["tag1", "tag2", "HD*", "ABC*"]
+/// return: select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1', 'tag2') or TagName like 'HD%' or TagName like 'ABC%')
+fn select_from_tag_sql(tag_conditions: Vec<String>) -> String {
+    let mut tags_query =
+        String::from("select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'");
+
+    let conditions = tag_conditions
+        .iter()
+        .group_by(|t| t.contains('*'))
+        .into_iter()
+        .map(|(contain_wildcard, group)| {
+            if contain_wildcard {
+                group
+                    .map(|t| {
+                        let tag = t.clone();
+                        let condition = tag.replace("*", "%");
+                        format!("TagName like '{}'", condition)
+                    })
+                    .collect::<Vec<String>>()
+            } else {
+                let tags = group.map(|t| t.clone()).join("','");
+                vec![format!("TagName in ('{}')", tags)]
+            }
+        })
+        .flatten()
+        .collect::<Vec<String>>()
+        .join(" or ");
+
+    if !conditions.is_empty() {
+        tags_query.push_str(" and (");
+        tags_query.push_str(conditions.as_str());
+        tags_query.push_str(")");
+    }
+
+    tags_query
+}
+
+fn top_n_sql(
+    top_n: usize,
+    table: HistorianTable,
+    begin_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
+) -> String {
+    let mut sql = format!(
+        "select top {} * from {} where TagName not like 'Sys%' and wwRetrievalMode = 'full'",
+        top_n,
+        table.to_string(),
+    );
+
+    if let Some(begin_time) = begin_time {
+        let begin_time: DateTime<Local> = DateTime::from(begin_time);
+        sql.push_str(format!(" and DateTime >= '{}'", begin_time.to_rfc3339()).as_str());
+    }
+
+    if let Some(end_time) = end_time {
+        let end_time: DateTime<Local> = DateTime::from(end_time);
+        sql.push_str(format!(" and DateTime < '{}'", end_time.to_rfc3339()).as_str());
+    }
+
+    sql
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::Local;
+
     use super::*;
-    use crate::runners::historian::config::connect::ConnectConfig;
-    use std::str::FromStr;
-    use taos::Dsn;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_query_tag_meta() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+    #[test]
+    fn test_select_from_tag_sql() {
+        let tag_conditions = vec![
+            "tag1".to_string(),
+            "tag2".to_string(),
+            "HD*".to_string(),
+            "ABC*".to_string(),
+        ];
+        let sql = select_from_tag_sql(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1','tag2') or TagName like 'HD%' or TagName like 'ABC%')"
+        );
 
-        let mut client = HistorianQuery::try_new(config).await.unwrap();
-        let tag_meta = client.get_tags().await.unwrap();
-        dbg!(tag_meta);
+        let tag_conditions = vec!["*".to_string()];
+        let sql = select_from_tag_sql(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like '%')"
+        );
+
+        let tag_conditions = vec!["HD*".to_string()];
+        let sql = select_from_tag_sql(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%')"
+        );
+
+        let tag_conditions = vec![
+            "HD*".to_string(),
+            "020401021*".to_string(),
+            "02040111320002_018".to_string(),
+            "02040111320005_015".to_string(),
+        ];
+        let sql = select_from_tag_sql(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%' or TagName like '020401021%' or TagName in ('02040111320002_018','02040111320005_015'))"
+        );
     }
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_query_history() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut client = HistorianQuery::try_new(config).await.unwrap();
+    #[test]
+    fn test_top_n_sql() {
+        let sql = top_n_sql(1, HistorianTable::Live, None, None);
+        assert_eq!(
+            sql,
+            "select top 1 * from Runtime.dbo.Live where TagName not like 'Sys%' and wwRetrievalMode = 'full'"
+        );
 
-        let tags = vec!["tag0".to_string(), "tag1".to_string()];
-        let end = Utc::now();
-        let begin = end - chrono::Duration::days(7);
-
-        let mut rows = client.query_history(tags, begin, end).await.unwrap();
-        while let Some(row) = rows.try_next().await.unwrap() {
-            match row {
-                QueryItem::Row(row) => {
-                    dbg!(row);
-                }
-                QueryItem::Metadata(_) => {
-                    continue;
-                }
-            }
-        }
+        let begin: DateTime<Utc> = DateTime::parse_from_rfc3339("2024-01-01T11:11:11.111+08:00")
+            .unwrap()
+            .into();
+        let end: DateTime<Utc> = DateTime::parse_from_rfc3339("2024-01-01T22:22:22.222+08:00")
+            .unwrap()
+            .into();
+        let sql = top_n_sql(10, HistorianTable::History, Some(begin), Some(end));
+        assert_eq!(sql, "select top 10 * from Runtime.dbo.History where TagName not like 'Sys%' and wwRetrievalMode = 'full' and DateTime >= '2024-01-01T11:11:11.111+08:00' and DateTime < '2024-01-01T22:22:22.222+08:00'");
     }
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_query_live() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut client = HistorianQuery::try_new(config).await.unwrap();
+    #[test]
+    fn test_datetime_convert() {
+        let utc = Utc::now();
+        dbg!(utc.to_rfc3339());
 
-        let tags = vec!["tag0".to_string(), "tag1".to_string()];
-        let mut rows = client.query_live(tags).await.unwrap();
-        while let Some(row) = rows.try_next().await.unwrap() {
-            match row {
-                QueryItem::Row(row) => {
-                    dbg!(row);
-                }
-                QueryItem::Metadata(_) => {
-                    continue;
-                }
-            }
-        }
+        let local: DateTime<Local> = DateTime::from(utc);
+        dbg!(local.to_rfc3339());
     }
 }

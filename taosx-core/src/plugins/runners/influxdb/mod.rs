@@ -1,7 +1,7 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-
+use chrono::Local;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -13,6 +13,7 @@ use crate::dsv::DataSourceValidation;
 use crate::plugins::mask_dsn;
 use crate::runners::influxdb::config::{ConnectionConfig, InfluxdbConfig, INFLUXDB_V1};
 use crate::runners::log_rotation;
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -136,10 +137,33 @@ pub async fn influxdb_to_taos(
     let mut command = tokio::process::Command::new("java");
     let child;
 
+    // generate report or not
+    let enable_coverage = if let Ok(val) = std::env::var("ENABLE_COVERAGE") {
+        val.to_lowercase() == "true"
+    } else {
+        false
+    };
+    // command line additional arg
+    let arg_coverage = {
+        let coverage_report_file = format!(
+            "/data/coverage/influxdb/jacoco_test_report_{}.exec",
+            Local::now().format("%Y%m%d%H%M%S%3f").to_string()
+        );
+        format!(
+            "-javaagent:/data/coverage/jacocoagent.jar=destfile={},output=file",
+            coverage_report_file
+        )
+    };
+    let args = if enable_coverage {
+        vec!["-jar", &arg_coverage]
+    } else {
+        vec!["-jar"]
+    };
+
     let connector_path = influxdb_jar_path()?;
     if jdk_version.contains("build 1.") {
         child = command
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
@@ -148,7 +172,7 @@ pub async fn influxdb_to_taos(
     } else {
         child = command
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
@@ -159,6 +183,7 @@ pub async fn influxdb_to_taos(
     let port_pool = port_pool.clone();
 
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
+    send_sub_process_info(child.id(), task_id, "influxdb");
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
@@ -231,7 +256,12 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let c = ConnectionConfig::from_dsn(&dsn)?;
     // 连接器路径
     let path = influxdb_jar_path()?;
-
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -327,71 +357,90 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 async fn validate_source_influxdb(
     config: ConnectionConfig,
 ) -> anyhow::Result<DataSourceValidation> {
-    // 连接器路径
-    let connector_path = influxdb_jar_path()?;
-
-    // startup the connector
-    let mut command = tokio::process::Command::new("java");
-    // 查询命令
-    let output;
-    // 不同版本不同参数
-    if INFLUXDB_V1.contains(&config.version.as_str()) {
-        // 查询命令
-        output = command
-            .arg("-jar")
-            .arg(&connector_path)
-            .arg("-check")
-            .arg(config.version)
-            .arg(config.url)
-            .arg(config.username.unwrap())
-            .arg(config.password.unwrap())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-            .with_context(|| "Start InfluxDB collector error")?;
-    } else {
-        output = command
-            .arg("-jar")
-            .arg(&connector_path)
-            .arg("-check")
-            .arg(config.version)
-            .arg(config.url)
-            .arg(config.token.unwrap())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-            .with_context(|| "Start InfluxDB collector error")?;
-    }
-    if output.status.success() {
-        let result: serde_json::Value =
-            serde_json::from_slice(&output.stdout).with_context(|| {
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果，不同版本不同参数
+    let result = if INFLUXDB_V1.contains(&config.version.as_str()) {
+        // 获取 bucket 列表的接口
+        let url = format!("{}query?q=SHOW DATABASES", config.url);
+        // 发送请求，获取结果
+        client
+            .get(url)
+            .header(
+                "Authorization",
                 format!(
-                    "Deserialize influxdb validation result error: {}",
-                    String::from_utf8_lossy(&output.stdout)
-                )
-            })?;
-        // 组装结果
-        Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
-            data_source: String::from("influxdb"),
-            version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
-        })
+                    "Token {}:{}",
+                    config.username.unwrap(),
+                    config.password.unwrap()
+                ),
+            )
+            .send()
+            .await
     } else {
-        let msg = match output.status.code() {
-            Some(1) => String::from("The input parameters are incorrect"),
-            Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
-        };
+        // 获取 bucket 列表的接口
+        let url = format!(
+            "{}api/v2/buckets?orgID={}",
+            config.url,
+            config.org_id.unwrap()
+        );
+        // 发送请求，获取结果
+        client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", config.token.unwrap()))
+            .send()
+            .await
+    };
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let status = response.status().as_u16();
+        let headers = response.headers();
+        if status == 200 {
+            // 获取版本
+            let version = format!(
+                "{} - {}",
+                headers.get("x-influxdb-build").unwrap().to_str().unwrap(),
+                headers.get("x-influxdb-version").unwrap().to_str().unwrap()
+            );
+            // 组装结果
+            Ok(DataSourceValidation {
+                valid: true,
+                support: true,
+                data_source: String::from("influxdb"),
+                version: Some(version.clone()),
+                message: Some(format!("Your data source is available, its version is {}, which is supported, you can proceed to transfer your data to TDengine.", version.clone())),
+                namespaces: None,
+            })
+        } else {
+            let error_code = headers
+                .get("x-platform-error-code")
+                .unwrap()
+                .to_str()
+                .unwrap();
+            // 组装结果
+            Ok(DataSourceValidation {
+                valid: false,
+                support: false,
+                data_source: String::from("influxdb"),
+                version: None,
+                message: Some(error_code.to_string()),
+                namespaces: None,
+            })
+        }
+    } else {
         Ok(DataSourceValidation {
             valid: false,
             support: false,
             data_source: String::from("influxdb"),
             version: None,
-            message: Some(msg),
+            message: Some(result.err().unwrap().to_string()),
+            namespaces: None,
         })
     }
 }
@@ -413,10 +462,12 @@ fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_invalid() {
@@ -443,14 +494,77 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn test_valid() {
+    async fn test_valid_1x() {
         env::set_var("PLUGINS_HOME", "../plugins");
-        // influxdb
-        let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("influxdb", dsv.data_source);
-        assert_eq!("OSS v2.7.1", dsv.version.unwrap());
+        // ip error
+        {
+            let dsn = Dsn::from_str(
+                "influxdb://192.168.2.13:8088/?version=1.8&username=zqsong&password=Test0102",
+            )
+            .unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // port error
+        {
+            let dsn = Dsn::from_str(
+                "influxdb://192.168.2.12:8087/?version=1.8&username=zqsong&password=Test0102",
+            )
+            .unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // success
+        {
+            let dsn = Dsn::from_str(
+                "influxdb://192.168.2.12:8088/?version=1.8&username=zqsong&password=Test0102",
+            )
+            .unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(true, dsv.valid);
+            assert_eq!(true, dsv.support);
+            assert_eq!("influxdb", dsv.data_source);
+            assert_eq!("OSS - 1.8.0", dsv.version.unwrap());
+            dbg!(dsv.message);
+        }
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid_2x() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+        // ip error
+        {
+            let dsn = Dsn::from_str("influxdb://192.168.2.13:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // port error
+        {
+            let dsn = Dsn::from_str("influxdb://192.168.2.12:8087/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // token error
+        {
+            let dsn = Dsn::from_str("influxdb://192.168.2.12:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw=").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // success
+        {
+            let dsn = Dsn::from_str("influxdb://192.168.2.12:8086/?version=2.7&orgId=b7e20025329a0715&token=g4Gxcr3Gipa9tmEDYkdAXODMCdDwOemDxDV30VN2oI0rw7fDca6_jDQbsXvj0LoI2qIeReX7Cf9SGbzeeIN3Xw==").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(true, dsv.valid);
+            assert_eq!(true, dsv.support);
+            assert_eq!("influxdb", dsv.data_source);
+            assert_eq!("OSS - v2.7.1", dsv.version.unwrap());
+            dbg!(dsv.message);
+        }
     }
 }

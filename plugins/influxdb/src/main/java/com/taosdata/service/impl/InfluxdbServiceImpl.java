@@ -13,6 +13,7 @@ import com.influxdb.query.InfluxQLQueryResult;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.config.InfluxdbConfig;
 import com.taosdata.config.LocalConfig;
+import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -54,6 +55,9 @@ public class InfluxdbServiceImpl implements InfluxdbService {
 
     @Resource
     private InfluxdbConfig influxdbConfig;
+
+    @Resource
+    private PerformanceConfig performanceConfig;
 
     /**
      * 单次连接，查询指定influxdb中schema信息
@@ -185,13 +189,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
-                }
-            }
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -251,13 +249,116 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
+            closeInfluxDBClient(influxDBClient);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement的所有字段
+     *
+     * @param bucket
+     * @param measurement
+     * @return
+     * @throws ArtificialException
+     */
+    @Override
+    public Map<String, String> selectAllFields(String bucket, String measurement) throws ArtificialException {
+        switch (influxdbConfig.getVersion()) {
+            case "1.7":
+            case "1.8": {
+                // influxdb客户端
+                InfluxDB influxDB = null;
+                try {
+                    // 连接池中获取客户端
+                    influxDB = influxdbV1Pool.getPool().borrowObject();
+                    // 返回查询结果
+                    return getFieldsV1(influxDB, bucket, measurement);
+                } catch (Exception e) {
+                    handlerException(e);
+                    throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+                } finally {
+                    closeInfluxDB(influxDB);
                 }
             }
+        }
+        // influxdb客户端
+        InfluxDBClient influxDBClient = null;
+        try {
+            if (LocalConfig.isInfluxDBCloud) {
+                // 使用url与token建立连接
+                influxDBClient = InfluxDBClientFactory.create(influxdbConfig.getUrl(), influxdbConfig.getToken().toCharArray());
+            } else {
+                // 连接池中获取客户端
+                influxDBClient = influxdbPool.getPool().borrowObject();
+            }
+            // 返回查询结果
+            return getFieldsV2(influxDBClient, bucket, measurement);
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDBClient(influxDBClient);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement与时间段内的第一个时间戳
+     *
+     * @param orgId
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @return
+     * @throws ArtificialException
+     */
+    @Override
+    public Instant getFirstTimestampInRange(String orgId, String bucket, String measurement, String startTime) throws ArtificialException {
+        switch (influxdbConfig.getVersion()) {
+            case "1.7":
+            case "1.8":
+                return getFirstTimestampInRangeV1(bucket, measurement, startTime);
+        }
+        // influxdb客户端
+        InfluxDBClient influxDBClient = null;
+        try {
+            if (LocalConfig.isInfluxDBCloud) {
+                // 使用url与token建立连接
+                influxDBClient = InfluxDBClientFactory.create(influxdbConfig.getUrl(), influxdbConfig.getToken().toCharArray());
+            } else {
+                // 连接池中获取客户端
+                influxDBClient = influxdbPool.getPool().borrowObject();
+            }
+            // 查询语句
+            String sql = "from(bucket: \"" + bucket + "\")" +
+                    "|> range(start: " + startTime + ")" +
+                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\")" +
+                    "|> first()";
+            // 执行查询
+            List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);
+            // 遍历结果集进行封装
+            for (FluxTable fluxTable : tables) {
+                // 结果空则跳过
+                if (fluxTable == null || fluxTable.getRecords() == null) {
+                    continue;
+                }
+                // 记录
+                for (FluxRecord fluxRecord : fluxTable.getRecords()) {
+                    // 结果空则跳过
+                    if (fluxRecord == null || fluxRecord.getValues() == null) {
+                        continue;
+                    }
+                    // 获取字段及对应值
+                    Map<String, Object> map = fluxRecord.getValues();
+                    // 返回结果
+                    return (Instant) map.getOrDefault("_time", null);
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -267,6 +368,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @param orgId
      * @param bucket
      * @param measurement
+     * @param field
      * @param startTime
      * @param stopTime
      * @param batch
@@ -275,7 +377,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @throws ArtificialException
      */
     @Override
-    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String field, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
         switch (influxdbConfig.getVersion()) {
             case "1.7":
             case "1.8":
@@ -298,14 +400,24 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 查询语句
             String sql = "from(bucket: \"" + bucket + "\")" +
                     "|> range(start: " + startTime + ", stop: " + stopTime + ")" +
-                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\")" +
+                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\" and r._field == \"" + field + "\")" +
                     "|> limit(n: " + batch + ", offset: " + offset + ")";
             // 执行查询
             List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);
+            // 子表集合
+            Set<String> subtableSet = new HashSet<>();
             // 遍历结果集进行封装
             for (FluxTable fluxTable : tables) {
+                // 结果空则跳过
+                if (fluxTable == null || fluxTable.getRecords() == null) {
+                    continue;
+                }
                 // 记录
                 for (FluxRecord fluxRecord : fluxTable.getRecords()) {
+                    // 结果空则跳过
+                    if (fluxRecord == null || fluxRecord.getValues() == null) {
+                        continue;
+                    }
                     InfluxdbBucketDataEntity influxdbBucketDataEntity = new InfluxdbBucketDataEntity();
                     influxdbBucketDataEntity.setTags(new HashMap<>());
                     // 获取字段及对应值
@@ -317,6 +429,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                             influxdbBucketDataEntity.setMeasurement(String.valueOf(value));
                         } else if ("table".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setTable(String.valueOf(value));
+                            subtableSet.add(String.valueOf(value));
                         } else if ("_time".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setTime((Instant) value);
                         } else if ("_field".equalsIgnoreCase(key)) {
@@ -340,18 +453,17 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     influxdbBucketDataEntityList.add(influxdbBucketDataEntity);
                 }
             }
+            // 更新measurement查询限制
+            BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), subtableSet.size(), performanceConfig.getQueueSizeD(), performanceConfig.getThread().getReadBucketBatch());
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
             handlerException(e);
+            // 异常后更新measurement查询限制
+            BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), Integer.MAX_VALUE, performanceConfig.getQueueSizeD(), performanceConfig.getThread().getReadBucketBatch());
+            logger.error("update query limit from {} to {}", batch, BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
-                }
-            }
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -407,9 +519,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
-            }
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -458,9 +568,71 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
+            closeInfluxDB(influxDB);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement与时间段内的第一个时间戳，适用于v1.7/1.8
+     *
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @return
+     * @throws ArtificialException
+     */
+    private Instant getFirstTimestampInRangeV1(String bucket, String measurement, String startTime) throws ArtificialException {
+        // influxdb客户端
+        InfluxDB influxDB = null;
+        try {
+            // 连接池中获取客户端
+            influxDB = influxdbV1Pool.getPool().borrowObject();
+            // 查询语句
+            String sql = "select first() from \"" + measurement + "\" where time >= '" + startTime + "'";
+            // 执行查询
+            QueryResult queryResult = influxDB.query(new Query(sql, bucket));
+            // 结果空则返回空
+            if (queryResult == null || queryResult.getResults() == null) {
+                return null;
             }
+            // 遍历结果集进行封装
+            for (QueryResult.Result result : queryResult.getResults()) {
+                // 结果空则跳过
+                if (result == null || result.getSeries() == null) {
+                    continue;
+                }
+                // 记录
+                for (QueryResult.Series series : result.getSeries()) {
+                    // 结果空则跳过
+                    if (series == null) {
+                        continue;
+                    }
+                    // 获取字段与对应的值
+                    List<String> columns = series.getColumns() != null ? series.getColumns() : new ArrayList<>();
+                    List<List<Object>> values = series.getValues() != null ? series.getValues() : new ArrayList<>();
+                    // 遍历并按照v2.7格式封装
+                    for (List<Object> record : values) {
+                        // 结果空则跳过
+                        if (record == null || record.size() == 0) {
+                            continue;
+                        }
+                        for (int i = 0; i < record.size(); i++) {
+                            // 取对应的列名
+                            String column = columns.size() > i ? columns.get(i) : "";
+                            // 获取时间戳
+                            if ("time".equalsIgnoreCase(column)) {
+                                return Instant.parse(record.get(i).toString());
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -491,7 +663,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 执行查询
             QueryResult queryResult = influxDB.query(new Query(sql, bucket));
             // 结果空则返回空列表
-            if (queryResult == null) {
+            if (queryResult == null || queryResult.getResults() == null) {
                 return influxdbBucketDataEntityList;
             }
             // 遍历结果集进行封装
@@ -513,6 +685,10 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     List<List<Object>> values = series.getValues() != null ? series.getValues() : new ArrayList<>();
                     // 遍历并按照v2.7格式封装
                     for (List<Object> record : values) {
+                        // 结果空则跳过
+                        if (record == null || record.size() == 0) {
+                            continue;
+                        }
                         // 首先封装公共部分
                         influxdbBucketDataEntity.setInfluxdbMeasurementEntity(BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
                         influxdbBucketDataEntity.setMeasurement(measurement);
@@ -557,9 +733,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
-            }
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -575,17 +749,17 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 获取所有bucket
         QueryResult queryResult = influxDB.query(new Query("show databases"));
         // 结果空则返回空列表
-        if (queryResult == null) {
+        if (queryResult == null || queryResult.getResults() == null) {
             return bucketSet;
         }
         for (QueryResult.Result result : queryResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (QueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (List<Object> record : series.getValues()) {
@@ -653,12 +827,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 遍历封装
         for (QueryResult.Result result : queryResultMeasurement.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (QueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (List<Object> record : series.getValues()) {
@@ -687,24 +861,24 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxQLQuery showMeasurementSql = new InfluxQLQuery("show measurements", bucket);
         InfluxQLQueryResult showMeasurementResult = influxDBClient.getInfluxQLQueryApi().query(showMeasurementSql);
         // 结果空则返回空列表
-        if (showMeasurementResult == null) {
+        if (showMeasurementResult == null || showMeasurementResult.getResults() == null) {
             // 将空array放入结果集
             return measurementSet;
         }
         // 遍历封装
         for (InfluxQLQueryResult.Result result : showMeasurementResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (InfluxQLQueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
                     // 空则跳过并继续
-                    if (record == null) {
+                    if (record == null || record.getValues() == null || record.getValues().length == 0) {
                         continue;
                     }
                     measurementSet.add(record.getValues()[0].toString());
@@ -728,22 +902,22 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 查询所有field
         QueryResult queryResult = influxDB.query(new Query("show field keys from \"" + measurement + "\"", bucket));
         // 结果空则返回空map
-        if (queryResult == null) {
+        if (queryResult == null || queryResult.getResults() == null) {
             return fieldMap;
         }
         for (QueryResult.Result result : queryResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (QueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (List<Object> record : series.getValues()) {
                     // 空则跳过并继续
-                    if (record == null || record.size() == 0) {
+                    if (record == null || record.size() < 2) {
                         continue;
                     }
                     fieldMap.put(record.get(0).toString(), record.get(1).toString());
@@ -768,23 +942,23 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxQLQuery showFieldSql = new InfluxQLQuery("show field keys from \"" + measurement + "\"", bucket);
         InfluxQLQueryResult showFieldResult = influxDBClient.getInfluxQLQueryApi().query(showFieldSql);
         // 结果空则返回空map
-        if (showFieldResult == null) {
+        if (showFieldResult == null || showFieldResult.getResults() == null) {
             return fieldMap;
         }
         // 遍历封装
         for (InfluxQLQueryResult.Result result : showFieldResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (InfluxQLQueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
                     // 空则跳过并继续
-                    if (record == null) {
+                    if (record == null || record.getValues() == null || record.getValues().length < 2) {
                         continue;
                     }
                     fieldMap.put(record.getValues()[0].toString(), record.getValues()[1].toString());
@@ -808,22 +982,22 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         // 查询所有tag
         QueryResult queryResult = influxDB.query(new Query("show tag keys from \"" + measurement + "\"", bucket));
         // 结果空则返回空set
-        if (queryResult == null) {
+        if (queryResult == null || queryResult.getResults() == null) {
             return tagSet;
         }
         for (QueryResult.Result result : queryResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (QueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (List<Object> record : series.getValues()) {
                     // 空则跳过并继续
-                    if (record == null) {
+                    if (record == null || record.size() == 0) {
                         continue;
                     }
                     tagSet.add(record.get(0).toString());
@@ -848,23 +1022,23 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxQLQuery showTagSql = new InfluxQLQuery("show tag keys from \"" + measurement + "\"", bucket);
         InfluxQLQueryResult showTagResult = influxDBClient.getInfluxQLQueryApi().query(showTagSql);
         // 结果空则返回空set
-        if (showTagResult == null) {
+        if (showTagResult == null || showTagResult.getResults() == null) {
             return tagSet;
         }
         // 遍历封装
         for (InfluxQLQueryResult.Result result : showTagResult.getResults()) {
             // 空则跳过并继续
-            if (result == null) {
+            if (result == null || result.getSeries() == null) {
                 continue;
             }
             for (InfluxQLQueryResult.Series series : result.getSeries()) {
                 // 空则跳过并继续
-                if (series == null) {
+                if (series == null || series.getValues() == null) {
                     continue;
                 }
                 for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
                     // 空则跳过并继续
-                    if (record == null) {
+                    if (record == null || record.getValues() == null || record.getValues().length == 0) {
                         continue;
                     }
                     tagSet.add(record.getValues()[0].toString());
@@ -872,5 +1046,39 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
         }
         return tagSet;
+    }
+
+    /**
+     * 回收 InfluxDB v1.x 连接
+     *
+     * @param influxDB
+     */
+    private void closeInfluxDB(InfluxDB influxDB) {
+        try {
+            if (influxDB != null) {
+                influxdbV1Pool.getPool().returnObject(influxDB);
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the recycling of connection", e);
+        }
+    }
+
+    /**
+     * 回收 InfluxDB v2.x 连接
+     *
+     * @param influxDBClient
+     */
+    private void closeInfluxDBClient(InfluxDBClient influxDBClient) {
+        try {
+            if (influxDBClient != null) {
+                if (LocalConfig.isInfluxDBCloud) {
+                    influxDBClient.close();
+                } else {
+                    influxdbPool.getPool().returnObject(influxDBClient);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the recycling of connection", e);
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
+use chrono::Local;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -11,6 +12,7 @@ use tracing::{Instrument, Span};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -144,9 +146,32 @@ pub async fn opentsdb_to_taos(
     let mut command = tokio::process::Command::new("java");
     let child;
 
+    // generate report or not
+    let enable_coverage = if let Ok(val) = std::env::var("ENABLE_COVERAGE") {
+        val.to_lowercase() == "true"
+    } else {
+        false
+    };
+    // command line additional arg
+    let arg_coverage = {
+        let coverage_report_file = format!(
+            "/data/coverage/opentsdb/jacoco_test_report_{}.exec",
+            Local::now().format("%Y%m%d%H%M%S%3f").to_string()
+        );
+        format!(
+            "-javaagent:/data/coverage/jacocoagent.jar=destfile={},output=file",
+            coverage_report_file
+        )
+    };
+    let args = if enable_coverage {
+        vec!["-jar", &arg_coverage]
+    } else {
+        vec!["-jar"]
+    };
+
     if jdk_version.contains("build 1.") {
         child = command
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .stdout(std::process::Stdio::inherit())
@@ -154,7 +179,7 @@ pub async fn opentsdb_to_taos(
     } else {
         child = command
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
@@ -165,6 +190,7 @@ pub async fn opentsdb_to_taos(
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
+        send_sub_process_info(child.id(), task_id, "opentsdb");
         const ERROR_BUF_SIZE: usize = 2;
         let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
         let error_buf_producer = error_buf.clone();
@@ -245,6 +271,12 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         Ok(c) => {
             // 连接器路径
             let connector_path = opentsdb_jar_path()?;
+            // get the version of jdk
+            let _ = tokio::process::Command::new("java")
+                .arg("-version")
+                .output()
+                .await
+                .context("Get JDK version error")?;
             // startup the connector
             let mut command = tokio::process::Command::new("java");
             // 查询命令
@@ -322,49 +354,44 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 async fn validate_source_opentsdb(
     config: ConnectionConfig,
 ) -> anyhow::Result<DataSourceValidation> {
-    // 连接器路径
-    let connector_path = opentsdb_jar_path()?;
-    // startup the connector
-    let mut command = tokio::process::Command::new("java");
-    // 查询命令
-    let output = command
-        .arg("-jar")
-        .arg(&connector_path)
-        .arg("-check")
-        .arg(&config.url)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::piped())
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
         .output()
         .await
-        .with_context(|| "Start OpenTSDB collector error")?;
-    if output.status.success() {
-        let result: serde_json::Value =
-            serde_json::from_slice(&output.stdout).with_context(|| {
-                format!(
-                    "Deserialize opentsdb validation result error: {}",
-                    String::from_utf8_lossy(&output.stdout)
-                )
-            })?;
+        .context("Get JDK version error")?;
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果
+    let result = client
+        .get(format!("{}api/version", &config.url))
+        .send()
+        .await;
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let text = response.text().await.unwrap();
+        // 转换为json格式
+        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        // 获取版本
+        let version = json.get("version").unwrap().to_string();
         // 组装结果
         Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+            valid: true,
+            support: true,
             data_source: String::from("opentsdb"),
-            version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
+            version: Some(version.clone()),
+            message: Some(format!("Your data source is available, its version is {}, which is supported, you can proceed to transfer your data to TDengine.", version.clone())),
+            namespaces: None,
         })
     } else {
-        let msg = match output.status.code() {
-            Some(1) => String::from("The input parameters are incorrect"),
-            Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
-        };
         Ok(DataSourceValidation {
             valid: false,
             support: false,
             data_source: String::from("opentsdb"),
-            version: Some(String::from("")),
-            message: Some(msg),
+            version: None,
+            message: Some(result.err().unwrap().to_string()),
+            namespaces: None,
         })
     }
 }

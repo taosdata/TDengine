@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
+use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
     controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
@@ -14,20 +15,15 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder, ResponseError,
 };
 use anyhow::Context;
-use chrono::Utc;
 use itertools::Itertools;
-use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::Code;
-use taosx_core::utils::metrics_db::MetricsDb;
-use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
-    METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
-};
+use taosx_core::{get_data_dir, get_file_upload_home_dir};
 use tracing::instrument;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
+use anyhow::anyhow;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -163,16 +159,7 @@ pub(super) async fn create_task(
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
-    // if let Some(trigger) = task.trigger.as_deref() {
-    //     if !trigger.starts_with("schedule:") {
-    //         return Err(Failed {
-    //             code: Code::FAILED,
-    //             message: format!(
-    //                 "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
-    //             ),
-    //         });
-    //     }
-    // }
+    tracing::info!(task.name, "create task with name");
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision
@@ -486,138 +473,156 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
-/// Get Task activities by given task id.
-///
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
-    ),
-    params(
-        ("id", description = "Unique storage id of Task"),
-    ),
-)]
+// #[get("/tasks/{id}/metrics")]
+// #[instrument(skip_all)]
+// pub(super) async fn get_task_metrics(
+//     snapshotter: Data<Snapshotter>,
+//     task_store: Data<TaskControllerRef>,
+//     id: Path<i64>,
+// ) -> impl Responder {
+//     let task_id = id.into_inner();
+//     if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
+//         data
+//     } else if let Some(data) = get_task_metrics_from_db(task_id) {
+//         data
+//     } else {
+//         "{}".to_string()
+//     }
+// }
+
+// pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
+//     tracing::info!("get task metrics from MetricsDb");
+//     let new_db_result = MetricsDb::new(task_id.to_string().as_str());
+//     match new_db_result {
+//         Ok(metrics_db) => {
+//             let get_result = metrics_db.get();
+//             match get_result {
+//                 Ok(result) => match result {
+//                     Some(metrics_json) => {
+//                         let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
+//                         Some(metrics.to_task_metrics_json())
+//                     }
+//                     None => None,
+//                 },
+//                 Err(err) => {
+//                     tracing::error!("Get metrics from db error: {}", err);
+//                     None
+//                 }
+//             }
+//         }
+//         Err(err) => {
+//             tracing::warn!("{:?}", err);
+//             None
+//         }
+//     }
+// }
+
+// pub(crate) async fn get_task_metrics_from_snapshot(
+//     snapshotter: &Data<Snapshotter>,
+//     task_store: &Data<TaskControllerRef>,
+//     task_id: i64,
+// ) -> Option<String> {
+//     let snapshot = snapshotter.snapshot().into_hashmap();
+//     // dbg!(&snapshot);
+//     let mut map = snapshot
+//         .into_iter()
+//         .filter(|(k, _)| {
+//             k.key()
+//                 .labels()
+//                 .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
+//                 .is_some()
+//         })
+//         .map(|(k, v)| {
+//             (
+//                 // k.key().description().to_string(),
+//                 k.key().name().to_string(),
+//                 match v.2 {
+//                     metrics_util::debugging::DebugValue::Gauge(c) => {
+//                         serde_json::Number::from_f64(c.0)
+//                     }
+//                     metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
+//                     _ => None,
+//                 },
+//             )
+//         })
+//         .collect::<std::collections::BTreeMap<_, _>>();
+//     if map.is_empty() {
+//         return None;
+//     }
+//     let task_started_timestamp = map.get(METRICS_TIME_START);
+//     if task_started_timestamp.is_some() {
+//         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
+//         let task = task_store.get(task_id).await.unwrap().unwrap();
+//         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
+//             let time_elapsed = (Utc::now().timestamp_millis()
+//                 - task_started_timestamp.as_f64().unwrap() as i64)
+//                 / 1000;
+//             if time_elapsed < 1 {
+//                 Some(1)
+//             } else {
+//                 Some(time_elapsed)
+//             }
+//         } else {
+//             if task.task.finished_at.is_some() {
+//                 let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
+//                     - task_started_timestamp.as_f64().unwrap() as i64)
+//                     / 1000;
+//                 if time_elapsed < 1 {
+//                     Some(1)
+//                 } else {
+//                     Some(time_elapsed)
+//                 }
+//             } else {
+//                 None
+//             }
+//         };
+//         if let Some(elapsed_seconds) = time_elapsed_in_seconds {
+//             map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
+//             let records_vec = map
+//                 .iter()
+//                 .filter(|(k, _v)| k.contains("records"))
+//                 .map(|(_k, v)| v)
+//                 .collect_vec();
+//             let records = records_vec.get(0);
+//             if let Some(Some(records)) = records {
+//                 let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
+//                 map.insert(
+//                     METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+//                     serde_json::Number::from_f64(speed),
+//                 );
+//             }
+//         }
+//     }
+//     Some(serde_json::to_string(&map).unwrap())
+// }
+
 #[get("/tasks/{id}/metrics")]
 #[instrument(skip_all)]
+/// New API for task metrics. will repacle the old one when all test passed
+/// Get metrics json string of a task for displaying on the web UI
 pub(super) async fn get_task_metrics(
-    snapshotter: Data<Snapshotter>,
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
     let task_id = id.into_inner();
-    if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
-        data
-    } else if let Some(data) = get_task_metrics_from_db(task_id) {
-        data
-    } else {
-        "{}".to_string()
-    }
-}
-
-pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
-    tracing::info!("get task metrics from MetricsDb");
-    let new_db_result = MetricsDb::new(task_id.to_string().as_str());
-    match new_db_result {
-        Ok(metrics_db) => {
-            let get_result = metrics_db.get();
-            match get_result {
-                Ok(result) => match result {
-                    Some(metrics_json) => {
-                        let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
-                        Some(metrics.to_task_metrics_json())
-                    }
-                    None => None,
-                },
-                Err(err) => {
-                    tracing::error!("Get metrics from db error: {}", err);
-                    None
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(task)) => {
+            let metrics = try_get_metrics_from_task_detail(&task);
+            match metrics {
+                Some(metrics) => {
+                    let status: &Status = task.status();
+                    get_task_metrics_string(status, metrics)
                 }
+                None => "".to_string(),
             }
         }
+        Ok(None) => "{}".to_string(),
         Err(err) => {
-            tracing::warn!("{:?}", err);
-            None
+            tracing::error!("get task metrics error: {}", err);
+            "{}".to_string()
         }
     }
-}
-
-pub(crate) async fn get_task_metrics_from_snapshot(
-    snapshotter: &Data<Snapshotter>,
-    task_store: &Data<TaskControllerRef>,
-    task_id: i64,
-) -> Option<String> {
-    let snapshot = snapshotter.snapshot().into_hashmap();
-    // dbg!(&snapshot);
-    let mut map = snapshot
-        .into_iter()
-        .filter(|(k, _)| {
-            k.key()
-                .labels()
-                .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
-                .is_some()
-        })
-        .map(|(k, v)| {
-            (
-                // k.key().description().to_string(),
-                k.key().name().to_string(),
-                match v.2 {
-                    metrics_util::debugging::DebugValue::Gauge(c) => {
-                        serde_json::Number::from_f64(c.0)
-                    }
-                    metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-                    _ => None,
-                },
-            )
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if map.is_empty() {
-        return None;
-    }
-    let task_started_timestamp = map.get(METRICS_TIME_START);
-    if task_started_timestamp.is_some() {
-        let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-        let task = task_store.get(task_id).await.unwrap().unwrap();
-        let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-            let time_elasped = (Utc::now().timestamp_millis()
-                - task_started_timestamp.as_f64().unwrap() as i64)
-                / 1000;
-            if time_elasped < 1 {
-                Some(1)
-            } else {
-                Some(time_elasped)
-            }
-        } else {
-            if task.task.finished_at.is_some() {
-                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
-                    - task_started_timestamp.as_f64().unwrap() as i64)
-                    / 1000;
-                if time_elapsed < 1 {
-                    Some(1)
-                } else {
-                    Some(time_elapsed)
-                }
-            } else {
-                None
-            }
-        };
-        if let Some(elapsed_seconds) = time_elapsed_in_seconds {
-            map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
-            let records_vec = map
-                .iter()
-                .filter(|(k, _v)| k.contains("records"))
-                .map(|(_k, v)| v)
-                .collect_vec();
-            let records = records_vec.get(0);
-            if let Some(Some(records)) = records {
-                let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
-                map.insert(
-                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-                    serde_json::Number::from_f64(speed),
-                );
-            }
-        }
-    }
-    Some(serde_json::to_string(&map).unwrap())
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]
@@ -659,9 +664,9 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         let path = upload_dir.join(&req_id);
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
-        let releative_path = format!("{req_id}/{file_name}");
+        let relative_path = format!("{req_id}/{file_name}");
         tracing::info!(
-            "saving to {}, {releative_path}",
+            "saving to {}, {relative_path}",
             upload_dir.to_str().unwrap()
         );
         let path = upload_dir.join(&req_id).join(&file_name);
@@ -678,7 +683,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
 #[serde(default)]
 pub struct FileMeta {
     filename: Option<String>,
-    /// releative
+    /// relative
     filepath: Option<String>,
     filesize: Option<u64>,
     file_header: Option<FileMetaHeader>,
@@ -692,6 +697,10 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
+    skip: Option<usize>,
+    delimiter: Option<String>,
+    quote: Option<String>,
+    comment: Option<String>,
     sample: Option<usize>,
 }
 
@@ -706,7 +715,7 @@ pub struct FileMetaHeader {
     tag = "data sources",
     responses(
         (status = 200, description = "filemeta access success", body = Vec < String >),
-        (status = 500, description = "metadata achive occur error", body = Failed)
+        (status = 500, description = "metadata archive occur error", body = Failed)
     ),
     params(
         FileMetaRequest
@@ -725,12 +734,47 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header, sample) = (
+    let (filepath_or_filedir, file_type, has_header, skip, delimiter, quote, comment, sample) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
         filemeta_request.has_header,
+        filemeta_request.skip.unwrap_or(0),
+        filemeta_request.delimiter.unwrap_or(String::new()),
+        filemeta_request.quote.unwrap_or(String::new()),
+        filemeta_request.comment.unwrap_or(String::new()),
         filemeta_request.sample.unwrap_or(5),
     );
+
+    let delimiter = delimiter.trim();
+    let delimiter = match delimiter.len() {
+        0 => None,
+        1 => Some(Ok(delimiter.as_bytes()[0])),
+        _ => Some(Err(anyhow!("CSV delimiter should be a single character"))),
+    }
+    .transpose()?
+    .unwrap_or(b',');
+
+    let quote = quote.trim();
+    let quote = match quote.as_bytes() {
+        [] => None,
+        [quote] if *quote == delimiter => Some(Err(anyhow!(
+            "CSV quote should not be the same as delimiter"
+        ))),
+        [quote] => Some(Ok(quote.clone())),
+        _ => Some(Err(anyhow!("CSV quote should be a single character"))),
+    }
+    .transpose()?;
+
+    let comment = comment.trim();
+    let comment = match comment.as_bytes() {
+        [] => None,
+        [comment] if *comment == delimiter => Some(Err(anyhow!(
+            "CSV comment should not be the same as delimiter"
+        ))),
+        [comment] => Some(Ok(comment.clone())),
+        _ => Some(Err(anyhow!("CSV comment should be a single character"))),
+    }
+    .transpose()?;
 
     let data_dir = get_data_dir();
 
@@ -741,8 +785,16 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .into_iter()
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
-            let csv_header =
-                taosx_core::csv_header(filepath_or_filedir, has_header, sample).await?;
+            let csv_header = taosx_core::csv_header(
+                filepath_or_filedir,
+                has_header,
+                skip,
+                Some(delimiter),
+                quote,
+                comment,
+                sample,
+            )
+            .await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
             }

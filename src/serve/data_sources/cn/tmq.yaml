@@ -1,6 +1,6 @@
 ---
 id: tmq
-name: TDengine 订阅
+name: TDengine3
 description: |
   使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。
 
@@ -24,10 +24,10 @@ groups:
     params:
       - name: auto.offset.reset
         display: 订阅初始位置
-        description: |-
-          订阅初始位置。有以下可选项：
-
-          - *earliest*: 从最早的数据开始订阅。
+        description: |
+          订阅初始位置定义了拉取数据范围。
+          有以下可选项：
+          - *earliest*: 相当于拉取全量数据，包括新增的数据；
           - *latest*: 从最新的数据开始订阅。
         value: earliest
         hint:
@@ -40,8 +40,8 @@ groups:
         hint:
           type: timeout
         description: |
-          订阅超时间隔。可配置为：
-
+          超时时间范围内没有新增数据，同步任务将自动结束。
+          可配置为：
           - `never`: 表示无超时时间，持续进行订阅。
           - 指定超时时间：`5s`, `1m` 等。
         placeholder: 5s

@@ -1,9 +1,7 @@
 use std::{
-    fmt::Display,
     ops::{AddAssign, SubAssign},
     str::FromStr,
-    sync::atomic::{AtomicU16, AtomicU64},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crate::dsv::DataSourceValidation;
@@ -12,6 +10,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
+pub mod tmq_metric;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct TopicTable {
     pub(crate) stable: Option<String>,
@@ -93,35 +92,6 @@ pub const METRIC_TMQ_RECORDS: &str = "metrics.tmq.records";
 pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
 // pub const METRIC_TMQ_TIME_COST: &str = "tmq.time_cost";
 
-#[derive(Debug)]
-pub(crate) struct TmqMetrics {
-    pub topics: usize,
-    pub workers: AtomicU16,
-    pub messages: AtomicU64,
-    pub messages_of_meta: AtomicU64,
-    pub messages_of_data: AtomicU64,
-    pub blocks: AtomicU64,
-    pub records: AtomicU64,
-    pub points: AtomicU64,
-    pub time_cost: Instant,
-}
-
-impl Default for TmqMetrics {
-    fn default() -> Self {
-        Self {
-            topics: Default::default(),
-            workers: Default::default(),
-            messages: Default::default(),
-            messages_of_meta: Default::default(),
-            messages_of_data: Default::default(),
-            blocks: Default::default(),
-            records: Default::default(),
-            points: Default::default(),
-            time_cost: Instant::now(),
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 pub(crate) enum StopAt {
     #[default]
@@ -182,54 +152,6 @@ impl FromStr for StopAt {
     }
 }
 
-// pub(crate) struct TmqExtraOpts {
-//     stop_at: StopAt,
-// }
-// impl TmqMetrics {
-//     pub fn new() -> Self {
-//         Self {
-//             time_cost: Instant::now(),
-//             ..Default::default()
-//         }
-//     }
-// }
-
-impl Display for TmqMetrics {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::sync::atomic::Ordering::SeqCst;
-        let records = self.records.load(SeqCst);
-        let points = self.points.load(SeqCst);
-        let cost = self.time_cost.elapsed();
-        write!(
-            f,
-            "# Metrics\n\
-            topics: {}\n\
-            workers: {}\n\
-            messages(total): {}\n\
-            messages(meta only): {}\n\
-            messages(data only): {}\n\
-            blocks: {}\n\
-            records: {} ({} r/s)\n\
-            points: {} ({} p/s)\n\
-            time cost: {:?}",
-            self.topics,
-            self.workers.load(std::sync::atomic::Ordering::SeqCst),
-            self.messages.load(std::sync::atomic::Ordering::SeqCst),
-            self.messages_of_meta
-                .load(std::sync::atomic::Ordering::SeqCst),
-            self.messages_of_data
-                .load(std::sync::atomic::Ordering::SeqCst),
-            self.blocks.load(std::sync::atomic::Ordering::SeqCst),
-            records,
-            records / cost.as_secs(),
-            points,
-            points / cost.as_secs(),
-            self.time_cost.elapsed()
-        )?;
-        Ok(())
-    }
-}
-
 /// Parse input dsn, returns subscription dsn and a list of topics.
 ///
 /// Steps:
@@ -254,11 +176,35 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     if from.get("timeout").is_none() {
         from.set("timeout", "5s");
     }
-    if from.get("auto.offset.reset").is_none() {
+    if let Some(val) = from.get("auto.offset.reset") {
+        if val != "latest" && val != "earliest" {
+            bail!("`auto.offset.reset` option only support `latest` or `earliest`");
+        }
+    } else {
         from.set("auto.offset.reset", "earliest");
     }
     if from.get("experimental.snapshot.enable").is_none() {
         from.set("experimental.snapshot.enable", "true");
+    }
+
+    let mut replica = false;
+    if let Some(val) = from.get("msg.consume.excluded") {
+        let val = val.trim();
+        if !val.is_empty() && val != "1" {
+            bail!("`msg.consume.excluded` option only support `1`");
+        }
+        replica = true;
+    } else {
+        if from.get("replica").is_some() {
+            tracing::info!("Active-StandBy mode, set `msg.consume.excluded=1`");
+            from.set("msg.consume.excluded", "1");
+            replica = true;
+        }
+    }
+    if replica {
+        if from.get("group.id").is_none() {
+            from.set("group.id", "replica");
+        }
     }
 
     let builder = TaosBuilder::from_dsn(&from)?;
@@ -816,6 +762,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
                     data_source: "tmq".to_string(),
                     version: Some(version.to_string()),
                     message: None,
+                    namespaces: None,
                 },
             }
         }
@@ -839,6 +786,16 @@ mod tests {
             "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
             dsv.message.unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn test_replica() {
+        let dsn = Dsn::from_str("tmq:///db1?replica").unwrap();
+        let (dsn, _, topics) = check_tmq_dsn(dsn).await.unwrap();
+        assert_eq!(true, dsn.params.contains_key("msg.consume.excluded"));
+        assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());
+        assert_eq!("replica", dsn.params.get("group.id").unwrap());
+        assert_eq!("db1", topics[0].database);
     }
 
     #[ignore]

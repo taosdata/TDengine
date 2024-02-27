@@ -15,6 +15,12 @@ go mod tidy
 go build
 ```
 
+### Build plugin for taosx
+
+```
+go build -o taosx-opc
+```
+
 ### Build by `make`
 
 Or change to opc plugin directory and execute:

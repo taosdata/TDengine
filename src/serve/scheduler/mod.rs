@@ -399,6 +399,7 @@ impl TaskScheduler {
         self.tasks.read().await.get_by_task_id(&id).is_some()
     }
 
+    #[instrument(skip_all, fields(task.id = task.id))]
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         self.global_state.ensure_alive()?;
         let task_id = task.id;

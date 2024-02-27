@@ -83,6 +83,10 @@ public class PushPrepareThread implements Runnable {
                 Set<String> bucketDataKeySet = BucketDataCache.getBucketDataKeySet();
                 // 遍历，如果不存在线程则新建连接与线程
                 bucketDataKeySet.stream().forEach(key -> {
+                    // 判断队列长度与当前连接数
+                    if (BucketDataCache.getBucketDataQueueSize(key) == 0 || (this.performanceConfig.getLimitConnect() > 0 && BucketDataCache.socketMap.size() > this.performanceConfig.getLimitConnect())) {
+                        return;
+                    }
                     // 判断是否存在并且状态正常
                     if (!BucketDataCache.socketMap.containsKey(key) || !BucketDataCache.socketMap.get(key).isOpen()) {
                         // 创建连接并启动推送线程
@@ -97,6 +101,12 @@ public class PushPrepareThread implements Runnable {
                         }
                         // 重置计数
                         this.connectWaitCount = 0;
+                        // 为减小下游压力，此处增加睡眠
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            exception(start, StatusEnums.EXCEPTION, e);
+                        }
                     }
                 });
                 // 线程结束
@@ -178,8 +188,8 @@ public class PushPrepareThread implements Runnable {
         influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> {
             // Influxdb中自带表名不可靠，根据Measurement与Tags生成表名
             generateTableName(influxdbBucketDataEntity);
-            // 拆分依据bucket,measurement,table
-            String key = influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getBucket() + "," + influxdbBucketDataEntity.getMeasurement() + "," + influxdbBucketDataEntity.getTable();
+            // 拆分依据bucket,measurement
+            String key = influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getBucket() + "," + influxdbBucketDataEntity.getMeasurement();
             // 写入内存队列
             BucketDataCache.addBucketData(key, influxdbBucketDataEntity);
         });

@@ -1,0 +1,13 @@
+信息点编码,OPC TAG点地址,数据类型,对应超级表表名,OPC原始时间列名,TD服务端接收时间列名,标签列1
+tbname,point_id,type,stable,received_time_col,ts_col,tag::nchar(10)::unit
+d_1008,ns=3;i=1008,double,stb_double,rts,ts,%H
+d_1009,ns=3;i=1009,double,stb_double,rts,ts,kg/h
+d_1010,ns=3;i=1010,double,stb_double,rts,ts,℃
+d_1011,ns=3;i=1011,double,stb_double,rts,ts,%H
+d_1012,ns=3;i=1012,double,stb_double,rts,ts,kg/h
+d_1013,ns=3;i=1013,double,stb_double,rts,ts,℃
+d_1014,ns=3;i=1014,double,stb_double,rts,ts,%H
+d_1015,ns=3;i=1015,double,stb_double,rts,ts,kg/h
+d_1016,ns=3;i=1016,double,stb_double,rts,ts,℃
+d_1017,ns=3;i=1017,double,stb_double,rts,ts,℃
+

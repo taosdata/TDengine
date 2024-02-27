@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use taosx_core::set_env_data_dir;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
+
+use taosx_core::set_env_data_dir;
 
 use crate::serve::{
     controller::TaskActivity,
@@ -18,7 +19,7 @@ use super::{
     scheduler::{agent::AgentNotifySender, NotifyChannel, TaskScheduler},
 };
 
-pub async fn generate_scheduler_for_test(
+pub(crate) async fn generate_scheduler_for_test(
 ) -> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
     let (agent_activity_sender, agent_activity_receiver) = tokio::sync::broadcast::channel(1024);
     let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);

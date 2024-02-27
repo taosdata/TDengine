@@ -3,15 +3,12 @@ package com.taosdata;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.caches.MetricCache;
-import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
-import com.taosdata.config.LocalConfig;
 import com.taosdata.config.OpentsdbConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
-import com.taosdata.model.entity.OpentsdbDataEntity;
 import com.taosdata.model.entity.OpentsdbMetricEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.config.NettyClientConfig;
@@ -21,6 +18,9 @@ import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
 import com.taosdata.utils.HttpUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -165,6 +165,8 @@ public class PreLoading implements CommandLineRunner {
         try {
             // 读取外部toml文件
             String tomlConfig = FileUtils.readAbsoluteFile(externalConfigFile);
+            // 输出配置
+            System.err.println(tomlConfig);
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
@@ -194,6 +196,14 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(breakpoints)) {
                 this.taskConfig.setBreakpoint(parseBreakpoint(breakpoints));
             }
+            // 日志级别error/warn/info/debug/trace，配置错误将会设置为error级别
+            if (StringUtils.isNotEmpty(tomlParseResult.getString("task.logLevel", String::new))) {
+                this.taskConfig.setLogLevel(tomlParseResult.getString("task.logLevel", String::new));
+            }
+            LoggerContext loggerContext = LoggerContext.getContext(false);
+            LoggerConfig loggerConfig = loggerContext.getConfiguration().getRootLogger();
+            loggerConfig.setLevel(Level.getLevel(this.taskConfig.getLogLevel().toUpperCase()));
+            loggerContext.updateLoggers();
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
                 this.performanceConfig.setReadWindow(tomlParseResult.getLong("performance.readWindow").intValue());
@@ -252,7 +262,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理工作模式：普通、恢复
      */
-    private void initMode() {
+    /*private void initMode() {
         // 断点续传，需要本地的“读取记录”与“内存队列持久化”两个文件
         if ("resume".equals(this.taskConfig.getMode())) {
             try {
@@ -279,7 +289,7 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
-    }
+    }*/
 
     /**
      * 获取OpenTSDB版本信息
@@ -409,7 +419,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理退出信号
      */
-    private void processShutdown() {
+    /*private void processShutdown() {
         // 停止MetricThread、ScheduleThread线程（在ScheduleThread中停止所有MetricDataThread）
         LocalConfig.isRunMetricThread = false;
         LocalConfig.isRunScheduleThread = false;
@@ -454,5 +464,5 @@ public class PreLoading implements CommandLineRunner {
             logger.error("Failed to save read records during system security exit.", e);
         }
         logger.info("The system has executed a secure exit.");
-    }
+    }*/
 }

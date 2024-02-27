@@ -17,11 +17,18 @@ type MQTT struct {
 	CertKey      string `toml:"cert_key"`      // mqtt ssl client cert key
 }
 
+type Dump struct {
+	Enable bool   `toml:"enable"`
+	Path   string `toml:"path"`
+	Keep   int64  `toml:"keep"`
+}
+
 type Config struct {
 	LogLevel string         `toml:"log_level"`
 	Remote   string         `toml:"remote"`
 	MQTT     *MQTT          `toml:"mqtt"`
 	Topics   map[string]int `toml:"topics"` // topic:QOS
+	Dump     *Dump          `toml:"dump"`
 }
 
 func ParseConfig(path string) (*Config, error) {

@@ -238,6 +238,7 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
                             data_source: "taos".to_string(),
                             version: Some(v.to_string()),
                             message: None,
+                            namespaces: None,
                         },
                     }
                 }

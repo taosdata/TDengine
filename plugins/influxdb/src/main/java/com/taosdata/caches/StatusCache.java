@@ -8,13 +8,10 @@ import com.taosdata.model.dto.bum.ThreadInfo;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.utils.flux.FluxEnums;
 import com.taosdata.utils.flux.FluxManager;
-import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -27,21 +24,18 @@ public class StatusCache {
     /**
      * 启动时间
      */
-    @Getter
     @Setter
     private static Date startTime;
 
     /**
      * 状态
      */
-    @Getter
     @Setter
     private static int status;
 
     /**
      * 描述
      */
-    @Getter
     @Setter
     private static String description;
 
@@ -58,13 +52,11 @@ public class StatusCache {
     /**
      * Influxdb数据库
      */
-    @Getter
     private static InfluxdbInfo influxdbInfo = new InfluxdbInfo();
 
     /**
      * Netty服务端
      */
-    @Getter
     private static NettyInfo nettyInfo = new NettyInfo();
 
     /**
@@ -195,13 +187,13 @@ public class StatusCache {
      * @param clientId
      * @param statusEnums
      */
-    public static void noteNetty(String clientId, StatusEnums statusEnums) {
+    /*public static void noteNetty(String clientId, StatusEnums statusEnums) {
         if (!nettyInfo.getConnectionMap().containsKey(clientId)) {
             noteNetty(clientId);
         }
         nettyInfo.getConnectionMap().get(clientId).setStatus(statusEnums.getCode());
         nettyInfo.getConnectionMap().get(clientId).setDescription(statusEnums.getDesc());
-    }
+    }*/
 
     /**
      * 记录Netty连接信息
@@ -256,16 +248,16 @@ public class StatusCache {
      *
      * @return
      */
-    public static List<ThreadInfo> getThreadInfo() {
+    /*public static List<ThreadInfo> getThreadInfo() {
         return new ArrayList<>(threadInfoMap.values());
-    }
+    }*/
 
     /**
      * 获取内存队列信息
      *
      * @return
      */
-    public static List<QueueInfo> getQueueInfo() {
+    /*public static List<QueueInfo> getQueueInfo() {
         return new ArrayList<>(queueInfoMap.values());
-    }
+    }*/
 }

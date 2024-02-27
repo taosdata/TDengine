@@ -22,6 +22,7 @@ mod format;
 mod generator;
 mod join;
 mod sum;
+mod timestamp;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map(LinkedHashMap<String, FieldValue>);
@@ -195,7 +196,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -216,7 +217,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![4, 5, 6])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![7, 8, 9])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -237,7 +238,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![4, 5, 6])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![7, 8, 9])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -258,7 +259,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -279,7 +280,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -301,7 +302,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -323,7 +324,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);
@@ -345,7 +346,7 @@ mod tests {
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
         ])
-            .unwrap();
+        .unwrap();
 
         let result = map.transform_record_batch(&batch);
         dbg!(&result);

@@ -1,16 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Result};
+use serve::monitor::MonitorCfg;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+
+use anyhow::Result;
 use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
-use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
@@ -40,6 +37,7 @@ use taosx_core::{
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
+use crate::serve::monitor;
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -59,7 +57,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-",
         build::PKG_VERSION,
-        " ",
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -72,13 +70,14 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-dirty-",
         build::PKG_VERSION,
-        " ",
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
     )
 };
 
+mod replica;
 mod run;
 mod serve;
 
@@ -86,8 +85,8 @@ mod serve;
 enum Commands {
     Run(run::Cli),
     Serve(serve::Cli),
-    #[clap(external_subcommand)]
-    External(Vec<String>),
+    #[clap(hide = true)]
+    Replica(replica::Cli),
 }
 
 #[derive(Parser, Debug)]
@@ -124,6 +123,9 @@ struct ConfigurableOpts {
 
     #[clap(flatten)]
     serve: Option<serve::Cli>,
+
+    #[clap(flatten)]
+    monitor: Option<MonitorCfg>,
 }
 
 #[derive(Parser, Debug, Deserialize, Serialize, Default)]
@@ -171,6 +173,8 @@ struct Args {
     opt_args: OptArgs,
     #[clap(flatten)]
     global: Global,
+    #[clap(flatten)]
+    monitor: MonitorCfg,
 }
 
 #[derive(Debug, Error)]
@@ -212,14 +216,18 @@ fn get_default_config_path() -> PathBuf {
         .join("taosx.toml")
 }
 
+#[inline]
+fn get_effective_config_path(args: &Args) -> PathBuf {
+    args.opt_args
+        .config
+        .clone()
+        .unwrap_or_else(|| get_default_config_path())
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let mut args = Args::parse();
-        let path = args
-            .opt_args
-            .config
-            .clone()
-            .unwrap_or(get_default_config_path());
+        let path = get_effective_config_path(&args);
         // let path = if let Ok(c) = Args::try_parse() {
         //     c.opt_args
         //         .config
@@ -258,8 +266,10 @@ impl Args {
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
         args.global.merge_from(configurable_opts.global);
+        if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
+            args.monitor.merge_from(monitor_cfg);
+        }
         args.global.jobs = executor_worker_threads(args.global.jobs);
-
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
@@ -335,31 +345,27 @@ pub fn executor_worker_threads(jobs: usize) -> usize {
 }
 
 fn build_runtime(
+    thread_name: &str,
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
     tokio::runtime::Builder::new_multi_thread()
         .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
         .global_queue_interval(61)
         .max_blocking_threads(4096)
-        .thread_name("taosx")
+        .thread_name(thread_name)
         .worker_threads(worker_threads)
         .enable_all()
         .build()
 }
 
-fn create_rotating_log_writer(log_path: &Path, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
-    FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::OnRotate(2),
-        #[cfg(unix)]
-        None,
-    )
+fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
+    let max_files = get_log_keep_days() + 1;
+    RollingFileAppender::builder()
+        .max_log_files(max_files as usize)
+        .filename_prefix("taosx.log")
+        .rotation(Rotation::DAILY)
+        .build(log_dir)
+        .expect("failed to initialize rolling file appender")
 }
 
 async fn init_tracing_layers(
@@ -396,9 +402,9 @@ async fn init_tracing_layers(
             .add_directive("runtime=warn".parse()?)
             .add_directive("actix_server=info".parse()?)
             .add_directive("actix_http=info".parse()?)
-            .add_directive("tokio_tungstenite=info".parse()?)
-            .add_directive("mio=info".parse()?)
-            .add_directive("h2=info".parse()?)
+            .add_directive("tokio_tungstenite=warn".parse()?)
+            .add_directive("mio=warn".parse()?)
+            .add_directive("h2=warn".parse()?)
     } else {
         event_filter
     };
@@ -437,10 +443,6 @@ async fn init_tracing_layers(
                 .boxed(),
         );
     }
-
-    // Add layer for tracing-metrics
-    let metrics_layer = MetricsLayer::new().boxed();
-    layers.push(metrics_layer);
 
     // Create event subscriber
     let layered = tracing_subscriber::registry().with(layers);
@@ -530,15 +532,16 @@ fn otel_enabled(args: &Args) -> bool {
     args.global.otel.unwrap_or(false)
 }
 
-/// Gether all effective enviroment variables and options, and join them with \n .
+/// Gether all effective environment variables and options, and join them with \n .
 /// This method can only be called after all env variables and options were determined.
 #[rustfmt::skip]
-fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
+fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     let w = 18;
     let w2 = 22;
     let mut s = String::new();
     s += "       global config\n";
     s += "===================================================================================\n";
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "config file", get_effective_config_path(args).display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
@@ -546,10 +549,12 @@ fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_level", level_filter).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days", get_log_keep_days()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
-    s += format!("{:<w$}{:<w2$}{}\n", ' ', "otel", otel_enabled(args)).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -576,10 +581,10 @@ fn main() -> Result<()> {
 
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
-    let runtime = build_runtime(worker_threads)?;
-    let log_path = get_log_path();
-    let log_rotation = create_rotating_log_writer(&log_path, get_log_keep_days());
-    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
+    let runtime = build_runtime("taosx", worker_threads)?;
+    let log_dir = get_log_dir("");
+    let rolling_file_appender = create_rolling_file_appender(&log_dir);
+    let (non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
     runtime.block_on(init_tracing_layers(
         &args,
         span_events,
@@ -589,7 +594,7 @@ fn main() -> Result<()> {
     tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-    pirnt_effective_config(&level_filter, &args);
+    print_effective_config(&level_filter, &args);
 
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
@@ -597,35 +602,40 @@ fn main() -> Result<()> {
             let _ = span.enter();
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
+        Commands::Replica(replica) => {
+            runtime.block_on(replica.run())?;
+        }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
-            let scheduler_rt = build_runtime(worker_threads * 2)?;
-
+            let addr = serve.get_listen_address();
+            let port = addr.split(':').last().unwrap();
+            let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
             let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
                 scheduler_rt.block_on(serve.channels());
 
             let scheduler = scheduler_rt
                 .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
-            let grpc_rt = build_runtime(worker_threads)?;
+            let grpc_rt = build_runtime("grpc-server", worker_threads)?;
 
             // let api_rt = build_runtime(worker_threads)?;
             let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
+
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
+            let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-            let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel));
+            let grpc_handle =
+                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
             runtime.block_on(async move {
                 // rest api
-                serve.api(api_ctl, grpc_handle).await
+                serve.api(api_ctl, grpc_handle, monitor).await
             })?;
         }
-        Commands::External(_) => bail!("unknown subcommand"),
     }
     runtime.block_on(async move {
         opentelemetry::global::shutdown_tracer_provider();
     });
-    println!("wait for runtime shutdown");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     Ok(())
 }

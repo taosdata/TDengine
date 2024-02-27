@@ -19,8 +19,11 @@ use super::Parse;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Cast {
     r#as: IpcDataType,
+    #[serde(skip_serializing_if = "Option::is_none")]
     with: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tz: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
 }
 
@@ -33,6 +36,11 @@ impl Cast {
             alias: None,
         }
     }
+
+    pub fn r#as(&self) -> &IpcDataType {
+        &self.r#as
+    }
+
     #[allow(dead_code)]
     pub fn alias(mut self, alias: impl ToString) -> Self {
         self.alias.replace(alias.to_string());

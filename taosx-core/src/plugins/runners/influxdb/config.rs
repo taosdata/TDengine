@@ -168,6 +168,8 @@ struct TaskConfig {
     #[serde(rename = "endTime")]
     end_time: Option<String>,
     breakpoints: Option<String>,
+    #[serde(rename = "logLevel")]
+    log_level: Option<String>,
 }
 
 impl TaskConfig {
@@ -199,6 +201,7 @@ impl TaskConfig {
                 .to_string(),
             end_time: dsn.params.get("endTime").map(|s| s.to_string()),
             breakpoints: dsn.params.get("breakpoints").map(|s| s.to_string()),
+            log_level: dsn.get("log_level").map(|s| s.to_string()),
         })
     }
 }

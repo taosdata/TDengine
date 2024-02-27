@@ -12,7 +12,7 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::influxdb::influxdb_datasets;
-use crate::runners::opc::config::OpcTableConfig;
+use crate::runners::opc::config::model::OpcModelConfig;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
@@ -40,6 +40,26 @@ pub enum Parser {
     },
 }
 
+#[test]
+fn test_parser_serde() {
+    let parser = r#"{
+  "parse": { "payload": { "json": ["value::double"] } },
+  "model": {
+    "table": "{topic}",
+    "using": "mqtt",
+    "tags": ["topic"],
+    "columns": ["ts", "value", "qos"]
+  }
+}"#;
+    let parser: Parser = serde_json::from_str(parser).unwrap();
+    dbg!(&parser);
+    let json = serde_json::to_string(&parser).unwrap();
+    assert_eq!(
+        json,
+        r#"{"parser":{"parse":{"payload":""}},"format":{"a":1}}"#
+    );
+}
+
 impl std::ops::Deref for Parser {
     type Target = transform::Parser;
 
@@ -55,6 +75,7 @@ use self::sink::IpcHandler;
 
 mod config;
 mod expr;
+mod raw_data;
 pub mod runners;
 mod service;
 pub mod sink;
@@ -83,7 +104,7 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    config: Option<OpcTableConfig>,
+    config: Option<OpcModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
@@ -188,9 +209,9 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
         Ok(dsn) => {
             match dsn.driver.as_str() {
                 // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&dsn).await,
+                runners::historian::AVEVA_HISTORIAN_ID => runners::historian::is_valid(&dsn).await,
                 "influxdb" => runners::influxdb::is_valid(&dsn).await,
-                "kafka" => runners::kafka::is_valid(&dsn).await,
+                runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
                 "mqtt" => runners::mqtt::is_valid(&dsn).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
                 "opentsdb" => runners::opentsdb::is_valid(&dsn).await,

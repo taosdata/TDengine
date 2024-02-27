@@ -1,6 +1,7 @@
 package com.taosdata.config;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,8 @@ import java.util.Set;
  */
 @Component
 @ConfigurationProperties(prefix = "task", ignoreInvalidFields = true)
-@Data
+@Getter
+@Setter
 public class TaskConfig {
 
     private String mode = "normal";
@@ -25,4 +27,5 @@ public class TaskConfig {
     private String endTime;
     private int assignmentType = 3;
     private Map<String, Long> breakpoint;
+    private String logLevel = "info";
 }

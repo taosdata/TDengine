@@ -15,9 +15,9 @@ pub struct PiConfig {
     // system
     #[serde(rename = "PIServerName")]
     server_name: String,
-    #[serde(rename = "PISystemName")]
-    system_name: String,
-    #[serde(rename = "AFDatabaseName")]
+    #[serde(rename = "PISystemName", skip_serializing_if = "Option::is_none")]
+    system_name: Option<String>,
+    #[serde(rename = "AFDatabaseName", skip_serializing_if = "Option::is_none")]
     database: Option<String>,
     #[serde(rename = "PIDataPipesInstances")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,6 +63,10 @@ pub struct PiConfig {
     backfill_start_time: Option<Datetime>,
     #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
     backfill_end_time: Option<Datetime>,
+
+    // log level
+    #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
+    log_level: Option<String>,
 }
 
 impl PiConfig {
@@ -76,7 +80,7 @@ impl PiConfig {
 
         let pi_config = Self {
             server_name: server_name.clone(),
-            system_name: Self::parse_system_name(dsn, server_name.clone()),
+            system_name: Self::parse_system_name(dsn),
             database: Self::parse_database(dsn),
             pi_data_pipes_instances: Self::parse_pi_data_pipes_instances(dsn)?,
             af_data_pipes_instances: Self::parse_af_data_pipes_instances(dsn)?,
@@ -93,6 +97,7 @@ impl PiConfig {
             to_tdengine_first_time: Self::parse_to_tdengine_first_time(dsn)?,
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
             backfill_end_time: Self::parse_backfill_end_time(dsn)?,
+            log_level: Self::parse_log_level(dsn)?,
         };
 
         Ok(pi_config)
@@ -105,7 +110,7 @@ impl PiConfig {
         is_real_run: bool,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&dsn)?;
-        let system_name = Self::parse_system_name(&dsn, server_name.clone());
+        let system_name = Self::parse_system_name(&dsn);
         let database = Self::parse_database(&dsn);
         let pi_data_pipes_instances = Self::parse_pi_data_pipes_instances(&dsn)?;
         let af_data_pipes_instances = Self::parse_af_data_pipes_instances(&dsn)?;
@@ -300,6 +305,8 @@ impl PiConfig {
             ));
         }
 
+        let log_level = Self::parse_log_level(&dsn)?;
+
         Ok(Self {
             server_name,
             system_name,
@@ -319,6 +326,7 @@ impl PiConfig {
             to_tdengine_first_time,
             backfill_start_time,
             backfill_end_time,
+            log_level,
         })
     }
 
@@ -329,11 +337,8 @@ impl PiConfig {
             .ok_or(anyhow::anyhow!("PIServerName is required"))
     }
 
-    fn parse_system_name(dsn: &Dsn, default_name: String) -> String {
-        dsn.params
-            .get("PISystemName")
-            .map(|v| v.to_string())
-            .unwrap_or(default_name)
+    fn parse_system_name(dsn: &Dsn) -> Option<String> {
+        dsn.params.get("PISystemName").map(|v| v.to_string())
     }
 
     fn parse_database(dsn: &Dsn) -> Option<String> {
@@ -535,6 +540,19 @@ impl PiConfig {
 
         Ok(parsed_time)
     }
+
+    fn parse_log_level(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        dsn.params
+            .get("LogLevel")
+            .or(dsn.params.get("log_level"))
+            .map(|v| match v.trim() {
+                "trace" | "debug" | "info" | "warn" | "error" => Ok(v.trim().to_string()),
+                _ => Err(anyhow::anyhow!(
+                    "invalid log_level, cause: provided `{v}`, but expects one of [trace, debug, info, warn, error]",
+                )),
+            })
+            .transpose()
+    }
 }
 
 #[cfg(test)]
@@ -560,12 +578,12 @@ mod tests {
     #[test]
     fn test_parse_system_name() {
         let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN").unwrap();
-        let config = PiConfig::parse_system_name(&dsn, "default".to_string());
-        assert_eq!("default", config);
+        let config = PiConfig::parse_system_name(&dsn);
+        assert_eq!(None, config);
 
         let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN?PISystemName=other").unwrap();
-        let config = PiConfig::parse_system_name(&dsn, "default".to_string());
-        assert_eq!("other", config);
+        let config = PiConfig::parse_system_name(&dsn);
+        assert_eq!("other", config.unwrap());
     }
 
     #[test]

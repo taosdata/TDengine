@@ -1,7 +1,8 @@
 package com.taosdata.model.entity;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Map;
 import java.util.Set;
@@ -11,7 +12,8 @@ import java.util.Set;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class InfluxdbMeasurementEntity {
 
     private String bucket;

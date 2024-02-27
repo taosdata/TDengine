@@ -237,13 +237,13 @@ A common DSN is basically constructed as this:
 
 For different parts:
 
-- **driver**: is the main entrypoint to a processer. **Required**. Here is a incomplete driver list in taosX:
+- **driver**: is the main entrypoint to a processor. **Required**. Here is a incomplete driver list in taosX:
   - **taos**: the legacy TDengine connection data source.
   - **tmq**: subscription data source from TDengine.
   - **local**: for backup/restore.
   - **csv**: for read or write [CSV] file.
   - **parquet**: for read or write [Parquet](https://parquet.apache.org/) file.
-- **protocol**: the additional information appended to driver, which can be be used to support different kind of data sources. For TDengine connection, taosX use this to choose the low-level API to connect to the TDengine server: empty for native dirver, and `ws` for websocket driver. **Optional**.
+- **protocol**: the additional information appended to driver, which can be be used to support different kind of data sources. For TDengine connection, taosX use this to choose the low-level API to connect to the TDengine server: empty for native driver, and `ws` for websocket driver. **Optional**.
 - **username**: as its definition, is the username to the connection. **Optional**.
 - **password**: the password of the username. **Optional**.
 - **host**: address host to the datasource. **Optional**.

@@ -6,8 +6,35 @@ use taos::*;
 pub mod breakpoints;
 pub mod files;
 pub mod metrics_db;
+pub mod monitor;
 pub mod port_pool;
+pub mod sql;
 pub mod trace;
+
+pub fn value_equals(value: &Value, other: &Value) -> bool {
+    match (value, other) {
+        (Value::Null(l0), Value::Null(r0)) => l0 == r0,
+        (Value::Bool(l0), Value::Bool(r0)) => l0 == r0,
+        (Value::TinyInt(l0), Value::TinyInt(r0)) => l0 == r0,
+        (Value::SmallInt(l0), Value::SmallInt(r0)) => l0 == r0,
+        (Value::Int(l0), Value::Int(r0)) => l0 == r0,
+        (Value::BigInt(l0), Value::BigInt(r0)) => l0 == r0,
+        (Value::Float(l0), Value::Float(r0)) => l0 == r0,
+        (Value::Double(l0), Value::Double(r0)) => l0 == r0,
+        (Value::VarChar(l0) | Value::NChar(l0), Value::VarChar(r0) | Value::NChar(r0)) => l0 == r0,
+        (Value::Timestamp(l0), Value::Timestamp(r0)) => l0 == r0,
+        (Value::UTinyInt(l0), Value::UTinyInt(r0)) => l0 == r0,
+        (Value::USmallInt(l0), Value::USmallInt(r0)) => l0 == r0,
+        (Value::UInt(l0), Value::UInt(r0)) => l0 == r0,
+        (Value::UBigInt(l0), Value::UBigInt(r0)) => l0 == r0,
+        (Value::Json(l0), Value::Json(r0)) => l0 == r0,
+        (Value::VarBinary(l0), Value::VarBinary(r0)) => l0 == r0,
+        (Value::Decimal(l0), Value::Decimal(r0)) => l0 == r0,
+        (Value::Blob(l0), Value::Blob(r0)) => l0 == r0,
+        (Value::MediumBlob(l0), Value::MediumBlob(r0)) => l0 == r0,
+        _ => false,
+    }
+}
 
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     let mut dsn = dsn.clone();
@@ -71,7 +98,7 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
 /// append: append all values into a single string (contains line break) when set true
 pub fn get_string_content_from_param_value(
     param_value: &str,
-    read_fisrt: bool,
+    read_first: bool,
     append: bool,
 ) -> anyhow::Result<Option<String>> {
     let (files, str_contents): (Vec<String>, Vec<String>) = param_value
@@ -82,7 +109,7 @@ pub fn get_string_content_from_param_value(
         .partition(|v| v.starts_with("@"));
     let mut result = String::new();
     let mut index = 0;
-    let len = if read_fisrt {
+    let len = if read_first {
         1
     } else {
         if files.len() > str_contents.len() {
@@ -174,8 +201,16 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
         .map(|x| x.parse::<i32>())
         .collect_tuple();
     match res {
-        Some((a, b, c)) => Ok((a?, b?, c?)),
-        None => anyhow::bail!("should have at least 3 elements"),
+        Some((Ok(a), Ok(b), Ok(c))) => Ok((a, b, c)),
+        _ => Err(anyhow::anyhow!("Invalid version string: {}", version)),
+    }
+}
+
+pub async fn get_server_version(taos: &Taos) -> anyhow::Result<String> {
+    let version = taos.server_version().await;
+    match version {
+        Err(err) => anyhow::bail!(format!("Get TDengine server version error: {err:?}")),
+        Ok(version) => Ok(version.to_string()),
     }
 }
 

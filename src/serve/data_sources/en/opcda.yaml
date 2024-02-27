@@ -23,7 +23,7 @@ options:
     required: true
     description: |
       OPC server endpoint, such as `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`.
-      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be the taosX host.
     placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false
@@ -36,7 +36,7 @@ datasets:
   - category: csv_config_file
     display: Upload CSV
     description: |
-      Use OPC DA point configuration file.
+      You can either download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.
     target:
       name: csv_config_file
       description: |
@@ -47,21 +47,35 @@ datasets:
       selectable: true
 
   - category: select_all_points
-    display: All Points
+    display: Data Points
     description: |
       OPC DA point configuration file.
     target:
       name: select_all_points
       description: |
-        Select All Points on OPC Server.
+        Select data points that meet specified conditions on the OPC server.
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: Root node
+        description: |
+          Query all child nodes starting from this node.
+        placeholder: For example root.parent
+        hint:
+          type: str
+      - name: pattern
+        display: Regex pattern
+        description: |
+          Match the data point TagName.
+        hint:
+          type: str
       - name: table_primary_key
         display: Primary Key
-        description:
+        description: |
+          The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.
         required: true
         value: original_ts
         hint:
@@ -71,7 +85,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
-        value: Meter_{TagName}
+        value: t_{TagName}
         description: |
           Support <child table prefix>_{TagName} pattern
         hint:
@@ -146,7 +160,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: Write Concurrency
       description: |
@@ -155,7 +169,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: Batch Size
       description: |

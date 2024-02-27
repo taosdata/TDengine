@@ -1,5 +1,7 @@
+use crate::plugins::config::AdvancedOptions;
 use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use taos::Dsn;
 
@@ -19,42 +21,77 @@ pub enum HistorianTable {
     Live,
 }
 
+impl Display for HistorianTable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let to_string = match self {
+            HistorianTable::Live => "Runtime.dbo.Live",
+            HistorianTable::History => "Runtime.dbo.History",
+        };
+        write!(f, "{}", to_string)
+    }
+}
+
 impl FromStr for HistorianTable {
-    type Err = String;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Runtime.dbo.History" => Ok(Self::History),
             "Runtime.dbo.Live" => Ok(Self::Live),
-            _ => Err(s.to_string()),
+            _ => Err(anyhow::anyhow!(
+                "invalid historian table: {}, must be Runtime.dbo.History or Runtime.dbo.Live",
+                s
+            )),
         }
+    }
+}
+
+#[cfg(test)]
+mod test_historian_table {
+    use super::*;
+
+    #[test]
+    fn test_to_string() {
+        assert_eq!(
+            "Runtime.dbo.Live".to_string(),
+            HistorianTable::Live.to_string()
+        );
+        assert_eq!(
+            "Runtime.dbo.History".to_string(),
+            HistorianTable::History.to_string()
+        );
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
+    // task info
+    pub task_id: Option<i64>,
+    pub sub_task_id: Option<String>,
+    // communication
     pub connect: ConnectConfig,
     pub ipc_port: Option<u16>,
-
     // collect
     pub mode: TaskMode,
     pub table: HistorianTable,
     pub tags: Vec<String>,
     pub tag_list_size: usize,
+    // split tags into multiple lists, each list contains tag_list_size tags
     pub begin_datetime: Option<DateTime<Utc>>,
     pub end_datetime: Option<DateTime<Utc>>,
     pub time_window: Duration,
     pub retrieve_interval: Duration,
     pub tolerance: Duration,
-
+    pub sample_data_limit: usize,
     // advanced options
-    pub concurrency: usize,
-    pub log_level: String,
+    pub advanced_options: AdvancedOptions,
 }
 
 impl TaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(TaskConfig {
+            task_id: Self::parse_task_id(dsn),
+            sub_task_id: None,
             connect: ConnectConfig::from_dsn(dsn)?,
             ipc_port: None,
             mode: Self::parse_mode(dsn)?,
@@ -66,9 +103,24 @@ impl TaskConfig {
             time_window: Self::parse_time_window(dsn)?,
             retrieve_interval: Self::parse_retrieve_interval(dsn)?,
             tolerance: Self::parse_tolerance(dsn)?,
-            concurrency: Self::parse_concurrency(dsn)?,
-            log_level: Self::parse_log_level(dsn)?,
+            sample_data_limit: Self::parse_sample_data_limit(dsn)?,
+            advanced_options: AdvancedOptions::from_dsn(dsn)?,
         })
+    }
+
+    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
+        dsn.params
+            .get("taskId")
+            .map(|s| {
+                s.parse::<i64>()
+                    .map(Some)
+                    .map_err(|err| {
+                        tracing::warn!("failed to parse taskId: {}, use None", s);
+                        err
+                    })
+                    .unwrap_or(None)
+            })
+            .flatten()
     }
 
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
@@ -83,17 +135,11 @@ impl TaskConfig {
             .ok_or(anyhow::anyhow!("mode is required"))
     }
 
-    fn parse_table(dsn: &Dsn) -> anyhow::Result<HistorianTable> {
+    pub fn parse_table(dsn: &Dsn) -> anyhow::Result<HistorianTable> {
         let table = dsn
             .params
             .get("table")
-            .map(|s| match s.as_str() {
-                "Runtime.dbo.History" => Ok(HistorianTable::History),
-                "Runtime.dbo.Live" => Ok(HistorianTable::Live),
-                _ => Err(anyhow::anyhow!(
-                    "table must be Runtime.dbo.History or Runtime.dbo.Live"
-                )),
-            })
+            .map(|s| HistorianTable::from_str(s))
             .transpose()?
             .ok_or(anyhow::anyhow!("table is required"))?;
 
@@ -278,52 +324,48 @@ impl TaskConfig {
             .unwrap_or(Duration::milliseconds(0)))
     }
 
-    fn parse_concurrency(dsn: &Dsn) -> anyhow::Result<usize> {
+    fn parse_sample_data_limit(dsn: &Dsn) -> anyhow::Result<usize> {
         Ok(dsn
             .params
-            .get("concurrency")
+            .get("sample_data_limit")
             .map(|s| {
-                let concurrency = s.parse::<usize>().map_err(|err| {
+                let sample_data_limit = s.parse::<usize>().map_err(|err| {
                     anyhow::anyhow!(
-                        "failed to parse concurrency: {}, cause: {}",
+                        "failed to parse sample_data_limit: {}, cause: {}",
                         s.to_string(),
                         err.to_string()
                     )
                 })?;
-
-                if concurrency < 1 {
-                    bail!("concurrency must be greater than 1");
+                if sample_data_limit <= 0 {
+                    bail!("sample_data_limit must be greater than 0");
                 }
-
-                Ok(concurrency)
+                Ok(sample_data_limit)
             })
             .transpose()?
-            .unwrap_or(1))
-    }
-
-    fn parse_log_level(dsn: &Dsn) -> anyhow::Result<String> {
-        Ok(dsn
-            .params
-            .get("log_level")
-            .map(|s| {
-                let log_level = s.to_string();
-                match log_level.as_str() {
-                    "trace" | "debug" | "info" | "warn" | "error" => Ok(log_level),
-                    _ => Err(anyhow::anyhow!(
-                        "log_level must be trace, debug, info, warn or error"
-                    )),
-                }
-            })
-            .transpose()?
-            .unwrap_or("info".to_string()))
+            .unwrap_or(3))
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod test_historian_task_config {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_parse_task_id() {
+        let dsn = Dsn::from_str("historian://?").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn);
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("historian://?taskId=1").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn).unwrap();
+        assert_eq!(1, config);
+
+        let dsn = Dsn::from_str("historian://?taskId=xxx").unwrap();
+        let config = TaskConfig::parse_task_id(&dsn);
+        assert!(config.is_none());
+    }
 
     #[test]
     fn test_parse_mode() {
@@ -521,43 +563,5 @@ mod tests {
         let config = TaskConfig::parse_tolerance(&dsn);
         assert!(config.is_err());
         assert_eq!("failed to parse tolerance: xxx, cause: NoValueFoundError: no value found in the string \"xxx\"", config.unwrap_err().to_string());
-    }
-
-    #[test]
-    fn test_parse_concurrency() {
-        let dsn = Dsn::from_str("historian://?").unwrap();
-        let config = TaskConfig::parse_concurrency(&dsn).unwrap();
-        assert_eq!(1, config);
-
-        let dsn = Dsn::from_str("historian://?concurrency=10").unwrap();
-        let config = TaskConfig::parse_concurrency(&dsn).unwrap();
-        assert_eq!(10, config);
-
-        let dsn = Dsn::from_str("historian://?concurrency=xxx").unwrap();
-        let config = TaskConfig::parse_concurrency(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "failed to parse concurrency: xxx, cause: invalid digit found in string",
-            config.unwrap_err().to_string()
-        );
-    }
-
-    #[test]
-    fn test_parse_log_level() {
-        let dsn = Dsn::from_str("historian://?").unwrap();
-        let config = TaskConfig::parse_log_level(&dsn).unwrap();
-        assert_eq!("info", config);
-
-        let dsn = Dsn::from_str("historian://?log_level=debug").unwrap();
-        let config = TaskConfig::parse_log_level(&dsn).unwrap();
-        assert_eq!("debug", config);
-
-        let dsn = Dsn::from_str("historian://?log_level=xxx").unwrap();
-        let config = TaskConfig::parse_log_level(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "log_level must be trace, debug, info, warn or error",
-            config.unwrap_err().to_string()
-        );
     }
 }

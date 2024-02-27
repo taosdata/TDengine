@@ -87,6 +87,18 @@ advanced:
     Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
     these options as default to use the recommended settings.
   params:
+    - name: log_level
+      display: Log Level
+      description: Adjust the log level of the data source as required. This parameter does not always take effect.
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
     - name: batch_size
       display: Batch Size
       description: |

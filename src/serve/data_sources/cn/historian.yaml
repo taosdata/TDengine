@@ -1,31 +1,32 @@
 ---
-id: historian
-name: AVEVA™ Historian
+id: avevaHistorian
+name: AVEVA Historian
 type: uri
 description: |
-  AVEVA™ Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
-  TDengine 可以高效地从 Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
+  AVEVA Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
+  TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
 strict: false
+
 options:
   host:
     display: Server 地址
-    description: AVEVA™ Historian SQL Server 的 IP 地址或域名
+    description: AVEVA Historian SQL Server 的 IP 地址或域名
     placeholder: "127.0.0.1"
     required: true
   port:
     display: Server 端口
-    description: AVEVA™ Historian SQL Server 的端口
+    description: AVEVA Historian SQL Server 的端口
     placeholder: "1433"
     required: false
 
 authentication:
   display: 认证
-  description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+  description: 使用用户名和密码访问 AVEVA Historian SQL Server
   value: plain
   alternatives:
     - name: plain
       display: 用户名密码访问
-      description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+      description: 使用用户名和密码访问 AVEVA Historian SQL Server
       username:
         display: 用户
         placeholder: username
@@ -73,6 +74,18 @@ groups:
         value: "*"
         hint:
           type: str
+      - name: tagListSize
+        display: 标签组大小
+        description: >
+          当 `table` 为 `Runtime.dbo.History` 且 `tags` 中的 TagName 超过 `tagListSize` 时，tags 被按照每组 tagListSize 个进行划分。
+          使用 `tagListSize` 划分 TagName 是为了提高数据迁移/同步时的查询效率。`tagListSize` 默认值为 10。
+        required: false
+        placeholder: 10
+        value: 10
+        hint:
+          type: integer
+          min: 1
+          max: 1000
       - name: beginDateTime
         display: 任务开始时间
         description: >
@@ -117,64 +130,10 @@ groups:
         hint:
           type: str
 
-advanced:
-  name: 高级选项
-  collapsible: true
-  description: |
-    对数据源性能、日志等其他参数进行调整，可修改以下选项。
-  params:
-    - name: concurrency
-      display: 读并发数
-      description: 执行任务时的读并发数。
-      value: 1
-      hint:
-        type: integer
-        min: 1
-        max: 100
-    - name: log_level
-      display: 日志级别
-      description: 根据需要调整数据源的日志级别，此参数不总是生效。
-      value: info
-      hint:
-        type: str
-        choices:
-          - error
-          - warn
-          - info
-          - debug
-          - trace
-
 parser:
   display: 数据映射
   description: |
-    Historian 数据源，同步/迁移 Runtime.dbo.History表时，上传以下字段：<br>
-
-    - **DateTime**: 值对应的时间戳。<br>
-    - **TagName**: 测点名称。<br>
-    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
-    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
-    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
-    - **QualityDetail**: 数据质量的内部表示。<br>
-    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
-    - **wwResolution**: 在循环模式下检索数据的采样率，以毫秒为单位。<br>
-    - **StartDateTime**: 返回该行的检索周期的开始时间。<br>
-    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
-    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
-
-    同步/迁移 Runtime.dbo.Live表时，上传以下字段：<br>
-
-    - **DateTime**: 值对应的时间戳。<br>
-    - **TagName**: 测点名称。<br>
-    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
-    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
-    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
-    - **QualityDetail**: 数据质量的内部表示。<br>
-    - **OPCQuality**: 从数据源接收到的质量值。<br>
-    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
-    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
-    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
-
-    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列会标签列等
+    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等
   fields:
     - name: DateTime
       description: 值对应的时间戳。
@@ -213,3 +172,52 @@ parser:
       description: 在存储该点时复制标记的服务器的名称。
       type: varchar
   required: true
+
+advanced:
+  name: 高级选项
+  collapsible: true
+  description: |
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
+  params:
+    - name: read_concurrency
+      display: 最大读取并发数
+      description: |
+        数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 10000
+      hint:
+        type: integer
+        min: 1
+        max: 100000
+    - name: keep_raw_data
+      display: 保存原始数据
+      description: |
+        是否保存原始数据？
+      hint:
+        type: bool
+    - name: keep_raw_data_days
+      display: 最大保留天数
+      description: |
+        原始数据最大保存天数，默认 1 天。
+      value: 1
+      requires: keep_raw_data
+      hint:
+        type: integer
+        min: 1
+        max: 365
+    - name: keep_raw_data_dir
+      display: 原始数据存储目录
+      description: |
+        自定义原始数据存储目录，默认存储到系统数据目录下。
+      requires: keep_raw_data
+      placeholder: $DATA_DIR/tasks/:id/rawdata/
+      hint:
+        type: str

@@ -1,12 +1,6 @@
 package com.taosdata.utils;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +73,7 @@ public class HttpUtils {
      * @param json
      * @return
      */
-    public static String sendPostJson(String url, String json) throws Exception {
+    /*public static String sendPostJson(String url, String json) throws Exception {
         String result = "";
         try {
             // 建立http客户端
@@ -107,5 +101,5 @@ public class HttpUtils {
             throw e;
         }
         return result;
-    }
+    }*/
 }

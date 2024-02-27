@@ -15,6 +15,7 @@ use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
@@ -76,7 +77,7 @@ pub async fn mqtt_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for MQTT connection"))?;
 
-    let config = MqttConfig::from(&from, Some(ipc_port))?;
+    let config = MqttConfig::from(&from, Some(ipc_port), task_id)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -114,7 +115,7 @@ pub async fn mqtt_to_taos(
         with_agent,
         transferred,
         span,
-        None,
+        task_id.clone(),
         notify,
     )
     .await?;
@@ -141,7 +142,7 @@ pub async fn mqtt_to_taos(
     let mut child = child
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
-
+    send_sub_process_info(child.id(), task_id, "mqtt");
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
@@ -229,6 +230,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 remote: "".to_string(),
                 mqtt: c,
                 topics: HashMap::new(),
+                dump: None,
             };
             let valid = validate_mqtt(mqtt_config).await;
             match valid {
@@ -278,6 +280,7 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
             data_source: "mqtt".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
+            namespaces: None,
         })
     } else {
         Ok(DataSourceValidation::invalid(

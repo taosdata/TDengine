@@ -196,16 +196,23 @@ impl AgentWorker {
                                         });
                                     });
                                 }
-                                AgentNotify::TaskActivity(_, activity) => {
+                                AgentNotify::TaskActivity(aid, activity) => {
+                                    tracing::info!(
+                                        agent.id = aid,
+                                        task.id = activity.id,
+                                        "Task activity: {:?}",
+                                        activity
+                                    );
                                     let agent_tasks = agent_tasks_sender_clone.read().await;
                                     // dbg!(&agent_tasks);
                                     if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
-                                        if let Err(err) = task.sender.send(activity.clone()).await {
+                                        if let Err(err) = task.sender.send(activity).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
                                         }
                                         // scheduler_notify_sender.push_task_activity(activity);
                                     } else {
                                         tracing::warn!(
+                                            agent.id = aid,
                                             task.id = activity.id,
                                             task.activity = activity.activity,
                                             "Task worker not found: {:?}",
@@ -213,8 +220,12 @@ impl AgentWorker {
                                         );
                                     }
                                 }
-                                AgentNotify::AgentActivity(_, activity) => {
-                                    tracing::info!("Agent activity: {:?}", activity);
+                                AgentNotify::AgentActivity(aid, activity) => {
+                                    tracing::info!(
+                                        agent.id = aid,
+                                        "Agent activity: {:?}",
+                                        activity
+                                    );
                                     scheduler_notify_sender.push_agent_activity(activity);
                                 }
                                 AgentNotify::WriterError(agent_id, task_id, message) => {

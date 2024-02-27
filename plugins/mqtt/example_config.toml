@@ -14,3 +14,8 @@ clean_session = true
 "topic1" = 0
 "topic2" = 0
 "topic3" = 0
+
+[dump]
+enable = true
+path = "./tmp/mqtt"
+keep = 7

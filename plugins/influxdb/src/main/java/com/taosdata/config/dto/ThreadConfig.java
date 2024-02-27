@@ -1,13 +1,15 @@
 package com.taosdata.config.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 线程配置
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class ThreadConfig {
 
     /**
@@ -31,7 +33,7 @@ public class ThreadConfig {
     /**
      * BucketThread线程
      */
-    private long createBucketInterval = 5;
+    private long createBucketInterval = 1;
     private long createBucketFullInterval = 200;
 
     /**

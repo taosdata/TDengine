@@ -20,6 +20,12 @@ groups:
     description: Use self-signed certificate file and private key.
     collapsible: true
     params:
+      - name: ca
+        display: CA
+        description: CA file.
+        required: true
+        hint:
+          type: file
       - name: cert
         display: Client certificate file
         description: Client certificate file.
@@ -43,12 +49,11 @@ groups:
         description: >
           Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms.
 
-          When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
+          When use `timeout=never`, it will wait for an usable message forever and never stop the subscription until any error caused.
         placeholder: 500
         required: false
         hint:
           type: str
-
       - name: topics
         display: Topics
         description: >
@@ -57,7 +62,6 @@ groups:
         required: true
         hint:
           type: str
-
       - name: fallback_offset
         display: Fallback Offset
         description: >
@@ -77,7 +81,6 @@ groups:
             - Earliest
             - Latest
             - ByTime
-
       - name: fetch_max_wait_time
         display: Maximum time to wait for data
         description: >
@@ -124,3 +127,20 @@ parser:
       description: Value
       type: varchar
   required: true
+
+advanced:
+  name: Advanced Options
+  collapsible: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: read_concurrency
+      display: Read Concurrency
+      description: |
+        The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000

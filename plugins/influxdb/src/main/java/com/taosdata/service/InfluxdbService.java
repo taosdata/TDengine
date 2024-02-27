@@ -6,7 +6,9 @@ import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.utils.exception.ArtificialException;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Influxdb数据库操作服务类
@@ -55,11 +57,34 @@ public interface InfluxdbService {
     List<InfluxdbMeasurementEntity> selectAllMeasurements(String bucket) throws ArtificialException;
 
     /**
+     * 获取指定bucket、measurement的所有字段
+     *
+     * @param bucket
+     * @param measurement
+     * @return
+     * @throws ArtificialException
+     */
+    Map<String, String> selectAllFields(String bucket, String measurement) throws ArtificialException;
+
+    /**
+     * 获取指定bucket、measurement与时间段内的第一个时间戳
+     *
+     * @param orgId
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @return
+     * @throws ArtificialException
+     */
+    Instant getFirstTimestampInRange(String orgId, String bucket, String measurement, String startTime) throws ArtificialException;
+
+    /**
      * 获取influxdb中指定bucket、measurement与时间段的数据
      *
      * @param orgId
      * @param bucket
      * @param measurement
+     * @param field
      * @param startTime
      * @param stopTime
      * @param batch
@@ -67,5 +92,5 @@ public interface InfluxdbService {
      * @return
      * @throws ArtificialException
      */
-    List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
+    List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String field, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
 }

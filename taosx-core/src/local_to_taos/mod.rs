@@ -320,6 +320,7 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
         data_source: "local".to_string(),
         version: None,
         message: None,
+        namespaces: None,
     };
 }
 
@@ -351,6 +352,7 @@ async fn test() -> anyhow::Result<()> {
         true,
         Default::default(),
         Default::default(),
+        None,
     )
     .await?;
 

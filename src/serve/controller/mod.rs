@@ -1,22 +1,12 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::ops::Deref;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::{collections::HashMap, time::Duration};
 
-use self::agent::{
-    Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
-    LevelFilter,
-};
-use self::transferred::Transferred;
-use self::trigger::Strategy;
-use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::{AgentId, TaskId};
-use super::scheduler::TaskScheduler;
-use crate::serve::controller::agent::Activity;
 use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -24,7 +14,6 @@ use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
@@ -32,18 +21,32 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::dsv::DataSourceValidation;
-use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{
-    get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
-};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
 use uuid::Uuid;
 
+use taosx_core::core_metrics::clear_metrics;
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
+
+use crate::serve::controller::agent::Activity;
+
+use super::data_sources::DataSourceDefinition;
+use super::scheduler::agent::{AgentId, TaskId};
+use super::scheduler::TaskScheduler;
+
+use self::agent::{
+    Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    LevelFilter,
+};
+use self::transferred::Transferred;
+use self::trigger::Strategy;
+
 pub(crate) mod agent;
+pub mod license;
 pub(crate) mod transferred;
 
 mod datetime_format {
@@ -234,6 +237,9 @@ pub(crate) struct TaskController {
     pub max_activities_per_entity: usize,
 
     pub max_activities_keep_interval: Duration,
+
+    /// for lock, function can only be called once at a time.
+    pub lock_flag: Arc<tokio::sync::Mutex<i32>>,
 }
 
 impl Debug for TaskController {
@@ -283,11 +289,12 @@ impl TaskControllerRef {
             .bind(Status::Failed)
             .bind(Status::Stopped)
             .bind(Status::Created)
+            .bind(Status::Stopping)
             .fetch_all(&self.pool)
             .await?;
         for mut task in tasks {
             let id = task.id;
-            task.load_breakpoints();
+            task.load_breakpoints().await?;
             push_task_activity(
                 &self.pool,
                 &TaskActivity::info(id, format!("Automatically wake up task."), "waken"),
@@ -351,16 +358,26 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
             activity.at,
-            Status::Completed,
+            activity.status,
             activity.id,
-            Status::Completed,
+            activity.status,
         )
         .execute(pool)
         .await?;
     }
     match activity.status.as_str() {
         // with reason
-        "failed" | "interrupted" | "suspending" | "waiting" | "waken" => {
+        "failed" | "stopped" => {
+            sqlx::query("UPDATE tasks SET status = ?, reason = ?, finished_at = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.activity.as_str())
+                .bind(&activity.at)
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        // with reason
+        "interrupted" | "suspending" | "waiting" | "waken" => {
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
@@ -530,6 +547,20 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn set_file_content(dsn: &mut Dsn, key: &str) {
+    let content = dsn.get(key).map(|v| {
+        if v.starts_with('@') {
+            // let v = v.trim_start_matches('@');
+            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
+        } else {
+            v.to_string()
+        }
+    });
+    if content.is_some() {
+        dsn.set(key, content.unwrap());
+    }
+}
+
 impl TaskController {
     pub async fn from_sqlite(
         sqlite: &str,
@@ -630,13 +661,9 @@ impl TaskController {
             shutdown_notify,
             max_activities_per_entity,
             max_activities_keep_interval,
+            lock_flag: Arc::new(tokio::sync::Mutex::new(0)),
         })
     }
-
-    // pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
-    //     self.runtime = Some(rt);
-    //     self
-    // }
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
@@ -662,14 +689,7 @@ impl TaskController {
             _ => (),
         }
 
-        self.validate_enterprise_license(&from, &to).await?;
-
-        match from.driver.as_str() {
-            "opcua" | "opcda" | "pi" => {
-                self.validate_connector_license(&from, &to).await?;
-            }
-            _ => (),
-        }
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
         self.scheduler.push_task(task.clone()).await
     }
 
@@ -701,8 +721,6 @@ impl TaskController {
 
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
-        counter!("tasks", tasks.len() as u64);
-
         tasks.iter_mut().for_each(|task| {
             task.backport_labels();
         });
@@ -714,200 +732,9 @@ impl TaskController {
         Ok(tasks.len())
     }
 
-    pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
-        let builder = TaosBuilder::from_dsn(to)?;
-        let taos = builder.build().await?;
-        // let is_enterprise = builder.is_enterprise_edition().await?;
-
-        let assert_enterprise = builder.assert_enterprise_edition().await;
-
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if let Err(_) = assert_enterprise {
-            /* anyhow::bail!(format!(
-                "{err:?}. A non-expired enterprise edition is required in most of steps."
-            )) */
-            anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
-        }
-        // is cloud?
-        if to
-            .protocol
-            .as_ref()
-            .map(|p| match p.as_str() {
-                "http" | "https" | "ws" | "wss" => true,
-                _ => false,
-            })
-            .unwrap_or(false)
-            && to.get("token").is_some()
-        {
-            return Ok(());
-        }
-
-        let endpoint = match (
-            from.addresses[0].host.as_deref(),
-            from.addresses[0].port.as_ref(),
-        ) {
-            (Some(host), Some(port)) => format!("{host}:{port}"),
-            (Some(host), None) => format!("{host}"),
-            (None, Some(port)) => format!(":{port}"),
-            (None, None) => format!(""),
-        };
-        let cluster_id: i64 = taos
-            .query_one("select id from information_schema.ins_cluster")
-            .await
-            .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-            .unwrap();
-
-        // These lines disable the connector license check.
-        let _ = endpoint;
-        // let exists : u32 =
-        //             sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
-        //                 .fetch_one(&self.pool)
-        //                 .await?;
-        // if exists > 0 {
-        //     return Ok(());
-        // }
-
-        let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
-                        .fetch_all(&self.pool)
-                        .await?;
-        let used = used
-            .into_iter()
-            .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
-            .collect::<std::collections::HashSet<_>>()
-            .len();
-
-        // let license = taos.query_one(sql)
-        let connector = match from.driver.as_str() {
-            "opcua" => "opc_ua",
-            "opcda" => "opc_da",
-            "influxdb" => "influxdb",
-            "opentsdb" => "opentsdb",
-            "pi" => "pi",
-            "kafka" => "kafka",
-            "mqtt" => "mqtt",
-            _ => unreachable!(),
-        };
-
-        let license: ConnectorLicense = taos
-            .query_one::<_, String>(format!(
-                "select `{connector}` from information_schema.ins_grants"
-            ))
-            .await
-            .context("Cannot retrieve license")?
-            .ok_or_else(|| {
-                anyhow!("The current connector {connector} is not supported by license.")
-            })
-            .and_then(|s| {
-                serde_json::from_str(&s)
-                    .with_context(|| format!("Cannot parse license from str: {s}"))
-            })?;
-
-        if let Some(days) = license.expired_days() {
-            anyhow::bail!(
-                "The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.",
-                connector, days
-            )
-        } else {
-            match license.number {
-                0 => anyhow::bail!("The current connector {connector} is disabled by license."),
-                n if n > 0 => {
-                    if used > n as usize {
-                        anyhow::bail!(
-                            "The current connector {connector} reaches connection number limit({n}) by license"
-                        );
-                    }
-                }
-                _ => (),
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn validate_enterprise_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
-        // Check if enterprise available
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq" | "taos", "tmq" | "taos") => {
-                let mut from = from.clone();
-                from.subject.take();
-                let from = TaosBuilder::from_dsn(from)?;
-                let _ = from.build().await?;
-                // to.subject.take();
-                let to_builder = TaosBuilder::from_dsn(to)?;
-                let mut conn = to_builder.build().await?;
-                if let Err(err) = to_builder.ping(&mut conn).await {
-                    if *err.code().deref() == 0x0388 {
-                        let subject = to.subject.as_deref().unwrap_or("unknown");
-                        Err(err.context(format!("Target database {subject}")))?
-                    } else {
-                        bail!("Failed to connect target server: {err}");
-                    }
-                };
-
-                let from_edition = from
-                    .get_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    .assert_enterprise_edition();
-                let to_edition = to_builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check destination edition")?
-                    .assert_enterprise_edition();
-
-                if from_edition.is_err() && to_edition.is_err() {
-                    let from_err = from_edition.unwrap_err().to_string();
-                    let to_err = to_edition.unwrap_err().to_string();
-                    bail!("Neither source nor destination is a valid TDengine enterprise edition, cause: source error: {from_err}, destination error: {to_err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            ("tmq" | "taos", _) => {
-                let mut from = from.clone();
-                from.subject.take();
-                let builder = TaosBuilder::from_dsn(from)?;
-                let _ = builder.build().await.context("Source connection error")?;
-                let edition = builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            (_, "tmq" | "taos") => {
-                let to = to.clone();
-                // to.subject.take();
-                let builder = TaosBuilder::from_dsn(&to)?;
-                let mut conn = builder.build().await.context("Target connection error")?;
-                if let Err(err) = builder.ping(&mut conn).await {
-                    if *err.code().deref() == 0x0388 {
-                        let subject = to.subject.as_deref().unwrap_or("unknown");
-                        Err(err.context(format!("Target database {subject}")))?
-                    } else {
-                        bail!("Failed to connect target server: {err}");
-                    }
-                };
-                let edition = builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check destination edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            _ => (),
-        };
-        Ok(())
-    }
-
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        tracing::info!(task.name, task.via, "create new task");
         let path = get_data_dir();
         let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
@@ -922,14 +749,7 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        self.validate_enterprise_license(&from, &to).await?;
-
-        match from.driver.as_str() {
-            "opcua" | "opcda" | "pi" => {
-                self.validate_connector_license(&from, &to).await?;
-            }
-            _ => (),
-        }
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
@@ -962,6 +782,10 @@ impl TaskController {
         }
         task.patch_labels();
         let now = chrono::Utc::now();
+
+        tracing::info!(task.name, task.via, "acquire task creation lock");
+        let lock_flag = self.lock_flag.lock().await;
+        tracing::info!(task.name, task.via, "got creation lock, create");
         if let Some(name) = &task.name {
             let tasks = self
                 .tasks(TaskFilter {
@@ -994,6 +818,8 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+        tracing::info!(task.name, task.via, "release creation lock");
+        drop(lock_flag);
 
         let path = get_data_dir();
         let path = path.join("tasks").join(id.to_string());
@@ -1171,22 +997,19 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::get", fields(task.id = id))]
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
+        let task = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
-            .await?;
-
-        Ok(task
-            .map(|mut t| {
+            .await?
+            .map(|mut t: Task| {
                 t.backport_labels();
                 t
-            })
-            // set breakpoints
-            .map(|mut t| {
-                t.load_breakpoints();
-                t
-            })
-            .map(Into::into))
+            });
+        if let Some(mut task) = task {
+            task.load_breakpoints().await?;
+            return Ok(Some(task.into()));
+        }
+        Ok(None)
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
@@ -1218,8 +1041,11 @@ impl TaskController {
         task.backport_labels();
         let task_out = task.clone();
         let pool = self.pool.clone();
+        let scheduler = self.scheduler.clone();
         tokio::spawn(
             async move {
+                scheduler.wait_task(task.id).await;
+                tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
                     let mut dsn: Dsn = task.from.parse()?;
                     let _ = dsn.subject.take();
@@ -1284,7 +1110,7 @@ impl TaskController {
                 taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
 
                 // metrics_clear
-                let _ = taosx_core::utils::metrics_db::MetricsDb::clear(&task_id);
+                clear_metrics(id);
 
                 tracing::info!("successfully deleted task by id {id}");
                 anyhow::Ok(())
@@ -1642,6 +1468,31 @@ impl TaskController {
         self.tasks(TaskFilter::default().via(agent_id)).await
     }
 
+    pub async fn list_datasets_via_agent_v1(
+        &self,
+        agent_id: i64,
+        dsn: &mut Dsn,
+        categories: String,
+        via: Option<i64>,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        set_file_content(dsn, "certificate");
+        set_file_content(dsn, "private_key");
+        set_file_content(dsn, "auth_certificate");
+        set_file_content(dsn, "auth_private_key");
+
+        let data = DataSetsReq {
+            from: dsn.to_string(),
+            categories: vec![categories],
+            via,
+            offset: 0,
+            pattern: None,
+            limit: 0,
+            lang: None,
+        };
+
+        self.list_datasets_via_agent(agent_id, data).await
+    }
+
     pub async fn list_datasets_via_agent(
         &self,
         agent_id: i64,
@@ -1674,9 +1525,15 @@ impl TaskController {
             );
         }
 
+        let mut dsn_agent = dsn.clone();
+        set_file_content(&mut dsn_agent, "certificate");
+        set_file_content(&mut dsn_agent, "private_key");
+        set_file_content(&mut dsn_agent, "auth_certificate");
+        set_file_content(&mut dsn_agent, "auth_private_key");
+
         let result = tokio::time::timeout(
             Duration::from_secs(600),
-            scheduler.validate_dsn_via_agent(agent, dsn.clone()),
+            scheduler.validate_dsn_via_agent(agent, dsn_agent),
         )
         .await;
         let result = match result {
@@ -1706,6 +1563,48 @@ impl TaskController {
                 .await?;
         Ok(vec)
     }
+
+    #[instrument(skip_all)]
+    pub async fn get_task_summaries(&self, interval: u64) -> (i32, i32, i32) {
+        let interval = Duration::from_secs(interval);
+        let finished_at = Utc::now() - interval;
+        let running_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ?",
+            Status::Running
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count tasks completed in last 10 seconds
+        let completed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Completed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count failed tasks in last 10 seconds
+        let failed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Failed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        tracing::debug!(
+            "running_tasks_count: {}, completed_tasks_count: {}, failed_tasks_count: {}",
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count
+        );
+        (
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count,
+        )
+    }
 }
 
 #[derive(Debug, Default, Serialize, ToSchema, FromRow)]
@@ -1723,6 +1622,13 @@ pub struct AgentFilter {
 }
 
 impl AgentFilter {
+    pub fn default() -> Self {
+        Self {
+            cluster_id: None,
+            user_id: None,
+        }
+    }
+
     pub fn to_sql_condition(&self) -> Option<String> {
         match (self.cluster_id.as_ref(), self.user_id.as_ref()) {
             (None, None) => None,
@@ -1988,7 +1894,7 @@ pub struct Task {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(read_only, example = "null")]
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Task trigger events, default will be oneshot.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2154,7 +2060,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: format!("Wait for next tick in schedule."),
-            status: "tick".to_string(),
+            status: "ticked".to_string(),
             context: Some(json!({"jid": jid}).into()),
         }
     }
@@ -2165,6 +2071,27 @@ impl TaskActivity {
             level: LevelFilter::Info,
             activity: format!("Finished with job id: {jid}."),
             status: "completed".to_string(),
+            context: None,
+        }
+    }
+
+    pub fn ipc_started(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Agent is putting data"),
+            status: "ipc-started".to_string(),
+            context: None,
+        }
+    }
+    pub fn ipc_finished(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("IPC finished"),
+            status: "ipc-finished".to_string(),
             context: None,
         }
     }
@@ -2183,9 +2110,19 @@ impl TaskActivity {
         Self {
             id,
             at: Utc::now(),
-            level: LevelFilter::Info,
+            level: LevelFilter::Warn,
             activity: format!("Suspended with job id: {jid}."),
             status: "suspended".to_string(),
+            context: None,
+        }
+    }
+    pub fn suspending_with(id: i64, activity: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity,
+            status: "suspending".to_string(),
             context: None,
         }
     }
@@ -2283,6 +2220,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mqtt");
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
+        include_ds_yaml!("historian");
         for ds in &mut def {
             ds.compute();
         }
@@ -2316,6 +2254,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mqtt");
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
+        include_ds_yaml!("historian");
         for ds in &mut def {
             ds.compute();
         }
@@ -2545,8 +2484,12 @@ impl Task {
         self.breakpoints = breakpoints;
     }
 
-    pub fn load_breakpoints(&mut self) {
-        load_breakpoints(self.id).map(|s| self.set_breakpoints(Some(s)));
+    pub async fn load_breakpoints(&mut self) -> anyhow::Result<()> {
+        let id = self.id;
+        tokio::task::spawn_blocking(move || load_breakpoints(id))
+            .await?
+            .map(|s| self.set_breakpoints(Some(s)));
+        Ok(())
     }
 }
 
@@ -2676,7 +2619,7 @@ pub(crate) struct NewTask {
     stream_type: Option<String>,
     /// Task name.
     #[schema(example = "demo")]
-    name: Option<String>,
+    pub name: Option<String>,
     /// Task trigger events, default will be oneshot.
     ///
     /// For schedule trigger:
@@ -3236,6 +3179,23 @@ mod tests {
             .fetch_one(&pool)
             .await?;
         assert_eq!(len, 100);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_task_summaries() -> anyhow::Result<()> {
+        tracing_subscriber_init()?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let _ = controller.get_task_summaries(10).await;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn legacy_edition_check() -> anyhow::Result<()> {
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041")?;
+        license::validate_task(&from, &to, Some(&controller.pool)).await?;
         Ok(())
     }
 }

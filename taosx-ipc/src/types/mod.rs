@@ -6,7 +6,7 @@ use std::{
 use crate::types::dsv::DataSourceValidation;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-
+use taosx_metrics::MetricsEvents;
 pub mod dsv;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
@@ -161,4 +161,5 @@ pub enum RespAction {
     CheckOk(CheckResponse),
     AgentActivity(Activity),
     TaskActivity(Activity),
+    Metrics(MetricsEvents),
 }

@@ -1,15 +1,76 @@
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 
+use crate::{
+    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
+    legacy_metric::LegacyToTaosMetrics,
+    sync_super_table_schema, sync_super_table_schema_with_subs,
+    tmq::{tmq_metric::TmqMetrics, *},
+    Action,
+};
 use anyhow::{bail, Context, Result};
+use dashmap::DashMap;
 use linked_hash_map::LinkedHashMap;
+use std::sync::atomic::Ordering::SeqCst;
+use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{sync_super_table_schema, sync_super_table_schema_with_subs, tmq::*, Action};
-use dashmap::DashMap;
-use metrics::counter;
-use taos::taos_query::tmq::Assignment;
+async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<()> {
+    let target_desc = to.describe(&table).await?;
+    let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
+
+    for l in desc {
+        if let Some(r) = fields.get(l.name()) {
+            // check if the field is equal.
+            if r.is_tag() {
+                bail!(
+                    "Target field is not match the source: expect `{}` as column, but got tag",
+                    l.name()
+                );
+            }
+            if r.ty() != l.ty() {
+                tracing::warn!(
+                    "Target field ({}) is not equal to source({})",
+                    r.sql_repr(),
+                    l.sql_repr()
+                );
+            } else {
+                if r.length() < l.bytes() as usize {
+                    if let Err(err) = to
+                        .exec(format!(
+                            "ALTER TABLE `{}` MODIFY COLUMN {}",
+                            table,
+                            l.sql_repr(),
+                        ))
+                        .await
+                    {
+                        tracing::warn!(
+                            "Modify column `{}` of table `{table}` error: {err:#}, try continue",
+                            l.name()
+                        );
+                    }
+                }
+            }
+        } else {
+            // field does not exist in right side.
+            if let Err(err) = to
+                .exec(format!(
+                    "ALTER TABLE `{}` ADD COLUMN {}",
+                    table,
+                    l.sql_repr(),
+                ))
+                .await
+            {
+                tracing::warn!(
+                    "Add column {} for table {table} error: {err:#}, try continue",
+                    l.name()
+                );
+            }
+        }
+    }
+    Ok(())
+}
 
 #[instrument(skip_all, fields(table, rows))]
 async fn write_data(
@@ -24,10 +85,7 @@ async fn write_data(
     metrics: &TmqMetrics,
 ) -> Result<u64> {
     tracing::debug!("[{id}] start writing data");
-    counter!(METRIC_TMQ_MESSAGES_OF_DATA, 1);
-    metrics
-        .messages_of_data
-        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    metrics.add_messages_of_data(1);
     let mut has_blocks = false;
     if target_is_v3 && actions.is_empty() {
         let raw = data
@@ -41,11 +99,11 @@ async fn write_data(
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
-                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 => {
+                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 => {
                     // fallback to block-by-block method.
                 }
                 _ => {
-                    counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                    metrics.add_write_raw_fails(1);
                     Err(err).context("Write raw data into target error")?;
                 }
             }
@@ -56,19 +114,9 @@ async fn write_data(
                 .context("Fetch raw block error")?
             {
                 *rows += raw.nrows();
-                counter!(METRIC_TMQ_BLOCKS, 1);
-                metrics
-                    .blocks
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                counter!(METRIC_TMQ_RECORDS, raw.nrows() as u64);
-                metrics
-                    .records
-                    .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-                counter!(METRIC_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
-                metrics.points.fetch_add(
-                    raw.nrows() as u64 * raw.ncols() as u64,
-                    std::sync::atomic::Ordering::SeqCst,
-                );
+                metrics.add_written_rows(raw.nrows() as _);
+                metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
+                metrics.add_suc_blocks(1);
             }
             return Ok(0);
         }
@@ -140,20 +188,52 @@ async fn write_data(
         *rows += raw.nrows();
 
         if target_is_v3 {
-            if let Err(err) = taos.write_raw_block(&raw).await {
-                let code = *err.code().deref();
-                match code {
-                    0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                        let from = source.get().await?;
-                        let database = from
-                            .query_one::<_, String>("select database()")
-                            .await?
-                            .unwrap();
-                        if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+            let with_raw_block = async {
+                if let Err(err) = taos.write_raw_block(&raw).await {
+                    let code = *err.code().deref();
+                    match code {
+                        0x0118 => {
+                            // TODO
+                            // sync schema
+                            let source_stable_name = source.get().await?.query_one::<_, String>("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'").await?;
+                            if let Some(mut source_stable_name) = source_stable_name {
+                                if actions.is_empty() {
+                                    migrate_data_schema(&raw.fields(), &taos, &source_table_name)
+                                        .await?;
+                                } else {
+                                    for action in actions {
+                                        match action {
+                                            Action::RenameTable(rename)
+                                            | Action::RenameSuperTable(rename) => {
+                                                rename.apply_in_place(&mut source_stable_name)?
+                                            }
+                                            _ => (),
+                                        }
+                                    }
+                                    migrate_data_schema(&raw.fields(), &taos, &source_stable_name)
+                                        .await?;
+                                }
+                            } else {
+                                let table = raw.table_name().unwrap();
+                                migrate_data_schema(&raw.fields(), &taos, table).await?;
+                            }
+                            taos.write_raw_block(&raw)
+                                .await
+                                .context("Write raw block into target error after 0x0118 fix")?;
+                        }
+                        0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                            let from = source.get().await?;
+                            let database = from
+                                .query_one::<_, String>("select database()")
+                                .await?
+                                .unwrap();
+                            if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                             let from = source.get().await?;
                             let target_opts = Default::default();
                             sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
-                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, &Default::default()).await.context("Create sub table error")?;
+                            // 临时代码，保证编译通过
+                            let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
                             taos.write_raw_block(&raw)
                                 .await
                                 .context("Write raw block into target error")?;
@@ -174,49 +254,58 @@ async fn write_data(
                                 raw.pretty_format()
                             );
                         }
+                        }
+                        _ => {
+                            bail!(
+                                "write table failed: {err}, with block: {}",
+                                raw.pretty_format()
+                            );
+                        }
                     }
-                    _ => {
-                        bail!(
-                            "write table failed: {err}, with block: {}",
-                            raw.pretty_format()
-                        );
-                    }
-                }
+                };
+                anyhow::Ok(())
             };
+            if let Err(err) = with_raw_block.await {
+                metrics.add_write_raw_fails(1);
+                bail!(
+                    "write table with raw block failed: {err:#}, block: {}",
+                    raw.pretty_format()
+                );
+            }
         } else {
-            let mut stmt = Stmt::init(taos)
-                .await
-                .context("Write with stmt init error")?;
-            let fields = raw.fields();
-            let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
-            let table = raw.table_name().unwrap();
-            stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
-                .await
-                .context("Write with stmt prepare error")?;
+            let with_stmt = async {
+                let mut stmt = Stmt::init(taos)
+                    .await
+                    .context("Write with stmt init error")?;
+                let fields = raw.fields();
+                let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                let table = raw.table_name().unwrap();
+                stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
+                    .await
+                    .context("Write with stmt prepare error")?;
 
-            stmt.bind(raw.column_views())
-                .await
-                .context("Write with stmt bind error")?;
-            stmt.add_batch()
-                .await
-                .context("Write with stmt add_batch error")?;
-            stmt.execute()
-                .await
-                .context("Write with stmt execute error")?;
+                stmt.bind(raw.column_views())
+                    .await
+                    .context("Write with stmt bind error")?;
+                stmt.add_batch()
+                    .await
+                    .context("Write with stmt add_batch error")?;
+                stmt.execute()
+                    .await
+                    .context("Write with stmt execute error")?;
+                anyhow::Ok(())
+            };
+            if let Err(err) = with_stmt.await {
+                metrics.add_write_raw_fails(1);
+                bail!(
+                    "write table with stmt failed: {err:#}, block: {}",
+                    raw.pretty_format()
+                );
+            }
         }
-        counter!(METRIC_TMQ_BLOCKS, 1);
-        metrics
-            .blocks
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRIC_TMQ_RECORDS, raw.nrows() as u64);
-        metrics
-            .records
-            .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRIC_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
-        metrics.points.fetch_add(
-            raw.nrows() as u64 * raw.ncols() as u64,
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        metrics.add_suc_blocks(1);
+        metrics.add_written_rows(raw.nrows() as _);
+        metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
     }
     if !has_blocks {
         if actions.is_empty() {
@@ -231,10 +320,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }
@@ -249,7 +338,7 @@ async fn write_data(
     }
     tracing::debug!(
         "[{id}] end writing data, current records {}",
-        metrics.records.load(std::sync::atomic::Ordering::SeqCst)
+        metrics.written_rows()
     );
     Ok(0)
 }
@@ -264,12 +353,8 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
-    counter!(METRIC_TMQ_MESSAGES_OF_META, 1);
-    let cur = metrics
-        .messages_of_meta
-        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let cur = metrics.add_messages_of_meta(1);
     tracing::debug!("[{id}] start writing meta {cur}");
-    // tracing::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
             let jm = meta.as_json_meta().await.context("Fetch json meta error");
@@ -279,6 +364,7 @@ async fn write_meta(
             };
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                metrics.add_write_raw_fails(1);
                 let code = *err.code().deref();
                 match code {
                     // Table not exist error codes.
@@ -303,7 +389,7 @@ async fn write_meta(
                                     tag_num: _,
                                 } => {
                                     // Create child table error means stable not exist.
-                                    tracing::warn!("Table does not exist: {using} while create child {table_name}");
+                                    tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
                                     let from = source.get().await?;
                                     sync_super_table_schema(
                                         &from,
@@ -314,11 +400,12 @@ async fn write_meta(
                                         &[],
                                     )
                                     .await?;
-                                    taos.write_raw_meta(&raw_meta).await.map_err(|err| {
-                                        err.context(format!(
+                                    if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                                        metrics.add_write_raw_fails(1);
+                                        Err(err.context(format!(
                                             "Write raw meta error with table {table_name}"
-                                        ))
-                                    })?;
+                                        )))?;
+                                    }
                                 }
                                 MetaCreate::Normal {
                                     table_name,
@@ -339,11 +426,9 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 => {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         Err(err.context("Write raw meta error"))?;
                     }
                 }
@@ -368,6 +453,7 @@ async fn write_meta(
         // dbg!(&meta);
         let sql = meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
+            metrics.add_write_raw_fails(1);
             let errstr = err.to_string();
             if errstr.contains("[0x032C]")
                 || errstr.contains("[0x0115]")
@@ -375,9 +461,7 @@ async fn write_meta(
                 || errstr.contains("[0x03C7]")
             {
                 tracing::warn!("{errstr}");
-                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
             } else {
-                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                 bail!("[{id}] write raw meta error: {err}");
             }
         }
@@ -386,7 +470,7 @@ async fn write_meta(
     Ok(())
 }
 
-#[instrument(skip(sender, consumer, taos, cancel, source_pool))]
+#[instrument(skip_all, fields(task.id = id, table))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
@@ -396,9 +480,9 @@ async fn sync(
     table: Option<String>,
     actions: Vec<Action>,
     cancel: CancellationToken,
-    metrics: Arc<TmqMetrics>,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    version: String,
+    metrics_arc: Arc<CoreMetrics>,
+    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    _version: String,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
     let mut stream = consumer.stream();
@@ -408,6 +492,7 @@ async fn sync(
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
+    let metrics = metrics_arc.tmq();
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -415,26 +500,24 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
-                    counter!(METRIC_TMQ_MESSAGES, 1);
-                    metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
+                    metrics.add_messages(1);
+                    let total = metrics.messages.load(SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
                         tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
+                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
-                            write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
+                            write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
+                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
-                                write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
+                                write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
                         }
                     }
@@ -443,7 +526,7 @@ async fn sync(
                             consumer.worker.id = id,
                             "[{id}] commit error: {err:?}"
                         );
-                    };
+                    }
                 } else {
                     break;
                 }
@@ -466,6 +549,7 @@ pub async fn tmq_to_td(
     jobs: usize,
     cancel: CancellationToken,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
@@ -488,16 +572,12 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-
-    let metrics = Arc::new(TmqMetrics {
-        topics: topics.len(),
-        ..Default::default()
-    });
-    counter!(METRIC_TMQ_TOPICS, topics.len() as u64);
+    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics = metrics_arc.tmq();
+    metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
     let mut handles = Vec::new();
-    let mut task_id = 0;
-
+    let mut consumer_task_id = 0;
     let target_database = to.subject.take();
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
@@ -531,10 +611,7 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
-        counter!(METRIC_TMQ_WORKERS, jobs as u64);
-        metrics
-            .workers
-            .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
+        metrics.consumers.fetch_add(jobs as _, SeqCst);
         let mut target_dsn = to.clone();
         target_dsn.subject.replace(target_database.to_string());
         let target = TaosBuilder::from_dsn(target_dsn)?.pool()?;
@@ -653,15 +730,15 @@ pub async fn tmq_to_td(
             }
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
-            let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let version = version.clone();
             let source_pool = source_pool.clone();
+            let metrics_arc = metrics_arc.clone();
             let handle = tokio::spawn(
                 async move {
                     sync(
-                        task_id,
+                        consumer_task_id,
                         sender,
                         consumer,
                         source_pool,
@@ -669,7 +746,7 @@ pub async fn tmq_to_td(
                         table,
                         actions,
                         cancellation,
-                        metrics,
+                        metrics_arc.clone(),
                         offsets,
                         version,
                     )
@@ -678,9 +755,9 @@ pub async fn tmq_to_td(
                 .in_current_span(),
             );
             handles.push(handle);
-            tracing::info!("spawn consuming task with id {task_id}",);
+            tracing::info!("spawn consuming task with id {consumer_task_id}",);
 
-            task_id += 1;
+            consumer_task_id += 1;
         }
     }
 
@@ -690,8 +767,8 @@ pub async fn tmq_to_td(
     }
     tracing::debug!("consumers tasks offsets: {:?}", offsets);
 
-    tracing::info!("stop all consumers({})", task_id);
-    for _ in 0..task_id {
+    tracing::info!("stop all consumers({})", consumer_task_id);
+    for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
         tokio::spawn(async move {
             if let Some(consumer) = consumer {
@@ -706,7 +783,7 @@ pub async fn tmq_to_td(
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
-    println!("{}", metrics.as_ref());
+    println!("{}", metrics);
 
     Ok(())
 }

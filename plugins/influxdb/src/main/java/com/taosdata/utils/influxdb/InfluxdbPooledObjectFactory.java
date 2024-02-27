@@ -2,11 +2,15 @@ package com.taosdata.utils.influxdb;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
+import com.influxdb.client.InfluxDBClientOptions;
 import com.influxdb.client.domain.HealthCheck;
 import lombok.Setter;
+import okhttp3.OkHttpClient;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.PooledObjectFactory;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 连接池工厂
@@ -51,8 +55,16 @@ public class InfluxdbPooledObjectFactory implements PooledObjectFactory<InfluxDB
      */
     @Override
     public PooledObject<InfluxDBClient> makeObject() throws Exception {
+        // 引入OkHttpClient解决超时时间问题
+        OkHttpClient.Builder okHttpClient = new OkHttpClient.Builder().readTimeout(600, TimeUnit.SECONDS);
+        InfluxDBClientOptions influxDBClientOptions = InfluxDBClientOptions
+                .builder()
+                .url(this.url)
+                .authenticateToken(this.token.toCharArray())
+                .okHttpClient(okHttpClient)
+                .build();
         // 生成客户端
-        InfluxDBClient client = InfluxDBClientFactory.create(this.url, this.token.toCharArray());
+        InfluxDBClient client = InfluxDBClientFactory.create(influxDBClientOptions);
         return new DefaultPooledObject<>(client);
     }
 

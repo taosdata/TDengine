@@ -1,10 +1,12 @@
+use std::sync::OnceLock;
 use std::sync::{
     atomic::{AtomicU32, AtomicU64},
     Arc,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -13,12 +15,6 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-// use crate::plugins::transform::*;
-use crate::runners::historian::historian_to_taos;
-use crate::runners::influxdb::influxdb_to_taos;
-use crate::runners::kafka::kafka_to_taos;
-use crate::tmq_to_kafka::clean_task;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
@@ -28,6 +24,13 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
+
+// use crate::plugins::transform::*;
+use crate::runners::historian::historian_to_taos;
+use crate::runners::influxdb::influxdb_to_taos;
+use crate::runners::kafka::kafka_to_taos;
+use crate::tmq_to_kafka::clean_task;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 pub mod csv;
 mod fake;
@@ -43,10 +46,14 @@ pub mod types;
 pub mod transform;
 pub mod utils;
 
-mod plugins;
+pub mod plugins;
 mod tmq_to_kafka;
 
+pub mod core_metrics;
 mod extensions;
+
+// 全局定义的是否开启 agent 压缩的标志位
+pub static AGENT_COMPRESSION: OnceLock<bool> = OnceLock::new();
 
 shadow_rs::shadow!(build);
 
@@ -74,29 +81,49 @@ pub struct Transferred {
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct ConnectorLicense {
-    pub r#type: String,
+    pub r#type: Option<String>,
     pub number: i64,
     pub speed: i64,
     #[serde_as(as = "serde_with::DisplayFromStr")]
-    pub expire: u16,
+    pub expire: u64,
+    pub expire_time: Option<String>,
 }
 
 impl ConnectorLicense {
-    pub fn is_expired(&self) -> bool {
+    pub fn is_expired_day(&self) -> bool {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
         days > self.expire as i64
     }
 
-    pub fn expired_days(&self) -> Option<u32> {
+    pub fn expired_days(&self) -> Option<chrono::Duration> {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
         if days > self.expire as i64 {
-            Some((days - self.expire as i64) as u32)
+            Some(chrono::Duration::days((days - self.expire as i64) as _))
         } else {
             None
+        }
+    }
+
+    pub fn is_expired_second(&self) -> bool {
+        let seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        seconds > self.expire as u64
+    }
+
+    pub fn expired_seconds(&self) -> Option<chrono::Duration> {
+        let expire_time = chrono::NaiveDateTime::from_timestamp_opt(self.expire as _, 0).unwrap();
+        let now = chrono::Utc::now().naive_utc();
+        if expire_time > now {
+            return None;
+        } else {
+            return Some(chrono::Duration::seconds((now - expire_time).num_seconds()));
         }
     }
 }
@@ -106,7 +133,7 @@ fn test_connector_license() {
     let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"19658"}"#;
     let license: ConnectorLicense = serde_json::from_str(s).unwrap();
     dbg!(&license);
-    assert!(license.is_expired());
+    assert!(license.is_expired_day());
 }
 
 pub enum TaskNotify {
@@ -170,7 +197,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, name = "run_task")]
+    #[instrument(skip_all)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -197,26 +224,17 @@ impl TaskOpts {
             // Check if enterprise available
             #[cfg(not(feature = "disable-enterprise-only-validation"))]
             match (from.driver.as_str(), to.driver.as_str()) {
-                ("tmq" | "taos", "tmq" | "taos") => {
-                    let mut from = from.clone();
-                    from.subject.take();
-                    let from = TaosBuilder::from_dsn(from)?;
-                    let _ = from.build().await?;
+                (_, "tmq" | "taos") => {
                     let mut to = to.clone();
                     to.subject.take();
-                    let to = TaosBuilder::from_dsn(to)?;
-                    let _ = to.build().await?;
-
-                    if !from
+                    let builder = TaosBuilder::from_dsn(to)?;
+                    let _ = builder.build().await.context("Target connection error")?;
+                    if !builder
                         .is_enterprise_edition()
                         .await
-                        .context("Failed to check source edition")?
-                        && !to
-                            .is_enterprise_edition()
-                            .await
-                            .context("Failed to check target edition")?
+                        .context("Failed to check target edition")?
                     {
-                        anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 ("tmq" | "taos", _) => {
@@ -232,26 +250,12 @@ impl TaskOpts {
                         anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
-                (_, "tmq" | "taos") => {
-                    let mut to = to.clone();
-                    to.subject.take();
-                    let builder = TaosBuilder::from_dsn(to)?;
-                    let _ = builder.build().await.context("Target connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
-                    {
-                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
-                    }
-                }
                 _ => (),
             }
         }
 
         // Run task
         {
-            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
                     tmq_to_td(
@@ -261,6 +265,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .in_current_span()
                     .await?;
@@ -273,6 +278,7 @@ impl TaskOpts {
                         *force,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .await?;
                 }
@@ -400,18 +406,19 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
                 }
-                ("tmq", "kafka") => {
+                ("tmq", runners::kafka::KAFKA_ID) => {
                     let mut from = from.clone();
-                    if let Some(task_id) = self.task_id.clone() {
+                    if let Some(task_id) = task_id.clone() {
                         from.params.insert("topic_suffix".parse()?, task_id);
                     }
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
-                ("kafka", "taos") => {
+                (runners::kafka::KAFKA_ID, "taos") => {
                     let mut dsn = from.clone();
                     if !dsn.params.contains_key("group") {
                         let group_id = task_id
@@ -431,11 +438,12 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
                 }
-                ("historian", "taos") => {
+                (runners::historian::AVEVA_HISTORIAN_ID, "taos") => {
                     historian_to_taos(
                         from.clone(),
                         parser.clone(),
@@ -447,6 +455,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -476,7 +485,7 @@ impl TaskOpts {
     pub async fn delete_task(&self) -> Result<(), anyhow::Error> {
         let Self { from, to, .. } = &self;
         match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq", "kafka") => {
+            ("tmq", runners::kafka::KAFKA_ID) => {
                 let mut from = from.clone();
                 if let Some(task_id) = self.task_id.clone() {
                     from.params.insert("topic_suffix".parse()?, task_id);
@@ -503,6 +512,7 @@ impl TaskOpts {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
     use taos::Dsn;
 
     use super::*;

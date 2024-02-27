@@ -105,8 +105,8 @@ impl Parse for SplitImpl {
         }
         // loop and package
         for i in 0..n {
-            let datas = values.iter().map(|value| value[i]).collect_vec();
-            let array: ArrayRef = Arc::new(StringArray::from_iter(datas));
+            let data = values.iter().map(|value| value[i]).collect_vec();
+            let array: ArrayRef = Arc::new(StringArray::from_iter(data));
             arrays.push((&names[i], array));
         }
         // whether remove

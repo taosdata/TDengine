@@ -1,29 +1,27 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
-use std::{collections::BTreeMap, sync::Arc};
 
-use actix_files::NamedFile;
 use actix_web::{
     get,
-    http::header::ContentType,
+    http::header::{ContentDisposition, ContentType},
     post,
     web::{self, Data, Json, Query},
     HttpRequest, HttpResponse, Responder,
 };
-use anyhow::Context;
-use arrow::datatypes::{DataType, Field};
 use itertools::Itertools;
-use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
 use utoipa::*;
 
-pub use definition::*;
-use taosx_core::dsv::DataSourceValidation;
-use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
-
-use crate::serve::TaskController;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
+pub use definition::*;
+pub use point_loader::*;
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::historian;
+use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 
 mod definition;
 
@@ -193,101 +191,30 @@ pub struct DsSampleOut {
     columns: Vec<Vec<serde_json::Value>>,
 }
 
-/// Sample data input with transform pipeline.
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-#[schema(example = r#"
-{
-  "parser": {
-    "parse": { "payload": { "json": ["value::double", "id::int"] } },
-    "mutate": [{ "filter": "value > 1.2" }],
-    "model": [
-      {
-        "name": "d{id}",
-        "using": "meters",
-        "tags": ["id"],
-        "columns": ["ts", "value"]
-      }
-    ]
-  },
-  "input": [
-    { "ts": "2023-11-16T00:00:00Z", "payload": "{\"value\":1.4, \"id\": 1}" },
-    { "ts": "2023-11-16T00:00:01Z", "payload": "{\"value\":1.4, \"id\": 2}" }
-  ]
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct TzQuery {
+    /// Timezone name, e.g. "Asia/Shanghai"
+    tz: Option<String>,
 }
-"#)]
-pub struct DsSampleIn {
-    /// Transform pipeline definition.
-    parser: taosx_core::Pipeline,
-    /// Sample data input, an array of object.
-    input: Vec<LinkedHashMap<String, serde_json::Value>>,
-}
-
-impl DsSampleIn {
-    pub fn transform(&self) -> anyhow::Result<impl Serialize> {
-        if self.input.is_empty() {
-            anyhow::bail!("Input should not be empty");
-        }
-
-        let json = self
-            .input
-            .iter()
-            .map(|value| serde_json::to_vec(value).unwrap())
-            .flatten()
-            .collect_vec();
-
-        let schema = arrow::datatypes::Schema::new(
-            self.input[0]
-                .iter()
-                .map(|(name, value)| {
-                    let dt = match value {
-                        serde_json::Value::Null
-                        | serde_json::Value::String(_)
-                        | serde_json::Value::Object(_)
-                        | serde_json::Value::Array(_) // array/object is not supported actually
-                         => DataType::Utf8,
-                        serde_json::Value::Bool(_) => DataType::Boolean,
-                        serde_json::Value::Number(num) => {
-                            if num.is_u64() {
-                                DataType::UInt64
-                            } else if num.is_f64() {
-                                DataType::Float64
-                            } else {
-                                DataType::Int64
-                            }
-                        }
-                    };
-                    Field::new(name, dt, true)
-                })
-                .collect_vec(),
-        );
-        let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
-            .build(json.as_slice())
-            .context("Could not build record reader from json stream")?;
-        let batch = reader.next().unwrap()?;
-
-        let output = self.parser.transform(&batch)?;
-
-        let output = output
-            .iter()
-            .map(|batch| batch.into_modeled_json())
-            .collect_vec();
-        Ok(output)
-    }
-}
-
 /// Flat stream transform sample data simulation.
 #[utoipa::path(
     tag = "transform",
     request_body = DsSampleIn,
     responses(
         (status = 200, description = "Sample data output", body = Vec<DsSampleOut>),
+    ),
+    params(
+        TzQuery,
     )
 )]
 #[post("/transform/sample/flat")]
-pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder {
+pub(super) async fn data_source_sample(
+    data: Json<DsSampleIn>,
+    tz: Query<TzQuery>,
+) -> impl Responder {
     let sample_in = data.into_inner();
 
-    match sample_in.transform() {
+    match sample_in.transform(tz.tz.as_deref()) {
         Ok(output) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(output)),
@@ -328,9 +255,10 @@ fn test_sample_flat() {
 {"parser":{"parse":{"current":{"regex":"(?P<current>\\d+\\.\\d+)"}}},"input":[{"current":"10.3","groupid":"2","id":"1001","location":"California.SanFrancisco","phase":"0.31","timestamp":"1538548685000","voltage":"219"},{"current":"10.2","groupid":"3","id":"1002","location":"California.SanFrancisco","phase":"0.23","timestamp":"1538548684000","voltage":"220"},{"current":"11.5","groupid":"3","id":"1003","location":"California.LosAngeles","phase":"0.35","timestamp":"1538548686500","voltage":"221"}]}
     "#;
     let sample_in: DsSampleIn = serde_json::from_str(json).unwrap();
-    let output = sample_in.transform().unwrap();
+    let output = sample_in.transform(Some("Asia/Shanghai")).unwrap();
     dbg!(serde_json::to_string(&output).unwrap());
 }
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSets {
     id: String,
@@ -373,12 +301,14 @@ pub(super) async fn data_source_collection(
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
-pub struct DsnValidationQuery {
+pub struct DsnAgentQuery {
     #[param(allow_reserved)]
     dsn: String,
     via: Option<i64>,
     timeout: Option<u64>,
 }
+
+const DEFAULT_REQUEST_TIMEOUT: u64 = 20; // 20 seconds
 
 /// check data source validation by dsn
 #[utoipa::path(
@@ -391,21 +321,20 @@ pub struct DsnValidationQuery {
     params(
         ("dsn" = String, description = "dsn string"),
         ("via" = String, description = "agent id"),
-        ("timeout" = Option<String>, description = "timeout seconds, use default 5s when not set")
+        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
     ),
 )]
 #[get("/ds/in/validate")]
 pub(super) async fn data_source_is_valid(
     controller: Data<TaskControllerRef>,
-    query: Query<DsnValidationQuery>,
+    query: Query<DsnAgentQuery>,
 ) -> impl Responder {
-    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_valid(controller, query),
+        is_valid_impl(controller, query),
     )
     .await;
     match result {
@@ -417,9 +346,9 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub(crate) async fn is_valid(
+pub(crate) async fn is_valid_impl(
     controller: Data<TaskControllerRef>,
-    query: DsnValidationQuery,
+    query: DsnAgentQuery,
 ) -> DataSourceValidation {
     let dsn = query.dsn.into_dsn();
     match dsn {
@@ -435,6 +364,63 @@ pub(crate) async fn is_valid(
         }
     }
 }
+
+/// get sample data from data source
+#[utoipa::path(
+    get,
+    path = "/ds/in/sample",
+    responses(
+        (status = 200, description = "sample data from data source", body = DsSampleIn),
+        (status = 500, description = "get sample data failed", body = Failed),
+    ),
+    params(
+        ("dsn" = String, description = "dsn string"),
+        ("via" = String, description = "agent id"),
+        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
+    ),
+)]
+#[get("/ds/in/sample")]
+pub(super) async fn get_sample(
+    controller: Data<TaskControllerRef>,
+    query: Query<DsnAgentQuery>,
+) -> impl Responder {
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        get_sample_impl(controller, query),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
+        Ok(Err(err)) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("failed to get sample from data source, cause: {:#}", err),
+        }),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("get sample from data source timeout, cause: {:#}", err),
+        }),
+    }
+}
+
+pub(crate) async fn get_sample_impl(
+    _controller: Data<TaskControllerRef>,
+    query: DsnAgentQuery,
+) -> anyhow::Result<DsSampleIn> {
+    let dsn = query.dsn.into_dsn()?;
+
+    match dsn.driver.as_str() {
+        AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        _ => Err(anyhow::anyhow!(
+            "get sample from data source is unsupported"
+        )),
+    }
+}
+
+mod point_loader;
 
 #[utoipa::path(
     tag = "data sources",
@@ -461,91 +447,121 @@ pub(super) async fn download_all_data_set_file(
     }
 }
 
-#[derive(Debug, Deserialize, ToSchema, IntoParams)]
-pub struct DownloadAllPointsParams {
-    from: String,
-    via: Option<i64>,
-    categories: String,
-}
-
-async fn download_all_point_csv_file(
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "init download opc file task successfully", body = String),
+        (status = 500, description = "task start error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/download/task")]
+pub(super) async fn init_download_file_task(
     controller: Data<TaskControllerRef>,
-    // data: Query<DataSetsReq>,
     params: Query<DownloadAllPointsParams>,
-) -> anyhow::Result<NamedFile> {
-    let params = params.into_inner();
-    let data = get_all_points(
-        params.from,
-        params.via,
-        params.categories,
-        controller.into_inner().as_ref(),
-    )
-    .await?;
-
-    let mut config_file = tempfile::NamedTempFile::new()?;
-    tracing::debug!(
-        "temp file path: {}",
-        &config_file.path().to_str().unwrap_or("")
-    );
-    use std::io::Write;
-    write!(config_file, "{}", &data)?;
-    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+) -> impl Responder {
+    match arrange_point_file_download_task(controller, params).await {
+        Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
 }
 
-pub(crate) async fn get_all_points(
-    from: String,
-    via: Option<i64>,
-    categories: String,
-    controller: &TaskController,
-) -> anyhow::Result<String> {
-    let from = from.into_dsn()?;
-    let pattern;
-    match from.driver.as_str() {
-        "pi" | "pibackfill" => {
-            pattern = Some(String::from("*"));
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "check opc file ready", body = String),
+        (status = 500, description = "check opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/are/you/ready")]
+pub(super) async fn check_point_file_ready(params: Query<TaskTicket>) -> impl Responder {
+    match check_task_complete(params.ticket.clone()).await {
+        Ok(complete) => {
+            Ok(HttpResponse::Ok().json(TaskTicket::complete(params.ticket.clone(), complete)))
         }
-        _ => {
-            pattern = Some(String::from(".*"));
-        }
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
     }
-    let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-    let data = DataSetsReq {
-        from: from.to_string(),
-        categories: vec![categories],
-        via,
-        offset: 0,
-        pattern,
-        limit,
-        lang: None,
-    };
-    match if let Some(agent) = data.via {
-        controller.list_datasets_via_agent(agent, data).await
-    } else {
-        list_datasets_from(&data).await
-    } {
-        Ok(data) => {
-            let data = match from.driver.as_str() {
-                "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
-                "opcua" | "opcda" => {
-                    // generate opc template csv
-                    let mut result = String::new();
-                    result.push_str("Point Code(Required and will be point child table name),OPC Point Id (Required)\ntbname,point_id\n");
-                    let data = if from.driver.eq("opcua") {
-                        data.into_iter()
-                            .map(|set| format!("Meter_{{ns}}_{{id}},{}", set.id))
-                            .join("\n")
-                    } else {
-                        data.into_iter()
-                            .map(|set| format!("Meter_{{TagName}},{}", set.id))
-                            .join("\n")
-                    };
-                    result.push_str(data.as_str());
-                    result
-                }
-                _ => unimplemented!(),
-            };
-            Ok(data)
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "download opc file successfully", body = String),
+        (status = 500, description = "download opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/async")]
+pub(super) async fn download_point_file(
+    params: Query<TaskTicket>,
+    req: HttpRequest,
+) -> impl Responder {
+    match load_point_file(&params.ticket, false).await {
+        Ok(named_file) => {
+            let content_disposition = ContentDisposition::attachment("point.csv");
+            Ok(named_file
+                .set_content_disposition(content_disposition)
+                .into_response(&req))
         }
-        Err(err) => Err(err),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "", body = String),
+        (status = 500, description = "check opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/data/page")]
+pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder {
+    match load_point_data_page(&params).await {
+        Ok(page) => Ok(HttpResponse::Ok().json(R::success(page))),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct DatasourceTemplateQuery {
+    driver: String,
+    lang: Option<String>,
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "download template file", body = String),
+        (status = 500, description = "download template file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/template")]
+pub(super) async fn download_point_template_file(
+    params: Query<DatasourceTemplateQuery>,
+    req: HttpRequest,
+) -> impl Responder {
+    let lang: String = params.lang.clone().unwrap_or("zh".to_string());
+
+    match get_point_file_template(&params.driver, &lang).await {
+        Ok(named_file) => {
+            let content_disposition = ContentDisposition::attachment("point_template.csv");
+            Ok(named_file
+                .set_content_disposition(content_disposition)
+                .into_response(&req))
+        }
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
     }
 }

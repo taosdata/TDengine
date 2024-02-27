@@ -115,6 +115,7 @@ pub fn spawn_rest_service(
     let server = HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
+            .wrap(middleware::Logger::default())
             .service(sql)
             .service(ping)
     })

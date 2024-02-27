@@ -17,9 +17,59 @@ options:
     display: Server endpoint
     required: true
     description: |
-      OPC-UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
+      OPC UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
+  security_mode:
+    name: security_mode
+    display: Security Mode
+    description: |
+      Available value is one of None / Sign / SignAndEncrypt.
+    hint:
+      type: str
+      choices:
+        - None
+        - Sign
+        - SignAndEncrypt
+  security_policy:
+    name: security_policy
+    display: Security Policy
+    description: |
+      Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.
+    hint:
+      type: str
+      choices:
+        - None
+        - Basic128Rsa15
+        - Basic256
+        - Basic256Sha256
+        - Aes128_Sha256_RsaOaep
+        - Aes256_Sha256_RsaPss
+
+  certificate:
+    name: certificate
+    display: Secure Channel Certificate
+    description: If the certificate is not authenticated by CA, please trust it on the server side and initiate a connectivity check again.
+    hint:
+      type: file
+  private_key:
+    name: private_key
+    display: Certificate's Private Key
+    description: The private key of the certificate.
+    hint:
+      type: file
+
+  connect_timeout:
+    name: connect_timeout
+    display: Connect Timeout
+    description: |-
+      Timeout for connect to endpoint in seconds
+    placeholder: "10"
+    value: "10"
+    hint:
+      type: integer
+      min: 1
+      max: 60
 
 strict: false
 
@@ -39,12 +89,12 @@ authentication:
       description: Use username and password.
       username:
         display: Username
-        description: OPC server username.
+        description: OPC UA server username.
         placeholder: username
         required: true
       password:
         display: Password
-        description: OPC server password.
+        description: OPC UA server password.
         placeholder: password
         required: true
 
@@ -52,39 +102,12 @@ authentication:
       display: Certificates
       description: Use certificate file and private key.
       params:
-        - name: security_mode
-          display: Security Mode
-          description: |
-            Available value is one of None / Sign / SignAndEncrypt.
-
-            - **None**:
-            - **Sign**:
-            - **SingAndEncrypt**:
-          hint:
-            type: str
-            choices:
-              - None
-              - Sign
-              - SignAndEncrypt
-        - name: security_policy
-          display: Security Policy
-          description: |
-            Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.
-          hint:
-            type: str
-            choices:
-              - None
-              - Basic128Rsa15
-              - Basic256
-              - Basic256Sha256
-        - name: certificate
-          display: Certificate file content
-          # description: Path to cert.pem. Required when security mode or policy isn't "None".
+        - name: auth_certificate
+          display: Authentication Certificate
           hint:
             type: file
-        - name: private_key
-          display: Private key file content
-          # description: Path to private key.pem. Required when security mode or policy isn't "None"
+        - name: auth_private_key
+          display: Private key of Certificate
           hint:
             type: file
 
@@ -96,7 +119,7 @@ datasets:
   - category: csv_config_file
     display: Upload CSV
     description: |
-      Use OPC UA point configuration file.
+      You can either download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.
     target:
       name: csv_config_file
       description: |
@@ -107,21 +130,42 @@ datasets:
       selectable: true
 
   - category: select_all_points
-    display: All Points
+    display: Data Points
     description: |
       OPC UA point configuration file.
     target:
       name: select_all_points
       description: |
-        Select All Points on OPC Server.
+        Select data points that meet specified conditions on the OPC UA server.
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: Root node ID
+        description: |
+          Query all child nodes starting from this node.
+        placeholder: For example ns=1;i=1001
+        hint:
+          type: str
+      - name: namespaces
+        display: Namespaces of point
+        description: |
+          Support multiple selections, only query the data points under these namespaces.
+        placeholder: Please select after connection check successfully
+        hint:
+          type: str
+      - name: pattern
+        display: Regex pattern
+        description: Match the data point name or id
+        hint:
+          type: str
+
       - name: table_primary_key
         display: Primary Key
-        description:
+        description: |
+          The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.
         required: true
         value: original_ts
         hint:
@@ -131,7 +175,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
-        value: meter_{ns}_{id}
+        value: t_{ns}_{id}
         description: |
           Support <child table prefix>_{ns}_{id} pattern
         hint:
@@ -139,34 +183,9 @@ datasets:
         required: true
 
 groups:
-  - name: Connection
-    display_order: 1
-    description: Configuration used in OPC connection
-    params:
-      - name: connect_timeout
-        display: Connect Timeout
-        description: |-
-          Timeout for connect to endpoint in seconds
-        placeholder: 10
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 60
-
-      - name: request_timeout
-        display: Request Timeout
-        description: Timeout for a request to endpoint in seconds
-        placeholder: 10
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 60
-
   - name: Collect
-    display_order: 2
-    description: Configurations for collecting data from OPC
+    display_order: 1
+    description: Configurations for collecting data from OPC UA server.
     params:
       - name: interval
         display: Collect interval
@@ -189,6 +208,16 @@ groups:
           choices:
             - observe
             - subscribe
+
+      - name: request_timeout
+        display: Request Timeout
+        description: Timeout for a request to endpoint in seconds
+        placeholder: 10
+        value: 1
+        hint:
+          type: integer
+          min: 1
+          max: 60
 
 advanced:
   name: Advanced Options
@@ -219,7 +248,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: write_concurrency
       display: Write Concurrency
       description: |
@@ -228,7 +257,7 @@ advanced:
       hint:
         type: integer
         min: 0
-        max: 1000
+        max: 128
     - name: batch_size
       display: Batch Size
       description: |

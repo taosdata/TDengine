@@ -4,6 +4,7 @@ import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.threads.BucketDataThread;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -22,9 +23,14 @@ public class BucketCache {
     public static LinkedHashMap<String, InfluxdbBucketEntity> bucketMap = new LinkedHashMap<>();
 
     /**
-     * MeasurementName-Entity
+     * BucketName,Measurement-Entity
      */
     public static LinkedHashMap<String, InfluxdbMeasurementEntity> measurementMap = new LinkedHashMap<>();
+
+    /**
+     * BucketName,Measurement-firstTimestamp
+     */
+    public static LinkedHashMap<String, Instant> measurementFirstTimestampMap = new LinkedHashMap<>();
 
     /**
      * BucketName,Measurement-读取数据任务队列
@@ -35,6 +41,16 @@ public class BucketCache {
      * BucketName,Measurement-读取数据任务阻塞标识
      */
     private static ConcurrentHashMap<String, Boolean> bucketDataThreadBlockedMap = new ConcurrentHashMap<>();
+
+    /**
+     * BucketName,Measurement-子表数量
+     */
+    private static ConcurrentHashMap<String, Integer> measurementSubtableAmountMap = new ConcurrentHashMap<>();
+
+    /**
+     * BucketName,Measurement-根据“子表数量”计算得到的limit数量
+     */
+    private static ConcurrentHashMap<String, Long> measurementQueryLimitMap = new ConcurrentHashMap<>();
 
     /**
      * 添加Bucket子线程并获取队列大小
@@ -140,5 +156,40 @@ public class BucketCache {
      */
     public static String generateBucketDataThreadKey(String bucket, String measurement) {
         return bucket + "," + measurement;
+    }
+
+    /**
+     * 根据子表数量与列数量更新指定measurement的读取limit
+     *
+     * @param key
+     * @param subtableAmount
+     * @param queueSizeLimit
+     * @param defaultLimit
+     * @return
+     */
+    public static void updateQueryLimit(String key, int subtableAmount, long queueSizeLimit, long defaultLimit) {
+        if (subtableAmount > measurementSubtableAmountMap.getOrDefault(key, 0)) {
+            // 更新子表数量
+            measurementSubtableAmountMap.put(key, subtableAmount);
+            // 更新查询limit
+            long queryLimit = queueSizeLimit / subtableAmount;
+            if (queryLimit < 1) {
+                measurementQueryLimitMap.put(key, 1L);
+            } else if (queryLimit > defaultLimit) {
+                measurementQueryLimitMap.put(key, defaultLimit);
+            } else {
+                measurementQueryLimitMap.put(key, queryLimit);
+            }
+        }
+    }
+
+    /**
+     * 获取指定measurement的读取limit
+     *
+     * @param key
+     * @return
+     */
+    public static long getQueryLimit(String key) {
+        return measurementQueryLimitMap.getOrDefault(key, 1L);
     }
 }

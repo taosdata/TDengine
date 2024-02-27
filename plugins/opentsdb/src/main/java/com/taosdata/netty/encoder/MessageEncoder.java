@@ -1,6 +1,5 @@
 package com.taosdata.netty.encoder;
 
-import com.taosdata.netty.model.dto.MessageDto;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
@@ -14,15 +13,15 @@ import java.util.Arrays;
  *
  * @author ZYP
  */
-public class MessageEncoder extends MessageToByteEncoder<MessageDto> {
+public class MessageEncoder extends MessageToByteEncoder<byte[]> {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
 
     @Override
-    protected void encode(ChannelHandlerContext channelHandlerContext, MessageDto messageDto, ByteBuf out) throws Exception {
+    protected void encode(ChannelHandlerContext channelHandlerContext, byte[] bytes, ByteBuf out) throws Exception {
         // TODO 目前仅发送apache arrow字节流
-        out.writeBytes(messageDto.getBody());
+        out.writeBytes(bytes);
         // 将字节流输出到log文件
-        logger.debug("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(messageDto.getBody()));
+        logger.debug("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
     }
 }

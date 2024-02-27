@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +34,11 @@ clean_session = true
 
 [topics]
 "topic1" = 0
+
+[dump]
+enable = true
+path = "%s"
+keep = 7
 `
 
 func Test_All(t *testing.T) {
@@ -39,7 +49,9 @@ func Test_All(t *testing.T) {
 	defer server.Close()
 	finish := make(chan struct{})
 	go accept(t, server, finish)
-	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "3.0")
+	tmpDir, err := os.MkdirTemp("", "*")
+	tmpDir = strings.ReplaceAll(tmpDir, "\\", "\\\\")
+	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "3.0", tmpDir)
 	t.Log(configStr)
 
 	f, err := os.CreateTemp("", "*")
@@ -67,6 +79,18 @@ func Test_All(t *testing.T) {
 	assert.NoError(t, err)
 
 	<-finish
+	time.Sleep(time.Second)
+	files, err := findFilesWithPrefix(tmpDir, "mqtt.dump")
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	data, err := os.ReadFile(files[0])
+	assert.NoError(t, err)
+	r := bufio.NewReader(bytes.NewReader(data))
+	l, _, err := r.ReadLine()
+	assert.NoError(t, err)
+	assert.Contains(t, string(l), "0,topic1,value1")
+	l, _, err = r.ReadLine()
+	assert.ErrorIs(t, err, io.EOF)
 }
 
 func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
@@ -108,4 +132,29 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 	} else {
 		t.Error("expect get data")
 	}
+}
+
+func findFilesWithPrefix(rootPath, prefix string) ([]string, error) {
+	var matchingFiles []string
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			fileName := info.Name()
+			if strings.HasPrefix(fileName, prefix) {
+				matchingFiles = append(matchingFiles, path)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matchingFiles, nil
 }

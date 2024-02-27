@@ -2,6 +2,7 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
+import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
@@ -17,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
@@ -68,9 +70,14 @@ public class BucketThread implements Runnable {
     private InfluxdbService influxdbService = ApplicationContextProvider.getBean(InfluxdbServiceImpl.class);
 
     /**
+     * 上次查找新加measurement的时间（为了减少操作频率）
+     */
+    private long lastFindAdditional = 0L;
+
+    /**
      * 当前已经处理完第几个，结合beginTime与readWindow确定读取时间
      */
-    private int index = 0;
+    private long index = 0;
 
     /**
      * 上次结束时间，当上次窗口不完整时依此进行调整
@@ -105,8 +112,11 @@ public class BucketThread implements Runnable {
                 }
                 // 更新当前时间
                 this.now = new Date(System.currentTimeMillis() - performanceConfig.getDelay() * 1000);
-                // 处理新增的measurement
-                additionalMeasurement();
+                // 处理新增的measurement（每分钟）
+                if (start - this.lastFindAdditional > 60000) {
+                    this.lastFindAdditional = start;
+                    additionalMeasurement();
+                }
                 // 下一个时间段，英文逗号分割
                 String timeRange = getTimeRange(this.index);
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
@@ -114,10 +124,14 @@ public class BucketThread implements Runnable {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
                     if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.taskEndTime.before(this.now)) {
                         // 判断是否可以退出进程
-                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated // 防止启动时直接退出
+                                && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() // 判断读取任务完成
+                                && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get() // 判断全部推送
+                                && BucketDataCache.socketMap.size() == 0 // 判断连接全部关闭
+                        ) {
                             Thread.sleep(5000L);
-                            logger.info("Task execution completed, normal exit.");
                             logger.info(StatusCache.toPrintString());
+                            logger.info("Task execution completed, normal exit.");
                             System.exit(0);
                         }
                     }
@@ -133,6 +147,14 @@ public class BucketThread implements Runnable {
                     if (taskConfig.getMeasurements().size() > 0 && !taskConfig.getMeasurements().contains(v.getMeasurement())) {
                         return;
                     }
+                    // 如果被更新了firstTimestamp
+                    if (BucketCache.measurementFirstTimestampMap.getOrDefault(k, null) != null) {
+                        long timestamp = BucketCache.measurementFirstTimestampMap.get(k).getEpochSecond() * 1_000_000_000 + BucketCache.measurementFirstTimestampMap.get(k).getNano();
+                        // 如果timestamp晚于endTime则直接忽略任务
+                        if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                            return;
+                        }
+                    }
                     // 如果任务中有断点信息
                     if (taskConfig.getBreakpoint() != null && taskConfig.getBreakpoint().containsKey(v.getMeasurement())) {
                         long timestamp = taskConfig.getBreakpoint().get(v.getMeasurement());
@@ -142,12 +164,16 @@ public class BucketThread implements Runnable {
                         }
                     }
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
-                        // 使用bucket+measurement区分任务队列
-                        String key = BucketCache.generateBucketDataThreadKey(this.bucket, v.getMeasurement());
-                        // 生成bucket子线程并放入队列中
-                        BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
-                        // 读取数据任务计数
-                        StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
+                        try {
+                            // 使用bucket+measurement区分任务队列
+                            String key = BucketCache.generateBucketDataThreadKey(this.bucket, v.getMeasurement());
+                            // 生成bucket子线程并放入队列中
+                            BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
+                            // 读取数据任务计数
+                            StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
+                        } catch (Exception e) {
+                            logger.error("An exception occurred during the creating of BucketDataThread", e);
+                        }
                     }
                 });
                 // 更新序号
@@ -229,10 +255,24 @@ public class BucketThread implements Runnable {
                 return;
             }
             String measurement = influxdbMeasurementEntity.getMeasurement();
+            // 如果任务中指定了measurement则过滤
+            if (taskConfig.getMeasurements().size() > 0 && !taskConfig.getMeasurements().contains(measurement)) {
+                return;
+            }
             // 如果不在缓存中
             if (!BucketCache.measurementMap.containsKey(BucketCache.generateBucketDataThreadKey(this.bucket, measurement))) {
+                // 通过first函数获取最早时间戳
+                Instant firstTimestamp = null;
+                try {
+                    firstTimestamp = influxdbService.getFirstTimestampInRange(this.orgId, this.bucket, measurement, taskConfig.getBeginTime());
+                    // 写入内存中
+                    BucketCache.measurementFirstTimestampMap.put(BucketCache.generateBucketDataThreadKey(this.bucket, measurement), firstTimestamp);
+                    logger.info("Auto update startTime: bucket: {}, measurement: {}, first: {}", this.bucket, measurement, firstTimestamp);
+                } catch (Exception e) {
+                    logger.error("An exception occurred during getting first  timestamp", e);
+                }
                 // 添加从0到index-1的所有时间段
-                for (int i = 0; i < this.index; i++) {
+                for (long i = 0; i < this.index; i++) {
                     try {
                         // 获取时间段
                         String timeRange = getTimeRange(i);
@@ -242,6 +282,14 @@ public class BucketThread implements Runnable {
                         }
                         // 拆分时间段
                         String[] timeRangeArr = timeRange.split(",");
+                        // 如果被更新了firstTimestamp
+                        if (firstTimestamp != null) {
+                            long timestamp = firstTimestamp.getEpochSecond() * 1_000_000_000 + firstTimestamp.getNano();
+                            // 如果timestamp晚于endTime则直接忽略任务
+                            if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                                continue;
+                            }
+                        }
                         // 使用bucket+measurement区分任务队列
                         String key = BucketCache.generateBucketDataThreadKey(this.bucket, measurement);
                         // 生成bucket子线程并放入队列中
@@ -265,7 +313,7 @@ public class BucketThread implements Runnable {
      * @return
      * @throws Exception
      */
-    private String getTimeRange(int index) throws Exception {
+    private String getTimeRange(long index) throws Exception {
         // 获取配置信息
         String beginTime = this.taskConfig.getBeginTime();
         String endTime = this.taskConfig.getEndTime();
@@ -296,7 +344,7 @@ public class BucketThread implements Runnable {
      * @param index
      * @return
      */
-    private String getTimeRange(Date beginTime, Date endTime, int index, int readWindow) {
+    private String getTimeRange(Date beginTime, Date endTime, long index, int readWindow) {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * (readWindow * 60 * 1000);
         long end = begin + readWindow * 60 * 1000;

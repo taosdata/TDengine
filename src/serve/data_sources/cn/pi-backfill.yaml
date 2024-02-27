@@ -84,6 +84,18 @@ advanced:
   description: |
     对数据源性能、日志等其他参数进行调整，可修改以下选项。
   params:
+    - name: log_level
+      display: 日志级别
+      description: 根据需要调整数据源的日志级别，此参数不总是生效。
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
     - name: batch_size
       display: 批次大小
       description: |

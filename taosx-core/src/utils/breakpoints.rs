@@ -35,6 +35,27 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
         None => Ok(None),
     }
 }
+pub async fn breakpoints_get_async(
+    task_id: &str,
+    sub_task: &str,
+) -> anyhow::Result<Option<String>> {
+    let path = breakpoints_db_dir(task_id);
+    // if path not exist, return None to avoid create db file
+    if !path.exists() {
+        return Ok(None);
+    }
+    let sub_task = sub_task.to_string();
+    tokio::task::spawn_blocking(move || {
+        let db = sled::open(path)
+            .map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+        let result = db.get(sub_task.as_bytes())?;
+        match result {
+            Some(v) => Ok(Some(String::from_utf8(v.to_vec())?)),
+            None => Ok(None),
+        }
+    })
+    .await?
+}
 
 pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)>> {
     let path = breakpoints_db_dir(task_id);
@@ -161,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn test_breakpoints_set_muti_thread() {
+    fn test_breakpoints_set_multi_thread() {
         use std::thread;
         let mut handles = vec![];
         let n = 10;

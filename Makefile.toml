@@ -1,3 +1,4 @@
+# command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
 [config]
 load_cargo_aliases = false
 skip_core_tasks = true
@@ -9,6 +10,10 @@ VER_NUMBER = { script = [
 ], condition = { env_not_set = [
   "VER_NUMBER",
 ] } }
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
 
 [tasks.dump-env]
 script = """
@@ -25,6 +30,17 @@ args = ["build", "--release", "-p", "taosx-agent"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
+
+[tasks.taos-explorer]
+script = """
+cd ../explorer && git checkout main && git pull
+rsync -u root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
+rsync -u root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
+rm -rf public/docs && unzip docs-zh.zip -d public/docs
+rm -rf public/docs-en && unzip docs-en.zip -d public/docs-en
+yarn install && yarn build:bin
+mkdir -p ../taosx/target/release/ && cp target/release/taos-explorer ../taosx/target/release/taos-explorer
+"""
 
 [tasks.clean-plugins]
 script = """
@@ -87,7 +103,7 @@ cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
 cp packaging/uninstall.sh $PKG/usr/local/taos/
 
 cp target/*.service $PKG/etc/systemd/
-cp taosx-agent/examples/agent.toml $PKG/etc/taos/agnt.example.toml
+cp taosx-agent/examples/agent.toml $PKG/etc/taos/agent.example.toml
 
 cd $PKG
 version=$(./usr/bin/taosx --version|cut -f 2 -d " ")

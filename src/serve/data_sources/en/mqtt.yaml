@@ -164,14 +164,12 @@ advanced:
         min: 1
         max: 60
     - name: keep_raw_data
-      hidden: true
       display: Keep Raw Data
       description: |
         Whether to keep the raw data. If enabled, the raw data will be stored.
       hint:
         type: bool
     - name: keep_raw_data_days
-      hidden: true
       display: Max Keep Days
       description: |
         The number of days to keep the raw data. The default value is 1 day.
@@ -183,7 +181,6 @@ advanced:
         max: 365
 
     - name: keep_raw_data_dir
-      hidden: true
       display: Raw Data Directory
       description: |
         The directory to store the raw data. The default value is `$DATA_DIR/tasks/:id/rawdata/`.

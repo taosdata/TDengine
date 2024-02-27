@@ -9,11 +9,13 @@ pub struct UaConnectConfig {
     pub request_timeout: i64,
     pub security_policy: String,
     pub security_mode: String,
+    pub certificate: Option<String>,
+    pub private_key: Option<String>,
     pub auth_method: AuthMethod,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub certificate: Option<String>,
-    pub private_key: Option<String>,
+    pub auth_certificate: Option<String>,
+    pub auth_private_key: Option<String>,
 }
 
 impl UaConnectConfig {
@@ -23,14 +25,10 @@ impl UaConnectConfig {
         let request_timeout = Self::parse_request_timeout(dsn)?;
         let security_policy = Self::parse_security_policy(dsn);
         let security_mode = Self::parse_security_mode(dsn);
-        let certificate = dsn
-            .params
-            .get("certificate")
-            .map(|v| v.trim_start_matches('@').to_string());
-        let private_key = dsn
-            .params
-            .get("private_key")
-            .map(|v| v.trim_start_matches('@').to_string());
+        let certificate = Self::parse_value(dsn, "certificate");
+        let private_key = Self::parse_value(dsn, "private_key");
+        let auth_certificate = Self::parse_value(dsn, "auth_certificate");
+        let auth_private_key = Self::parse_value(dsn, "auth_private_key");
         let username = dsn.username.clone();
         let password = dsn.password.clone();
         let auth_method = if username.is_some() || password.is_some() {
@@ -38,7 +36,7 @@ impl UaConnectConfig {
                 Some(_) => AuthMethod::UserName,
                 None => Err(anyhow::anyhow!("Username and password are both required for UserName authentication method in {}", dsn.clone().to_string()))?,
             }
-        } else if certificate.is_some() || private_key.is_some() {
+        } else if auth_certificate.is_some() || auth_private_key.is_some() {
             AuthMethod::Certificate
         } else {
             AuthMethod::Anonymous
@@ -52,9 +50,11 @@ impl UaConnectConfig {
             security_mode,
             certificate,
             private_key,
+            auth_method,
             username,
             password,
-            auth_method,
+            auth_certificate,
+            auth_private_key,
         })
     }
 
@@ -118,6 +118,10 @@ impl UaConnectConfig {
             .map(|v| v.to_string())
             .unwrap_or("None".to_string())
     }
+
+    fn parse_value(dsn: &Dsn, key: &str) -> Option<String> {
+        dsn.params.get(key).map(|v| v.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -136,8 +140,8 @@ mod ua_connect_config_tests {
         assert_eq!(10, config.request_timeout);
         assert_eq!("None", config.security_policy);
         assert_eq!("None", config.security_mode);
-        assert_eq!(None, config.certificate);
-        assert_eq!(None, config.private_key);
+        assert_eq!(None, config.auth_certificate);
+        assert_eq!(None, config.auth_private_key);
         assert_eq!(None, config.username);
         assert_eq!(None, config.password);
         assert_eq!(AuthMethod::Anonymous, config.auth_method);
@@ -149,8 +153,8 @@ mod ua_connect_config_tests {
         assert_eq!(10, config.request_timeout);
         assert_eq!("None", config.security_policy);
         assert_eq!("None", config.security_mode);
-        assert_eq!(None, config.certificate);
-        assert_eq!(None, config.private_key);
+        assert_eq!(None, config.auth_certificate);
+        assert_eq!(None, config.auth_private_key);
         assert_eq!("root", config.username.unwrap());
         assert_eq!("taosdata", config.password.unwrap());
         assert_eq!(AuthMethod::UserName, config.auth_method);
@@ -199,6 +203,18 @@ mod ua_connect_config_tests {
             "parse connection_timeout failed, cause: invalid digit found in string",
             timeout.unwrap_err().to_string()
         );
+    }
+
+    #[test]
+    fn test_certificate_file() {
+        let dsn = Dsn::from_str("opc://localhost:7080?certificate=@/tmp/cert").unwrap();
+        let config = UaConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!("/tmp/cert", config.certificate.unwrap());
+
+        let dsn = Dsn::from_str("opc://localhost:7080?certificate=abc").unwrap();
+        let config = UaConnectConfig::from_dsn(&dsn).unwrap();
+        println!("{:?}", config.certificate);
+        assert!(config.certificate.is_none());
     }
 
     #[test]
