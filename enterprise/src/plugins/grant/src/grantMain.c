@@ -49,42 +49,6 @@
     }                                      \
   } while (0)
 
-#define GRANT_ITEM_SET_VAL(v1, v2, _max_val_) \
-  do {                                        \
-    if ((v1) != (_max_val_)) {                \
-      if ((v2) == (_max_val_)) {              \
-        (v1) = (_max_val_);                   \
-      } else if ((v1) < (v2)) {               \
-        (v1) = (v2);                          \
-      }                                       \
-    }                                         \
-  } while (0)
-
-#define GRANT_ITEM_COMPARE(v1, v2, _max_val_) \
-  do {                                        \
-    if ((v1) == (_max_val_)) {                \
-      if ((v2) != (_max_val_)) {              \
-        return 1;                             \
-      }                                       \
-    } else if ((v2) == (_max_val_)) {         \
-      result = -1;                            \
-    } else if ((v1) > (v2)) {                 \
-      return 1;                               \
-    } else if ((v1) < (v2)) {                 \
-      result = -1;                            \
-    }                                         \
-  } while (0)
-
-#define GRANT_ITEMS_INIT(pItems)                  \
-  do {                                            \
-    pItems[0].number = GRANT_CONN_NUM_UNDEF;      \
-    pItems[0].speed = GRANT_CONN_SPEED_UNDEF;     \
-    pItems[0].expire = GRANT_CONN_EXPIRE_UNDEF;   \
-    for (int32_t i = 1; i < CONN_TYPE_MAX; ++i) { \
-      *(pItems + i) = *(pItems + 0);              \
-    }                                             \
-  } while (0)
-
 #define GRANT_OPT_EXPIRE_CHECK(expire, name)                                                                       \
   do {                                                                                                             \
     if ((expire) == GRANT_UNIQ_UNDEFINED) {                                                                        \
@@ -211,6 +175,15 @@ static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "gr
                                                    "revoked"};  // keep 0/1 ungranted
 
 static const char *gGrantReason[GRANT_STATE_REASON_MAX] = {"init", "alter", "mismatch", "expire"};
+
+static int32_t tGetConnIndex(const char *name) {
+  for (int32_t i = CONN_TYPE_MAX; i < CONN_TYPE_DYN_MAX; ++i) {
+    if (strncasecmp(gConnName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 static const char *tGetConnDisplay(const char *name) {
   for (int32_t i = CONN_TYPE_MAX; i < CONN_TYPE_DYN_MAX; ++i) {
@@ -648,8 +621,12 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
 }
 
 static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj, int8_t state) {
-  bool    revoked = state == GRANT_STATE_REVOKED;
+  bool revoked = state == GRANT_STATE_REVOKED;
+#ifndef GRANTS_CFG
   int64_t dftExpireSec = grantClusterEpoch + GRANT_DEFAULT;
+#else
+  int64_t dftExpireSec = GRANT_UNIQ_UNLIMITED;
+#endif
 
   gStatus.officialVersion = grantObj.officialVersion;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireSec);
@@ -694,9 +671,33 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_ITEM_EXPIRE_CHECK(gStatus.viewExpireSec, grantCurTime, gStatus.viewExpired);
   GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
 
+  // extract known dataIns from grantObj to grantStatus
+  int8_t  knowDataFlag[CONN_TYPE_DYN_MAX] = {0};
+  int32_t nDataIn = taosArrayGetSize(pObj->pDataIns);
+  if (nDataIn > 0) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pObj->pDataIns); ++i) {
+      SGrantDataIns *pDataIns = TARRAY_GET_ELEM(pObj->pDataIns, i);
+      int32_t        j = tGetConnIndex(pDataIns->name);
+      if (j >= CONN_TYPE_MAX && j < CONN_TYPE_DYN_MAX) {
+        GRANT_EXPIRE_CONVERT(pDataIns->expire, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
+        GRANT_VALUE_CONVERT(pDataIns->speed, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
+        GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+        knowDataFlag[j] = 1;
+        taosArrayRemove(pObj->pDataIns, i);  // remove known dataIns
+      }
+    }
+  }
+  for (int32_t j = CONN_TYPE_MAX; j < CONN_TYPE_DYN_MAX; ++j) {
+    if (knowDataFlag[j] == 0) {
+      GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
+      GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
+      GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+    }
+  }
+
   // add rwlock since retrieve would access simultaneously
   taosWLockLatch(&grantHandle.rwLock);
-  int32_t nDataIn = taosArrayGetSize(pObj->pDataIns);
+  nDataIn = taosArrayGetSize(pObj->pDataIns);
   if (nDataIn > 0) {
     void *tmp = pStatus->pDataIns;
     pStatus->pDataIns = pObj->pDataIns;
@@ -1430,8 +1431,11 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     gStatus.viewExpired = optExpired;
 
     // fixed dataIns
-    grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_MAX, optExpireSec);
+    grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
   }
+#else
+  gStatus.serviceExpireSec = GRANT_UNIQ_UNLIMITED;
+  grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_DFT_DATAIN_EXPIRE);
 #endif
 }
 
@@ -2111,11 +2115,12 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     for (int32_t i = 0; i < nDynamic; ++i) {
       SGrantItem64 *pItem = TARRAY_GET_ELEM(pStatus->pItem64, i);
       mndRetrieveGrantFullItem(pBlock, &numOfRows, pItem->name, tGetGrantDisplay(pItem->name),
-                               (int64_t)pItem->expire * 86400, 0, pItem->number, false);
+                               pItem->expire == GRANT_UNIQ_UNLIMITED ? pItem->expire : (int64_t)pItem->expire * 86400,
+                               0, pItem->number, false);
     }
 
-    // fixed dataIns
-    for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    // known dataIns
+    for (int32_t i = 0; i < CONN_TYPE_DYN_MAX; ++i) {
       mndRetrieveGrantFullItem(pBlock, &numOfRows, gConnName[i], gConnDisplay[i], pStatus->dataIns[i].expireSec,
                                pStatus->dataIns[i].number, pStatus->dataIns[i].speed, true);
     }
@@ -2123,8 +2128,10 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     nDynamic = taosArrayGetSize(pStatus->pDataIns);
     for (int32_t i = 0; i < nDynamic; ++i) {
       SGrantDataIns *pDataIn = TARRAY_GET_ELEM(pStatus->pDataIns, i);
-      mndRetrieveGrantFullItem(pBlock, &numOfRows, pDataIn->name, tGetConnDisplay(pDataIn->name),
-                               pDataIn->expire * 86400, pDataIn->number, pDataIn->speed, true);
+      mndRetrieveGrantFullItem(
+          pBlock, &numOfRows, pDataIn->name, tGetConnDisplay(pDataIn->name),
+          pDataIn->expire == GRANT_UNIQ_UNLIMITED ? pDataIn->expire : (int64_t)pDataIn->expire * 86400, pDataIn->number,
+          pDataIn->speed, true);
     }
 
     taosRUnLockLatch(&grantHandle.rwLock);
@@ -2369,6 +2376,9 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   if (tSerializeGrantDataIns(&encoder, pStatus->dataIns) < 0) goto _exit;
   if (tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns) < 0) goto _exit;
 
+  // for future grantItems
+  // ...
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2405,10 +2415,13 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (tDecodeI32v(&decoder, &pStatus->curViews) < 0) goto _exit;
   if (tDecodeI64v(&decoder, &pStatus->revokedExpireSec) < 0) goto _exit;
 
-  // variants
   if (tDecodeI64v(&decoder, clusterTime) < 0) goto _exit;
   if (tDeserializeGrantDataIns(&decoder, pStatus->dataIns) < 0) goto _exit;
   if (tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns) < 0) goto _exit;
+
+  // for future grantItems
+  // ...
+  // if(tDecodeIsEnd(&decoder, ...)
 
   code = 0;
 _exit:
@@ -2418,7 +2431,8 @@ _exit:
 }
 
 static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *dataIn) {
-  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+  if (tEncodeI16v(encoder, CONN_TYPE_DYN_MAX) < 0) return -1;
+  for (int32_t i = 0; i < CONN_TYPE_DYN_MAX; ++i) {
     if (tEncodeI32v(encoder, dataIn[i].number) < 0) return -1;
     if (tEncodeI32v(encoder, dataIn[i].speed) < 0) return -1;
     if (tEncodeI64v(encoder, dataIn[i].expireSec) < 0) return -1;
@@ -2427,10 +2441,18 @@ static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *dataIn) {
 }
 
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *dataIn) {
-  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
-    if (tDecodeI32v(decoder, &dataIn[i].number) < 0) return -1;
-    if (tDecodeI32v(decoder, &dataIn[i].speed) < 0) return -1;
-    if (tDecodeI64v(decoder, &dataIn[i].expireSec) < 0) return -1;
+  int16_t nIns = 0;
+  if (tDecodeI16v(decoder, &nIns) < 0) return -1;
+  for (int32_t i = 0; i < nIns; ++i) {
+    if (nIns > CONN_TYPE_DYN_MAX) {
+      if (tDecodeI32v(decoder, NULL) < 0) return -1;
+      if (tDecodeI32v(decoder, NULL) < 0) return -1;
+      if (tDecodeI64v(decoder, NULL) < 0) return -1;
+    } else {
+      if (tDecodeI32v(decoder, &dataIn[i].number) < 0) return -1;
+      if (tDecodeI32v(decoder, &dataIn[i].speed) < 0) return -1;
+      if (tDecodeI64v(decoder, &dataIn[i].expireSec) < 0) return -1;
+    }
   }
   return 0;
 }

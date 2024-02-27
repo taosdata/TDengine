@@ -23,6 +23,10 @@ IF (TD_WINDOWS)
     INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/contrib/pthread)
 ENDIF()
 
+IF (DEFINED GRANT_CFG_INCLUDE_DIR)
+  add_definitions(-DGRANTS_CFG)
+ENDIF()
+
 IF (BUILD_DM_MODULE)
     LIST(APPEND SRC ./src/dmodule.c)
     ADD_LIBRARY(dmodule ${SRC})
