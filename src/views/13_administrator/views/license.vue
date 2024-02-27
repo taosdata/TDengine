@@ -309,7 +309,7 @@ export default {
                 })
               );
             });
-
+ 
             this.tableData = array
               .filter((item) => item.limits.indexOf("{") == 0)
               .map((data) => {
@@ -318,11 +318,11 @@ export default {
                   type: data.display_name,
                   expire_time: data.expireTime,
                 };
-              });
-              this.advancedTableData = array
-                .filter((item) => item.limits.indexOf("{") == -1)
-                
-              console.log("this.tableData", this.tableData, this.advancedTableData);
+              })
+              .filter(v => v.type != '');
+            this.advancedTableData = array
+              .filter((item) => item.limits.indexOf("{") == -1)
+            console.log("this.tableData", this.tableData, this.advancedTableData);
           });
         }
         this.loading = false;

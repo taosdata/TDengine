@@ -12,7 +12,7 @@
         </li> -->
         <li>
           <span class="version">{{ $t("header.version") }}：</span>
-          <span class="value">{{ version }}</span>
+          <span class="value" :style="{ color: version.includes('Expired') ? 'red': ''}">{{ version }}</span>
         </li>
       </ul>
     </div>
@@ -166,19 +166,25 @@ export default {
             );
           });
           localStorage.setItem("agent_version", this.getVersion(this.license[0]["server_version()"]));
+          let versionName = ''
+          switch (this.license[0].version) {
+            case "trial":
+              versionName = this.license[0].valid
+                ? "Trial Expired"
+                : "Trial"
+              break;
+            case "official":
+              versionName = this.license[0].valid
+                ? "Enterprise License Expired"
+                : "Enterprise"
+              break;
+            default:
+              versionName = "Community"
+              break;
+          }
           this.version =
             this.getVersion(this.license[0]["server_version()"]) +
-            " " +
-            this.license[0].version.charAt(0).toUpperCase() +
-            this.license[0].version.slice(1) +
-            " " +
-            (this.license[0].version == "trial"
-              ? this.license[0].valid
-                ? "Expired"
-                : ""
-              : this.license[0].valid
-              ? "License Expired"
-              : "");
+            " " + versionName
           localStorage.setItem("serverVersion",this.version);
         });
       } catch (error) {
