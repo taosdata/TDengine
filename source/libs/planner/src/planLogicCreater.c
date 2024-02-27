@@ -16,6 +16,7 @@
 #include "planInt.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "tglobal.h"
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
@@ -1013,6 +1014,10 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   SWindowLogicNode* pWindow = (SWindowLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
   if (NULL == pWindow) {
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (tsDisableCount) {
+    return TSDB_CODE_FAILED;
   }
 
   pWindow->winType = WINDOW_TYPE_COUNT;
