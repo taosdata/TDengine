@@ -1225,3 +1225,7 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamProcessStreamHbRsp(pTq->pStreamMeta, pMsg);
 }
+
+int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamProcessReqCheckpointRsp(pTq->pStreamMeta, pMsg);
+}

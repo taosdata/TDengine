@@ -308,8 +308,8 @@ static int64_t getVgroupLastVer(const SArray* pList, int32_t vgId) {
     }
   }
 
-  mError("failed to find the vgId:%d for extract last version, total existed vgs:%d", vgId, size);
-  return -1;
+  mDebug("no data in vgId:%d for extract last version, set to be 0, total existed vgs:%d", vgId, size);
+  return 1;
 }
 
 static void streamTaskSetDataRange(SStreamTask* pTask, int64_t skey, SArray* pVerList, int32_t vgId) {
