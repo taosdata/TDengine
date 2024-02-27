@@ -19,7 +19,13 @@
         :sortable="item == 'Name' ? true : false"
         show-overflow-tooltip
         :label="item"
-      ></el-table-column>
+      >
+      <template slot="header">
+        <el-tooltip :content="item" placement="top-start">
+          <span>{{ item }}</span>
+        </el-tooltip>
+      </template>
+    </el-table-column>
     </el-table>
     <!-- <div class="block-page">
       <el-pagination
