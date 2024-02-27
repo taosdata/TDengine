@@ -9,6 +9,8 @@ print =============== create database
 sql create database test vgroups 1;
 sql use test;
 
+sql alter local 'disableCount' '0' ;
+
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql insert into t1 values(1648791213000,0,1,1,1.0);
