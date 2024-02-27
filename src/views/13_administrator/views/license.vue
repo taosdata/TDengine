@@ -39,7 +39,7 @@
       >
         <span style="color: #333" v-if="item.key !== 'version'">
           {{
-            item.key == "expire_time" && item.value !== "unlimited"
+            ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
               ? parsinginZone(item.value, "YYYY-MM-DD h:mm:ss")
               : item.value
           }}</span
