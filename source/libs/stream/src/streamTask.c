@@ -934,9 +934,8 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   }
   tEncoderClear(&encoder);
 
-  SRpcMsg msg = {.info.noResp = 1};
+  SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CHKPT, buf, tlen);
-
   stDebug("s-task:%s vgId:%d build and send task checkpoint req", id, vgId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);

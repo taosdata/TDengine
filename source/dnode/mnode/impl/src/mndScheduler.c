@@ -300,15 +300,16 @@ static int32_t doAddShuffleSinkTask(SMnode* pMnode, SStreamObj* pStream, SEpSet*
 }
 
 static int64_t getVgroupLastVer(const SArray* pList, int32_t vgId) {
-  for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+  int32_t size = (int32_t) taosArrayGetSize(pList);
+  for (int32_t i = 0; i < size; ++i) {
     SVgroupVer* pVer = taosArrayGet(pList, i);
     if (pVer->vgId == vgId) {
       return pVer->ver;
     }
   }
 
-  mError("failed to find the vgId:%d for extract last version", vgId);
-  return -1;
+  mDebug("no data in vgId:%d for extract last version, set to be 0, total existed vgs:%d", vgId, size);
+  return 1;
 }
 
 static void streamTaskSetDataRange(SStreamTask* pTask, int64_t skey, SArray* pVerList, int32_t vgId) {
@@ -472,6 +473,9 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
     int code =
         doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam);
     if (code != 0) {
+      mError("create stream task, code:%s", tstrerror(code));
+
+      // todo drop the added source tasks.
       sdbRelease(pSdb, pVgroup);
       return code;
     }
