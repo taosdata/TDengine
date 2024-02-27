@@ -2424,7 +2424,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
   taosx404: "未配置 TaosX API，请检查 Explorer 配置",
   taosx500: "TaosX API 无法访问，请检查 taosx 服务状态",
   header: {
-    version: `${oem}服务版本`,
+    version: `${oem} 服务版本`,
   },
   explorerfns: {
     NumbericFn: "数学函数",
