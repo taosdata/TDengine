@@ -9,6 +9,8 @@ print =============== create database
 sql create database test vgroups 4;
 sql use test;
 
+sql alter local 'disableCount' '0' ;
+
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
