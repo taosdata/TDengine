@@ -289,12 +289,93 @@ class TDTestCase:
         tdSql.query(f"select * from {stbname}")
         tdSql.checkRows(tables * rows)
 
+    def check_explain_res_has_row(self, plan_str_expect: str, rows, sql):
+        plan_found = False
+        for row in rows:
+            if str(row).find(plan_str_expect) >= 0:
+                tdLog.debug("plan: [%s] found in: [%s]" % (plan_str_expect, str(row)))
+                plan_found = True
+                break
+        if not plan_found:
+            tdLog.exit("plan: %s not found in res: [%s] in sql: %s" % (plan_str_expect, str(rows), sql))
+
+    def check_explain_res_no_row(self, plan_str_not_expect: str, res, sql):
+        for row in res:
+            if str(row).find(plan_str_not_expect) >= 0:
+                tdLog.exit('plan: [%s] found in: [%s] for sql: %s' % (plan_str_not_expect, str(row), sql))
+
+    def explain_sql(self, sql: str):
+        sql = "explain " + sql
+        tdSql.query(sql, queryTimes=1)
+        return tdSql.queryResult
+
+    def last_check_scan_type(self, cacheModel):
+        tdSql.execute("create database test_last_tbname cachemodel '%s';" % cacheModel)
+        tdSql.execute("use test_last_tbname;")
+        tdSql.execute("create stable test_last_tbname.st(ts timestamp, id int) tags(tid int);")
+        tdSql.execute("create table test_last_tbname.test_t1 using test_last_tbname.st tags(1);")
+
+        maxRange = 100
+        # 2023-11-13 00:00:00.000
+        startTs = 1699804800000
+        for i in range(maxRange):
+            insertSqlString = "insert into test_last_tbname.test_t1 values(%d, %d);" % (startTs + i, i)
+            tdSql.execute(insertSqlString)
+        
+        last_ts = startTs + maxRange
+        tdSql.execute("insert into test_last_tbname.test_t1 (ts) values(%d)" % (last_ts))
+        sql = f'select tbname, last(ts)  from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "test_t1")     
+        tdSql.checkData(0, 1, last_ts)
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+        
+        
+        sql = f'select last(ts), tbname from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, last_ts)     
+        tdSql.checkData(0, 1, "test_t1")  
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+
+        sql = f'select tbname, last(ts), tbname from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "test_t1")     
+        tdSql.checkData(0, 1, last_ts)  
+        tdSql.checkData(0, 2, "test_t1") 
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+
+        tdSql.execute("drop table if exists test_last_tbname.test_t1 ;")
+        tdSql.execute("drop stable if exists test_last_tbname.st;")
+        tdSql.execute("drop database if exists test_last_tbname;")
 
     def run(self):
         self.last_check_stb_tb_base()
         self.last_check_ntb_base()
         self.last_check_stb_distribute()
         self.last_file_check()
+
+        self.last_check_scan_type("none")
+        self.last_check_scan_type("last_row")
+        self.last_check_scan_type("last_value")
+        self.last_check_scan_type("both")
 
     def stop(self):
         tdSql.close()

@@ -195,6 +195,30 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   return shellRunSingleCommand(cmd);
 }
 
+
+char * strendG(const char* pstr) {
+  if(pstr == NULL) {
+    return NULL;
+  }
+
+  size_t len = strlen(pstr);
+  if(len < 4) {
+    return NULL;
+  }
+
+  char * p = (char *)pstr + len - 2;
+  if (strcmp(p, "\\G") == 0 ){
+    return p;
+  }
+
+  p = (char *)pstr + len - 3;
+  if (strcmp(p, "\\G;") == 0) {
+    return p;
+  }
+
+  return NULL;
+}
+
 void shellRunSingleCommandImp(char *command) {
   int64_t st, et;
   char   *sptr = NULL;
@@ -213,7 +237,7 @@ void shellRunSingleCommandImp(char *command) {
     }
   }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
+  if ((sptr = strendG(command)) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
@@ -1290,6 +1314,14 @@ int32_t shellExecute() {
   bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();
+
+ if(shell.args.is_bi_mode) { 
+  // need set bi mode
+  printf("Set BI mode is true.\n");
+#ifndef WEBSOCKET
+    taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
+#endif
+ }
 
   if (runOnce) {
     if (pArgs->commands != NULL) {

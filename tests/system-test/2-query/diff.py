@@ -88,12 +88,12 @@ class TDTestCase:
         tdSql.execute(
             f"create table {dbname}.ntb_null(ts timestamp,c1 int,c2 double,c3 float,c4 bool)")
         tdSql.execute(f"insert into {dbname}.ntb_null values(now, 1,    1.0,  NULL, NULL)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, NULL, 2.0,  2.0,  NULL)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, 2,    NULL, NULL, false)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, NULL, 1.0,  1.0,  NULL)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, NULL, 3.0,  NULL, true)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, 3,    NULL, 3.0,  NULL)")
-        tdSql.execute(f"insert into {dbname}.ntb_null values(now, 1,    NULL, NULL, true)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+1s, NULL, 2.0,  2.0,  NULL)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+2s, 2,    NULL, NULL, false)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+3s, NULL, 1.0,  1.0,  NULL)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+4s, NULL, 3.0,  NULL, true)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+5s, 3,    NULL, 3.0,  NULL)")
+        tdSql.execute(f"insert into {dbname}.ntb_null values(now+6s, 1,    NULL, NULL, true)")
 
         tdSql.query(f"select diff(c1) from {dbname}.ntb_null")
         tdSql.checkRows(6)

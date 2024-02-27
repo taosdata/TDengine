@@ -69,7 +69,8 @@ _exit:
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
-    tsdbInfo("vgId:%d tsdb snapshot reader opened. sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), ever, type);
+    tsdbInfo("vgId:%d, tsdb snapshot raw reader opened. sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), ever,
+             type);
   }
   return code;
 }

@@ -109,12 +109,12 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
 static const int64_t TICK_PER_SECOND[] = {
-  1000LL, // MILLISECOND
-  1000000LL, // MICROSECOND
-  1000000000LL, // NANOSECOND
-  0LL, // HOUR
-  0LL, // MINUTE
-  1LL // SECOND
+    1000LL,        // MILLISECOND
+    1000000LL,     // MICROSECOND
+    1000000000LL,  // NANOSECOND
+    0LL,           // HOUR
+    0LL,           // MINUTE
+    1LL            // SECOND
 };
 
 #define TSDB_TICK_PER_SECOND(precision)               \
@@ -196,6 +196,8 @@ typedef enum ELogicConditionType {
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
+#define TSDB_NODE_ID_LEN 11
+#define TSDB_VGROUP_ID_LEN 11
 
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
@@ -239,8 +241,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 
-#define TSDB_VIEW_NAME_LEN       193
-#define TSDB_VIEW_FNAME_LEN      (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_VIEW_NAME_LEN  193
+#define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
@@ -260,10 +262,11 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         12 
+#define TSDB_LABEL_LEN         16
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
+#define TSDB_MACHINE_ID_LEN       24
 #define TSDB_FQDN_LEN             128
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
@@ -272,6 +275,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
+#define TSDB_LOG_VAR_LEN          32
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -284,10 +288,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
+#define TSDB_CLUSTER_VALUE_LEN   1000
+#define TSDB_GRANT_LOG_COL_LEN   15600
+
 #define TSDB_ACTIVE_KEY_LEN      109
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
 
-#define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
+#define TSDB_DEFAULT_PKT_SIZE       65480  // same as RPC_MAX_UDP_SIZE
 #define TSDB_SNAP_DATA_PAYLOAD_SIZE (1 * 1024 * 1024)
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
@@ -396,13 +403,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_STT_TRIGGER     1
 #define TSDB_DEFAULT_SST_TRIGGER 1
 #endif
-#define TSDB_STT_TRIGGER_ARRAY_SIZE     16 // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
-#define TSDB_MIN_HASH_PREFIX     (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_PREFIX     (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_PREFIX 0
-#define TSDB_MIN_HASH_SUFFIX     (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_SUFFIX     (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_SUFFIX 0
+#define TSDB_STT_TRIGGER_ARRAY_SIZE 16  // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
+#define TSDB_MIN_HASH_PREFIX        (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX        (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_PREFIX    0
+#define TSDB_MIN_HASH_SUFFIX        (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_SUFFIX    0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -503,6 +510,10 @@ typedef struct {
   int32_t primary;
 } SDiskCfg;
 
+typedef struct {
+  char name[TSDB_LOG_VAR_LEN];
+} SLogVar;
+
 #define TMQ_SEPARATOR ':'
 
 enum {
@@ -538,6 +549,10 @@ enum {
 #define VNODE_TIMEOUT_SEC 60
 #define MNODE_TIMEOUT_SEC 60
 
+#define MONITOR_TABLENAME_LEN     200
+#define MONITOR_TAG_NAME_LEN      100
+#define MONITOR_TAG_VALUE_LEN     300
+#define MONITOR_METRIC_NAME_LEN   100
 #ifdef __cplusplus
 }
 #endif

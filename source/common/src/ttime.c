@@ -683,6 +683,10 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   return getDuration(*duration, *unit, duration, timePrecision);
 }
 
+static bool taosIsLeapYear(int32_t year) {
+  return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+}
+
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   if (duration == 0) {
     return t;
@@ -702,7 +706,13 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-
+  int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (taosIsLeapYear(1900 + tm.tm_year)) {
+    daysOfMonth[1] = 29;
+  }
+  if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {
+    tm.tm_mday = daysOfMonth[tm.tm_mon];
+  }
   return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision) + fraction);
 }
 
@@ -872,23 +882,33 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   ASSERT(pInterval->offset >= 0);
 
   if (pInterval->offset > 0) {
-    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
-
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-
-    int64_t newe = end;
+    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+    int64_t slidingStart = start;
     while (newe >= ts) {
-      end = newe;
-      newe = taosTimeAdd(newe, -pInterval->sliding, pInterval->slidingUnit, precision);
+      start = slidingStart;
+      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision);
+      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+      newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision);
     }
-
-    start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
+    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
   }
 
   return start;
 }
 
+// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
+int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
+  if (pInterval->offset > 0) {
+    int64_t slideStart = taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    return result;
+  } else {
+    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    return result;
+  }
+}
 // internal function, when program is paused in debugger,
 // one can call this function from debugger to print a
 // timestamp as human readable string, for example (gdb):
@@ -1297,7 +1317,7 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
   }
 }
 
-static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
+static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
   int32_t size = taosArrayGetSize(formats);
   const char* start = s;
   for (int32_t i = 0; i < size; ++i) {
@@ -1332,6 +1352,9 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         s += 4;
         break;
       case TSFKW_DDD:
+#ifdef WINDOWS
+        return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
+#endif
         sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
@@ -1486,6 +1509,7 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 /// @brief find s in arr case insensitively
@@ -1889,14 +1913,14 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   return ret;
 }
 
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
     parseTsFormat(format, *formats);
   }
   struct STm tm;
   taosTs2Tm(ts, precision, &tm);
-  tm2char(*formats, &tm, out, outLen);
+  return tm2char(*formats, &tm, out, outLen);
 }
 
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,

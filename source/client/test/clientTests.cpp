@@ -829,7 +829,10 @@ TEST(clientCase, projection_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int, f varchar(4096)) tags(a int)");
+//  TAOS_RES* pRes = taos_query(pConn, "select tbname, last(ts) from abc1.stable_1 group by tbname");
+//  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
   }
@@ -939,8 +942,8 @@ TEST(clientCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  int64_t st = 1685959293000;
-  for (int32_t i = 0; i < 10000000; ++i) {
+  int64_t st = 1685959293299;
+  for (int32_t i = 0; i < 5; ++i) {
     char s[256] = {0};
 
     while (1) {
@@ -954,16 +957,16 @@ TEST(clientCase, agg_query_tables) {
       }
     }
 
-    while (1) {
-      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
-      pRes = taos_query(pConn, s);
-      int32_t ret = taos_errno(pRes);
-
-      taos_free_result(pRes);
-      if (ret == 0) {
-        break;
-      }
-    }
+//    while (1) {
+//      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
+//      pRes = taos_query(pConn, s);
+//      int32_t ret = taos_errno(pRes);
+//
+//      taos_free_result(pRes);
+//      if (ret == 0) {
+//        break;
+//      }
+//    }
   }
 
 //  pRes = taos_query(pConn, "show table distributed tup");

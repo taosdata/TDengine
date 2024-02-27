@@ -51,6 +51,22 @@ if $rows != 1 then
   return -1
 endi
 
+$view1 = view1_name
+$view2 = view2_name
+
+sql CREATE VIEW $view1 as select * from $table1
+sql CREATE VIEW $view2 AS select * from $table2
+
+sql show views like 'view%'
+if $rows != 2 then
+  return -1
+endi
+
+sql show views like 'view1%'
+if $rows != 1 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 

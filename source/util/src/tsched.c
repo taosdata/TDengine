@@ -115,6 +115,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   return (void *)pSched;
 }
 
+#ifdef BUILD_NO_CALL
 void *taosInitSchedulerWithInfo(int32_t queueSize, int32_t numOfThreads, const char *label, void *tmrCtrl) {
   SSchedQueue *pSched = taosInitScheduler(queueSize, numOfThreads, label, NULL);
 
@@ -125,6 +126,7 @@ void *taosInitSchedulerWithInfo(int32_t queueSize, int32_t numOfThreads, const c
 
   return pSched;
 }
+#endif
 
 void *taosProcessSchedQueue(void *scheduler) {
   SSchedMsg    msg;
@@ -241,6 +243,7 @@ void taosCleanUpScheduler(void *param) {
   // taosMemoryFree(pSched);
 }
 
+#ifdef BUILD_NO_CALL
 // for debug purpose, dump the scheduler status every 1min.
 void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
   SSchedQueue *pSched = (SSchedQueue *)qhandle;
@@ -255,3 +258,4 @@ void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
 
   taosTmrReset(taosDumpSchedulerStatus, DUMP_SCHEDULER_TIME_WINDOW, pSched, pSched->pTmrCtrl, &pSched->pTimer);
 }
+#endif

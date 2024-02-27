@@ -57,10 +57,6 @@ void taos_cleanup(void) {
 
   tscStopCrashReport();
 
-  int32_t id = clientReqRefPool;
-  clientReqRefPool = -1;
-  taosCloseRef(id);
-
   hbMgrCleanUp();
 
   catalogDestroy();
@@ -70,14 +66,18 @@ void taos_cleanup(void) {
   qCleanupKeywordsTable();
   nodesDestroyAllocatorSet();
 
+  cleanupTaskQueue();
+
+  int32_t id = clientReqRefPool;
+  clientReqRefPool = -1;
+  taosCloseRef(id);
+
   id = clientConnRefPool;
   clientConnRefPool = -1;
   taosCloseRef(id);
 
   rpcCleanup();
   tscDebug("rpc cleanup");
-
-  cleanupTaskQueue();
 
   taosConvDestroy();
 
@@ -279,6 +279,7 @@ void taos_close_internal(void *taos) {
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  // clientMonitorClose(pTscObj->pAppInfo->instKey);
 
   taosRemoveRef(clientConnRefPool, pTscObj->id);
 }
@@ -415,6 +416,12 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     SRequestObj *pRequest = (SRequestObj *)res;
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0 || pRequest->killed) {
+      return NULL;
+    }
+
+    if(pRequest->inCallback) {
+      tscError("can not call taos_fetch_row before query callback ends.");
+      terrno = TSDB_CODE_TSC_INVALID_OPERATION;
       return NULL;
     }
 

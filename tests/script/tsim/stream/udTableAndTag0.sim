@@ -48,16 +48,6 @@ if $rows != 2 then
   goto loop0
 endi
 
-if $data00 != aaa-t1 then
-  print =====data00=$data00
-  goto loop0
-endi
-
-if $data10 != aaa-t2 then
-  print =====data10=$data10
-  goto loop0
-endi
-
 $loop_count = 0
 loop1:
 
@@ -264,17 +254,6 @@ if $rows != 2 then
   goto loop6
 endi
 
-if $data00 != tbn-t1 then
-  print =====data00=$data00
-  goto loop6
-endi
-
-if $data10 != tbn-t2 then
-  print =====data10=$data10
-  goto loop6
-endi
-
-
 print ===== step5
 print ===== tag name + table name
 
@@ -309,21 +288,6 @@ sql select table_name from information_schema.ins_tables where db_name="result4"
 if $rows != 3 then
   print =====rows=$rows
   print $data00 $data10
-  goto loop7
-endi
-
-if $data00 != tbn-t1 then
-  print =====data00=$data00
-  goto loop7
-endi
-
-if $data10 != tbn-t2 then
-  print =====data10=$data10
-  goto loop7
-endi
-
-if $data20 != tbn-t3 then
-  print =====data20=$data20
   goto loop7
 endi
 

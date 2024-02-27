@@ -131,7 +131,7 @@ if $data00 != 100 then
 endi
 
 print =============== step6
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol order by count(tbcol) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 print $data10 $data11 $data12 $data13 $data14 $data15 $data16
 if $data00 != 100 then
@@ -140,7 +140,7 @@ if $data00 != 100 then
 endi
 
 print =============== step7
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1626739440001 and tbcol = 1 group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1626739440001 and tbcol = 1 group by tgcol order by count(tbcol) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1

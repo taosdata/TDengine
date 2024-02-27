@@ -22,9 +22,9 @@
 #ifdef TD_TSZ
 #include "tcompression.h"
 #include "tglobal.h"
+#include "tgrant.h"
 #endif
 
-#ifndef TD_MODULE_OPTIMIZE
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
@@ -38,7 +38,6 @@ static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 
   return required;
 }
-#endif
 
 int32_t dmInitDnode(SDnode *pDnode) {
   dDebug("start to create dnode");
@@ -81,17 +80,15 @@ int32_t dmInitDnode(SDnode *pDnode) {
   if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
-#ifdef TD_MODULE_OPTIMIZE
-  if (dmInitModule(pDnode, pDnode->wrappers) != 0) {
-    goto _OVER;
-  }
-#else
   if (dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
-#endif
+
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
+
+  dmInitStatusClient(pDnode);
+  dmInitSyncClient(pDnode);  
 
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
@@ -108,11 +105,15 @@ _OVER:
 }
 
 void dmCleanupDnode(SDnode *pDnode) {
-  if (pDnode == NULL) return;
+  if (pDnode == NULL) {
+    return;
+  }
 
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
+  dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
+
   dmClearVars(pDnode);
   rpcCleanup();
   streamMetaCleanup();
@@ -137,6 +138,16 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
+  char *machineId = tGetMachineId();
+  if (machineId) {
+    tstrncpy(pData->machineId, machineId, TSDB_MACHINE_ID_LEN + 1);
+    taosMemoryFreeClear(machineId);
+  } else {
+#if defined(TD_ENTERPRISE) && !defined(GRANTS_CFG)
+    terrno = TSDB_CODE_DNODE_NO_MACHINE_CODE;
+    return -1;
+#endif
+  }
 
   pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pData->dnodeHash == NULL) {

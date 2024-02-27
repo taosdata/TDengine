@@ -76,6 +76,7 @@ typedef enum {
   MND_OPER_DROP_TOPIC,
   MND_OPER_CREATE_VIEW,
   MND_OPER_DROP_VIEW,
+  MND_OPER_CONFIG_CLUSTER,
 } EOperType;
 
 typedef enum {
@@ -204,6 +205,7 @@ typedef struct {
   int32_t    numOfVnodes;
   int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
+  int32_t    numOfDiskCfg;
   float      numOfCores;
   int64_t    memTotal;
   int64_t    memAvail;
@@ -214,6 +216,7 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
   char       active[TSDB_ACTIVE_KEY_LEN];
   char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+  char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
 
 typedef struct {
@@ -461,6 +464,7 @@ typedef struct {
   char*    pAst1;
   char*    pAst2;
   SRWLatch lock;
+  int8_t   source;
 } SStbObj;
 
 typedef struct {
@@ -553,7 +557,7 @@ typedef struct {
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool delete);
+void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool isDeleted);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
@@ -694,6 +698,9 @@ typedef struct {
 
   // 3.0.5.
   int64_t checkpointId;
+
+  int32_t indexForMultiAggBalance;
+  int8_t  subTableWithoutMd5;
   char    reserve[256];
 
 } SStreamObj;
@@ -706,13 +713,6 @@ typedef struct SStreamSeq {
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
-
-// typedef struct {
-//   char    streamName[TSDB_STREAM_FNAME_LEN];
-//   int64_t uid;
-//   int64_t streamUid;
-//   SArray* childInfo;  // SArray<SStreamChildEpInfo>
-// } SStreamCheckpointObj;
 
 #define VIEW_TYPE_UPDATABLE    (1 << 0)
 #define VIEW_TYPE_MATERIALIZED (1 << 1)
@@ -759,6 +759,77 @@ typedef struct {
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+// SGrantLogObj
+typedef enum {
+  GRANT_STATE_INIT = 0,
+  GRANT_STATE_UNGRANTED = 1,
+  GRANT_STATE_GRANTED = 2,
+  GRANT_STATE_EXPIRED = 3,
+  GRANT_STATE_REVOKED = 4,
+  GRANT_STATE_MAX,
+} EGrantState;
+
+typedef enum {
+  GRANT_STATE_REASON_INIT = 0,
+  GRANT_STATE_REASON_ALTER = 1,     // alter activeCode 'revoked' or 'xxx'
+  GRANT_STATE_REASON_MISMATCH = 2,  // dnode machine mismatch
+  GRANT_STATE_REASON_EXPIRE = 3,    // expire
+  GRANT_STATE_REASON_MAX,
+} EGrantStateReason;
+
+#define GRANT_STATE_NUM       30
+#define GRANT_ACTIVE_NUM      10
+#define GRANT_ACTIVE_HEAD_LEN 30
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 40;
+      int64_t lastState : 4;
+      int64_t state : 4;
+      int64_t reason : 8;
+      int64_t reserve : 8;
+    };
+  };
+} SGrantState;
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 40;
+      int64_t reserve : 24;
+    };
+  };
+  char active[GRANT_ACTIVE_HEAD_LEN + 1];
+} SGrantActive;
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 40;
+      int64_t id : 24;
+    };
+  };
+  char machine[TSDB_MACHINE_ID_LEN + 1];
+} SGrantMachine;
+
+typedef struct {
+  int32_t      id;
+  int8_t       nStates;
+  int8_t       nActives;
+  int64_t      createTime;
+  int64_t      updateTime;
+  int64_t      upgradeTime;
+  SGrantState  states[GRANT_STATE_NUM];
+  SGrantActive actives[GRANT_ACTIVE_NUM];
+  char*        active;
+  SArray*      pMachines;  // SGrantMachine
+  SRWLatch     lock;
+} SGrantLogObj;
 
 #ifdef __cplusplus
 }

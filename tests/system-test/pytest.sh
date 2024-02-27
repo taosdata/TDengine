@@ -60,16 +60,16 @@ echo "ASAN_DIR  : $ASAN_DIR"
 
 # prevent delete / folder or /usr/bin
 if [ ${#SIM_DIR} -lt 10 ]; then
-   echo "len(SIM_DIR) < 10 , danger so exit. SIM_DIR=$SIM_DIR"
-   exit 1
+  echo "len(SIM_DIR) < 10 , danger so exit. SIM_DIR=$SIM_DIR"
+  exit 1
 fi
 
-rm -rf $SIM_DIR/*
+rm -rf "${SIM_DIR:?}"/*
 
 mkdir -p $PRG_DIR
 mkdir -p $ASAN_DIR
 
-cd $CODE_DIR
+cd "$CODE_DIR" || exit
 ulimit -n 600000
 ulimit -c unlimited
 
@@ -78,10 +78,10 @@ ulimit -c unlimited
 echo "ExcuteCmd:" $*
 
 if [[ "$TD_OS" == "Alpine" ]]; then
-  $*
+  "$@"
 else
   AsanFile=$ASAN_DIR/psim.info
-  echo "AsanFile:" $AsanFile
+  echo "AsanFile:" "$AsanFile"
 
   unset LD_PRELOAD
   #export LD_PRELOAD=libasan.so.5

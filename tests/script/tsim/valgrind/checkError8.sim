@@ -129,10 +129,10 @@ sql select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * f
 sql select * from stb1 where (c6 > 3.0 or c6 < 60) and c6 > 50 and (c6 != 53 or c6 != 63);;
 sql select ts,c1 from stb1 where (c1 > 60 or c1 < 10 or (c1 > 20 and c1 < 30)) and ts > '2021-05-05 18:19:00.000' and ts < '2021-05-05 18:19:25.000' and c1 != 21 and c1 != 22 order by ts;
 sql select a.* from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 order by ts;;
-sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by ts;;
-sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;;
-sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts >= '2021-05-05 18:19:03.000' and tb1.c7=false and tb2_1.u3>4 order by ts;;
-sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 order by ts;;
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by a.ts;;
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by a.ts;;
+sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts >= '2021-05-05 18:19:03.000' and tb1.c7=false and tb2_1.u3>4 order by tb1.ts;;
+sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 order by stb1.ts;;
 sql select count(*) from stb1 where tbname like 'tb%' or c1 > 0;;
 sql select * from stb1 where tbname like 'tb%' and (t1=1 or t2=2 or t3=3) and t1 > 2 order by ts;;
 

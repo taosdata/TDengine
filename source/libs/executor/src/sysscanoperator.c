@@ -15,9 +15,7 @@
 
 #include "executorInt.h"
 #include "filter.h"
-#include "function.h"
 #include "functionMgt.h"
-#include "os.h"
 #include "querynodes.h"
 #include "systable.h"
 #include "tname.h"
@@ -32,6 +30,7 @@
 #include "storageapi.h"
 #include "tcompare.h"
 #include "thash.h"
+#include "trpc.h"
 #include "ttypes.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
@@ -1789,8 +1788,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator,
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   return pOperator;
 
 _error:
@@ -1867,7 +1866,13 @@ int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->handle = htobe64(pRsp->handle);
     pRsp->compLen = htonl(pRsp->compLen);
   } else {
-    operator->pTaskInfo->code = code;
+    operator->pTaskInfo->code = rpcCvtErrCode(code);
+    if (operator->pTaskInfo->code != code) {
+      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code),
+             tstrerror(operator->pTaskInfo->code));
+    } else {
+      qError("load systable rsp received, error:%s", tstrerror(code));
+    }
   }
 
   tsem_post(&pScanResInfo->ready);
