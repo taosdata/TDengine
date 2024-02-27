@@ -267,7 +267,7 @@ impl StopCondition {
         match self {
             StopCondition::Never => false,
             StopCondition::Done => true,
-            StopCondition::Fatal => false,
+            StopCondition::Fatal => true,
             StopCondition::Unhealthy => true,
             StopCondition::Repeated(atomic) => {
                 atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
