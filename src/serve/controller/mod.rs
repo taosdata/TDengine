@@ -358,16 +358,26 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
             activity.at,
-            Status::Completed,
+            activity.status,
             activity.id,
-            Status::Completed,
+            activity.status,
         )
         .execute(pool)
         .await?;
     }
     match activity.status.as_str() {
         // with reason
-        "failed" | "interrupted" | "suspending" | "waiting" | "waken" => {
+        "failed" | "stopped" => {
+            sqlx::query("UPDATE tasks SET status = ?, reason = ?, finished_at = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.activity.as_str())
+                .bind(&activity.at)
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        // with reason
+        "interrupted" | "suspending" | "waiting" | "waken" => {
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
