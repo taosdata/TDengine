@@ -139,7 +139,7 @@ class TDCom:
         self.stream_suffix = "_stream"
         self.range_count = 5
         self.default_interval = 5
-        self.stream_timeout = 12
+        self.stream_timeout = 60
         self.create_stream_sleep = 0.5
         self.record_history_ts = str()
         self.precision = "ms"
@@ -506,7 +506,22 @@ class TDCom:
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
+        if platform.system().lower() == 'windows':
+            win_sep = "\\"
+            buildPath = buildPath.replace(win_sep,'/')
+
         return buildPath
+    
+    def getTaosdPath(self, dnodeID="dnode1"):
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        taosdPath = buildPath + "/../sim/" + dnodeID
+        tdLog.info("taosdPath: %s" % taosdPath)
+        return taosdPath
+
 
     def getClientCfgPath(self):
         buildPath = self.getBuildPath()
@@ -1673,8 +1688,8 @@ class TDCom:
                     res1 = self.round_handle(res1)
                     res2 = self.round_handle(res2)
                 if latency < self.stream_timeout:
-                    latency += 0.2
-                    time.sleep(0.2)
+                    latency += 0.5
+                    time.sleep(0.5)
                 else:
                     if latency == 0:
                         return False
@@ -1829,6 +1844,23 @@ class TDCom:
                 self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
                 if i == 1:
                     self.record_history_ts = ts_value
+
+    def get_subtable(self, tbname_pre):
+        tdSql.query(f'show tables')
+        tbname_list = list(map(lambda x:x[0], tdSql.queryResult))
+        for tbname in tbname_list:
+            if tbname_pre in tbname:
+                return tbname
+
+    def get_subtable_wait(self, tbname_pre):
+        tbname = self.get_subtable(tbname_pre)
+        latency = 0
+        while tbname is None:
+            tbname = self.get_subtable(tbname_pre)
+            if latency < self.stream_timeout:
+                latency += 1
+                time.sleep(1)
+        return tbname
 
 def is_json(msg):
     if isinstance(msg, str):

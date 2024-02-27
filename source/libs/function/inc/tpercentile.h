@@ -26,12 +26,12 @@ extern "C" {
 typedef struct MinMaxEntry {
   union {
     double   dMinVal;
-    int64_t  i64MinVal;
+    //double   i64MinVal;
     uint64_t u64MinVal;
   };
   union {
     double  dMaxVal;
-    int64_t i64MaxVal;
+    //double  i64MaxVal;
     int64_t u64MaxVal;
   };
 } MinMaxEntry;

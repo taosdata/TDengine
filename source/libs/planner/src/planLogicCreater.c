@@ -486,12 +486,22 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = tagScanSetExecutionMode(pScan);
   }
 
+  bool isCountByTag = false;
+  if (pSelect->hasCountFunc && NULL == pSelect->pWindow) {
+    if (pSelect->pGroupByList) {
+      isCountByTag = !keysHasCol(pSelect->pGroupByList);
+    } else if (pSelect->pPartitionByList) {
+      isCountByTag = !keysHasCol(pSelect->pPartitionByList);
+    }
+  }
+  pScan->isCountByTag = isCountByTag;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pScan;
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-
+  pScan->paraTablesSort = getparaTablesSortOptHint(pSelect->pHint);
   pCxt->hasScan = true;
 
   return code;
@@ -998,6 +1008,29 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
+static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindowNode* pCount, SSelectStmt* pSelect,
+                                            SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  if (NULL == pWindow) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pWindow->winType = WINDOW_TYPE_COUNT;
+  pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
+  pWindow->node.requireDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->windowCount = pCount->windowCount;
+  pWindow->windowSliding = pCount->windowSliding;
+  pWindow->pTspk = nodesCloneNode(pCount->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode((SNode*)pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+}
+
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -1011,6 +1044,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
       return createWindowLogicNodeByInterval(pCxt, (SIntervalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_EVENT_WINDOW:
       return createWindowLogicNodeByEvent(pCxt, (SEventWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+    case QUERY_NODE_COUNT_WINDOW:
+      return createWindowLogicNodeByCount(pCxt, (SCountWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }

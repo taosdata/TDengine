@@ -73,7 +73,6 @@ char *schGetOpStr(SCH_OP_TYPE type) {
 }
 
 void schFreeHbTrans(SSchHbTrans *pTrans) {
-  // rpcReleaseHandle(pTrans->trans.pHandle, TAOS_CONN_CLIENT);
   rpcReleaseHandle((void *)pTrans->trans.pHandleId, TAOS_CONN_CLIENT);
 
   schFreeRpcCtx(&pTrans->rpcCtx);
@@ -264,6 +263,7 @@ void schCloseJobRef(void) {
 
 uint64_t schGenTaskId(void) { return atomic_add_fetch_64(&schMgmt.taskId, 1); }
 
+#ifdef BUILD_NO_CALL
 uint64_t schGenUUID(void) {
   static uint64_t hashId = 0;
   static int32_t  requestSerialId = 0;
@@ -285,6 +285,7 @@ uint64_t schGenUUID(void) {
   uint64_t id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }
+#endif
 
 void schFreeRpcCtxVal(const void *arg) {
   if (NULL == arg) {

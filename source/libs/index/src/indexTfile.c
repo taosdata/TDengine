@@ -684,12 +684,14 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
 
   return tfileReaderSearch(reader, query, result);
 }
+#ifdef BUILD_NO_CALL
 int idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
   // TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName =
   // term->nColName, .version = 1};
 
   return 0;
 }
+#endif
 static bool tfileIteratorNext(Iterate* iiter) {
   IterateValue* iv = &iiter->val;
   iterateValueDestroy(iv, false);

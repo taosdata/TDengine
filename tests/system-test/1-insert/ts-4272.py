@@ -26,12 +26,10 @@ class TDTestCase:
         self.file1 = f"{self.testcasePath}/b.csv"
         self.file2 = f"{self.testcasePath}/c.csv"
 
-        #os.system("rm -rf %s/b.csv" %self.testcasePath)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), logSql)
 
     def check_count(self, rows, records):
-        tdSql.execute(f"use {self.db};")
         tdSql.query(f"select tbname,count(*) from {self.stable0} group by tbname order by tbname;")
         tdSql.checkRows(rows)
         for i in range(rows):
@@ -39,13 +37,6 @@ class TDTestCase:
 
     def reset_tb(self):
         # create database and tables
-        # os.system("taos -s 'drop database if exists d1;'")
-        # os.system("taos -s 'create database d1;use d1;create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);'")
-        # os.system(f"taos -s 'use d1;create table d2001 using meters(groupId) tags(5);'")
-        # res = os.system(f"taos -s 'use d1;create table d2002 using meters(groupId) tags(6);'")
-        # if (0 != res):
-        #    tdLog.exit(f"create tb error")
-
         tdSql.execute(f"drop database if exists {self.db};")
         tdSql.execute(f"create database {self.db};")
         tdSql.execute(f"use {self.db};")
@@ -54,13 +45,14 @@ class TDTestCase:
         tdSql.execute(f"create table {self.tb2} {self.tag2};")
         tdSql.execute(f"create stable {self.stable1} (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);")
         tdSql.execute(f"create stable {self.stable2} (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);")
+        tdSql.execute(f"create table {self.stable1}_1 using {self.stable1}(t_int) tags(1);")
+        tdSql.execute(f"create table {self.stable2}_1 using {self.stable2}(t_int) tags(2);")
 
     def test(self, sql):
-        sql = f"use {self.db};" + sql
-        res = os.system(f'taos -s "{sql}"')
-        # if (0 != res):
-        #    tdLog.exit(f"taos sql error")
-
+        # sql = f"use {self.db};" + sql
+        # os.system(f'taos -s "{sql}"')
+        print(f'{sql}\n')
+        tdSql.execute(sql, 1)
 
     def check(self):
         # same table, auto create + create
@@ -95,13 +87,8 @@ class TDTestCase:
         sql = f"insert into {self.tb1} file '{self.file1}' {self.tb2} file '{self.file2}';"
         self.test(sql)
 
-        # bigNum = 1010000
-        # self.check_count(5, [2100, 2100, bigNum, bigNum, bigNum])
+        self.check_count(2, [2010000, 1000000])
 
-        result = os.popen("taos -s 'select count(*) from %s.%s'" %(self.db, self.tb1))
-        res = result.read()
-        if (f"OK" in res):
-            tdLog.info(f"check count success")
 
     def make_csv(self, filepath, once, qtime, startts):
         f = open(filepath, 'w')
@@ -118,10 +105,8 @@ class TDTestCase:
 
     def test_mix(self):
         #forbid use both value and file in one insert
-        result = os.popen(f"insert into {self.tb1} file '{self.file2}' {self.tb2} values('2021-07-13 14:06:34.630', 10.2, 219, 0.32);")
-        res = result.read()
-        if (f"error" in res):
-            tdLog.info(f"forbid success")
+        self.make_csv(self.file2, 10, 10, self.ts)
+        tdSql.error(f"insert into {self.tb1} file '{self.file2}' {self.tb2} values('2021-07-13 14:06:34.630', 10.2, 219, 0.32);")
 
     def test_bigcsv(self):
         # prepare csv
@@ -144,7 +129,6 @@ class TDTestCase:
         self.test(sql)
         print("end insert to table")
 
-        #tdSql.execute(f"use d1;")
         tdSql.query(f"select tbname,count(*) from {self.stable0} group by tbname order by tbname;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, rowNum1)
@@ -160,7 +144,7 @@ class TDTestCase:
             ts = startts + offset
             rows = []
             for i in range(once):
-                rows.append([table_name, ts + i, offset + i, 'NULL'])
+                rows.append([f"\'{table_name}\'", ts + i, offset + i, 'NULL'])
             writer.writerows(rows)
         f.close()
         print(datetime.now(), filepath, " ready!")
@@ -171,22 +155,22 @@ class TDTestCase:
         once = 10000
         qtime1 = 101
         qtime2 = 100
-        # rowNum1 = qtime1 * once
-        # rowNum2 = qtime2 * once
         child_1 = f"{self.stable1}_1"
         child_2 = f"{self.stable2}_1"
         self.make_stable_csv(self.file1, once, qtime1, self.ts - 86400000, child_1)
         self.make_stable_csv(self.file2, once, qtime2, self.ts, child_2)
         print("end stable_csv data prepare")
-   
-        # insert create child table of stable
+
         sql = f"insert into {self.db}.{self.stable1}(tbname,ts,q_int,q_binary) file '{self.file1}' {self.db}.{self.stable2}(tbname,ts,q_int,q_binary) file '{self.file2}';"
         self.test(sql)
         print("end insert to stable")
 
-        #tdSql.execute(f"insert into {self.db}.{child_1}(ts, q_int) values(now, 1);")
-        tdSql.query(f"select tbname,count(*) from {self.stable1} group by tbname order by tbname;")
-        tdSql.checkRows(0)
+        tdSql.query(f"select tbname,count(*) from {self.stable1} group by tbname;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, qtime1 * once)
+        tdSql.query(f"select tbname,count(*) from {self.stable2} group by tbname;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, qtime2 * once)
         print("check stable success")
 
     def run(self):
@@ -194,8 +178,10 @@ class TDTestCase:
         self.reset_tb()
         self.test_stable_csv()
         self.test_bigcsv()
-        self.test_mix()
         self.check()
+        self.test_mix()
+        os.system(f"rm -rf {self.file1}")
+        os.system(f"rm -rf {self.file2}")
         tdSql.close()
 
     def stop(self):

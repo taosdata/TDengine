@@ -74,6 +74,7 @@ extern int64_t tsRpcQueueMemoryAllowed;
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
+extern int32_t tsSnapReplMaxWaitN;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
@@ -105,6 +106,9 @@ extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
+extern bool     tsMonitorLogProtocol;
+extern int32_t  tsMonitorIntervalForBasic;
+extern bool     tsMonitorForceV2;
 
 // audit
 extern bool     tsEnableAudit;
@@ -210,6 +214,7 @@ extern int32_t tsUptimeInterval;
 
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
+extern int     tsStreamAggCnt;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
@@ -228,10 +233,10 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
-void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
-void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
+void    taosSetAllDebugFlag(int32_t flag);
+void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted();
+int8_t  taosGranted(int8_t type);
 
 #ifdef __cplusplus
 }

@@ -7,7 +7,7 @@ description: This document describes the usage of escape characters in TDengine.
 
 | Escape Character | **Actual Meaning**       |
 | :--------------: | ------------------------ |
-|       `\'`       | Single quote `'`          |
+|       `\'`       | Single quote `'`           |
 |       `\"`       | Double quote `"`           |
 |       `\n`        | Line Break               |
 |       `\r`        | Carriage Return          |
@@ -23,4 +23,4 @@ description: This document describes the usage of escape characters in TDengine.
    - Identifier quoted with ``: Original content is kept, no escaping
 2. If there are escape characters in values
    - The escape characters will be escaped as the above table. If the escape character doesn't match any supported one, the escape character `\ ` will be ignored(`\x` remaining).
-   - `%` and `_` are used as wildcards in `like`. `\%` and `\_` should be used to represent literal `%` and `_` in `like`.If `\%` and `\_` are used out of `like` context, the evaluation result is `\%` and `\_`, instead of `%` and `_`.
+   - `%` and `_` are used as wildcards in `like`. `\%` and `\_` should be used to represent literal `%` and `_` in `like`. If `\%` and `\_` are used out of `like` context, the evaluation result is `\%` and `\_`, instead of `%` and `_`.
