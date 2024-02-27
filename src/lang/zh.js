@@ -302,11 +302,17 @@ export default {
     rootNode: '根节点 ID',
     namespace: '命名空间',
     pointRegexp: '正则匹配',
-    noDsn: '请输入DSN',
+    noDsn: '请检查输入的服务地址',
     filterPoinDesc: '根据输入的查询条件过滤出数据点位填充 CSV 模版生成文件',
-    rootNodePlaceholder: '例如 ns=3;i=1001',
+    rootNodePlaceholder: {
+      opcua: '例如 ns=3;i=1001',
+      opcda: '例如 root.parent',
+    },
     namespacePlaceholder: '连通性检查通过后，可选择，支持多选',
-    pointRegexpPlaceholder: '数据点位名称或 id 需要满足设置的正则表达式',
+    pointRegexpPlaceholder: {
+      opcua: '数据点位名称或 id 需要满足设置的正则表达式',
+      opcda: '数据点位 TagName 需要满足设置的正则表达式',
+    },
   },
   replication: {
     taskStop: "确认停止任务 {id} ？",

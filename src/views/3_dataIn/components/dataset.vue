@@ -118,7 +118,7 @@
             :label="$t('dataIn.rootNode')"
             prop="root"
           >
-            <el-input style="width: 300px" v-model="info.root" :placeholder="$t('dataIn.rootNodePlaceholder')"></el-input>
+            <el-input style="width: 300px" v-model="info.root" :placeholder="$t('dataIn.rootNodePlaceholder.' + sourceParent.sourceForm.type)"></el-input>
           </el-form-item>
           <el-form-item
             :label="$t('dataIn.namespace')"
@@ -137,7 +137,7 @@
             :label="$t('dataIn.pointRegexp')"
             prop="pattern"
           >
-            <el-input style="width: 300px" v-model="info.pattern" :placeholder="$t('dataIn.pointRegexpPlaceholder')"></el-input>
+            <el-input style="width: 300px" v-model="info.pattern" :placeholder="$t('dataIn.pointRegexpPlaceholder.' + sourceParent.sourceForm.type)"></el-input>
           </el-form-item>
         </el-form>
       </div>

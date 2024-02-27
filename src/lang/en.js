@@ -694,11 +694,17 @@ export default {
     rootNode: 'Root node',
     namespace: 'Namespace',
     pointRegexp: 'Regex match',
-    noDsn: 'Please text the DSN',
+    noDsn: 'Please check the server endpoint',
     filterPoinDesc: 'Download data points according to the specified filter rules, and download in the format designed by the CSV template.',
-    rootNodePlaceholder: 'For example: ns=3;i=1001',
+    rootNodePlaceholder: {
+      opcua: 'For example: ns=3;i=1001',
+      opcda: 'For example: root.parent'
+    },
     namespacePlaceholder: 'Please select after connection check successfully',
-    pointRegexpPlaceholder: 'Match the point id or name',
+    pointRegexpPlaceholder: {
+      opcua: 'Match the point id or name',
+      opcda: 'Match the point TagName',
+    },
   },
   replication: {
     taskStop: "Are you sure to stop task {id} ?",
