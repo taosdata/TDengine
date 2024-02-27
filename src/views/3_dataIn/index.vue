@@ -9,15 +9,7 @@
 </template>
 
 <script>
-import DataIn from './views/main.vue'
-import DbSource from './views/dbSource.vue'
-import DataCSV from './views/dataCSV.vue'
 export default {
-  components:{
-    DataIn,
-    DbSource,
-    DataCSV
-  },
   data() {
     return {};
   },
@@ -26,7 +18,8 @@ export default {
         let result = this.$t("route.dataIn");
 
         if (this.$route.params?.lang) {
-          result += " - " + this.$route.params.lang;
+          result += " - " + this.$t(`docs.party.${this.$route.params.lang}.title`)
+          // result += " - " + this.$route.params.lang;
         }
         return result;
       },

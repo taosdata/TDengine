@@ -15,7 +15,9 @@
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="150" prop="id"></el-table-column>
+      <el-table-column :label="$t('taosuser.directory')" width="150" prop="id">
+        <span slot-scope="scope">{{ scope.row.to_expand.path }}</span>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
       <el-table-column :label="$t('taosuser.createtime')" prop="created_at">
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
@@ -36,11 +38,11 @@
               <div v-html="scope.row.last_modified_at" slot="content"></div>
               <div slot="content" v-html="scope.row.reason"></div>
               <span style="width: 80px; display: inline-block">{{
-                scope.row.status
+               handleDSStatus(scope.row.status)
               }}</span>
             </el-tooltip>
             <span style="width: 80px; display: inline-block" v-else>{{
-              scope.row.status
+              handleDSStatus(scope.row.status)
             }}</span>
             <!-- <template v-if="scope.row.status.toLowerCase() !== 'running'">
               <el-tooltip
@@ -106,7 +108,7 @@
              :disabled="scope.row.status.toLowerCase() == 'running'"
              plain
              size="small"
-             @click="restorBackup(scope.row, scope.$index)"
+             @click="handleRestorBackup(scope.row, scope.$index)"
              icon="el-icon-refresh-right"
            ></el-button>
           </el-tooltip>
@@ -135,6 +137,7 @@
       :visible.sync="dialog"
       @close='closeDialog'
       :destroy-on-close='true'
+      :close-on-click-modal="false"
     >
       <el-form
         :model="ruleForm"
@@ -333,13 +336,21 @@ export default {
       this.dialog = true;
       this.ruleForm.db = data.database;
       this.ruleForm.directory = data.to;
+      this.ruleForm.cycle = `schedule:${data.trigger.schedule}`;
       this.currentRow = data;
     },
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getBackData();
+          }
         });
       } catch (err) {
         return Promise.reject(err);
@@ -348,8 +359,15 @@ export default {
     async stop(val, data) {
       try {
         await excuteStop(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getBackData();
+          }
         });
       } catch (err) {
         return Promise.reject(err);
@@ -435,6 +453,8 @@ export default {
             Message.success(this.$t('createSucc'));
             this.getBackData();
             this.dialog = false;
+          } else {
+            Message.error(res?.message)
           }
         });
       } catch (err) {
@@ -502,7 +522,23 @@ export default {
         Message.error(err);
         return Promise.reject(err);
       }
-    }
+    },
+    handleRestorBackup(row) {
+      this.$confirm(
+        this.$t('taosuser.isRestore'),
+        this.$t("warning"),
+        {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        }
+      ).then(()=>{
+        this.restorBackup(row);
+      })
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
+    },
   },
   created() {
     this.getDatabases();

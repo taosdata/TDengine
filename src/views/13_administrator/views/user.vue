@@ -70,11 +70,11 @@
     <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
 
-    <el-dialog align="center" :title="$t('taosuser.adduser')" width="680px" :visible.sync="dialog">
+    <el-dialog align="center" :title="$t('taosuser.adduser')" width="680px" :visible.sync="dialog" :close-on-click-modal="false">
       <AddUser @close="closeDialog" :status='dialog' v-if='dialog'></AddUser>
     </el-dialog>
 
-    <el-dialog align="center" :title="$t('taosuser.edituser')" width="680px" :visible.sync="editDialog">
+    <el-dialog align="center" :title="$t('taosuser.edituser')" width="680px" :visible.sync="editDialog" :close-on-click-modal="false">
       <EditUser :user="editUser" :status="editDialog" @close="closeEditDialog"></EditUser>
     </el-dialog>
 

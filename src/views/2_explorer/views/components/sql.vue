@@ -83,7 +83,7 @@
           ch: 0,
         },
         comIns: null,
-        isCondition: false
+        isCondition: false,
       };
     },
     computed: {
@@ -104,6 +104,9 @@
       addSql() {
         return this.$store.state.console.addSql;
       },
+      // sqlTip() {
+      //   return this.$t('console.sqlTip')
+      // }
     },
     watch: {
       addSql(newVal) {
@@ -128,7 +131,7 @@
         } else {
           this.isCondition = false
         }
-      }
+      },
     },
     mounted() {
       this.$BusOnAndAutoOff("console/sql/focus", () => {
@@ -232,6 +235,10 @@
     }
     &:deep(.CodeMirror-placeholder) {
       color: #c0c4cc;
+    }
+    &:deep(.CodeMirror-linenumber) {
+      text-align: left;
+      padding: 0 3px 0 0;
     }
   }
   .sql-btn {

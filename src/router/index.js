@@ -17,22 +17,16 @@ const layoutCommonChildren = [
         path: "",
         component: () => import("@/views/3_dataIn/views/main.vue"),
       },
-
-      {
-        path: 'source/:sourceName',
-        props: true,
-        component: () => import("@/views/3_dataIn/views/sourceContent.vue")
-      },
       {
         path: "docs/:category/:lang",
         props: true,
         component: () => import("@/views/docs/index.vue"),
       },
-      {
-        path: 'add',
-        props: true,
-        component: () => import("@/views/3_dataIn/views/dbSourceUI.vue")
-      },
+      // {
+      //   path: 'add',
+      //   props: true,
+      //   component: () => import("@/views/3_dataIn/views/dbSourceUI.vue")
+      // },
     ],
   },
   {

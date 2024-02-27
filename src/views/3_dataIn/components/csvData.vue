@@ -24,13 +24,32 @@
                 $t("datasource.selectfile")
               }}</el-button>
             </el-upload>
+            <span
+              style="color: red; font-size: 12px; margin-left: 10px"
+              v-if="showfiletip"
+              >{{ this.$t("datasource.uploadcsvtip") }}</span
+            >
           </div>
         </el-tab-pane>
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
-          <div class="upload-file">
-            <span class="label required">{{ $t("datasource.fileurl") }}</span>
-            <el-input size="small" v-model="fileurl"></el-input>
-          </div>
+          <el-form
+            :model="fileForm"
+            ref="fileform"
+            :rules="fileRules"
+            label-width="220px"
+          >
+            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
+              <!-- <div class="upload-file"> -->
+              <!-- <span class="label required">{{
+                  $t("datasource.fileurl")
+                }}</span> -->
+              <el-input size="small" v-model="fileForm.fileurl"></el-input>
+              <!-- </div> -->
+              <DocsContent
+                :content="$t('datasource.csvFileDesc')"
+              />
+            </el-form-item>
+          </el-form>
         </el-tab-pane>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
@@ -39,58 +58,14 @@
               @click="getCsvColumnsData"
               size="small"
               class="nextbtn"
+              :loading="loading"
               >{{ $t("datasource.csvNext") }}</el-button
             >
             <CommonTransformer
               ref="transform"
-              @getTransformerParams="getTransformerParams"
               :parserColumns="extractArr"
               v-if="showTransformer"
             ></CommonTransformer>
-            <!-- <div class="csv-config" v-if="showConfig">
-              <ul class="csv-tableheader">
-                <li>{{ $t("datasource.csvcol") }}</li>
-                <li>{{ $t("datasource.dbcol") }}</li>
-                <li>{{ $t("datasource.coltype") }}</li>
-                <li>{{ $t("datasource.primarykey") }}</li>
-                <li>{{ $t("datasource.ascolumn") }}</li>
-                <li>{{ $t("datasource.astag") }}</li>
-              </ul>
-              <ul v-for="(item, index) in csvColumns" :key="item">
-                <li class="csv-content">
-                  <div class="csv-col">
-                    <el-tooltip
-                      effect="light"
-                      placement="right-end"
-                      :content="item"
-                    >
-                      <span
-                        style="
-                          width: 120px;
-                          overflow: hidden;
-                          text-overflow: ellipsis;
-                        "
-                        >{{ item }}</span
-                      ></el-tooltip
-                    >
-                  </div>
-
-                  <CsvColumn
-                    :csvColName="item"
-                    :key="index"
-                    :index="index"
-                    :colData="localcsv"
-                    :dbOptions="dbOptions"
-                    :isEditable="isEditable"
-                    @handleVisble="handleVisble"
-                    @handledbChange="handledbChange"
-                    @handleFilter="handleFilter"
-                    @handleClear="handleClear"
-                    ref="csvconfig"
-                  ></CsvColumn>
-                </li>
-              </ul>
-            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -101,13 +76,16 @@
 import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
+import { getDsnData, getFieldClassMarkName } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import CommonTransformer from "./commonTransformer.vue";
+import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn, CommonTransformer },
+  components: { CsvParameter, CsvColumn, CommonTransformer, DocsContent },
+  inject: ['sourceParent'],
   props: {
     isEditable: {
       type: Boolean,
@@ -125,9 +103,17 @@ export default {
       currentKey: this.currentKey,
     };
   },
+  computed: {
+    validFieldList() {
+      const result = [];
+      this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
+      return result;
+    },
+  },
   filter: {},
   data() {
     return {
+      showfiletip: false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       showTransformer: false,
       transformerParser: null,
@@ -144,13 +130,26 @@ export default {
       },
       activeName: "first",
       fileList: [],
-      fileurl: "",
+      fileForm: {
+        fileurl: "",
+      },
+      fileRules: {
+        fileurl: [
+          {
+            required: true,
+            // trigger: "blur",
+            message: this.$t("datasource.uploadcsvtip"),
+          },
+        ],
+      },
+
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
       sample_values: [],
       localcsv: {},
       dbOptions: [],
       extractArr: [],
+      loading: false,
     };
   },
   async mounted() {
@@ -158,6 +157,7 @@ export default {
       //编辑状态直接从返回值去csv 的parser
       this.activeName = "second";
       this.showConfig = true;
+
       this.fileList = this.$store.state.app.csvfiles
         .split(",")
         .map((item, index) => {
@@ -171,26 +171,42 @@ export default {
             uid: index,
           };
         });
-      this.fileurl = this.fileList
+      this.fileForm.fileurl = this.fileList
         .map((item) => {
           return item.response[0];
         })
         .join("");
+      let parseParam = this.getCsvParseParam()
       let result = await getCSVColumns(
-        this.fileurl,
+        this.fileForm.fileurl,
         "csv",
-        this.$refs.param.ruleForm.hasHeader
+        parseParam
       );
       this.csvColumns = result.file_header.column_names;
-      this.sample_values = result.sample_values;
+      if (result && !result.sample_values) {
+        Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        return
+      }
+      this.sample_values = result.sample_values ?? [];
       this.formatCsvTransformerData(this.csvColumns, this.sample_values);
     }
   },
   methods: {
-    //获取transformer的参数
-    getTransformerParams(data) {
-      this.transformerParser = data;
+    submitUrl() {
+      let flag = false;
+      this.$refs.fileform.validate((valid) => {
+        if (valid) {
+          flag = true;
+        } else {
+          flag = false;
+        }
+      });
+      return flag;
     },
+    //获取transformer的参数
+    // getTransformerParams(data) {
+    //   this.transformerParser = data;
+    // },
     handleRemove(file, filelist) {
       this.fileList = filelist;
     },
@@ -266,24 +282,57 @@ export default {
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = [].concat(file);
+      this.showfiletip = false;
+      this.$store.commit("app/SET_CSV_FILES", this.fileList);
     },
     submitUpload() {
-      this.$refs.upload.submit();
+      let isbreak=true
+      if (this.activeName == "first") {
+        if (this.fileList.length == 0) {
+          this.showfiletip = true;
+          isbreak=false;
+        }
+      } else {
+        isbreak=this.submitUrl();
+      }
+
+      if(!isbreak){
+        return isbreak
+      }
+      if (!this.showTransformer) {
+        Message.closeAll();
+        Message({
+          type: "warning",
+          message: this.$t("datasource.transformer.nexttip"),
+        });
+
+        // Message.warning(this.$t("datasource.transformer.nexttip"));
+        isbreak= false;
+      } else {
+        this.$nextTick(() => {
+          this.$refs.transform.getTransformerParams();
+          if (this.$refs.transform.isbreak) isbreak= false;
+        });
+      }
+      return isbreak
     },
 
     async getCsvColumnsData() {
       try {
+        this.loading = true;
+        this.showfiletip = false;
         if (this.activeName == "first" && this.fileList.length == 0) {
-          Message.error(this.$t("datasource.uploadcsvtip"));
+          this.showfiletip = true;
           return;
         }
-        if (this.activeName == "second" && !this.fileurl) {
-          Message.error(this.$t("datasource.uploadcsvtip"));
+        this.submitUrl();
+        if (this.activeName == "second" && !this.fileForm.fileurl) {
           return;
         }
+        this.$refs.param.submit();
+        if(!this.$refs.param.isValid)return 
         this.showTransformer = false;
         this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
-        this.$refs.param.submit();
 
         if (this.isEditable) {
           this.$parent.$parent.isEditable = false;
@@ -291,64 +340,70 @@ export default {
         this.csvColumns = [];
         this.dbOptions = [];
         let result = null;
+        let parseParam = this.getCsvParseParam()
+
         if (this.activeName == "first") {
           if (this.$refs.param.isValid && this.fileList.length > 0) {
-            if (this.$refs.param.ruleForm.hasHeader) {
-              result = await getCSVColumns(
-                this.fileList.map((item) => {
-                  return item.response[0];
-                }),
-                "csv",
-                this.$refs.param.ruleForm.hasHeader
-              );
-              if (result && result.message) {
-                Message.error(result.message);
-                return;
-              }
-              this.csvColumns = result.file_header.column_names;
-              this.sample_values = result.sample_values;
-            } else {
-              result = await getCSVColumns(
-                this.fileList.map((item) => {
-                  return item.response[0];
-                }),
-                "csv",
-                this.$refs.param.ruleForm.hasHeader
-              );
+            result = await getCSVColumns(
+              this.fileList.map((item) => {
+                return item.response[0];
+              }),
+              "csv",
+              parseParam
+            );
+            this.loading = false
+            if (result && result.message) {
+              Message.error(result.message);
+              return;
             }
+            this.csvColumns = result.file_header.column_names;
+            if (result && !result.sample_values) {
+              Message.error(this.$t('datasource.transformer.emptySampleValues'))
+              return
+            }
+            this.sample_values = result.sample_values ?? [];
           }
         } else {
           result = await getCSVColumns(
-            this.fileurl,
+            this.fileForm.fileurl,
             "csv",
-            this.$refs.param.ruleForm.hasHeader
+            parseParam
           );
+          this.loading = false
           if (result && result.message) {
             Message.error(result.message);
             return;
           }
           this.csvColumns = result.file_header.column_names;
-          this.sample_values = result.sample_values;
-        }
-        if (this.$refs.param.ruleForm.customcol) {
-          let apiColumns = result.file_header.column_names;
-          let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
-          if (localcolumns.length != apiColumns.length) {
-            Message.error(this.$t("datasource.transformer.csvtip"));
-            return;
+          if (result && !result.sample_values) {
+            Message.error(this.$t('datasource.transformer.emptySampleValues'))
+            return
           }
-          this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
-          this.sample_values = result.sample_values.map((item) => {
-            return item.slice(0, localcolumns.length);
-          });
+          this.sample_values = result.sample_values ?? [];
         }
-
+        
+        // 去掉自定义列
+        // if (this.$refs.param.ruleForm.customcol) {
+        //   let apiColumns = result.file_header.column_names;
+        //   let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
+        //   if (localcolumns.length != apiColumns.length) {
+        //     Message.error(this.$t("datasource.transformer.csvtip"));
+        //     return;
+        //   }
+        //   this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
+        //   this.sample_values = result.sample_values.map((item) => {
+        //     return item.slice(0, localcolumns.length);
+        //   });
+        // }
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
+
+        this.submitUpload();
+        this.loading = false
       } catch (error) {
+        this.loading = false
         error && error.message && Message.error(error.message);
       }
-      this.$refs.upload.submit();
     },
     //组合CSV的transfomrer页面需要的数据
     formatCsvTransformerData(columns, values) {
@@ -362,13 +417,15 @@ export default {
       let msgBody = values.map((item) => {
         return item;
       });
-      if (this.$store.state.app.csvTransformerlocalCols.length > 0) {
-        msgBody.unshift(
-          this.$store.state.app.csvTransformerlocalCols.toString()
-        );
-      } else {
-        msgBody.unshift(columns.toString());
-      }
+      // 自定义列删除
+      // if (this.$store.state.app.csvTransformerlocalCols.length > 0) {
+      //   msgBody.unshift(
+      //     this.$store.state.app.csvTransformerlocalCols.toString()
+      //   );
+      // } else {
+      //   msgBody.unshift(columns.toString());
+      // }
+      msgBody.unshift(columns.toString());
       this.extractArr.splice(0, this.extractArr.length);
       columns.forEach((item) => {
         let obj = {};
@@ -442,18 +499,51 @@ export default {
         // error&&error.desc&&Message.error(error.desc)
       }
     },
+    //获取 csv 解析需要的参数
+    getCsvParseParam() {
+      let dsn = ''
+      dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+      dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0] ?? ''
+      return dsn;
+    },
   },
+  watch:{
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.$nextTick(()=>{
+          this.showfiletip=false
+        })
+        
+      },
+    },
+    "fileForm.fileurl": {
+      handler(val) {
+        this.$store.commit("app/SET_CSV_FILES", val);
+      }
+    }
+  }
 };
 </script>
 <style lang="scss" scoped>
+:deep(.markdown-body) {
+  p {
+    font-size: 14px;
+  }
+  color: $color-description;
+}
 .upload-demo {
   display: flex;
   align-items: baseline;
 }
 .csv-data {
   // width: 600px;
-  padding: 5px;
-  box-sizing: border-box;
+  // padding: 5px;
+  // box-sizing: border-box;
+  // border: 1px solid #e3e4e6;
+  // margin-bottom: 20px;
+  // border-radius: 12px;
+  // padding: 15px;
   .upload-file {
     display: flex;
     margin-bottom: 18px;
@@ -461,7 +551,7 @@ export default {
     .label {
       padding-right: 40px;
       color: #4259ce;
-      width: 150px;
+      width: 220px;
       font-weight: 500;
       font-size: 14px;
       text-align: left;
@@ -488,7 +578,6 @@ export default {
   }
   .nextbtn {
     width: 100%;
-    margin-top: 20px;
     margin-bottom: 20px;
   }
   .csv-config {

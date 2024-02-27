@@ -7,18 +7,14 @@
         size="small"
         icon="el-icon-refresh"
         :disabled="loading"
-        style="font-size:14px;"
+        style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button
-        plain
-        @click="add"
-        size="small"
-        style="font-size:14px;"
-        >{{ $t("taosuser.activationLicense") }}</el-button
-      >
+      <el-button plain @click="add" size="small" style="font-size: 14px">{{
+        $t("taosuser.activationLicense")
+      }}</el-button>
     </div>
-    
+
     <!-- <el-table :data="tableData" :show-header="false" border>
       <el-table-column prop="header" label="表头"> </el-table-column>
       <el-table-column
@@ -28,54 +24,94 @@
       >
       </el-table-column>
     </el-table> -->
-    <el-descriptions
-      class="margin-top"
-      title=""
-      :column="3"
-    >
-      <el-descriptions-item :label="$t('topic.clusterId')" :labelStyle='style' >
+    <p class="title">
+      <span>{{ $t("topic.basicDatabaseFeatures") }}</span>
+    </p>
+    <el-descriptions class="margin-top" title="" :column="3">
+      <el-descriptions-item :label="$t('topic.clusterId')" :labelStyle="style">
         <span>{{ clusterId }}</span>
       </el-descriptions-item>
-      <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
-        <span style="color:#333;" v-if="item.key !== 'version'"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
-        <span style="color:#333;" v-else>
-          <span style="padding-left: 2px;">{{ serverVersion }}</span>
+      <el-descriptions-item
+        v-for="item in licenseList"
+        :key="item.key"
+        :label="$t(`topic.${item.key}`)"
+        :labelStyle="style"
+      >
+        <span style="color: #333" v-if="item.key !== 'version'">
+          {{
+            ["expire_time","service_time"].includes(item.key) && item.value !== "unlimited"
+              ? parsinginZone(item.value, "YYYY-MM-DD h:mm:ss")
+              : item.value
+          }}</span
+        >
+        <span style="color: #333" v-else>
+          <span style="padding-left: 2px">{{ serverVersion }}</span>
           <!-- {{ item.value }} -->
         </span>
       </el-descriptions-item>
     </el-descriptions>
+    <template v-if="!version_no_later_than_3230" >
+      <p class="title">
+        <span>{{ $t("topic.advancedDatabaseFeatures") }}</span>
+      </p>
+      <el-table style="margin-top: 20px" :data="advancedTableData" size="mini">
+        <el-table-column :label="$t('topic.advancedFeatures')" prop="display_name"></el-table-column>
+        <el-table-column :label="$t('topic.number')" prop="limits">
+          <template slot-scope="scope">
+            <span>{{
+              formatLimits(scope.row.limits)
+            }}</span>
+          </template>
+        </el-table-column>
+        <!-- 占位 -->
+        <el-table-column />
+        <el-table-column
+          :label="$t('topic.expire_time')"
+          prop="expireTime"
+        >
+          <template slot-scope="scope">
+            <span>{{ expireTime(scope.row.expire) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
     <p class="title">
       <span>{{ $t("topic.connectors") }}</span>
     </p>
     <el-table style="margin-top: 20px" :data="tableData" size="mini">
-      <el-table-column
-        :label="$t('topic.type')"
-        prop="type"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.number')"
-        prop="number"
-      >
-      <template slot-scope="scope">
-        <span>{{ scope.row.number == -1 ? 'unlimited': scope.row.number }}</span>
-      </template>
+      <el-table-column :label="$t('topic.type')" prop="type"></el-table-column>
+      <el-table-column :label="$t('topic.tasks')" prop="number">
+        <template slot-scope="scope">
+          <span>{{
+            scope.row.number == -1 ? "unlimited" : scope.row.number
+          }}</span>
+        </template>
       </el-table-column>
-      <el-table-column
-        :label="$t('topic.speed')"
-        prop="speed"
-      >
-      <template slot-scope="scope">
-        <span>{{ scope.row.speed == -1 ? 'unlimited': scope.row.speed }}</span>
-      </template>
+      <el-table-column :label="$t('topic.speed')" prop="speed">
+        <template slot-scope="scope">
+          <span>{{
+            scope.row.speed == -1 ? "unlimited" : scope.row.speed
+          }}</span>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('topic.expire_time')"
         prop="expire"
+        v-if="version_no_later_than_3230"
       >
-      <template slot-scope="scope">
-        <span>{{ expireTime(scope.row.expire) }}</span>
-      </template>
-    </el-table-column>
+        <template slot-scope="scope">
+          <span>{{ expireTime(scope.row.expire) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        :label="$t('topic.expire_time')"
+        prop="expireTime"
+        v-if="!version_no_later_than_3230"
+      >
+        <template slot-scope="scope">
+          <span>{{ expireTime(scope.row.expireTime) }}</span>
+        </template>
+      </el-table-column>
     </el-table>
     <el-pagination
       class="pagination"
@@ -90,11 +126,12 @@
       align="center"
       width="600px"
       :visible.sync="dialog"
-      :destroy-on-close='true'
+      :destroy-on-close="true"
+      :close-on-click-modal="false"
     >
       <div slot="title">
-        <div class="activate-title">{{ $t('taosuser.activationLicense') }}</div>
-        <span class="activate-tip">{{ $t('taosuser.activeTip') }}</span>
+        <div class="activate-title">{{ $t("taosuser.activationLicense") }}</div>
+        <span class="activate-tip">{{ $t("taosuser.activeTip") }}</span>
       </div>
       <el-form
         :model="ruleForm"
@@ -104,17 +141,15 @@
         :label-width="getlabelWidth"
         class="demo-ruleForm"
       >
-        <el-form-item
-          :label="$t('taosuser.activeCode')"
-          prop="active_code"
-        >
+        <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
           <el-input v-model.trim="ruleForm.active_code"></el-input>
         </el-form-item>
         <el-form-item
           :label="$t('taosuser.cActiveCode')"
           prop="c_active_code"
+          v-if="version_no_later_than_3230"
         >
-          <el-input v-model.trim="ruleForm.c_active_code "></el-input>
+          <el-input v-model.trim="ruleForm.c_active_code"></el-input>
         </el-form-item>
       </el-form>
 
@@ -141,8 +176,8 @@
 <script>
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
-import { activeLicence } from '@/api/explorer/licence';
-import { parsinginZone, getBrowserLang } from '@/utils';
+import { activeLicence } from "@/api/explorer/licence";
+import { parsinginZone, getBrowserLang } from "@/utils";
 export default {
   data() {
     return {
@@ -158,30 +193,32 @@ export default {
       rules: {
         active_code: [
           {
-            message: this.$t('dataIn.enterTip'),
+            message: this.$t("dataIn.enterTip"),
           },
         ],
         c_active_code: [
           {
-            message: this.$t('dataIn.enterTip'),
+            message: this.$t("dataIn.enterTip"),
           },
         ],
       },
       licenseList: [],
       columns: [],
       tableData: [],
-      parsinginZone
+      advancedTableData: [],
+      parsinginZone,
+      version_no_later_than_3230: false,
     };
   },
   computed: {
-    style(){
+    style() {
       return {
-        'font-size':'14px',
-        'color':'#4d6992',
-        'min-width': '104px',
-        'display': 'inline-block',
-        'text-align': 'right'
-      }
+        "font-size": "14px",
+        color: "#4d6992",
+        "min-width": "104px",
+        display: "inline-block",
+        "text-align": "right",
+      };
     },
     confirmStatus() {
       if (!this.ruleForm.active_code && !this.ruleForm.c_active_code) {
@@ -190,23 +227,33 @@ export default {
       return false;
     },
     getlabelWidth() {
-      let lang = getBrowserLang()
-      if (lang === 'zh') {
-        return '120px'
+      let lang = getBrowserLang();
+      if (lang === "zh") {
+        return "120px";
       }
-      return '240px'
+      return "240px";
     },
     clusterId() {
-      return localStorage.getItem('local_clusterID') || ''
+      return localStorage.getItem("local_clusterID") || "";
     },
     serverVersion() {
-      return localStorage.getItem('serverVersion') || ''
-    }
+      return localStorage.getItem("serverVersion") || "";
+    },
   },
   created() {
     this.getData();
+    this.handlecActiveCodeShow();
   },
   methods: {
+    handlecActiveCodeShow() {
+      let version = localStorage.getItem("agent_version");
+      let [a, b, c] = version.split(".");
+      if (a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3)) {
+        this.version_no_later_than_3230 = false;
+      } else {
+        this.version_no_later_than_3230 = true;
+      }
+    },
     handlePageChange() {},
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
@@ -223,8 +270,9 @@ export default {
     async getData() {
       try {
         // let cols = [];
+        // 不管是任何版本都show grants
         await sendSQLReq(`show grants;`).then((res) => {
-         let  array = res.data.map((data) => {
+          let array = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
                 // cols.push({ header: item[0], value: item[0] });
@@ -232,62 +280,96 @@ export default {
               })
             );
           });
-          let allLicence =array.length>0?Object.keys(array[0]).map(key=>{
-            return {
-              key:key,
-              value:array[0][key]
-            }
-          }):[]
-          this.licenseList = allLicence.filter(item => item.value.indexOf('{') == -1)
-          this.tableData = allLicence.filter(item => item.value.indexOf('{') == 0).map(data => {
-            return JSON.parse(data.value)
-          })
-          // this.columns = new Array(this.licenseList.length).fill(0);
-          // this.tableData=JSON.parse(JSON.stringify(cols))
-          // const tableData = cols.map((item) => {
-          //   const data = {
-          //     header: item.header,
-          //   };
-          //   this.licenseList.forEach((col, index) => {
-          //     data[index] = col[item.value];
-          //   });
-          //   return data;
-          // });
-          // this.tableData = tableData;
+          let allLicence =
+            array.length > 0
+              ? Object.keys(array[0]).map((key) => {
+                  return {
+                    key: key,
+                    value: array[0][key],
+                  };
+                })
+              : [];
+          this.licenseList = allLicence.filter(
+            (item) => item.value.indexOf("{") == -1
+          );
+          if (this.version_no_later_than_3230) {
+            this.tableData = allLicence
+              .filter((item) => item.value.indexOf("{") == 0)
+              .map((data) => {
+                return JSON.parse(data.value);
+              });
+          }
         });
+        if (!this.version_no_later_than_3230) {
+          await sendSQLReq(`show grants full;`).then((res) => {
+            let array = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+ 
+            this.tableData = array
+              .filter((item) => item.limits.indexOf("{") == 0)
+              .map((data) => {
+                return {
+                  ...JSON.parse(data.limits),
+                  type: data.display_name,
+                  expire_time: data.expireTime,
+                };
+              })
+              .filter(v => v.type != '');
+            this.advancedTableData = array
+              .filter((item) => item.limits.indexOf("{") == -1)
+            console.log("this.tableData", this.tableData, this.advancedTableData);
+          });
+        }
         this.loading = false;
       } catch (error) {
         this.loading = false;
       }
     },
     add() {
-      this.dialog = true
+      this.dialog = true;
     },
     async submit() {
       try {
-        await activeLicence(this.ruleForm).then(res => {
-          console.log('res',res);
+        await activeLicence(this.ruleForm).then((res) => {
+          console.log("res", res);
           if (res && res.code == 0) {
-            this.$message.success(this.$t('operateSucc'))
-            this.dialog = false
-            this.refresh()
+            this.$message.success(this.$t("operateSucc"));
+            this.dialog = false;
+            this.refresh();
           } else {
-            this.$message.error(res?.desc)
+            this.$message.error(res?.desc);
           }
-        })     
+        });
       } catch (error) {
-        this.$message.error(error)
+        this.$message.error(error);
       }
-    }, 
-    expireTime(data){
-      return parsinginZone(Number(data) * 24 * 60 * 60 * 1000,'YYYY-MM-DD')
+    },
+    expireTime(data) {
+      if (this.version_no_later_than_3230) {
+        return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
+      } else {
+        return parsinginZone(data, "YYYY-MM-DD");
+      }
+    },
+    formatLimits(data) {
+      if (data) {
+        console.log('data',data);
+        return data == 'unlimited' ? 'unlimited' : data.split('/')[1]
+      } else {
+        return 'n/a'
+      }
     }
   },
 };
 </script>
 <style lang="scss" scoped>
-.dnode-block{
-  margin-top:10px;
+.dnode-block {
+  margin-top: 10px;
 }
 ::v-deep {
   .el-form-item__content {
@@ -297,20 +379,20 @@ export default {
     flex: 1;
   }
 
-th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label{
-  width:80px;
-}
-td.el-descriptions-item__cell.el-descriptions-item__content{
-  width:200px;
-}
-.el-descriptions .el-descriptions-item__cell{
-  padding:12px 5px;
-  border-bottom: 1px solid #dfe6ec;
-}
-.el-form-item--mini .el-form-item__label {
-  word-break: break-word;
-}
-.title{
+  th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label {
+    width: 80px;
+  }
+  td.el-descriptions-item__cell.el-descriptions-item__content {
+    width: 200px;
+  }
+  .el-descriptions .el-descriptions-item__cell {
+    padding: 12px 5px;
+    border-bottom: 1px solid #dfe6ec;
+  }
+  .el-form-item--mini .el-form-item__label {
+    word-break: break-word;
+  }
+  .title {
     background-color: #ecf8ff;
     border-left-color: #50bfff;
     color: #333;
@@ -320,15 +402,15 @@ td.el-descriptions-item__cell.el-descriptions-item__content{
     font-size: 16px;
     margin: 30px 0 10px 0;
     padding: 8px 16px;
-}
-.activate-title {
-  line-height: 26px;
-  font-weight: 500;
-  font-size: 20px;
-  color: #4d6992;
-}
-.activate-tip {
-  color:#909399;
-}
+  }
+  .activate-title {
+    line-height: 26px;
+    font-weight: 500;
+    font-size: 20px;
+    color: #4d6992;
+  }
+  .activate-tip {
+    color: #909399;
+  }
 }
 </style>

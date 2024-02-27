@@ -97,7 +97,7 @@ token="{{ token }}"</code></pre>
             label="Windows"
             name="1"
           >
-            <pre v-highlight><code>C:\Program Files\taosX\log\agent\</code></pre>
+            <pre v-highlight><code>C:\TDengine\log\agent.log</code></pre>
           </el-tab-pane>
         </el-tabs>
         <p
@@ -139,6 +139,10 @@ export default {
       default: () => {
         return {}
       }
+    },
+    close: {
+      type: Function,
+      default: () => {}
     }
   },
   name:'AddAgent',
@@ -261,7 +265,7 @@ export default {
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
         this.$store.commit('app/SET_AGENT_DIALOG',false)
-        
+        this.close()
       }
       if(this.active==2){
         this.submit();

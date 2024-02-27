@@ -6,7 +6,7 @@
     <pre v-highlight><code>cargo new --bin tdengine-sub-sample-rust
 </code></pre>
     <p>{{ $t("docs.topic.rust.step1desc1") }}</p>
-    <pre v-highlight><code class="language-toml">[package]
+    <pre v-highlight="`[package]
 name = &quot;tdengine-sub-sample-rust&quot;
 version = &quot;0.1.0&quot;
 edition = &quot;2021&quot;
@@ -14,7 +14,7 @@ edition = &quot;2021&quot;
 [dependencies]
 taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws&quot;, &quot;ws-native-tls&quot;] }
 tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
-anyhow = &quot;1.0.0&quot; 
+anyhow = &quot;1.0.0&quot; `"><code class="language-toml">
 </code></pre>
     <doc-config
       :id="'rust-config'"

@@ -60,7 +60,7 @@ $env:TDENGINE_URL=&quot;${url}&quot;
     <h3>{{ $t("docs.party.influxdb.step31") }}</h3>
     <pre
       v-highlight="
-        `curl --request POST &quot;$TDENGINE_URL/influxdb/v1/write?db=${db_name}&amp;token=$TDENGINE_TOKEN&amp;precision=ns&quot; --data-binary &quot;measurement,host=host1 field1=2i,field2=2.0 1577846800001000001&quot;
+        `curl --request POST &quot;$TDENGINE_URL/influxdb/v1/write?db=<db_name>&amp;token=$TDENGINE_TOKEN&amp;precision=ns&quot; --data-binary &quot;measurement,host=host1 field1=2i,field2=2.0 1577846800001000001&quot;
 `
       "
     ><code class="language-bash"></code></pre>
@@ -71,7 +71,7 @@ $env:TDENGINE_URL=&quot;${url}&quot;
     </ul>
     <pre
       v-highlight="
-        `curl -L -d &quot;select * from ${db_name}.measurement where host=\&quot;host1\&quot;&quot; $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
+        `curl -L -d &quot;select * from <db_name>.measurement where host=\&quot;host1\&quot;&quot; $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
 `
       "
     ><code class="language-bash"></code></pre>

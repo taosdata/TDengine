@@ -4,6 +4,7 @@
       <template v-if="item.children">
         <section
           class="block-wrapper"
+          :id="item.field"
           v-if="!item.hide"
           :class="{ 'block-wrapper': level }"
           :key="item.label"
@@ -30,14 +31,25 @@
             :parent="parent"
             v-bind="item"
           /> -->
-          <ParserComp
+          <!-- <ParserComp
             v-if="item.type == 'parser'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
-          />
+          /> -->
+          
+          <CommonTransformer 
+            v-if="item.type == 'parser' && constmqttCols.length > 0" 
+            ref='transform' 
+            :parserColumns="constmqttCols"
+          ></CommonTransformer>
+          <CsvData
+            v-else-if="item.type == 'csvData'"
+            ref="csvdata"
+            :isEditable="isEditable"
+          ></CsvData>
           <ConnectivityCheck
-            v-else-if="item.type == 'collapse'"
+            v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
@@ -67,7 +79,7 @@
           <template v-else-if="item.type == 'advanced'">
             <el-collapse 
               :class='`advanced-${lang}`'
-              v-model="item.collapsed" 
+              v-model="activeName" 
               accordion>
               <el-collapse-item name='one'>
                 <template slot="title">
@@ -109,6 +121,7 @@
           :data="data[item.field]"
           :parent="parent + item.field + '.'"
         ></ConfigForm>
+        
       </template>
 
       <FormItem
@@ -119,6 +132,7 @@
         :parent="parent"
       />
     </template>
+   
   </div>
 </template>
 
@@ -131,6 +145,8 @@ import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
 import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
+import CommonTransformer from './commonTransformer.vue'
+import CsvData from "./csvData.vue";
 
 export default {
   props: {
@@ -142,6 +158,10 @@ export default {
       type: Object,
       default: () => {}
     },
+    parser:{
+      type:Object,
+      default:()=>{}
+    },
     parent: {
       type: String,
       default: ''
@@ -149,23 +169,44 @@ export default {
     level: {
       type: Number,
       default: 0
+    },
+    isEditable: {
+      type: Boolean
     }
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp, CommonTransformer, CsvData },
   data() {
-    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
-    return {};
+    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
+    return {
+      constmqttCols:[]
+    };
   },
   computed: {
     lang() {
       return getBrowserLang() == 'zh' ? 'zh': 'en'
+    },
+    activeName() {
+      return this.isEditable ? 'one' : ''
     }
   },
-  watch: {},
+  watch: {
+    parser:{
+      deep:true,
+      handler(val){
+        if(val){
+          this.$set(this, "constmqttCols", val.fields);
+        }
+      }
+    }
+  },
   created() {},
-  mounted() {},
+  mounted() {
+    if(this.parser){
+      this.$set(this, "constmqttCols", this.parser.fields);
+    }
+  },
   methods: {
     tabDisabled(child, parent) {
       if (!hasOwn(child, 'disabled')) return false;
@@ -177,10 +218,6 @@ export default {
       return child.name === this.data[parent.field][parent.valueField];
     }
   }
-  // errorCaptured(err, vm, info) {
-  //   console.log(info);
-  //   return false;
-  // }
 };
 </script>
 
@@ -196,7 +233,7 @@ export default {
     cursor: not-allowed;
   }
   .docs-content {
-    color: #acaab2;
+    color: $color-description;
     font-size: 14px;
   }
   &:deep(.el-tabs__item) {

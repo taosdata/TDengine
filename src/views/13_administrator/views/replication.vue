@@ -7,18 +7,44 @@
       <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="60" prop="id" show-overflow-tooltip></el-table-column>
-      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb" show-overflow-tooltip></el-table-column>
-      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport" show-overflow-tooltip>
+      <el-table-column label="ID" width="60" prop="id">
         <template slot-scope="scope">
-        <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
+          <el-tooltip :content="String(scope.row.id)" placement="top-start">
+            <span class="nowrap">{{ scope.row.id }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.fromdb" placement="top-start">
+            <span class="nowrap">{{ scope.row.fromdb }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.hostport" placement="top-start">
+            <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
+          </el-tooltip>
         <!-- {{ scope.row.hostport }} -->
         </template>
       </el-table-column>
       <!-- <el-table-column :label="$t('taosuser.todb')" prop="db" show-overflow-tooltip></el-table-column> -->
 
-      <el-table-column :label="$t('taosuser.status')" prop="status" show-overflow-tooltip width="80"></el-table-column>
-      <el-table-column :label="$t('taosuser.reason')" prop="reason" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.status')" prop="status" width="80">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.status" placement="top-start">
+            <span class="nowrap">{{ handleDSStatus(scope.row.status) }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.reason')" prop="reason">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.reason" placement="top-start">
+            <span class="nowrap">{{ scope.row.reason }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" min-width="210" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
       </el-table-column>
@@ -27,7 +53,7 @@
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.status.toLowerCase() == 'running'" active-color="rgb(66, 89, 206)"
+          <el-switch :value="!['stopping','stopped'].includes(scope.row.status.toLowerCase())" active-color="#13ce66"
             inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)"></el-switch>
           <!-- <el-button
             plain
@@ -54,7 +80,7 @@
     <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
     <el-dialog align="center" :title="$t('taosuser.addreplication')" width="600px" :visible.sync="dialog"
-      @close="closeDialog" :destroy-on-close="true">
+      @close="closeDialog" :destroy-on-close="true" :close-on-click-modal="false">
       <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
         <el-form-item prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
@@ -166,13 +192,20 @@ export default {
           cancelButtonText: this.$t("cancel"),
           type: "warning",
         }).then(async () => {
-          await excuteDel(data.id).then(() => {
-            Message({
-              type: "success",
-              message: this.$t('delSucc'),
+          await excuteDel(data.id).then((res) => {
+            if (res && Object.hasOwnProperty.call(res, "id")) {
+              Message({
+                type: "success",
+                message: this.$t('delSucc'),
+              });
+              this.getReplication();
+            } else {
+              Message({
+                type: 'error',
+                message: res.message
+              })
+            }
             });
-            this.getReplication();
-          });
         });
     },
     refresh() {
@@ -183,7 +216,6 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         let params = {
-          name: "",
           labels: [
             "type::replication",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
@@ -214,8 +246,15 @@ export default {
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getReplication();
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getReplication();
+          }   
         });
       } catch (err) {
         return Promise.reject(err);
@@ -223,19 +262,25 @@ export default {
     },
     async stop(val, data) {
       try {
-        await excuteStop(data.id).then(() => {
-          Message.success(this.$t('operateSucc'));
-          this.getReplication();
+        await excuteStop(data.id).then((res) => {
+          if (res && Object.hasOwnProperty.call(res, "code")) {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          } else {
+            Message.success(this.$t('operateSucc'));
+            this.getReplication();
+          }  
         });
       } catch (err) {
         return Promise.reject(err);
       }
     },
     switchOperation(val, data) {
+      console.log('val',val);
       this.$confirm(
-        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))} ${this.$t(
-          "replication.theTaskWithId"
-        ).replace("{id}", data.id)}?`,
+        this.$t(val ? this.$t('replication.taskStart').replace("{id}", data.id) : this.$t('replication.taskStop').replace("{id}", data.id)),
         this.$t("warning"),
         {
           confirmButtonText: this.$t("confirm"),
@@ -284,6 +329,9 @@ export default {
       } catch (error) {
         console.log(error);
       }
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
     },
   },
   created() {

@@ -40,7 +40,7 @@
         let lang = window.decodeURIComponent(this.lang);
         return (
           config[this.category](this.language).find(item => {
-            return item.name == lang;
+            return (item.path ?? item.name) == lang;
           }) || {}
         );
       },

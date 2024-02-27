@@ -28,14 +28,14 @@ $env:TDENGINE_URL=&quot;${url}&quot;
 <pre v-highlight><code class="language-text">/opentsdb/v1/put/telnet/&lt;db&gt;?token=&lt;cloud_token&gt;
 </code></pre>
 <h2 id="insert-example">Insert Example</h2>
-<pre v-highlight="`curl --request POST &quot;$TDENGINE_URL/opentsdb/v1/put/telnet/${db_name}?token=$TDENGINE_TOKEN&quot; --data-binary &quot;sys  1479496100 1.3E0 host=web01 interface=eth0&quot;
+<pre v-highlight="`curl --request POST &quot;$TDENGINE_URL/opentsdb/v1/put/telnet/<db_name>?token=$TDENGINE_TOKEN&quot; --data-binary &quot;sys  1479496100 1.3E0 host=web01 interface=eth0&quot;
 `"><code class="language-bash"></code></pre>
 <h2 id="query-example-with-sql">Query Example with SQL</h2>
 <ul>
 <li><code>sys</code> is the super table name.</li>
 <li>you can filter data by tag, like:<code>where host=&quot;web01&quot;</code>.</li>
 </ul>
-<pre v-highlight="`curl -L -d &quot;select * from ${db_name}.sys where host=\&quot;web01\&quot;&quot; $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
+<pre v-highlight="`curl -L -d &quot;select * from <db_name>.sys where host=\&quot;web01\&quot;&quot; $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
 `"><code class="language-bash"></code></pre>
 </div>
   </template>

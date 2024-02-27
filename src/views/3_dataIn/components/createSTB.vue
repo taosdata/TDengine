@@ -1,6 +1,6 @@
 <template>
   <div class="create-stb">
-    <el-form :model="stable_form" :rules="rules" label-width="150px" ref="form">
+    <el-form :model="stable_form" :rules="rules"  ref="form">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
           <span>{{ $t("name") }}</span>
@@ -29,7 +29,7 @@
           v-model="stable_form.ts_field_name"
           size="small"
         >
-        <div slot="prepend" style="width: 110px">TIMESTAMP</div>
+        <div slot="prepend" style="width: 142px">TIMESTAMP</div>
         </el-input>
         <div
           class="flexCenter input_row"

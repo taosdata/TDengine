@@ -25,6 +25,10 @@
             v-model="db_form.name"
           />
         </el-form-item>
+        <el-alert
+          type="warning"
+          :title="$t('data.backslashTip')"
+        ></el-alert>
       </el-form>
       <div class="section2">
         <div :class="['sub_title', isExplorerComp ? '' : 'color_style']">

@@ -58,6 +58,9 @@ export default {
     },
     isEdit() {
       return this.sourceParent.isEditable;
+    },
+    isMigrateMode() {
+      return this.data[this.field] === 'migrate'
     }
   },
   watch: {
@@ -85,14 +88,14 @@ export default {
       const tableList = this.tableConfig.options.map(item => {
         return {
           ...item,
-          disabled: item.value === 'Runtime.dbo.Live' && this.data[this.field] === 'migrate'
+          disabled: item.value === 'Runtime.dbo.Live' && this.isMigrateMode
         }
       })
       if (val !== 'isEditInit') {
-        this.data.table = ''
+        this.data.table = this.isMigrateMode ? 'Runtime.dbo.History' : ''
       }
       this.tableConfig.options = tableList
-      this.endDateTimeConfig.required = this.data[this.field] === 'migrate'
+      this.endDateTimeConfig.required = this.isMigrateMode
     }
   }
 };

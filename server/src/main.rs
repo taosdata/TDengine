@@ -4,7 +4,15 @@ use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
-use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
+use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls_pemfile::{certs, private_key};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Read},
+    path::PathBuf,
+    time::Duration,
+};
 use taos::*;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info, instrument, Level};
@@ -53,14 +61,15 @@ async fn main() -> anyhow::Result<()> {
             file_path = value;
         }
     }
+    println!("Use configuration file path: {}", file_path.display());
     let mut args = if let Ok(mut file) = File::open(&file_path) {
-        info!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
         let mut args: Args = toml::from_str(&content).unwrap();
         args.update_from(std::env::args());
         args
     } else {
+        println!("No configuration file found, use default arguments.");
         Args::parse()
     };
     let log_level = args
@@ -103,13 +112,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_any_header()
         } else {
             Cors::default()
-                .allowed_origin_fn(|origin, req_head| {
-                    req_head
-                        .headers()
-                        .get("Host")
-                        .map(|host| origin.as_bytes().ends_with(host.as_bytes()))
-                        .unwrap_or(false)
-                })
+                .allow_any_origin()
                 .allow_any_method()
                 .allow_any_header()
                 .max_age(3600)
@@ -183,16 +186,70 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = server
-        .bind((addr, port))
-        .with_context(|| format!("Bind address {addr}:{port} error"))?;
-
-    let server = if let Some(ipv6) = args.ipv6.as_deref() {
-        server
-            .bind((ipv6, port))
-            .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+    let certificate = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate
+            .unwrap_or(String::from(""))
     } else {
-        server
+        String::from("")
+    };
+    let certificate_key = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate_key
+            .unwrap_or(String::from(""))
+    } else {
+        String::from("")
+    };
+
+    // error reported when configuring only one file, so change it to '||' @zqsong
+    let server = if !certificate.is_empty() || !certificate_key.is_empty() {
+        let cert_file = File::open(certificate).expect("Failed to open certificate file");
+        let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
+
+        let cert = certs(&mut BufReader::new(cert_file))
+            .map(|result| Certificate(result.unwrap().to_vec()))
+            .collect_vec();
+        let cert_key = PrivateKey(
+            private_key(&mut BufReader::new(cert_key_file))
+                .unwrap()
+                .unwrap()
+                .secret_der()
+                .to_vec(),
+        );
+
+        let config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert, cert_key)
+            .expect("bad certificate/key");
+
+        let server = server
+            .bind_rustls((addr, port), config.clone())
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind_rustls((ipv6, port), config.clone())
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+        }
+    } else {
+        let server = server
+            .bind((addr, port))
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind((ipv6, port))
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+        }
     };
 
     server.run().await?;
@@ -579,6 +636,21 @@ struct Args {
     #[clap(flatten)]
     #[serde(flatten)]
     profile: Profile,
+
+    #[clap(flatten)]
+    ssl: Option<Ssl>,
+}
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct Ssl {
+    /// SSL certificate
+    #[clap(long, global = true, env = "CERTIFICATE")]
+    certificate: Option<String>,
+
+    /// SSL certificate key
+    #[clap(long, global = true, env = "CERTIFICATE_KEY")]
+    certificate_key: Option<String>,
 }
 
 impl Args {
@@ -635,15 +707,10 @@ impl Args {
         header: &str,
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        if license.active_code.is_none() && license.c_active_code.is_none() {
-            return Err(RestErrResponse {
-                code: Code::FAILED,
-                desc: "active code or connector active code must exist at lease one".into(),
-            });
-        }
-        //token
+        // token
         let credentials =
             Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        // connection
         let mut dsn: Dsn = self
             .profile
             .cluster
@@ -654,21 +721,53 @@ impl Args {
         dsn.username = Some(credentials.user_id);
         dsn.password = Some(credentials.password);
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
-
-        if let Some(active_code) = license.active_code.as_ref() {
-            if active_code.len() > 0 {
-                let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                conn.exec(&sql).await.map_err(|err| {
-                    RestErrResponse::new(format!("Invalid cluster activation code: {err:#}"))
-                })?;
+        // server version
+        let server_version = conn.server_version().await;
+        let server_version = match server_version {
+            Err(err) => {
+                log::error!("Failed to get server version: {err}");
+                return Err(RestErrResponse::new("Failed to get server version"));
             }
-        }
-        if let Some(c_active_code) = license.c_active_code.as_ref() {
-            if c_active_code.len() > 0 {
-                let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                conn.exec(&sql).await.map_err(|err| {
-                    RestErrResponse::new(format!("Invalid connector activation code: {err:#}"))
-                })?;
+            Ok(version) => version,
+        };
+        let (a, b, c) = get_main_version_from_server_version(&server_version.to_string()).unwrap();
+        // check version and use different function
+        if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+            if let Some(active_code) = license.active_code.as_ref() {
+                if active_code.len() > 0 {
+                    let sql = format!("alter cluster 'activeCode' '{active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })?;
+                }
+            } else {
+                return Err(RestErrResponse {
+                    code: Code::FAILED,
+                    desc: "active code must exist".into(),
+                });
+            }
+        } else {
+            if license.active_code.is_none() && license.c_active_code.is_none() {
+                return Err(RestErrResponse {
+                    code: Code::FAILED,
+                    desc: "active code or connector active code must exist at lease one".into(),
+                });
+            }
+            if let Some(active_code) = license.active_code.as_ref() {
+                if active_code.len() > 0 {
+                    let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })?;
+                }
+            }
+            if let Some(c_active_code) = license.c_active_code.as_ref() {
+                if c_active_code.len() > 0 {
+                    let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
+                    conn.exec(&sql).await.map_err(|err| {
+                        RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
+                    })?;
+                }
             }
         }
         Ok(RestOkResponse {
@@ -748,6 +847,19 @@ impl From<taos::Error> for RestErrResponse {
                 desc: err_str,
             }
         }
+    }
+}
+
+pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<(i32, i32, i32)> {
+    let mut version_vec = version.splitn(4, ".").collect_vec();
+    version_vec.truncate(3);
+    let res = version_vec
+        .into_iter()
+        .map(|x| x.parse::<i32>())
+        .collect_tuple();
+    match res {
+        Some((Ok(a), Ok(b), Ok(c))) => Ok((a, b, c)),
+        _ => Err(anyhow::anyhow!("Invalid version string: {}", version)),
     }
 }
 

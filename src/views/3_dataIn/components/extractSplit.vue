@@ -1,5 +1,5 @@
 <template>
-  <div class="extract-split">
+  <div :class="['extract-split',itemData.columnname&&itemData.columnname==$store.state.app.transresultname?'active':'']">
     <div class="extract-item">
       <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
         <el-form-item prop="col_name">
@@ -8,7 +8,7 @@
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
             @change="selectCol"
-            :disabled="disabled"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
           >
             <el-option
               v-for="(item, index) in extractColumns"
@@ -36,7 +36,10 @@
         </el-form-item>
         <el-form-item prop="filter_expres">
           <template v-if="ruleForm.filter_name == 'split'">
-            <SplitExpression ref="splitExpression"></SplitExpression>
+            <SplitExpression
+              ref="splitExpression"
+              :ruleForm="itemData.splitParams"
+            ></SplitExpression>
           </template>
           <el-popover
             v-else
@@ -62,23 +65,36 @@
           style="display: flex"
         ></el-button>
         <el-button
-          icon="el-icon-check"
+          icon="el-icon-PREVIEW"
           @click="submit"
           style="display: flex"
         ></el-button>
       </div>
     </div>
-    <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
-    </div>
+    <ul class="col-list" v-if="tableColumns.length > 0">
+      <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
+        <!-- <template v-if="item.value">
+          <el-tooltip
+            class="item"
+            effect="light"
+            :content="$t('datasource.transformer.sampleval') + ':' + item.value"
+            placement="top-start"
+          >
+            <span>{{ item.name }}</span>
+          </el-tooltip>
+        </template> -->
+        <span>{{ item.name }}</span>
+      </li>
+      <li v-if="tableColumns.length > 9" >
+        <el-tooltip
+          :content="$t('datasource.transformer.viewmore')"
+          placement="top"
+          effect="light"
+        >
+          <span @click='submit'><i class="el-icon-more"></i></span>
+        </el-tooltip>
+      </li>
+    </ul>
   </div>
 </template>
 <script>
@@ -96,10 +112,6 @@ export default {
       default: () => {
         return null;
       },
-    },
-    payload: {
-      type: String,
-      default: "",
     },
     index: {
       type: Number,
@@ -120,12 +132,20 @@ export default {
   },
   data() {
     return {
+      splitParams: {
+        sep: "",
+        n: "",
+        names: "",
+      },
+      isJson: true,
+      mqttDefaultCols: ["topic", "qos", "payload"],
+      kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       disabled: false,
       splitExpre: {},
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["json", "split", "regex"],
+      extractTypes: ["split", "regex"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -160,7 +180,31 @@ export default {
   },
   methods: {
     //提交验证
-    validateExtreact() {},
+    validateExtreact() {
+      let isbreak=false
+      if (this.ruleForm.filter_name == "split") {
+        this.$refs.splitExpression.submit();
+        if (!this.$refs.splitExpression.isValid) {
+          isbreak=true;
+        }
+      }else{
+        if(this.ruleForm.filter_expres){
+          this.$refs.extractForm.validate(valid=>{
+            if(valid){
+              return true
+            }else{
+              return false
+            }
+          })
+          isbreak=true
+        }
+      }
+      return isbreak
+    },
+    async showResultTable() {
+      await this.submitExtract(true);
+      this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
+    },
     changeExtractExpr(val) {
       this.$emit("changeExtractExpr", this.ruleForm.col_name, val);
     },
@@ -169,10 +213,9 @@ export default {
       this.ruleForm.filter_expres = val.expression;
       this.ruleForm.filter_name = val.type;
     },
-    selectCol(data) {
+    selectCol() {
       this.disabled = true;
       this.$emit("selectColumn", this.index, this.ruleForm.col_name);
-      // this.$emit("setExtractName", this.index, this.ruleForm.col_name);
     },
     changeExtractType() {
       let index = this.$parent.extractArr.findIndex(
@@ -197,8 +240,12 @@ export default {
       }
       this.$refs.extractForm.validate(async (valid) => {
         if (valid) {
+          this.$store.commit(
+            "app/SET_TRANS_RESULT_NAME",
+            this.itemData.columnname
+          );
           await this.submitExtract();
-          //执行完之后选中的列才能不会再被选中
+          await this.submitExtract(true);
 
           return true;
         } else {
@@ -206,7 +253,7 @@ export default {
         }
       });
     },
-    async getParserData(data) {
+    async getParserData(data, isall) {
       try {
         let result = await getParser(data);
         if (result.message) {
@@ -214,19 +261,6 @@ export default {
           return;
         }
 
-        this.tableColumns = result[0].fields.map((item) => item.name);
-        this.tableData = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [
-                item.name,
-                typeof data[index] == "boolean"
-                  ? data[index].toString()
-                  : data[index],
-              ];
-            })
-          );
-        });
         let transformerColumns = [
           {
             value: "expression",
@@ -249,10 +283,95 @@ export default {
             }),
           },
         ];
+
+        let colLists = [];
+        let tbdata = [];
+
+        colLists =
+          this.$store.state.app.currentDBType == "csv"
+            ? result[0].fields
+            : result[0].fields
+                .map((item) => item.name)
+                .filter((val) => {
+                  if (
+                    this.$store.state.app.currentDBType == "mqtt" &&
+                    !this.mqttDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }
+                  if (
+                    this.$store.state.app.currentDBType == "kafka" &&
+                    !this.kafkaDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }else if(this.$store.state.app.currentDBType == "avevaHistorian"){
+                    return val
+                  }
+                });
+        tbdata = result[0].columns.map((data) => {
+          return Object.fromEntries(
+            result[0].fields.map((item, index) => {
+              return [item.name, data[index] ? data[index].toString() : null];
+            })
+          );
+        });
+
+        if (isall) {
+          transformerColumns.splice(1, 1, {
+            value: "mapping",
+            label: this.$t("mapping"),
+            children: result[0].fields.map((item) => {
+              return {
+                value: item.name,
+                label: item.name,
+              };
+            }),
+          });
+          this.$store.commit(
+            "app/SET_TRANSFORMER_MAPCOLUMNS",
+            transformerColumns
+          );
+          
+          let newFields = this.tableColumns.concat(result[0].fields.filter(item => !this.tableColumns.find(x => x.name === item.name))) 
+          let newColumns = []
+          let len = this.tableColumns.length
+          newColumns = result[0].columns.map(col => {
+            return col.slice(-len).concat(col.slice(0,col.length-len))
+          })
+          tbdata = newColumns.map((data) => {
+            return Object.fromEntries(
+              newFields.map((item, index) => {
+                return [item.name, data[index] ? data[index].toString() : null];
+              })
+            );
+          });
+
+          this.$store.commit('app/SET_RESULTTB_SHOW',true)
+          this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          
+          return;
+        }
         this.$store.commit(
           "app/SET_TRANSFORMER_MAPCOLUMNS",
           transformerColumns
         );
+        this.tableColumns = colLists.map((item) => {
+          let obj = {};
+          let finalVal = tbdata.map(
+            (val) =>
+              val[
+                this.$store.state.app.currentDBType == "csv" ? item.name : item
+              ]
+          );
+          obj.name =
+            this.$store.state.app.currentDBType == "csv" ? item.name : item;
+          obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
+          return obj;
+        });
+        // this.singleFileds = result[0].fields
+        this.tableData = tbdata;
+        this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
       } catch (error) {
         console.log(error);
       }
@@ -264,16 +383,18 @@ export default {
       }
     },
     //提交单个
-    async submitExtract() {
+    async submitExtract(isall) {
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       let resultMsgbody = "";
       if (
         this.$parent.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")
       ) {
+        //多json对象
         resultMsgbody = this.$parent.msgForm.msgbody
           .replace(/\}\s*\{/g, "}&${")
           .split("&$");
+        this.isJson = true;
       } else {
         if (
           /\n/g.test(this.$parent.msgForm.msgbody) &&
@@ -283,14 +404,17 @@ export default {
           resultMsgbody = this.$parent.msgForm.msgbody
             .replace(/[\n\s]/g, "*&$*")
             .split("*&$*");
+          this.isJson = false;
         } else {
           try {
             if (
               /^\{/g.test(this.$parent.msgForm.msgbody) &&
               JSON.parse(this.$parent.msgForm.msgbody)
             ) {
+              //单json对象
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
-            } 
+              this.isJson = true;
+            }
           } catch (error) {
             Message.error(this.$t("datasource.transformer.jsontip"));
             return;
@@ -299,41 +423,86 @@ export default {
           resultMsgbody = this.$parent.msgForm.msgbody.split(";");
         }
       }
+      let hiddenCols = [];
+      if (!isall) {
+        if (this.$store.state.app.currentDBType == "mqtt") {
+          hiddenCols = ["ts", "qos", "topic"];
+        }
+        if (this.$store.state.app.currentDBType == "kafka") {
+          hiddenCols = ["ts", "topic", "partition", "offset", "key"];
+        }
+      } else {
+        hiddenCols = [];
+      }
+
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
-        this.indentifiedColumns.forEach((item) => {
-          if (this.$store.state.app.currentDBType == "mqtt") {
-            if (item.name == "payload") {
-              inputobj["payload"] = msg;
-            } else {
-              inputobj[item.name] =
-                item.type == "timestamp"
-                  ? parsinginZone(new Date())
-                  : item.name;
+        this.indentifiedColumns
+          .filter((val) => !hiddenCols.includes(val.name))
+          .forEach((item) => {
+            if (this.$store.state.app.currentDBType == "mqtt") {
+              if (item.name == "payload") {
+                inputobj["payload"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? parsinginZone(new Date())
+                    : item.name;
+              }
+            } else if (this.$store.state.app.currentDBType == "kafka") {
+              if (item.name == "value") {
+                inputobj["value"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? parsinginZone(new Date())
+                    : item.name;
+              }
             }
-          } else if (this.$store.state.app.currentDBType == "kafka") {
-            if (item.name == "value") {
-              inputobj["value"] = msg;
-            } else {
-              inputobj[item.name] =
-                item.type == "timestamp"
-                  ? parsinginZone(new Date())
-                  : item.name;
-            }
-          }
-        });
+          });
         return inputobj;
       });
-      this.extractParseData = {};
-      this.$parent.extractArr
+      this.extractParseData = {
+        extract: {},
+      };
+      let currentextractArr=deepClone(this.$parent.extractArr)
+      if(this.tableColumns.length>0){
+        //有列说明已经请求过需要区分split和regex，作为api参数
+      }else{
+        // api参数需要过滤掉
+      }
+      deepClone(this.$parent.extractArr)
         .map((item) => {
+          let splitobj = Object.fromEntries(
+            Object.entries(item.splitParams).filter(([key, value]) => {
+              return value !== null && value != undefined && value != "";
+            })
+          );
+          splitobj["n"] = Number(splitobj["n"]);
+          Object.hasOwnProperty.call(splitobj, "names")
+            ? (splitobj["names"] = splitobj["names"].split(","))
+            : splitobj;
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
                 item.type == "regex"
                   ? item.expression
                   : item.type == "split"
-                  ? this.$store.state.app.splitExpresList
+                  ? splitobj
                   : item.expression
                   ? item.expression.split(";").map((item) => item.trim())
                   : item.expression,
@@ -341,31 +510,95 @@ export default {
           };
         })
         .forEach((val) => {
-          Object.assign(this.extractParseData, val);
+          Object.assign(this.extractParseData["extract"], val);
         });
+      let topparse = deepClone(this.$store.state.app.topParse);
+      let extractlist = {};
+      // topparse["parser"]["mutate"] = isall
+      //   ? this.$store.state.app.transformerFilterParseData
+      //     ? []
+      //         .concat(this.$store.state.app.transformerFilterParseData)
+      //         .concat(this.extractParseData)
+      //     : [].concat(this.extractParseData)
+      //   : [].concat({
+      //       extract: {
+      //         [`${this.itemData.columnname}`]:
+      //           this.extractParseData["extract"][this.itemData.columnname],
+      //       },
+      //     });
+      
+      const keys = Object.keys(this.extractParseData.extract);
+      const slicedKeys = keys.slice(0, this.index + 1);
+      const slicedObj = slicedKeys.reduce((acc, key) => {
+        acc[key] = this.extractParseData.extract[key];
+        return acc;
+      }, {});
+
+      topparse["parser"]["mutate"] = isall
+        ? [].concat({ extract: slicedObj })
+        : [].concat({
+            extract: {
+              [`${this.itemData.columnname}`]:
+                this.extractParseData["extract"][this.itemData.columnname],
+            },
+          });
+     
       let parser = {
         parser: {
-          parse: {},
+          parse:
+          // this.$store.state.app.currentDBType == "avevaHistorian" ? isall?this.$store.state.app.topParse.parser.parse:{
+          //   [`${this.itemData.columnname}`]:this.$store.state.app.topParse.parser.parse[this.itemData.columnname]
+          // }: 
+          this.$store.state.app.topParse.parser.parse,
+          mutate: topparse["parser"]["mutate"],
         },
+
         input: this.$parent.isCSV
-          ? this.$store.state.app.csvTransformerParser?.inputList
-          : inputList,
+          ? isall
+            ? this.$store.state.app.csvTransformerParser?.inputList
+            : this.$store.state.app.csvTransformerParser?.inputList.map(
+                (item) => {
+                  if (Object.keys(item).includes(this.itemData.columnname)) {
+                    return {
+                      [this.itemData.columnname]:
+                        item[this.itemData.columnname],
+                    };
+                  }
+                }
+              )
+          :this.$store.state.app.currentDBType == "avevaHistorian"?isall?this.$store.state.app.topParse.input:[].concat({
+            [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
+          }): inputList,
       };
 
-      parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      await this.getParserData(parser);
+      if(!isall){
+        switch(this.$store.state.app.currentDBType){
+          case 'mqtt':
+            if(Object.hasOwnProperty.call(parser.parser.parse.payload,'json')){
+              parser.parser.parse.payload.json=''
+            }
+            break
+          case 'kafka':
+          if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
+              parser.parser.parse.value.json=''
+            }
+            break
+        }
+      }
+      await this.getParserData(parser, isall);
+      
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
-      // if(this.tableData.length>0){
-      //   this.tableData.splice(0,this.tableData.length)
-      // }
     },
   },
   mounted() {
     if (this.itemData) {
       this.initData(this.itemData);
+      if (this.itemData.columnname && this.itemData == this.ruleForm.col_name) {
+        this.disabled = true;
+      }
     }
   },
   watch: {
@@ -379,8 +612,24 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+@keyframes heart{
+  0% {
+    box-shadow: 0 0 5px #4259ce;
+  };
+  // 50%{
+  //   box-shadow: 0 0 20px #4259ce;
+  // }
+  100%{
+    box-shadow: 0 0 5px #4259ce;
+  }
+}
 .extract-split {
-  margin-top: 10px;
+  margin-top: 20px;
+  // &.active{
+  //   padding: 20px;
+  //   border-radius:6px;
+  //   animation:heart 5s linear infinite;
+  // }
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
@@ -414,5 +663,25 @@ export default {
 .table {
   max-height: 300px;
   overflow-y: auto;
+}
+.el-form-item--small.el-form-item {
+  margin-bottom: 10px;
+}
+.col-list {
+  margin-top: 10px;
+  margin-bottom: 25px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  column-gap: 15px;
+  row-gap: 15px;
+  max-height: 80px;
+  overflow-y: hidden;
+  li {
+    color: #4259ce;
+    background: #ecf2fe;
+    border-radius: 14px;
+    border: 1px solid #f6f8fa;
+    text-align: center;
+  }
 }
 </style>

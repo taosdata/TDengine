@@ -64,13 +64,23 @@
               <el-table-column
                 prop="activity"
                 :label="$t('dataIn.activity')"
-                show-overflow-tooltip
-              ></el-table-column>
+              >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.activity" placement="top-start">
+                    <span class="nowrap">{{ scope.row.activity }}</span>
+                  </el-tooltip>
+                </template> 
+              </el-table-column>
               <el-table-column
                 prop="context"
                 :label="$t('dataIn.context')"
-                show-overflow-tooltip
-              ></el-table-column>
+              >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.context" placement="top-start">
+                    <span class="nowrap">{{ scope.row.context }}</span>
+                  </el-tooltip>
+                </template> 
+              </el-table-column>
             </el-table>
           </div>
         </template>
@@ -197,6 +207,7 @@
       :visible.sync="dialog"
       @close="closeDialog"
       :destroy-on-close="true"
+      :close-on-click-modal="false"
     >
       <el-form
         :model="ruleForm"
@@ -260,6 +271,7 @@
       :visible.sync="showAgent"
       :destroy-on-close="true"
       @close="closeDialog"
+      :close-on-click-modal="false"
     >
       <AddAgent :agent="currentRow" :key="showAgent"></AddAgent>
     </el-dialog>
@@ -278,10 +290,9 @@ import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
 import AddAgent from "./addAgent.vue";
-import EditAgent from "./agent.vue";
 export default {
   name: "Agent",
-  components: { AgentDoc, AddAgent, EditAgent },
+  components: { AgentDoc, AddAgent },
   data() {
     return {
       expireTimeOPtion: {
@@ -661,6 +672,7 @@ export default {
   font-size: 16px;
   margin: 10px 0;
   padding: 12px 16px;
+  height: 44px;
 }
 .data-agent {
   position: relative;

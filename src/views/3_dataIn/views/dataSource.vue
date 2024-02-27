@@ -66,8 +66,13 @@
                 <el-table-column
                   prop="activity"
                   :label="$t('dataIn.activity')"
-                  show-overflow-tooltip
-                ></el-table-column>
+                >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.activity" placement="top-start">
+                    <span class="nowrap">{{ scope.row.activity }}</span>
+                  </el-tooltip>
+                </template> 
+                </el-table-column>
                 <el-table-column
                   prop="context"
                   :label="$t('dataIn.context')"
@@ -106,7 +111,6 @@
           :label="$t('datasource.name2')"
           prop="localname"
           min-width="100"
-          show-overflow-tooltip
         >
           <template slot-scope="scope">
             <el-tooltip :content="scope.row.localname" placement="top-start">
@@ -118,16 +122,26 @@
           :label="$t('datasource.type')"
           prop="localtype"
           width="180"
-          show-overflow-tooltip
           :filters="filterMap.type"
           :filter-method="filterHandler"
-        ></el-table-column>
+        >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.localtype" placement="top-start">
+            <span class="nowrap">{{ scope.row.localtype }}</span>
+          </el-tooltip>
+        </template> 
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
           min-width="100"
-          show-overflow-tooltip
-        ></el-table-column>
+        >
+          <template slot-scope="scope">
+            <el-tooltip :content="scope.row.target" placement="top-start">
+              <span class="nowrap">{{ scope.row.target }}</span>
+            </el-tooltip>
+          </template> 
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
           prop="created_at"
@@ -141,11 +155,12 @@
           :label="$t('datasource.via')"
           prop="via"
           min-width="100"
-          show-overflow-tooltip
         >
           <template slot-scope="{ row }">
-            {{ agentMap[row.via] }}
-          </template>
+            <el-tooltip :content="agentMap[row.via]" placement="top-start">
+              <span class="nowrap">{{ agentMap[row.via] }}</span>
+            </el-tooltip>
+          </template> 
         </el-table-column>
 
         <el-table-column
@@ -261,7 +276,7 @@
         </el-table-column>
         <el-table-column
           :label="$t('datasource.operation')"
-          width="150"
+          width="190"
           class="action"
           fixed="right"
         >
@@ -284,6 +299,24 @@
                 icon="el-icon-view"
               ></el-button>
             </el-tooltip>
+            <!-- <el-tooltip
+              placement="bottom"
+              effect="light"
+              :content="
+                $t('datasource.editconfig')
+              "
+            >
+              <el-button
+                type="primay"
+                size="mini"
+                :disabled="
+                  scope.row.from_detail === undefined ||
+                  !getEditStatus(scope.row.labels)
+                "
+                @click="edit(scope.row, scope.row.status.toLowerCase())"
+                icon="el-icon-edit"
+              ></el-button>
+            </el-tooltip> -->
             <el-tooltip
               placement="bottom"
               effect="light"
@@ -448,6 +481,7 @@ export default {
         })
       });
     },
+    view() {},
     edit(data, status, iscopy) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
@@ -486,6 +520,10 @@ export default {
           }
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
+        }
+        if(data.from_detail.id=='avevaHistorian'){
+          this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
+          this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
         }
         // if (data.from_expand && data.from_expand.id == "kafka") {
         //   let payload = deepClone(data.parser.parse.value);
@@ -538,7 +576,7 @@ export default {
           
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
-          let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          let hasheader = data.from.match(/has_header=([^&]*)/)[1];
           let localCols=data.from.match(/(?<=header=).*/)[0]
           if(localCols&&localCols.includes('=')){
             this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
@@ -901,6 +939,7 @@ export default {
   font-size: 16px;
   margin: 10px 0;
   padding: 12px 16px;
+  height: 44px;
 }
 .flexEnd {
   position: absolute;

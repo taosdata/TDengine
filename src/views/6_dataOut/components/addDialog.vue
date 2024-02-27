@@ -6,6 +6,7 @@
     :visible.sync="visible"
     :destroy-on-close="true"
     @closed="closeDialog"
+    :close-on-click-modal="false"
   >
     <el-form
       :model="ruleForm"

@@ -2,33 +2,36 @@ import { uuid, hasOwn } from '@/utils/util';
 import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
 import { StaticTemplatePath, IsAliyun } from '@/const';
-// import { downloadFile } from '@/api/dataSource';
-// import { downloadFileBlob } from '@/utils/file';
 import { Loading } from 'element-ui';
-import { parsinginZone } from "@/utils/index";
+import { parsinginZone, decrypt } from "@/utils/index";
 import i18n from '@/lang';
+import store from '@/store/modules/app';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
-  // opcua: StaticTemplatePath + `opc-${lang}.csv`,
-  // opcda: StaticTemplatePath + `opc-${lang}.csv`,
-  // point_file: StaticTemplatePath + `pi-points.csv`,
-  // template_for_pi_point_file: StaticTemplatePath + 'pi-points.csv',
-  // template_for_af_element_file: StaticTemplatePath + 'elementTemplate.csv'
+  opcua: `template-${lang}.csv`,
+  opcda: `template-${lang}.csv`,
+  point_file: `/Points.csv`,
+  template_for_pi_point_file: '/ElementTemplates.csv',
+  template_for_af_element_file: '/ElementTemplates.csv'
 };
+const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
-export const TimeFormats = ['beginDateTime', 'endDateTime'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
+const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
-const optionsField = uuid();
+export const optionsField = uuid();
 const groupsField = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
+const historianLiveTable = 'Runtime.dbo.Live'
+const historianSynchronizeMode = 'synchronize'
+const opcuaSecuritymodeValue = 'None'
 const authenticationField = uuid();
-const connectivityCheckField = uuid();
-const datasetsField = uuid();
+export const datasetsField = uuid();
 let currentType = '';
 const DefaultParserValue = {
   parse: {
@@ -77,6 +80,7 @@ export const DefaultOpcTableValue = {
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
     const { id, name, type, strict, description, protocol, authentication, groups, options, datasets, parser, params, advanced } = item;
+  
     const paramsConfig = [
       {
         label: i18n.t('dataIn.connectionConfiguration'),
@@ -90,21 +94,34 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       type,
       description,
       strict,
-      config: paramsConfig
+      config: paramsConfig,
+      parser
     };
     currentType = id;
-    let connectivityCheck = id != 'taos'
-    // handleParams(params, paramsConfig);
-    // handleProtocol(protocol, paramsConfig);
+    let connectivityCheck = id != 'csv' && id != 'kafka' && id != 'mqtt'
+    handleParams(params, paramsConfig);
+    handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
     handleConnectivityCheck(connectivityCheck,paramsConfig)
-    // handleDatasets(datasets, paramsConfig);
+    handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig);
-    handleParser(parser, paramsConfig, parserValue);
+    if (id == 'kafka' || id == 'mqtt') {
+      handleConnectivityCheck(connectivityCheck=true,paramsConfig)
+    }
+    handleParser(parser, paramsConfig, parserValue,id);
+    handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
+    if(id=='csv'){
+      config.parser=parserValue
+      let index=paramsConfig.findIndex((item)=>{
+        return ['连接配置','Connection Configuration'].includes(item.label)
+      })
+      paramsConfig.splice(index,1)
+    }
     formConfig[id] = config;
+   
     return formConfig;
   }, {});
 }
@@ -113,13 +130,8 @@ function handleConnectivityCheck(connectivityCheck, paramsConfig) {
   if (!connectivityCheck) return;
   const children = [];
   paramsConfig.push({
-    label: undefined,
-    description: undefined,
-    field: connectivityCheckField,
-    type: 'collapse',
-    valueField,
-    defaultValue: undefined,
-    multiple: false,
+    field: 'checkConnectivity',
+    type: 'checkConnectivity',
     children
   });
 }
@@ -148,28 +160,28 @@ function handleConnectivityCheck(connectivityCheck, paramsConfig) {
     ]
 }
  */
-// function handleProtocol(protocol, paramsConfig) {
-//   if (!protocol) return;
-//   const { display, description, choices, value = '' } = protocol;
-//   paramsConfig[0].children.push({
-//     label: display,
-//     description,
-//     field: 'protocol',
-//     type: 'select',
-//     display_order: 0,
-//     defaultValue: value,
-//     if: currentData => {
-//       if (!currentData.system_configuration) return true;
-//       return currentData.system_configuration == piOptionShowValue;
-//     },
-//     required: true, // just required for cloud
-//     options: choices.map(item => ({
-//       label: item.display,
-//       value: item.name,
-//       description: item.description
-//     }))
-//   });
-// }
+function handleProtocol(protocol, paramsConfig) {
+  if (!protocol) return;
+  const { display, description, choices, value = '' } = protocol;
+  paramsConfig[0].children.push({
+    label: display,
+    description,
+    field: 'protocol',
+    type: 'select',
+    display_order: 0,
+    defaultValue: value,
+    if: currentData => {
+      if (!currentData.system_configuration) return true;
+      return currentData.system_configuration == piOptionShowValue;
+    },
+    required: true, // just required for cloud
+    options: choices.map(item => ({
+      label: item.display,
+      value: item.name,
+      description: item.description
+    }))
+  });
+}
 // 处理authentication
 /**
  * {
@@ -231,15 +243,40 @@ function handleAuthentication(authentication, paramsConfig) {
       children: paramsChildren
     };
     if (item.params) {
-      item.params.forEach(param => {
+      item.params.forEach((param, index) => {
         const { display, description, name, value: defaultValue, required = false } = param;
         const config = {
           label: display,
           description,
-          required,
+          required: (_, originalData,currentDefinition) => {
+            if (currentDefinition?.id?.startsWith('opcua')) {
+              let authenticationData = originalData[authenticationField];
+              return checkValue(authenticationData.certificates.security_mode) && 
+                authenticationData.certificates.security_mode !== opcuaSecuritymodeValue && index > 1
+            } else {
+              return required
+            }
+          },
           field: name,
-          defaultValue: defaultValue ?? ''
+          defaultValue: defaultValue ?? '',
+          accept: '.pem,.der,.cert,.key,.crt',
+          disabled: (_, originalData,currentDefinition) => {
+            if (currentDefinition?.id?.startsWith('opcua')) {
+              let authenticationData = originalData[authenticationField];
+              // 特殊处理 opcua 安全策略
+              if ( authenticationData.certificates.security_mode == opcuaSecuritymodeValue) {
+                authenticationData.certificates.security_policy = ''
+              }
+              return authenticationData.certificates.security_mode == opcuaSecuritymodeValue && index == 1
+            } else {
+              return false
+            }
+          },
         };
+        if (name == 'orgId') {
+          config.pattern = /^[0-9a-fA-F]+$/
+          config.patternMsg = i18n.t('dataIn.orgIdTip')
+        }
         handleHintType(config, param.hint);
         handleInfoParams(config);
         paramsChildren.push(config);
@@ -328,12 +365,21 @@ function handleOptions(options, paramsConfig) {
     if (key == 'host') {
       config.display_order = 1;
     }
-    handleHintType(config, options[key]);
+    handleHintType(config, options[key]?.hint);
     children.push(config);
   });
   formSort(children);
 }
-
+// 处理 csv parser
+function handleCsvData(id, paramsConfig) {
+  if (id != 'csv') return;
+  paramsConfig.push({
+    label: '',
+    field: 'csvData',
+    type: 'csvData',
+    children: []
+  });
+}
 // 处理parser
 /**
  * {
@@ -361,15 +407,15 @@ function handleOptions(options, paramsConfig) {
 }
  */
 
-function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue)) {
+function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue),id) {
   if (!parser) return;
   const { display, description, fields } = parser;
   paramsConfig.push({
     label: display,
-    description,
+    description:['mqtt','kafka'].includes(id)?'':description,
     field: 'parser',
     type: 'parser',
-    fields: fields.filter(item => item.name != 'payload'),
+    fields: fields,//fields.filter(item => item.name != 'payload'),
     defaultValue: value,
     children: []
   });
@@ -481,87 +527,114 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
     ]
 }
  **/
-// function handleDatasets(datasets, paramsConfig) {
-//   if (!datasets) return;
-//   const { name, description, categories, params, value: tabValue } = datasets;
-//   const datasetsConfig = {
-//     label: name,
-//     description,
-//     field: datasetsField,
-//     type: 'tabs',
-//     multiple: currentType == 'pi',
-//     name: 'datasets',
-//     children: params
-//       ? params?.map((item, index) => {
-//           const { display, description, name, value, required = false } = item;
-//           const config = {
-//             label: display,
-//             labelShow: false,
-//             labelWidth: '0px',
-//             description,
-//             required,
-//             field: name,
-//             type: 'dataset',
-//             defaultValue: value ?? '',
-//             disabled: (_, originalData) => {
-//               const optionData = originalData[optionsField];
-//               if (!optionData.system_configuration) return false;
-//               return optionData.system_configuration != piOptionShowValue && !!index;
-//             }
-//           };
-//           if (templateUrlMap[name]) {
-//             config.templateUrl = templateUrlMap[name];
-//           }
-//           handleInfoParams(config);
-//           return config;
-//         })
-//       : categories.map((item, index) => {
-//           const { category, display, description: desc, target, params: categoryParams } = item;
-//           return {
-//             label: display,
-//             name: category,
-//             labelShow: false,
-//             labelWidth: '0px',
-//             category,
-//             radio: !!index,
-//             description: desc,
-//             field: handleField(target.name),
-//             type: 'dataset',
-//             templateUrl: templateUrlMap[currentType],
-//             placeholder: target.description,
-//             required: target.required,
-//             multiple: target.multiple,
-//             editable: target.editable,
-//             selectable: target.selectable,
-//             children: categoryParams
-//               ? categoryParams.map(categoryParam => {
-//                   const config = {
-//                     ...categoryParam,
-//                     label: categoryParam.display,
-//                     field: categoryParam.name,
-//                     defaultValue: categoryParam.value ?? ''
-//                   };
-//                   handleHintType(config, categoryParam.hint);
-//                   return config;
-//                 })
-//               : undefined,
-//             defaultValue: isArray(target?.value) ? target.value.join(',') : '',
-//             disabled: (currentData, topData, currentDefinition) => {
-//               if (currentDefinition?.id?.startsWith('opc')) {
-//                 return !topData?.[optionsField]?.endpoint;
-//               } else {
-//                 return false;
-//               }
-//             }
-//           };
-//         })
-//   };
-//   if (categories) {
-//     datasetsConfig.valueField = valueField;
-//     datasetsConfig.defaultValue = tabValue ?? categories[0].category;
-//   }
-//   paramsConfig.push(datasetsConfig);
-// }
+function handleDatasets(datasets, paramsConfig) {
+  if (!datasets) return;
+  let { name, description, categories, params, value: tabValue } = datasets;
+  const datasetsConfig = {
+    label: name,
+    description,
+    field: datasetsField,
+    type: 'tabs',
+    multiple: false,
+    name: 'datasets',
+    children: params
+      ? params?.map((item, index) => {
+          const { display, description, name, value, required = false } = item;
+          const config = {
+            label: display,
+            labelShow: false,
+            labelWidth: '0px',
+            description,
+            required: true,
+            field: name,
+            name,
+            type: 'dataset',
+            accept: '.csv',
+            defaultValue: value ?? '',
+            disabled: (_, originalData) => {
+              const optionData = originalData[optionsField];
+              if (!optionData.system_configuration) return false;
+              return optionData.system_configuration != piOptionShowValue && !!index;
+            }
+          };
+          if (templateUrlMap[name]) {
+            config.templateUrl = templateUrlMap[name];
+          }
+          handleInfoParams(config);
+          return config;
+        })
+      : categories.map((item, index) => {
+          const { category, display, description: desc, target, params: categoryParams } = item;
+          return {
+            label: display,
+            name: category,
+            labelShow: false,
+            labelWidth: '0px',
+            category,
+            radio: !!index,
+            description: desc,
+            field: handleField(target.name),
+            type: 'dataset',
+            accept: '.csv',
+            templateUrl: templateUrlMap[currentType],
+            placeholder: target.description,
+            required: target.required,
+            multiple: target.multiple,
+            editable: target.editable,
+            selectable: target.selectable,
+            children: categoryParams
+              ? categoryParams.map(categoryParam => {
+                  const config = {
+                    ...categoryParam,
+                    label: categoryParam.display,
+                    field: categoryParam.name,
+                    defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
+                    multiple: categoryParam.multiple ?? false
+                  };
+                  handleHintType(config, categoryParam.hint);
+                  // 特殊处理 opc 的点位过滤
+                  if (currentType.startsWith('opc')) {
+                    if (config.field == 'pattern') {
+                      config.type = 'pattern';
+                    }
+                    if (config.field == 'namespaces') {
+                      config.options = (that) => {
+                        const { namespaces = [] } = that.$store.state.app.connectivityCheckResult
+                        let list = []
+                        namespaces.map((item,index) => {
+                          if (index > 0) {
+                            list.push({ label: item, value: `${index}`}) 
+                          }
+                        })
+                        return list
+                      }
+                    }
+                  }
+                  return config;
+                })
+              : undefined,
+            defaultValue: isArray(target?.value) ? target.value.join(',') : '',
+            disabled: (currentData, topData, currentDefinition) => {
+              if (currentDefinition?.id?.startsWith('opc')) {
+                return !topData?.[optionsField]?.endpoint;
+              } else {
+                return false;
+              }
+            }
+          };
+        })
+  };
+  if (categories) {
+    tabValue = tabValue === SelectAllPoints ? 'select_all_points' : tabValue
+    datasetsConfig.valueField = valueField;
+    datasetsConfig.defaultValue = tabValue ?? categories[0].category;
+  }
+  if (params) {
+    datasetsConfig.valueField = valueField;
+    datasetsConfig.defaultValue = tabValue ?? params[0].name
+  }
+  paramsConfig.push(datasetsConfig);
+}
 
 // 处理groups
 /**
@@ -616,15 +689,29 @@ function handleGroups(groups, paramsConfig) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple } = param;
       const paramConfig = {
         label: display,
         description: short_description ?? description,
         field: handleField(name),
-        if: collapsible ? data => data[valueField] : true,
+        // if: collapsible ? data => data[valueField] : true,
+        if: currentData => {
+          if (collapsible) return currentData[valueField];
+          if (!currentData.table) return true;
+          if (currentData.mode == historianSynchronizeMode) {
+            if (currentData.table == historianLiveTable) {
+              return ['mode','table','tags','retrieveInterval'].includes(name)
+            } else {
+              return !['endDateTime'].includes(name)
+            }
+          } else {
+            return !['table','retrieveInterval','tolerance'].includes(name)
+          }
+        },
         placeholder,
-        defaultValue: value,
-        required
+        defaultValue: multiple ? value?.split(',') : value,
+        required,
+        multiple
       };
       handleHintType(paramConfig, hint, value);
       if (isArray(conflicts_with)) {
@@ -637,11 +724,11 @@ function handleGroups(groups, paramsConfig) {
         };
       }
       // 特殊处理 influxdb 的 bucket
-      if (currentType == 'influxdb' && paramConfig.field == 'bucket') {
+      if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
-      if (currentType == 'historian' && paramConfig.field == 'mode') {
+      if (currentType == 'avevaHistorian' && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
@@ -705,23 +792,23 @@ function handleGroups(groups, paramsConfig) {
 ]
  */
 
-// function handleParams(params, paramsConfig) {
-//   if (!params) return;
-//   params = params.sort((a, b) => a.display_order - b.display_order);
-//   const children = paramsConfig[0].children;
-//   params.forEach((param, index) => {
-//     const { name, display, description, required, placeholder, value, hint } = param;
-//     const config = { label: display, field: handleField(name), description, required, placeholder, defaultValue: value, display_order: index };
-//     if (name != 'system_configuration') {
-//       config.if = currentData => {
-//         if (!currentData.system_configuration) return true;
-//         return currentData.system_configuration == piOptionShowValue;
-//       };
-//     }
-//     handleHintType(config, hint);
-//     children.push(config);
-//   });
-// }
+function handleParams(params, paramsConfig) {
+  if (!params) return;
+  params = params.sort((a, b) => a.display_order - b.display_order);
+  const children = paramsConfig[0].children;
+  params.forEach((param, index) => {
+    const { name, display, description, required, placeholder, value, hint } = param;
+    const config = { label: display, field: handleField(name), description, required, placeholder, defaultValue: value, display_order: index };
+    if (name != 'system_configuration') {
+      config.if = currentData => {
+        if (!currentData.system_configuration) return true;
+        return currentData.system_configuration == piOptionShowValue;
+      };
+    }
+    handleHintType(config, hint);
+    children.push(config);
+  });
+}
 
 /*
 "advanced": {
@@ -831,7 +918,8 @@ export function handleHintType(config, hint) {
     default:
       if (hint?.choices) {
         config.type = 'select';
-        config.options = hint.choices.map(item => ({
+        // 过滤 --NONE-- 
+        config.options = hint.choices.filter(item => item != '--NONE--').map(item => ({
           label: item,
           value: item
         }));
@@ -875,12 +963,12 @@ export function generateFormInitData(paramsConfig) {
     return data;
   }, {});
 }
-export const NoNeedAgentType = ['tmq', 'taos'];
+export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
-export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb']);
+export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
 
 export function getDsnData(data, definition) {
-  let dsn = handleProtocolData(data[optionsField].protocol, definition);
+  let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
@@ -897,6 +985,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
+  // if(definition.id=='csv'){
+  //   dsn+=`&headers=c0,c1`
+  // }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {
@@ -910,6 +1001,9 @@ function handleProtocolData(protocol, definition) {
       dsn += '+';
     }
     dsn += protocol;
+  }
+  if(id=='csv'){
+    return dsn+(Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
   }
   return dsn + '://';
 }
@@ -971,6 +1065,7 @@ function getDatasetsQuery(datasets, allData, query) {
         const field = getOriginField(k);
         query.push(field + '=' + getQueryParamValue(datasets[tabValue][k]));
       }
+      query.push(tabValue + '=' + true);
     } else {
       query.push(tabValue + '=' + getQueryParamValue(datasets[tabValue]));
     }
@@ -996,7 +1091,10 @@ export function getAuthentications(authentication, params) {
       }
       return getQueryParamValue(currentData.username) + ':' + getQueryParamValue(currentData.password) + '@';
     default:
-      params.push(...dataFields.map(item => getOriginField(item) + '=' + getQueryParamValue(currentData[item])));
+      params.push(...dataFields.map(item => {
+        if (!checkValue(currentData[item])) return
+        return getOriginField(item) + '=' + getQueryParamValue(currentData[item])
+      }));
       break;
   }
   return '';
@@ -1005,11 +1103,30 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
+  let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
   }
-  if (endpoint === undefined) {
+  if (system_configuration) {
+    queryArr.push('system_configuration=' + system_configuration)
+  }
+  if (security_mode) {
+    queryArr.push('security_mode=' + security_mode)
+  } 
+  if (security_policy) {
+    queryArr.push('security_policy=' + security_policy)
+  }
+  if (certificate) {
+    queryArr.push('certificate=' + certificate)
+  }
+  if (private_key) {
+    queryArr.push('private_key=' + private_key)
+  }
+  if (connect_timeout) {
+    queryArr.push('connect_timeout=' + connect_timeout)
+  }
+  if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;
     if (port) {
@@ -1019,9 +1136,54 @@ function getOptionData(data, queryArr, definition) {
       result += '/' + subject;
     }
   } else {
-    result += endpoint;
+    if (id === 'tmq') {
+      result += handleEndpoint(endpoint)
+    } else {
+      if(id=='csv'){
+        result+= (Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
+      }else{
+        result += endpoint;
+      }
+    }
   }
   return result;
+}
+
+// 处理 tmq endpoint
+function handleEndpoint(endpoint) {
+  if (!endpoint) return '';
+  let result = '';
+  let url = endpoint.replace(/(taos\+|tmq\+)/g, "");
+  if (url.includes("://")) {
+    let parsed_url = new URL(url);
+    let scheme = null;
+    if (parsed_url.protocol == "http:") {
+      scheme = "tmq+ws";
+    } else if (parsed_url.protocol == "https:") {
+      scheme = "tmq+wss";
+    } else {
+      scheme = "tmq+" + parsed_url.protocol.replace(":", "");
+    }
+
+    let host = parsed_url.host;
+    let user =
+      parsed_url.username || localStorage.getItem("username") || "";
+    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let pass = parsed_url.password || decrypted || "";
+    return result =
+      scheme +
+      "://" +
+      user +
+      ":" +
+      pass +
+      "@" +
+      host +
+      parsed_url.pathname +
+      parsed_url.search;
+  } else {
+    let host = url;
+    return result = "tmq+ws://" + host;
+  }
 }
 
 function handleField(field) {
@@ -1043,7 +1205,11 @@ function getQueryParamValue(value) {
   let result = value;
   try {
     if (value && typeof value == 'object') {
-      result = JSON.stringify(value);
+      if (value instanceof Array) {
+        result = value.toString();
+      } else {
+        result = JSON.stringify(value);
+      }
     } else {
       result = encodeURIComponentECO(value);
     }
@@ -1067,25 +1233,20 @@ function formSort(data) {
   });
 }
 
-// export async function handleDownload(filePath, fileName) {
-//   const loading = Loading.service({
-//     lock: true,
-//     text: 'Loading',
-//     spinner: 'el-icon-loading',
-//     background: 'rgba(0, 0, 0, 0.7)'
-//   });
-//   if (filePath && filePath.startsWith('@')) {
-//     filePath = filePath.substr(1);
-//   }
-//   let res = await downloadFile(filePath);
-//   downloadFileBlob(res, fileName);
-//   loading.close();
-// }
+export async function handleDownload(filePath, fileName) {
+  let link = document.createElement("a");
+  link.download = "file_name";
+  link.href = DownloadUrl + filePath;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {
   let groups = data[groupsField]
+  let obj = {}
   if (!groups) return {};
   for (let key in groups) {
     if (typeof groups[key] == 'object') {
@@ -1094,11 +1255,12 @@ export function getGroupsObj(data) {
         if (k == valueField) {
           continue;
         } else {
-          return {...groups[key]}
+          obj = Object.assign({}, obj, groups[key]);
         }
       }
     }
   }
+  return obj
 }
 
 export function getFieldClassMarkName(field) {

@@ -1,5 +1,7 @@
 
 import { request } from "@/utils/request";
+import JSONbig from "json-bigint";
+import { getLocalTimezone } from "@/utils";
 import i18n from '@/lang/index'
 let language = i18n.locale.includes('zh') ? 'zh' : 'en'
 export function getTask(id, type) {
@@ -71,7 +73,7 @@ export function getUaAndDaData(data) {
 export function refreshTask(id) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/tasks/${id}?detail=true&lang=${language}`,
+        url: `/tasks/${id}?detail=true&lang=${i18n.locale}`,
         method: 'get',
         headers: {
             "Content-Type": "application/json"
@@ -92,10 +94,10 @@ export function uploadFile(file) {
     })
 }
 
-export function getCSVColumns(path, type, hasheader) {
+export function getCSVColumns(path, type, other) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/filemeta?file_path=${path}&file_type=${type}&has_header=${hasheader}`,
+        url: `/filemeta?file_path=${path}&file_type=${type}${other ? '&' + other : ''}`,
         method: 'get',
         headers: {
             "Content-Type": "multipart/form-data"
@@ -156,8 +158,15 @@ export function downlaodAllNodes(data, agentid) {
 export function getParser(data) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/transform/sample/flat`,
+        url: `/transform/sample/flat?tz=${getLocalTimezone()}`,
         method: 'post',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
         data
     })
 }
@@ -166,5 +175,67 @@ export function getMetricsDesc(data) {
         baseURL: process.env.VUE_APP_X_API,
         url: `/metrics/description?lang=${i18n.locale}`,
         method: 'get',
+    })
+}
+
+export function getHistorianMsgbody(datatype,data,agentid){
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
+        method: 'get',
+    })
+}
+
+// opc：提交数据点位模版文件下载请求，获取 ticket
+export function getTicket(data, agentid, category) {
+    let language = i18n.locale.includes('zh') ? 'zh' : 'en'
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/download/task?from=${encodeURIComponent(data)}&lang=${language}&categories=${category}` + (agentid ? `&via=${agentid}` : ''),
+        method: 'get'
+    })
+}
+
+// opc：检查数据点位模版文件是否准备好
+export function checkReadyFile(ticket) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/are/you/ready?ticket=${ticket}`,
+        method: 'get'
+    })
+}
+
+// opc：下载数据点位模版csv文件
+export function downlaodOpcPointFile(ticket) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/async?ticket=${ticket}`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
+/**
+ * opc：分页获取数据点位
+ * @param {*} ticket 
+ * @param {*} page 
+ * @param {*} pageSize 
+ */
+export function getDatasets(ticket,page,pageSize) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/data/page?ticket=${ticket}&page=${page}&page_size=${pageSize}`,
+        method: 'get'
+    })
+}
+
+// 下载 csv 空模版
+export function getCsvEmptyTemplate(driver) {
+    let language = i18n.locale.includes('zh') ? 'zh' : 'en'
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/template?driver=${driver}&lang=${language}`,
+        method: 'get',
+        responseType: 'blob',
     })
 }

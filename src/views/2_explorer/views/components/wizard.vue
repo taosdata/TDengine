@@ -38,6 +38,7 @@
         append-to-body
         :visible.sync="dialog"
         title="SQL"
+        :close-on-click-modal="false"
       >
         <pre :key="sql" v-highlight>
             <code class="language-sql">{{sql}}</code>

@@ -114,7 +114,6 @@ export default {
   methods: {
     copyCode(val) {
       let text = document.querySelector(`.${val}`);
-      console.log(text,'赋值的值');
       copy(text.children[0].innerText);
     },
   },

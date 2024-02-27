@@ -86,7 +86,24 @@ const state = {
   csvTransformerParser:null,
   csvTransformerlocalCols:[],//csv无头部时候的自定义列
   splitExpresList:null,//transformer的split
-  mappingjoin:''//mapping时候映射值是join时候的
+  mappingjoin:'',//mapping时候映射值是join时候的
+  definitions: [],
+  topParse:null,
+  transformresulttable:[],
+  createStWithoutDB:0,
+  transformTableHeight:0,
+  transformerfullparams:null,
+  transresultname:'',
+  activeColumns:[],
+  resultCurrentPage:1,
+  showresulttb:false,
+  resultTbTitle: '',
+  historiandsn:'',
+  historianechodata:null,
+  connectivityCheckResult: {}, //连通性检查的结果
+  complete: false,// 判断数据点位数据是否准备完成 
+  ticket: '',
+  limitOffset: 5,
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -114,6 +131,54 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TICKET:(state,data) => {
+    state.ticket=data
+  },
+  SET_COMPLETE:(state,data) => {
+    state.complete=data
+  },
+  SET_CONNECTIVITY_CHECKRESULT:(state,data) => {
+    state.connectivityCheckResult=data
+  },
+  SET_HISTORIAN_ECHODATA:(state,data)=>{
+    state.historianechodata=data
+  },
+  SET_HISTORIAN_DSN:(state,data)=>{
+    state.historiandsn=data
+  },
+  SET_RESULTTB_SHOW:(state,data)=>{
+    state.showresulttb=data
+  },
+  SET_RESULTTB_TITLE_SHOW:(state,data)=>{
+    state.resultTbTitle=data
+  },
+  SET_LIMIT_OFFSET:(state,data)=>{
+    state.limitOffset=data
+  },
+  SET_RESULT_PAGE:(state,data)=>{
+    state.resultCurrentPage=data
+  },
+  SET_ACTIVE_COLS:(state,data)=>{
+    state.activeColumns=data
+  },
+  SET_TRANS_RESULT_NAME:(state,data)=>{
+    state.transresultname=data
+  },
+  SET_TRANS_FULL_PARAMS:(state,data)=>{
+    state.transformerfullparams=data
+  },
+  SET_TRANS_TABLE_HEIGHT:(state,data)=>{
+    state.transformTableHeight=data
+  },
+  SET_CREATESTWITHOUT_DB:(state,data)=>{
+    state.createStWithoutDB=data
+  },
+  SET_TRANS_RESULT_TABLE:(state,data)=>{
+    state.transformresulttable=data
+  },
+  SET_TOP_PARSE:(state,data)=>{
+    state.topParse=data
+  },
   SET_MAPPING_JOIN:(state,data)=>{
     state.mappingjoin=data
   },
@@ -167,6 +232,9 @@ const mutations = {
   },
   SET_AGENT_LISTS:(state,data)=>{
     state.agentLists=data
+  },
+  SET_DEFINITIONS(state, definitions) {
+    state.definitions = definitions;
   },
   //所有数据源上传的文件类型置空
   SET_FILE_EMPTY:(state,data)=>{

@@ -26,9 +26,11 @@
         </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column min-width="200" label="DSN" prop="dsn" show-overflow-tooltip>
+      <el-table-column min-width="200" label="DSN" prop="dsn">
         <template slot-scope="scope">
-        <copy-text :text="scope.row.dsn" isShowBtnText></copy-text>
+          <el-tooltip :content="scope.row.dsn" placement="top-start">
+            <copy-text :text="scope.row.dsn" isShowBtnText></copy-text>
+          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column width="210" :label="$t('createTime')" prop="create_time">
@@ -39,7 +41,7 @@
         <template slot-scope="scope">
           <el-tooltip
             effect="light"
-            :content="$t('sampleCode')"
+            :content="$t('topic.sampleCode')"
             placement="top"
           >
             <el-button

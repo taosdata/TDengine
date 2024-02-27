@@ -17,6 +17,7 @@
             size="small"
             v-model="ruleForm.filter_name"
             :placeholder="$t('datasource.transformer.filter_input')"
+            @keyup.enter.native="excuteFilter"
             @input="changeFilterCont"
           ></el-input>
           <!-- </el-popover> -->
@@ -25,21 +26,16 @@
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteFilter"></el-button>
-        <el-button icon="el-icon-check" @click="submit"></el-button>
+        <el-button
+          icon="el-icon-PREVIEW"
+          @click="excuteFilter"
+          style="display: flex"
+        ></el-button>
       </div>
     </div>
-
-    <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
-    </div>
+    <!-- <div class='tip' v-if='ruleForm.filter_name'>
+      <span :class="['excutetip',isexecuted?'done':'']">{{isexecuted?$t('datasource.transformer.filterexecuted'):$t('datasource.transformer.filterunexe')}}</span>
+    </div> -->
   </div>
 </template>
 <script>
@@ -74,6 +70,7 @@ export default {
   },
   data() {
     return {
+      isexecuted:false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       ruleForm: {
         filter_name: "",
@@ -81,7 +78,7 @@ export default {
       rules: {
         filter_name: [
           {
-            required: true,
+            required: false,
             trigger: "blur",
             message: this.$t("datasource.transformer.filter_input"),
           },
@@ -91,8 +88,16 @@ export default {
     };
   },
   methods: {
+    excuteFilter(){
+      this.isexecuted=true
+      this.submit()
+    },
     changeFilterCont(val) {
+      this.isexecuted=false
       // this.$emit("changeFilter", this.itemData.key, val);
+      this.$store.commit("app/SET_FILTER_PARSE_DATA", {
+        filter: this.ruleForm.filter_name,
+      });
     },
     initData(val) {
       if (val) {
@@ -126,18 +131,26 @@ export default {
           this.itemData.key,
           this.ruleForm.filter_name
         );
-        this.tableData = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [
-                item.name,
-                typeof data[index] == "boolean"
-                  ? data[index].toString()
-                  : data[index],
-              ];
-            })
-          );
-        });
+        result[0].columns?.length > 0 
+        ? this.tableData = result[0].columns.map((data) => {
+            return Object.fromEntries(
+              result[0].fields.map((item, index) => {
+                return [
+                  item.name,data[index] ? data[index].toString() : null
+                ];
+              })
+            );
+          })
+        : this.tableData = [].concat(
+            Object.fromEntries(
+              this.tableColumns.map((data) => {
+                return [[data], null]
+              })
+            )
+          )
+        this.$store.commit('app/SET_RESULTTB_SHOW',true)
+        this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'filterResTb');
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {
             value: "expression",
@@ -164,6 +177,10 @@ export default {
           "app/SET_TRANSFORMER_MAPCOLUMNS",
           transformerColumns
         );
+        this.$store.commit(
+        "app/SET_TRANS_RESULT_NAME",
+        'filter'
+      );
       } catch (error) {
         console.log(error);
       }
@@ -234,19 +251,24 @@ export default {
       });
       let parser = {
         parser: {
-          parse: this.$store.state.app.transformExtractParseData,
-          mutate: [].concat({
+          parse: this.$store.state.app.topParse.parser.parse,
+          mutate:this.$store.state.app.transformExtractParseData? [].concat({
             filter: this.ruleForm.filter_name.trim(),
+            
+          }).concat(this.$store.state.app.transformExtractParseData):[].concat({
+            filter: this.ruleForm.filter_name.trim(),
+            
           }),
         },
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : inputList,
+          :this.$store.state.app.currentDBType == "avevaHistorian"?this.$store.state.app.topParse.input: inputList,
       };
 
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {
         filter: this.ruleForm.filter_name,
       });
+      this.isexecuted=true
       this.getParserData(parser);
     },
   },
@@ -268,11 +290,12 @@ export default {
 <style lang="scss" scoped>
 .filter-expression {
   margin-top: 10px;
+  margin-bottom:20px;
 }
 .filter-input {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   .el-form {
     flex: 1;
   }
@@ -289,7 +312,6 @@ export default {
       width: 32px;
       border-radius: 6px;
       &:first-child {
-        margin-right: 10px;
         margin-left: 20px;
       }
     }
@@ -297,5 +319,14 @@ export default {
 }
 .table {
   margin-bottom: 20px;
+}
+.tip{
+  font-size:12px;
+  .excutetip{
+    color:red;
+    &.done{
+      color:#acaab2;
+    }
+  }
 }
 </style>

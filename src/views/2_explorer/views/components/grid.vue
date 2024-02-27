@@ -28,7 +28,7 @@
           :label="item"
         >
           <template slot-scope="{ row }">
-            <el-tooltip :content="$t('console.cellCopyTip')">
+            <el-tooltip :content="$t('console.cellCopyTip')" :open-delay='1000'>
               <span>{{ row[index] }}</span>
             </el-tooltip>
           </template>

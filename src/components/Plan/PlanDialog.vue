@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :visible.sync="visible" center :title="title" :width="width + 'px'">
+  <el-dialog :visible.sync="visible" center :title="title" :width="width + 'px'" :close-on-click-modal="false">
     <Plan ref="plan" :step.sync="step" v-bind="$attrs" v-on="$listeners" />
   </el-dialog>
 </template>

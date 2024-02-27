@@ -9,7 +9,7 @@
       <router-view></router-view>
     </div>
     <!-- 添加工单 -->
-    <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog">
+    <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog" :close-on-click-modal="false">
       <!-- <addFrom :typeList="issueTypeList" @close="dialogClose" /> -->
     </el-dialog>
   </div>

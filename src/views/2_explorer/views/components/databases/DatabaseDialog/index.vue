@@ -3,6 +3,7 @@
     :title="dialogTitle"
     :visible.sync="dialogFormVisible"
     :before-close="handleCloseDialog"
+    :close-on-click-modal="false"
   >
     <el-form
       size="small"

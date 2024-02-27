@@ -111,7 +111,7 @@ export default {
   },
   watch: {
     status: {
-      handler(val) {
+      async handler(val) {
         if (val) {
           this.loading = true;
           this.ruleForm.user = this.user;
@@ -119,7 +119,10 @@ export default {
           this.selectedDatabasePrivileges = {};
           this.selectedTopicPrivileges = {};
           this.topicList = [];
-          this.fetchData()
+          await this.getDatabaseList();
+          await this.getTopicList();
+          await this.getUserPrivileges();
+          await this.getUserTopics();
         }
       },
       immediate: true,

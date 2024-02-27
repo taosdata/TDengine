@@ -36,3 +36,16 @@ x_api ="http://localhost:6050"
 #   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
 #   ensure to add the port to the exception list of the firewall if it enabled.
 grpc = "http://localhost:6055"
+
+# Enable ssl
+# If the following two files exist, enable ssl protocol
+#
+[ssl]
+
+# SSL certificate
+#
+certificate = "/path/to/ca.file"
+
+# SSL certificate key
+#
+certificate_key = "/path/to/key.file"
