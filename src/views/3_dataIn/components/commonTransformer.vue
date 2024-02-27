@@ -28,6 +28,8 @@
                       $store.state.app.currentDBType == 'csv'
                     " -->
                   <el-input
+                    :disabled="
+                      $store.state.app.currentDBType == 'avevaHistorian'"
                     class="msgbody"
                     v-model="msgForm.msgbody"
                     :placeholder="$t('datasource.transformer.msgbodytip')"
@@ -56,6 +58,7 @@
             <el-col
               name="third"
               :class="['mt5','msg-right']"
+              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
             >
               <el-upload
                 class="upload-demo"
@@ -79,6 +82,7 @@
             <el-col
               name="first"
               :class="['mt5','msg-right']"
+              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
             >
             <el-button size="small" @click="clearMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.type1")
@@ -573,6 +577,7 @@ import Papa from "papaparse";
 import JsonEditor from "./jsonEditor.vue";
 export default {
   name: "CommonTransformer",
+  inject: ['sourceParent'],
   components: {
     ExtractSplit,
     FilterExpression,
@@ -858,7 +863,9 @@ export default {
       );
       let result = await getHistorianMsgbody(
         this.$store.state.app.currentDBType,
-        encodeURIComponent(dsn)
+        encodeURIComponent(dsn),
+        this.limitOffset,
+        this.sourceParent.sourceForm.agent
       );
       this.msgForm.msgbody = JSON.stringify(result);
       await this.submitParse();
@@ -1116,7 +1123,9 @@ export default {
         let dsn = this.$store.state.app.historiandsn;
         let result = await getHistorianMsgbody(
           this.$store.state.app.currentDBType,
-          encodeURIComponent(dsn)
+          encodeURIComponent(dsn),
+          this.limitOffset,
+          this.sourceParent.sourceForm.agent
         );
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;

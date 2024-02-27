@@ -95,6 +95,9 @@ export default {
     changeFilterCont(val) {
       this.isexecuted=false
       // this.$emit("changeFilter", this.itemData.key, val);
+      this.$store.commit("app/SET_FILTER_PARSE_DATA", {
+        filter: this.ruleForm.filter_name,
+      });
     },
     initData(val) {
       if (val) {

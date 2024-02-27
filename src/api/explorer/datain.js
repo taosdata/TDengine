@@ -178,10 +178,10 @@ export function getMetricsDesc(data) {
     })
 }
 
-export function getHistorianMsgbody(datatype,data,agentid){
+export function getHistorianMsgbody(datatype,data,limitOffset,agentid){
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
+        url: `/ds/in/sample?dsn=${datatype}${data}&sample_data_limit=${limitOffset}` + (agentid ? `&via=${agentid}` : ''),
         method: 'get',
     })
 }
