@@ -976,7 +976,7 @@ export default {
     state: "授权状态",
     type: "类型",
     advancedFeatures: "可选功能",
-    tasks: "任务数",
+    tasks: "连接数",
     number: "数量",
     connectors: "数据接入任务",
     basicDatabaseFeatures: '数据库基本功能',
