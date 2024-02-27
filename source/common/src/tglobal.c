@@ -1263,6 +1263,8 @@ static int32_t taosSetReleaseCfg(SConfig *pCfg) { return 0; }
 int32_t taosSetReleaseCfg(SConfig *pCfg);
 #endif
 
+static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   if (tsCfg == NULL) osDefaultInit();
@@ -1307,7 +1309,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     taosSetServerLogCfg(pCfg);
   }
 
-  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
+  taosSetAllDebugFlag(pCfg, cfgGetItem(pCfg, "debugFlag")->i32);
 
   if (taosMulModeMkDir(tsLogDir, 0777, true) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1388,7 +1390,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   if (taosSetFileHandlesLimit() != 0) return -1;
 
-  taosSetAllDebugFlag(cfgGetItem(tsCfg, "debugFlag")->i32);
+  taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
   cfgDumpCfg(tsCfg, tsc, false);
 
@@ -1481,7 +1483,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
-    taosSetAllDebugFlag(pItem->i32);
+    taosSetAllDebugFlag(pCfg, pItem->i32);
     return 0;
   }
 
@@ -1555,7 +1557,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   switch (lowcaseName[0]) {
     case 'd': {
       if (strcasecmp("debugFlag", name) == 0) {
-        taosSetAllDebugFlag(pItem->i32);
+        taosSetAllDebugFlag(pCfg, pItem->i32);
         matched = true;
       }
       break;
@@ -1780,11 +1782,13 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
   taosSetDebugFlag(pFlagPtr, name, flag);
 }
 
-void taosSetAllDebugFlag(int32_t flag) {
+void taosSetGlobalDebugFlag(int32_t flag) { taosSetAllDebugFlag(tsCfg, flag); }
+
+static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   if (flag <= 0) return;
 
   SArray      *noNeedToSetVars = NULL;
-  SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
+  SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
   if (pItem != NULL) {
     pItem->i32 = flag;
     noNeedToSetVars = pItem->array;
