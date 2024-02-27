@@ -2772,6 +2772,7 @@ _exit:
       // TODO: loop to get the number of each type from bit2 map
       break;
     default:
+      ASSERT(0);
       // TODO: loop to get the number of each type from bit1 map
   }
   return 0;
