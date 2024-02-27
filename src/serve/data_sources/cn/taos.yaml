@@ -1,6 +1,6 @@
 ---
 id: taos
-name: TDengine 2.x
+name: TDengine2
 description: |
   从旧版本 TDengine (2.x) 迁移到当前集群。
 type: uri
