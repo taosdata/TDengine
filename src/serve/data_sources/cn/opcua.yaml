@@ -140,15 +140,17 @@ datasets:
       selectable: true
     params:
       - name: root
-        display: 查询根节点
+        display: 根节点 ID
         description: |
-          从该节点开始查询所有子节点。
+          从该节点开始遍历所有子节点。
+        placeholder: 例如 ns=3;i=1001
         hint:
           type: str
       - name: namespaces
         display: 命名空间
         description: |
           支持多选,只查询这些 namespace 下的数据点位。
+        placeholder: 连通性检查通过后，可选择，支持多选
         multiple: true
         hint:
           type: str
@@ -165,6 +167,8 @@ datasets:
         description:
         required: true
         value: original_ts
+        description: |
+          目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
         hint:
           type: str
           choices:

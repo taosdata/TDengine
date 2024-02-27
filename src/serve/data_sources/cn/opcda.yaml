@@ -56,9 +56,10 @@ datasets:
       selectable: true
     params:
       - name: root
-        display: 查询根节点
+        display: 根节点
         description: |
-          从该节点开始查询所有子节点。
+          从该节点开始查询所有子节点, 多级父节点间用“.”相连接。
+        placeholder: 例如 root.parent
         hint:
           type: str
       - name: pattern
@@ -69,7 +70,8 @@ datasets:
           type: str
       - name: table_primary_key
         display: 主键列
-        description:
+        description: |
+          目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
         required: true
         value: original_ts
         hint:
