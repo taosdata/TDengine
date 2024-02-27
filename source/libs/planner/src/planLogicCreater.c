@@ -1016,7 +1016,7 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (tsDisableCount) {
+  if (!pCxt->pPlanCxt->streamQuery && tsDisableCount) {
     return TSDB_CODE_FAILED;
   }
 
