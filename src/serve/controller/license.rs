@@ -287,13 +287,18 @@ async fn validate_connector_license(
         })?;
 
     // since 3.2.3.0, the expired time is in seconds
-    let expired_days = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-        license.expired_seconds().map(|s| (s / 86400) as u32)
+    let expired_duration = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+        license.expired_seconds()
     } else {
         license.expired_days()
     };
-    if let Some(days) = expired_days {
-        let err = anyhow!("The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.", connector, days);
+    if let Some(duration) = expired_duration {
+        let err = anyhow!(
+            "The current connector {} has been expired for {}, \
+            please contact the TDengine customer success team to get the activation code.",
+            connector,
+            humantime::format_duration(duration.to_std().unwrap())
+        );
         return Ok(LicenseKind::Connector(err));
     }
 
