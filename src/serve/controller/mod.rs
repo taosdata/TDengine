@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -22,7 +21,6 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::utils::{get_main_version_from_server_version, get_server_version};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -32,9 +30,7 @@ use uuid::Uuid;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{
-    get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
-};
+use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
 
 use crate::serve::controller::agent::Activity;
 
@@ -50,6 +46,7 @@ use self::transferred::Transferred;
 use self::trigger::Strategy;
 
 pub(crate) mod agent;
+pub mod license;
 pub(crate) mod transferred;
 
 mod datetime_format {
@@ -658,11 +655,6 @@ impl TaskController {
         })
     }
 
-    // pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
-    //     self.runtime = Some(rt);
-    //     self
-    // }
-
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         if let Some(via) = task.via {
@@ -687,23 +679,7 @@ impl TaskController {
             _ => (),
         }
 
-        self.validate_enterprise_license(&from, &to).await?;
-
-        match from.driver.as_str() {
-            "opc"
-            | "opcua"
-            | "opcda"
-            | "pi"
-            | "pibackfill"
-            | "mqtt"
-            | "influxdb"
-            | "opentsdb"
-            | taosx_core::runners::kafka::KAFKA_ID
-            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-                self.validate_connector_license(&from, &to).await?;
-            }
-            _ => (),
-        }
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
         self.scheduler.push_task(task.clone()).await
     }
 
@@ -746,227 +722,6 @@ impl TaskController {
         Ok(tasks.len())
     }
 
-    pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
-        let builder = TaosBuilder::from_dsn(to)?;
-        let taos = builder.build().await?;
-        // let is_enterprise = builder.is_enterprise_edition().await?;
-
-        let assert_enterprise = builder.assert_enterprise_edition().await;
-
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if let Err(_) = assert_enterprise {
-            /* anyhow::bail!(format!(
-                "{err:?}. A non-expired enterprise edition is required in most of steps."
-            )) */
-            anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
-        }
-        // is cloud?
-        if to
-            .protocol
-            .as_ref()
-            .map(|p| match p.as_str() {
-                "http" | "https" | "ws" | "wss" => true,
-                _ => false,
-            })
-            .unwrap_or(false)
-            && to.get("token").is_some()
-        {
-            return Ok(());
-        }
-
-        let endpoint = match (
-            from.addresses[0].host.as_deref(),
-            from.addresses[0].port.as_ref(),
-        ) {
-            (Some(host), Some(port)) => format!("{host}:{port}"),
-            (Some(host), None) => format!("{host}"),
-            (None, Some(port)) => format!(":{port}"),
-            (None, None) => format!(""),
-        };
-        let cluster_id: i64 = taos
-            .query_one("select id from information_schema.ins_cluster")
-            .await
-            .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-            .unwrap();
-
-        // These lines disable the connector license check.
-        let _ = endpoint;
-        // let exists : u32 =
-        //             sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
-        //                 .fetch_one(&self.pool)
-        //                 .await?;
-        // if exists > 0 {
-        //     return Ok(());
-        // }
-
-        let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';",cluster_id, from.driver))
-                        .fetch_all(&self.pool)
-                        .await?;
-        used.push(from.to_string());
-        let used = used
-            .into_iter()
-            .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
-            .collect::<std::collections::HashSet<_>>()
-            .len();
-
-        // let license = taos.query_one(sql)
-        let connector = match from.driver.as_str() {
-            "opcua" => "opc_ua",
-            "opcda" => "opc_da",
-            "influxdb" => "influxdb",
-            "opentsdb" => "opentsdb",
-            "pi" => "pi",
-            "pibackfill" => "pi",
-            taosx_core::runners::kafka::KAFKA_ID => "kafka",
-            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => "avevahistorian",
-            "mqtt" => "mqtt",
-            "taos" => "td2.6",
-            "tmq" => "td3.0",
-            _ => unreachable!(),
-        };
-
-        // get tdengine server version and handle compatibility
-        let server_version = get_server_version(&taos).await?;
-        let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
-        // skip license check for newadd connectors in old version
-        let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
-        if !(a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3))
-            && !connectors_old.contains(&connector)
-        {
-            return Ok(());
-        }
-        let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
-        } else {
-            format!("select `{connector}` from information_schema.ins_grants")
-        };
-        let license: ConnectorLicense = taos
-            .query_one::<_, String>(grants_sql)
-            .await
-            .context("Cannot retrieve license")?
-            .ok_or_else(|| {
-                anyhow!("The current connector {connector} is not supported by license.")
-            })
-            .and_then(|s| {
-                serde_json::from_str(&s)
-                    .with_context(|| format!("Cannot parse license from str: {s}"))
-            })?;
-
-        // since 3.2.3.0, the expired time is in seconds
-        let expired_days = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            license.expired_seconds().map(|s| (s / 86400) as u32)
-        } else {
-            license.expired_days()
-        };
-        if let Some(days) = expired_days {
-            anyhow::bail!("The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.", connector, days)
-        }
-        match license.number {
-            0 => anyhow::bail!("The current connector {connector} is disabled by license."),
-            n if n > 0 => {
-                if used > n as usize {
-                    anyhow::bail!("The current connector {connector} reaches connection number limit({n}) by license");
-                }
-            }
-            _ => (),
-        }
-        Ok(())
-    }
-
-    pub async fn validate_enterprise_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
-        // Check if enterprise available
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq" | "taos", "tmq" | "taos") => {
-                let mut from = from.clone();
-                from.subject.take();
-                let from = TaosBuilder::from_dsn(from)?;
-                let _ = from.build().await?;
-                // to.subject.take();
-                let to_builder = TaosBuilder::from_dsn(to)?;
-                let mut conn = to_builder.build().await?;
-                if let Err(err) = to_builder.ping(&mut conn).await {
-                    if *err.code().deref() == 0x0388 {
-                        let subject = to.subject.as_deref().unwrap_or("unknown");
-                        Err(err.context(format!("Target database {subject}")))?
-                    } else {
-                        bail!("Failed to connect target server: {err}");
-                    }
-                };
-                let edition = to_builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check destination edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            ("tmq" | "taos", _) => {
-                let mut from = from.clone();
-                from.subject.take();
-                let builder = TaosBuilder::from_dsn(from)?;
-                let _ = builder.build().await.context("Source connection error")?;
-                let edition = tokio::time::timeout(Duration::from_secs(30), builder.get_edition())
-                    .await
-                    .context("Checking source edition timeout")?
-                    .context("Failed to check source edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            ("local", "tmq" | "taos") => {
-                let mut to = to.clone();
-                to.subject.take();
-                // to.subject.take();
-                let builder = TaosBuilder::from_dsn(&to)?;
-                let mut conn = builder.build().await.context("Target connection error")?;
-                builder.ping(&mut conn).await?;
-                let edition = builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check destination edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            (_, "tmq" | "taos") => {
-                let to = to.clone();
-                // to.subject.take();
-                let builder = TaosBuilder::from_dsn(&to)?;
-                let mut conn = builder.build().await.context("Target connection error")?;
-                if let Err(err) = builder.ping(&mut conn).await {
-                    if *err.code().deref() == 0x0388 {
-                        let subject = to.subject.as_deref().unwrap_or("unknown");
-                        Err(err.context(format!("Target database {subject}")))?
-                    } else {
-                        bail!("Failed to connect target server: {err}");
-                    }
-                };
-                let edition = builder
-                    .get_edition()
-                    .await
-                    .context("Failed to check destination edition")?
-                    .assert_enterprise_edition();
-
-                if edition.is_err() {
-                    let err = edition.unwrap_err().to_string();
-                    bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
-                }
-            }
-            _ => (),
-        };
-        Ok(())
-    }
-
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
@@ -984,23 +739,7 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        self.validate_enterprise_license(&from, &to).await?;
-
-        match from.driver.as_str() {
-            "opc"
-            | "opcua"
-            | "opcda"
-            | "pi"
-            | "pibackfill"
-            | "mqtt"
-            | "influxdb"
-            | "opentsdb"
-            | taosx_core::runners::kafka::KAFKA_ID
-            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-                self.validate_connector_license(&from, &to).await?;
-            }
-            _ => (),
-        }
+        license::validate_task(&from, &to, Some(&self.pool)).await?;
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
@@ -2361,9 +2100,19 @@ impl TaskActivity {
         Self {
             id,
             at: Utc::now(),
-            level: LevelFilter::Info,
+            level: LevelFilter::Warn,
             activity: format!("Suspended with job id: {jid}."),
             status: "suspended".to_string(),
+            context: None,
+        }
+    }
+    pub fn suspending_with(id: i64, activity: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity,
+            status: "suspending".to_string(),
             context: None,
         }
     }
@@ -3436,7 +3185,7 @@ mod tests {
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
         let to = Dsn::from_str("taos+ws://localhost:6041")?;
-        controller.validate_enterprise_license(&from, &to).await?;
+        license::validate_task(&from, &to, Some(&controller.pool)).await?;
         Ok(())
     }
 }
