@@ -816,11 +816,11 @@ impl TaskController {
             "influxdb" => "influxdb",
             "opentsdb" => "opentsdb",
             "pi" => "pi",
-            taosx_core::runners::kafka::KAFKA_ID => taosx_core::runners::kafka::KAFKA_ID,
-            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-                taosx_core::runners::historian::AVEVA_HISTORIAN_ID
-            }
+            taosx_core::runners::kafka::KAFKA_ID => "kafka",
+            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => "avevahistorian",
             "mqtt" => "mqtt",
+            "taos" => "td2.6",
+            "tmq" => "td3.0",
             _ => unreachable!(),
         };
 
