@@ -374,6 +374,11 @@ async fn worker(
                                 .await
                                 {
                                     Ok(_) => {
+                                        tracing::debug!(
+                                            "synced table {table} time_range {time_range}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                        );
                                         // set breakpoint async
                                         if let Some(task_id) = task_id.clone() {
                                             if let Some(end) = chunk.end {
@@ -395,11 +400,6 @@ async fn worker(
                                                 });
                                             }
                                         }
-                                        tracing::debug!(
-                                            "sync table {table} time_range {time_range}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                        );
                                         break;
                                     }
                                     Err(err) => {

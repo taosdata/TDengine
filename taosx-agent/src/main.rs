@@ -409,7 +409,7 @@ pub fn process_metrics(
     gauge!("process_id", &labels).set(process_id.as_u32() as f64);
     if let Some(ps) = sys.process(process_id) {
         let cpu = ps.cpu_usage();
-        gauge!("process_cpu_percent", &labels).set(cpu as f64);
+        gauge!("process_cpu_percent", &labels).set(cpu as f64 / cpu_cores);
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
         gauge!("process_memory_percent", &labels).set(mem);
         let disk = ps.disk_usage();
