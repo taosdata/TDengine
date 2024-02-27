@@ -412,16 +412,12 @@ async fn worker(
                                             from = source.get().await?;
                                             to = target.get().await?;
                                             retries -= 1;
-                                            tracing::warn!(
-                                    "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
-                                );
+                                            tracing::warn!("[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left");
                                             continue;
                                         } else if err_string.contains("0x263F")
                                             || err_string.contains("Column does not exist")
                                         {
-                                            tracing::info!(
-                                    "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
-                                );
+                                            tracing::info!("[worker:{worker}] sync table {table} error 0x263F: {err:?}, add column");
                                             let st = stable.as_ref().map(|s| s.as_str());
                                             if let Some(stable) = st {
                                                 sync_add_column(&from, &to, stable, remap.as_ref())
@@ -433,9 +429,7 @@ async fn worker(
                                             continue;
                                         }
 
-                                        tracing::error!(
-                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
-                                        );
+                                        tracing::error!("[worker:{worker}] sync table {table} with range {chunk} error: {err:?}, continue next");
                                         if let Some(path) = opts.fails_to.as_ref() {
                                             path.lock().unwrap().write_fmt(format_args!(
                                                 "data\t{}\t{:?}\t{}\n",
