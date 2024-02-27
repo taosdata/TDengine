@@ -47,6 +47,8 @@
 
 #include "vnode.h"
 
+#include "taos_monitor.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -103,6 +105,20 @@ typedef struct SQueryNode         SQueryNode;
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
+
+#define VNODE_METRIC_SQL_COUNT "taos_sql_req:count"
+
+#define VNODE_METRIC_TAG_NAME_SQL_TYPE "sql_type"
+#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_ID "dnode_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_EP "dnode_ep"
+#define VNODE_METRIC_TAG_NAME_VGROUP_ID "vgroup_id"
+#define VNODE_METRIC_TAG_NAME_USERNAME "username"
+#define VNODE_METRIC_TAG_NAME_RESULT "result"
+
+#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
+//#define VNODE_METRIC_TAG_VALUE_INSERT "insert"
+//#define VNODE_METRIC_TAG_VALUE_DELETE "delete"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
@@ -243,6 +259,8 @@ int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
@@ -443,6 +461,13 @@ typedef struct SVCommitSched {
   int64_t maxWaitMs;
 } SVCommitSched;
 
+typedef struct SVMonitorObj{
+  char strClusterId[TSDB_CLUSTER_ID_LEN];
+  char strDnodeId[TSDB_NODE_ID_LEN];
+  char strVgId[TSDB_VGROUP_ID_LEN];
+  taos_counter_t *insertCounter;
+}SVMonitorObj;
+
 struct SVnode {
   char*     path;
   SVnodeCfg config;
@@ -481,6 +506,7 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
+  SVMonitorObj  monitor;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

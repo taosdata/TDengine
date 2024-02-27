@@ -621,9 +621,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STREAM_QUERY,       "Invalid stream quer
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VIEW_QUERY,         "Invalid view query type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_QUERY_MISMATCH,         "Columns number mismatch with query result")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE,   "View name is conflict with table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT,   "Operator not supported multi result")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR,  "Invalid window join having expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GRP_WINDOW_NOT_ALLOWED,     "GROUP BY/PARTITION BY/WINDOW-clause can't be used in WINDOW join")
-
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

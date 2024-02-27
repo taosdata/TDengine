@@ -279,6 +279,7 @@ void taos_close_internal(void *taos) {
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  // clientMonitorClose(pTscObj->pAppInfo->instKey);
 
   taosRemoveRef(clientConnRefPool, pTscObj->id);
 }

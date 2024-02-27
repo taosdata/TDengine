@@ -106,6 +106,9 @@ extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
+extern bool     tsMonitorLogProtocol;
+extern int32_t  tsMonitorIntervalForBasic;
+extern bool     tsMonitorForceV2;
 
 // audit
 extern bool     tsEnableAudit;
@@ -216,6 +219,7 @@ extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
+extern bool    tsDisableCount;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)

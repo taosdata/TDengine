@@ -171,6 +171,22 @@ end : {
 }
 }
 
+#define PROCESS_EXCLUDED_MSG(TYPE, DECODE_FUNC) \
+  SDecoder           decoder = {0};\
+  TYPE               req = {0}; \
+  void*   data = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)); \
+  int32_t len = pHead->bodyLen - sizeof(SMsgHead); \
+  tDecoderInit(&decoder, data, len); \
+  if (DECODE_FUNC(&decoder, &req) == 0 && (req.source & TD_REQ_FROM_TAOX) != 0) { \
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, jump meta for, vgId:%d offset %" PRId64 " msgType %d",  \
+            pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType); \
+    fetchVer++; \
+    tDecoderClear(&decoder); \
+    continue; \
+  } \
+  tDecoderClear(&decoder);
+
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int        code = 0;
@@ -237,6 +253,19 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
               pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp,
               taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
           goto end;
+        }
+
+        if ((pRequest->sourceExcluded & TD_REQ_FROM_TAOX) != 0) {
+          if (pHead->msgType == TDMT_VND_CREATE_TABLE) {
+            PROCESS_EXCLUDED_MSG(SVCreateTbBatchReq, tDecodeSVCreateTbBatchReq)
+          } else if (pHead->msgType == TDMT_VND_ALTER_TABLE) {
+            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq)
+          } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
+            PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq)
+          } else if (pHead->msgType == TDMT_VND_DELETE) {
+            fetchVer++;
+            continue;
+          }
         }
 
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));

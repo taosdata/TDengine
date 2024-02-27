@@ -2288,28 +2288,28 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
-void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId){
+void  buildCtbNameAddGroupId(char* ctbName, uint64_t groupId){
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
   snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
   strcat(ctbName, tmp);
 }
 
-bool  isAutoTableName(char* ctbName){
-  return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_');
-}
+// auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
+// the total length is fixed to be 34 bytes.
+bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_'); }
 
-bool  alreadyAddGroupId(char* ctbName){
+bool alreadyAddGroupId(char* ctbName) {
   size_t len = strlen(ctbName);
   size_t _location = len - 1;
-  while(_location > 0){
-    if(ctbName[_location] < '0' || ctbName[_location] > '9'){
+  while (_location > 0) {
+    if (ctbName[_location] < '0' || ctbName[_location] > '9') {
       break;
     }
     _location--;
   }
 
-  return ctbName[_location] == '_' &&  len - 1 - _location > 15;  //15 means the min length of groupid
+  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
@@ -2366,7 +2366,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = 2;
+  *version = BLOCK_VERSION_1;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2447,7 +2447,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-//    colSizes[col] = htonl(colSizes[col]);
+    colSizes[col] = htonl(colSizes[col]);
     //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
     //    htonl(colSizes[col]), colSizes[col]);
   }
@@ -2512,9 +2512,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if(version == 1){
-      colLen[i] = htonl(colLen[i]);
-    }
+    colLen[i] = htonl(colLen[i]);
     ASSERT(colLen[i] >= 0);
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);

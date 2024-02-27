@@ -25,6 +25,7 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
+from frame.srvCtl import *
 
 
 class TDTestCase(TBase):
@@ -65,6 +66,21 @@ class TDTestCase(TBase):
         sql = f"select avg(dc) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, 200)
 
+    def alterReplica3(self):
+        sql = f"alter database {self.db} replica 3"
+        tdSql.execute(sql, show=True)
+        time.sleep(2)
+        sc.dnodeStop(2)
+        sc.dnodeStop(3)
+        time.sleep(5)
+        sc.dnodeStart(2)
+        sc.dnodeStart(3)
+
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
     def doAction(self):
         tdLog.info(f"do action.")
         self.flushDb()
@@ -81,7 +97,7 @@ class TDTestCase(TBase):
         self.alterReplica(1)
         self.checkAggCorrect()
         self.compactDb()
-        self.alterReplica(3)
+        self.alterReplica3()
 
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
