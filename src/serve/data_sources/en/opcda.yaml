@@ -75,7 +75,7 @@ datasets:
       - name: table_primary_key
         display: Primary Key
         description: |
-          The selected value will be the primary key of target table, original_ts represents the time when OPC service recieve data from data points, and received_ts represents the time when the taosX task received data from OPC server.
+          The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.
         required: true
         value: original_ts
         hint:
