@@ -33,13 +33,11 @@ extern "C" {
 
 struct SMJoinOperatorInfo;
 
-typedef SSDataBlock* (*joinImplFp)(SOperatorInfo*);
-typedef int32_t (*joinCartFp)(void*);
-
 typedef enum EJoinTableType {
   E_JOIN_TB_BUILD = 1,
   E_JOIN_TB_PROBE
 } EJoinTableType;
+
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
 #define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
@@ -171,12 +169,15 @@ typedef struct SMJoinGrpRows {
   bool                   lastEqGrp; \
   bool                lastProbeGrp; \
   bool                   seqWinGrp; \
+  bool                   groupJoin; \
   int32_t             blkThreshold; \
   int64_t                   jLimit
 
 typedef struct SMJoinCommonCtx {
   MJOIN_COMMON_CTX;
 } SMJoinCommonCtx;
+
+typedef int32_t (*joinCartFp)(void*);
 
 typedef struct SMJoinMergeCtx {
   // KEEP IT FIRST
@@ -187,12 +188,12 @@ typedef struct SMJoinMergeCtx {
   bool                   lastEqGrp;
   bool                lastProbeGrp;
   bool                   seqWinGrp;
+  bool                   groupJoin;
   int32_t             blkThreshold;
   int64_t                   jLimit;
   // KEEP IT FIRST
   
   bool                hashCan;
-  bool                keepOrder;
   bool                midRemains;
   bool                nmatchRemains;
   SSDataBlock*        midBlk;
@@ -230,6 +231,7 @@ typedef struct SMJoinWindowCtx {
   bool                   lastEqGrp;
   bool                lastProbeGrp;
   bool                   seqWinGrp;
+  bool                   groupJoin;
   int32_t             blkThreshold;
   int64_t                   jLimit;
   // KEEP IT FIRST
@@ -240,14 +242,11 @@ typedef struct SMJoinWindowCtx {
   bool                       lowerRowsAcq;
   bool                       eqRowsAcq;
   bool                       greaterRowsAcq;
-  bool                       groupJoin;
 
-  int64_t                    seqGrpId;
   int64_t                    winBeginTs;
   int64_t                    winEndTs;
   bool                       eqPostDone;
   int64_t                    lastTs;
-  bool                       rowRemains;
   SMJoinGrpRows              probeGrp;
   SMJoinGrpRows              buildGrp;
   SMJoinWinCache             cache;
@@ -279,26 +278,28 @@ typedef struct SMJoinExecInfo {
   int64_t expectRows;
 } SMJoinExecInfo;
 
-typedef struct SMJoinRetrieveCtx {
-  bool         grpRetrieve;
-  uint64_t     lastGid[2];
-  SSDataBlock* remainBlk[2];
-} SMJoinRetrieveCtx;
+
+typedef SSDataBlock* (*joinImplFp)(SOperatorInfo*);
+typedef SSDataBlock* (*joinRetrieveFp)(struct SMJoinOperatorInfo*, SMJoinTableCtx*);
+typedef void (*joinResetFp)(struct SMJoinOperatorInfo*);
+
 
 typedef struct SMJoinOperatorInfo {
   SOperatorInfo*    pOperator;
   int32_t           joinType;
   int32_t           subType;
   int32_t           inputTsOrder;
-  int32_t           errCode;
+  int32_t           errCode;  
+  int64_t           outGrpId;
   SMJoinTableCtx    tbs[2];
   SMJoinTableCtx*   build;
   SMJoinTableCtx*   probe;
-  SMJoinRetrieveCtx retrieveCtx;
   SFilterInfo*      pFPreFilter;
   SFilterInfo*      pPreFilter;
   SFilterInfo*      pFinFilter;
   joinImplFp        joinFp;
+  joinRetrieveFp    retrieveFp;
+  joinResetFp       grpResetFp;
   SMJoinCtx         ctx;
   SMJoinExecInfo    execInfo;
 } SMJoinOperatorInfo;
@@ -420,11 +421,15 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mSemiJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator);
-bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
+void mJoinResetGroupTableCtx(SMJoinTableCtx* pCtx);
+void mJoinResetTableCtx(SMJoinTableCtx* pCtx);
+void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin);
+bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
+bool mJoinIsDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
-int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable, int64_t timestamp);
+int32_t mJoinRetrieveEqGrpRows(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable, int64_t timestamp);
 int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);

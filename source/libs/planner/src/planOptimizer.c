@@ -852,8 +852,7 @@ static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
     pPrimKeyEqCond = pJoin->pFullOnCond;
     pJoinOnCond = NULL;
   } else {
-    planError("unexcepted conds in fullOnCond, type:%s", nodesNodeName(nodeType(pJoin->pFullOnCond)));
-    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -924,11 +923,13 @@ static int32_t pdcJoinPartLogicEqualOnCond(SJoinLogicNode* pJoin) {
         code = nodesListMakeAppend(&pTagEqOnConds, nodesCloneNode(pCond));
       } else {
         code = nodesListMakeAppend(&pColEqOnConds, nodesCloneNode(pCond));
+        pJoin->allEqTags = false;  
       }
     } else if (allTags) {
       code = nodesListMakeAppend(&pTagOnConds, nodesCloneNode(pCond));
     } else {
       code = nodesListMakeAppend(&pColOnConds, nodesCloneNode(pCond));
+      pJoin->allEqTags = false;  
     }
     
     if (code) {
@@ -978,6 +979,9 @@ static int32_t pdcJoinPartEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
     pJoin->pTagEqCond = NULL;
     return TSDB_CODE_SUCCESS;
   }
+
+  pJoin->allEqTags = true;  
+
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pFullOnCond) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pFullOnCond))->condType) {
     return pdcJoinPartLogicEqualOnCond(pJoin);
@@ -989,11 +993,13 @@ static int32_t pdcJoinPartEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
       pJoin->pTagEqCond = nodesCloneNode(pJoin->pFullOnCond);
     } else {
       pJoin->pColEqCond = nodesCloneNode(pJoin->pFullOnCond);
+      pJoin->allEqTags = false;  
     }
   } else if (allTags) {
     pJoin->pTagOnCond = nodesCloneNode(pJoin->pFullOnCond);
   } else {
     pJoin->pColOnCond = nodesCloneNode(pJoin->pFullOnCond);
+    pJoin->allEqTags = false;  
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1274,7 +1280,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType)) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
 
@@ -4540,10 +4546,37 @@ static int32_t grpJoinOptInsertPartitionNode(SLogicNode* pJoin) {
   return code;
 }
 
-static int32_t grpJoinOptRewriteGroupJoin(SOptimizeContext* pCxt, SLogicNode* pJoin, SLogicSubplan* pLogicSubplan) {
-  int32_t code = grpJoinOptInsertPartitionNode(pJoin);
+static int32_t grpJoinOptPartByTags(SLogicNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pChild = NULL;
+  SNode* pNew = NULL;
+  bool leftChild = true;
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  FOREACH(pChild, pNode->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+    if (leftChild) {
+      nodesListMakeStrictAppendList(&pScan->pGroupTags, nodesCloneList(pJoin->pLeftEqNodes));
+      leftChild = false;
+    } else {
+      nodesListMakeStrictAppendList(&pScan->pGroupTags, nodesCloneList(pJoin->pRightEqNodes));
+    }
+    
+    pScan->groupSort = true;
+    pScan->groupOrderScan = true;
+  }
+
+  return code;
+}
+
+static int32_t grpJoinOptRewriteGroupJoin(SOptimizeContext* pCxt, SLogicNode* pNode, SLogicSubplan* pLogicSubplan) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  int32_t code = (pJoin->allEqTags && !pJoin->hasSubQuery) ? grpJoinOptPartByTags(pNode) : grpJoinOptInsertPartitionNode(pNode);
   if (TSDB_CODE_SUCCESS == code) {
-    ((SJoinLogicNode*)pJoin)->grpJoin = true;
+    pJoin->grpJoin = true;
     pCxt->optimized = true;
   }
   return code;

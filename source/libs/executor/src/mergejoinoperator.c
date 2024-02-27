@@ -591,7 +591,7 @@ int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastB
 
   mJoinBuildEqGroups(pJoin->probe, timestamp, NULL, true);
   if (!lastBuildGrp) {
-    mJoinRetrieveEqGrpRows(pJoin->pOperator, pJoin->build, timestamp);
+    mJoinRetrieveEqGrpRows(pJoin, pJoin->build, timestamp);
   } else {
     pJoin->build->grpIdx = 0;
   }
@@ -846,8 +846,92 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
   pInfo->probe->type = E_JOIN_TB_PROBE;
 }
 
+SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  int32_t dsIdx = pTable->downStreamIdx; 
+  if (E_JOIN_TB_PROBE == pTable->type) {
+    if (pTable->remainInBlk) {
+      SSDataBlock* pTmp = pTable->remainInBlk;
+      pTable->remainInBlk = NULL;
+      (*pJoin->grpResetFp)(pJoin);
+      pTable->lastInGid = pTmp->info.id.groupId;
+      return pTmp;
+    }
+
+    if (pTable->dsFetchDone) {
+      return NULL;
+    }
+
+    SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
+    if (NULL == pTmp) {
+      pTable->dsFetchDone = true;
+      return NULL;
+    }
+    
+    if (0 == pTable->lastInGid) {
+      pTable->lastInGid = pTmp->info.id.groupId;
+      return pTmp;
+    }
+
+    if (pTable->lastInGid == pTmp->info.id.groupId) {
+      return pTmp;
+    }
+
+    pTable->remainInBlk = pTmp;
+    return NULL;
+  }
+
+  SMJoinTableCtx* pProbe = pJoin->probe;
+  ASSERT(pProbe->lastInGid);
+
+  while (true) {
+    if (pTable->remainInBlk) {
+      if (pTable->remainInBlk->info.id.groupId == pProbe->lastInGid) {
+        SSDataBlock* pTmp = pTable->remainInBlk;
+        pTable->remainInBlk = NULL;
+        pTable->lastInGid = pTmp->info.id.groupId;
+        return pTmp;
+      }
+
+      if (pTable->remainInBlk->info.id.groupId > pProbe->lastInGid) {
+        return NULL;
+      }
+
+      pTable->remainInBlk = NULL;
+    }
+
+    if (pTable->dsFetchDone) {
+      return NULL;
+    }
+
+    SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
+    if (NULL == pTmp) {
+      pTable->dsFetchDone = true;
+      return NULL;
+    }
+
+    pTable->remainInBlk = pTmp;
+  }
+
+  return NULL;
+}
+
+static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  if (pTable->dsFetchDone) {
+    return NULL;
+  }
+  
+  SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTable->downStreamIdx);
+  if (NULL == pTmp) {
+    pTable->dsFetchDone = true;
+  }
+
+  return pTmp;
+}
+
+
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
-  pJoin->retrieveCtx.grpRetrieve = pJoinNode->grpJoin;
+  pJoin->ctx.mergeCtx.groupJoin = pJoinNode->grpJoin;
+  pJoin->retrieveFp = pJoinNode->grpJoin ? mJoinGrpRetrieveImpl : mJoinRetrieveImpl;
   
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
        || (JOIN_STYPE_WIN == pJoin->subType)) {
@@ -865,6 +949,10 @@ static void mJoinDestroyCtx(SMJoinOperatorInfo* pJoin) {
   return mJoinDestroyMergeCtx(pJoin);
 }
 
+bool mJoinIsDone(SOperatorInfo* pOperator) {
+  return (OP_EXEC_DONE == pOperator->status);
+}
+
 void mJoinSetDone(SOperatorInfo* pOperator) {
   setOperatorCompleted(pOperator);
   if (pOperator->pDownstreamGetParams) {
@@ -875,21 +963,15 @@ void mJoinSetDone(SOperatorInfo* pOperator) {
   }
 }
 
-bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb) {
-  if (pTb->dsFetchDone) {
-    return (NULL == (*ppBlk) || *pIdx >= (*ppBlk)->info.rows) ? false : true;
-  }
-  
+bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb) {
   if (NULL == (*ppBlk) || *pIdx >= (*ppBlk)->info.rows) {
-    (*ppBlk) = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTb->downStreamIdx);
+    (*ppBlk) = (*pJoin->retrieveFp)(pJoin, pTb);
     pTb->dsInitDone = true;
 
     qDebug("%s merge join %s table got %" PRId64 " rows block", GET_TASKID(pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(pTb->type), (*ppBlk) ? (*ppBlk)->info.rows : 0);
 
     *pIdx = 0;
-    if (NULL == (*ppBlk)) {
-      pTb->dsFetchDone = true;
-    } else {
+    if (NULL != (*ppBlk)) {
       pTb->newBlk = true;
     }
     
@@ -1046,19 +1128,18 @@ _return:
 }
 
 
-int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable, int64_t timestamp) {
+int32_t mJoinRetrieveEqGrpRows(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable, int64_t timestamp) {
   bool wholeBlk = false;
   
   mJoinBuildEqGroups(pTable, timestamp, &wholeBlk, true);
   
   while (wholeBlk && !pTable->dsFetchDone) {
-    pTable->blk = getNextBlockFromDownstreamRemain(pOperator, pTable->downStreamIdx);
-    qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
+    pTable->blk = (*pJoin->retrieveFp)(pJoin, pTable);
+    qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
 
     pTable->blkRowIdx = 0;
 
     if (NULL == pTable->blk) {
-      pTable->dsFetchDone = true;
       break;
     }
 
@@ -1238,13 +1319,23 @@ int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable
   return TSDB_CODE_SUCCESS;
 }
 
+void mJoinResetGroupTableCtx(SMJoinTableCtx* pCtx) {
+  pCtx->blk = NULL;
+  pCtx->blkRowIdx = 0;
+  pCtx->newBlk = false;
+
+  mJoinDestroyCreatedBlks(pCtx->createdBlks);
+  tSimpleHashClear(pCtx->pGrpHash);
+}
+
 
 void mJoinResetTableCtx(SMJoinTableCtx* pCtx) {
   pCtx->dsInitDone = false;
   pCtx->dsFetchDone = false;
+  pCtx->lastInGid = 0;
+  pCtx->remainInBlk = NULL;
 
-  mJoinDestroyCreatedBlks(pCtx->createdBlks);
-  tSimpleHashClear(pCtx->pGrpHash);
+  mJoinResetGroupTableCtx(pCtx);
 }
 
 void mJoinResetMergeCtx(SMJoinMergeCtx* pCtx) {
@@ -1413,6 +1504,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
           break;
         case JOIN_STYPE_WIN:
           pJoin->joinFp = mWinJoinDo;
+          pJoin->grpResetFp = mWinJoinGroupReset;
           break;
         default:
           break;

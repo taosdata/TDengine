@@ -485,6 +485,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   CLONE_NODE_FIELD(pFullOnCond);
   CLONE_NODE_LIST_FIELD(pLeftEqNodes);
   CLONE_NODE_LIST_FIELD(pRightEqNodes);
+  COPY_SCALAR_FIELD(allEqTags);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(seqWinGroup);

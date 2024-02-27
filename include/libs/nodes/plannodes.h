@@ -140,6 +140,7 @@ typedef struct SJoinLogicNode {
   SNode*         pFullOnCond; // except prim eq cond
   SNodeList*     pLeftEqNodes;
   SNodeList*     pRightEqNodes;
+  bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
