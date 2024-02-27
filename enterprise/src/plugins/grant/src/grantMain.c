@@ -2445,7 +2445,7 @@ static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *dataIn)
   int16_t nIns = 0;
   if (tDecodeI16v(decoder, &nIns) < 0) return -1;
   for (int32_t i = 0; i < nIns; ++i) {
-    if (nIns > CONN_TYPE_DYN_MAX) {
+    if (i >= CONN_TYPE_DYN_MAX) {
       if (tDecodeI32v(decoder, NULL) < 0) return -1;
       if (tDecodeI32v(decoder, NULL) < 0) return -1;
       if (tDecodeI64v(decoder, NULL) < 0) return -1;
