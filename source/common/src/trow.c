@@ -17,8 +17,8 @@
 #include "trow.h"
 #include "tlog.h"
 
-static bool  tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-static bool  tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
+static bool tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
+static bool tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
 
 void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
   pIter->pSchema = pSchema;
@@ -416,7 +416,6 @@ bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t fl
   return true;
 }
 
-
 bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal) {
   if (pIter->colIdx >= pIter->pSchema->numOfCols) {
     return false;
@@ -481,7 +480,8 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
           }
         } else {
           varDataLen += sizeof(VarDataLenT);
-          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_VARBINARY || pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_VARBINARY ||
+              pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
             varDataLen += CHAR_BYTES;
             if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
               maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);
@@ -494,7 +494,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
           }
         }
       } else {
-        if(pColVal && COL_VAL_IS_VALUE(pColVal)) {
+        if (pColVal && COL_VAL_IS_VALUE(pColVal)) {
           nonVarDataLen += TYPE_BYTES[pTColumn->type];
         }
       }
@@ -510,9 +510,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
     rowTotalLen = sizeof(STSRow) + sizeof(col_id_t) + varDataLen + nonVarDataLen + (nBound - 1) * sizeof(SKvRowIdx) +
                   TD_BITMAP_BYTES(nBound - 1);
   }
-    if (!(*ppRow)) {
-      *ppRow = (STSRow *)taosMemoryCalloc(1, rowTotalLen);
-      isAlloc = true;
+  if (!(*ppRow)) {
+    *ppRow = (STSRow *)taosMemoryCalloc(1, rowTotalLen);
+    isAlloc = true;
   }
 
   if (!(*ppRow)) {
@@ -1084,8 +1084,6 @@ int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int
   return TSDB_CODE_SUCCESS;
 }
 
-
-
 void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SCellVal  cv = {0};
@@ -1106,9 +1104,9 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   } else {
     pColVal->cid = pTColumn->colId;
-    pColVal->type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
 
+    pColVal->value.type = pTColumn->type;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
       pColVal->value.nData = varDataLen(cv.val);
       pColVal->value.pData = varDataVal(cv.val);
