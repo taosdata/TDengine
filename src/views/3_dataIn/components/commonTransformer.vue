@@ -214,24 +214,26 @@
               <span>{{ columnsArr[0]?.name }}</span>
             </li>
           </el-tooltip> -->
-          <li v-for="(item, index) in columnsArr" :key="index">
-            <!-- <el-tooltip
-              class="item"
-              effect="light"
-              :content="item.value"
-              placement="top-start"
-              v-if="item.name == 'ts' && index == 0"
-            >
+          <template v-for="(item, index) in columnsArr">
+            <li v-if="index < 9" :key="index">
+              <!-- <el-tooltip
+                class="item"
+                effect="light"
+                :content="item.value"
+                placement="top-start"
+                v-if="item.name == 'ts' && index == 0"
+              >
+                <span>{{ item.name }}</span>
+              </el-tooltip> -->
               <span>{{ item.name }}</span>
-            </el-tooltip> -->
-            <span>{{ item.name }}</span>
-          </li>
+            </li>
+          </template>
           <li v-if="columnsArr.length > 9">
             <el-tooltip
               :content="$t('datasource.transformer.viewmore')"
               placement="top"
               effect="light"
-              ><span @click="showIndentifyResulttb"
+              ><span @click="submitParse"
                 ><i class="el-icon-more"></i
               ></span>
             </el-tooltip>
