@@ -72,7 +72,18 @@ void backendOpen() {
   SWinKey key = {.groupId = (uint64_t)(0), .ts = ts};
   streamStateDel_rocksdb(p, &key);
 
-  
+  streamStateClear_rocksdb(p);
+
+  for (int i = 0; i < size; i++) {
+    int64_t     ts = tsArray[i];
+    SWinKey     key = {.groupId = (uint64_t)(i), .ts = ts};
+    const char *val = "value data";
+    int32_t     len = 0;
+    char       *newVal = NULL;
+    int32_t     code = streamStateGet_rocksdb(p, &key, (void **)&newVal, &len);
+    ASSERT(code != 0);
+  }
+  tsArray.clear();
 
   // read
   // iterator
