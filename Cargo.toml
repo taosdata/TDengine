@@ -20,11 +20,11 @@ metrics-util = "0.15.1"
 
 tonic = "0.10"
 
-taos = { version = "0.11.3", default-features = false, features = [
+taos = { version = "0.11.4", default-features = false, features = [
     "ws",
     "deadpool",
 ] }
-taos-query = { version = "0.11.3", default-features = false, features = [
+taos-query = { version = "0.11.4", default-features = false, features = [
     "deadpool",
 ] }
 
