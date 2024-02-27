@@ -70,7 +70,7 @@
           prop="expireTime"
         >
           <template slot-scope="scope">
-            <span>{{ expireTime(scope.row.expireTime) }}</span>
+            <span>{{ expireTime(scope.row.expire) }}</span>
           </template>
         </el-table-column>
       </el-table>
