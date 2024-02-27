@@ -1,6 +1,6 @@
 ---
 id: tmq
-name: TDengine Subscription
+name: TDengine3
 description: |
   TMQ data source is a read-only data source for TDengine.
 
@@ -33,10 +33,9 @@ groups:
     params:
       - name: auto.offset.reset
         display: Start From
-        description: |-
+        description: |
           Data offset to start subscribing.
-
-          - *earliest*: Subscribe from begin.
+          - *earliest*: All the data in TDengine, include the new data,
           - *latest*: Subscribe from latest data.
         value: earliest
         hint:
@@ -52,7 +51,6 @@ groups:
           A timeout for polling data from the topic.
 
           The input value should be one of:
-
           - `never`: means waiting for valid message without timeout.
           - A duration string like `5s`, `1m` etc.
         placeholder: 5s
