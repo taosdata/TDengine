@@ -28,19 +28,6 @@
 static STaskId replaceStreamTaskId(SStreamTask *pTask) {
   ASSERT(pTask->info.fillHistory);
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-  return id;
-}
-static void restoreStreamTaskId(SStreamTask *pTask, STaskId *pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
-static STaskId replaceStreamTaskId(SStreamTask *pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
 
   pTask->id.streamId = pTask->streamTaskId.streamId;
   pTask->id.taskId = pTask->streamTaskId.taskId;

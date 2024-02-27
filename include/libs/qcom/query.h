@@ -177,7 +177,6 @@ typedef struct SDataBuf {
   void*    handle;
   int64_t  handleRefId;
   SEpSet*  pEpSet;
-  int64_t  handleRefId;
 } SDataBuf;
 
 typedef struct STargetInfo {
