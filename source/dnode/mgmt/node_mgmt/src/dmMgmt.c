@@ -22,6 +22,7 @@
 #ifdef TD_TSZ
 #include "tcompression.h"
 #include "tglobal.h"
+#include "tgrant.h"
 #endif
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
@@ -137,6 +138,16 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
+  char *machineId = tGetMachineId();
+  if (machineId) {
+    tstrncpy(pData->machineId, machineId, TSDB_MACHINE_ID_LEN + 1);
+    taosMemoryFreeClear(machineId);
+  } else {
+#if defined(TD_ENTERPRISE) && !defined(GRANTS_CFG)
+    terrno = TSDB_CODE_DNODE_NO_MACHINE_CODE;
+    return -1;
+#endif
+  }
 
   pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pData->dnodeHash == NULL) {

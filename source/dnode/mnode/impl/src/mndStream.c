@@ -721,6 +721,11 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  taosThreadMutexLock(&execInfo.lock);
+  mDebug("stream stream:%s tasks register into node list", createReq.name);
+  saveStreamTasksInfo(&streamObj, &execInfo);
+  taosThreadMutexUnlock(&execInfo.lock);
+
   // execute creation
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -729,12 +734,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   mndTransDrop(pTrans);
-
-  taosThreadMutexLock(&execInfo.lock);
-
-  mDebug("stream tasks register into node list");
-  saveStreamTasksInfo(&streamObj, &execInfo);
-  taosThreadMutexUnlock(&execInfo.lock);
 
   SName dbname = {0};
   tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
@@ -878,7 +877,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   int64_t ts = taosGetTimestampMs();
   if (mndTrigger == 1 && (ts - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000)) {
     //    mWarn("checkpoint interval less than the threshold, ignore it");
-    return -1;
+    return TSDB_CODE_SUCCESS;
   }
 
   bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHECKPOINT_NAME, lock);
@@ -2179,6 +2178,17 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   mndReleaseStream(pMnode, pStream);
   taosThreadMutexUnlock(&execInfo.lock);
+
+  {
+    SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamReqCheckpointRspMsg)};
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    SMsgHead* pHead = rsp.pCont;
+    pHead->vgId = htonl(req.nodeId);
+
+    tmsgSendRsp(&rsp);
+
+    pReq->info.handle = NULL;   // disable auto rsp
+  }
 
   return 0;
 }

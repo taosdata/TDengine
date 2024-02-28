@@ -261,22 +261,30 @@ int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msg
   return mndTransAppendRedoAction(pTrans, &action);
 }
 
+static bool identicalName(const char* pDb, const char* pParam, int32_t len) {
+  return (strlen(pDb) == len) && (strncmp(pDb, pParam, len) == 0);
+}
+
 int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
-  // data in the hash table will be removed automatically, no need to remove it here.
-  SStreamTransInfo *pTransInfo = taosHashGet(execInfo.transMgmt.pDBTrans, pDBName, len);
-  if (pTransInfo == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
+  void *pIter = NULL;
 
-  // not checkpoint trans, ignore
-  if (strcmp(pTransInfo->name, MND_STREAM_CHECKPOINT_NAME) != 0) {
-    mDebug("not checkpoint trans, not kill it, name:%s, transId:%d", pTransInfo->name, pTransInfo->transId);
-    return TSDB_CODE_SUCCESS;
-  }
+  while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
+    SStreamTransInfo *pTransInfo = (SStreamTransInfo *)pIter;
+    if (strcmp(pTransInfo->name, MND_STREAM_CHECKPOINT_NAME) != 0) {
+      continue;
+    }
 
-  char *pDupDBName = strndup(pDBName, len);
-  mndKillTransImpl(pMnode, pTransInfo->transId, pDupDBName);
-  taosMemoryFree(pDupDBName);
+    SStreamObj *pStream = mndGetStreamObj(pMnode, pTransInfo->streamId);
+    if (pStream != NULL) {
+      if (identicalName(pStream->sourceDb, pDBName, len)) {
+        mndKillTransImpl(pMnode, pTransInfo->transId, pStream->sourceDb);
+      } else if (identicalName(pStream->targetDb, pDBName, len)) {
+        mndKillTransImpl(pMnode, pTransInfo->transId, pStream->targetDb);
+      }
+
+      mndReleaseStream(pMnode, pStream);
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }

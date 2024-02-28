@@ -15,6 +15,7 @@
 
 #include "cJSON.h"
 #include "clientInt.h"
+#include "clientMonitor.h"
 #include "clientLog.h"
 #include "command.h"
 #include "scheduler.h"
@@ -157,6 +158,9 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
+
+    clientSlowQueryMonitorInit(p->instKey);
+    clientSQLReqMonitorInit(p->instKey);
   } else {
     ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
     // reset to 0 in case of conn with duplicated user key but its user has ever been dropped.
@@ -166,7 +170,17 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   taosThreadMutexUnlock(&appInfo.mutex);
 
   taosMemoryFreeClear(key);
+
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
+}
+
+SAppInstInfo* getAppInstInfo(const char* clusterKey) {
+  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
+  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
+    return *ppAppInstInfo;
+  } else {
+    return NULL;
+  }
 }
 
 void freeQueryParam(SSyncQueryParam* param) {
@@ -1850,7 +1864,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
 
   char* pStart = p + len;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = (blockVersion == 1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -1949,8 +1963,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* pStart = p;
   char* pStart1 = p1;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = (blockVersion == 1) ? htonl(colLength[i]) : colLength[i];
-    int32_t colLen1 = (blockVersion == 1) ? htonl(colLength1[i]) : colLength1[i];
+    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen1 = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength1[i]) : colLength1[i];
     if (ASSERT(colLen < dataLen)) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2009,7 +2023,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       }
       colLen1 = len;
       totalLen += colLen1;
-      colLength1[i] = (blockVersion == 1) ? htonl(len) : len;
+      colLength1[i] = (blockVersion == BLOCK_VERSION_1) ? htonl(len) : len;
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       len = numOfRows * sizeof(int32_t);
       memcpy(pStart1, pStart, len);
@@ -2098,7 +2112,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    if(blockVersion == 1){
+    if(blockVersion == BLOCK_VERSION_1){
       colLength[i] = htonl(colLength[i]);
     }
     if (colLength[i] >= dataLen) {

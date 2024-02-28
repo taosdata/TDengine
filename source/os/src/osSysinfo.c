@@ -563,9 +563,9 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 }
 
 void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
-  static int64_t lastSysUsed = 0;
-  static int64_t lastSysTotal = 0;
-  static int64_t lastProcTotal = 0;
+  static int64_t lastSysUsed = -1;
+  static int64_t lastSysTotal = -1;
+  static int64_t lastProcTotal = -1;
   static int64_t curSysUsed = 0;
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
@@ -580,12 +580,14 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
-    if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
-      if (cpu_system != NULL) {
-        *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
-      }
-      if (cpu_engine != NULL) {
-        *cpu_engine = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+    if(lastSysUsed >= 0 && lastSysTotal >=0 && lastProcTotal >=0){
+      if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+        if (cpu_system != NULL) {
+          *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
+        }
+        if (cpu_engine != NULL) {
+          *cpu_engine = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+        }
       }
     }
 
@@ -821,19 +823,27 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
 }
 
 void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
-  static int64_t last_rchars = 0;
-  static int64_t last_wchars = 0;
-  static int64_t last_read_bytes = 0;
-  static int64_t last_write_bytes = 0;
+  static int64_t last_rchars = -1;
+  static int64_t last_wchars = -1;
+  static int64_t last_read_bytes = -1;
+  static int64_t last_write_bytes = -1;
   static int64_t cur_rchars = 0;
   static int64_t cur_wchars = 0;
   static int64_t cur_read_bytes = 0;
   static int64_t cur_write_bytes = 0;
   if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) == 0) {
-    *rchars = cur_rchars - last_rchars;
-    *wchars = cur_wchars - last_wchars;
-    *read_bytes = cur_read_bytes - last_read_bytes;
-    *write_bytes = cur_write_bytes - last_write_bytes;
+    if(last_rchars >=0 && last_wchars >=0 && last_read_bytes >=0 && last_write_bytes >= 0){
+      *rchars = cur_rchars - last_rchars;
+      *wchars = cur_wchars - last_wchars;
+      *read_bytes = cur_read_bytes - last_read_bytes;
+      *write_bytes = cur_write_bytes - last_write_bytes;
+    }
+    else{
+      *rchars = 0;
+      *wchars = 0;
+      *read_bytes = 0;
+      *write_bytes = 0;
+    }
     last_rchars = cur_rchars;
     last_wchars = cur_wchars;
     last_read_bytes = cur_read_bytes;
@@ -900,13 +910,20 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 }
 
 void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
-  static int64_t last_receive_bytes = 0;
-  static int64_t last_transmit_bytes = 0;
+  static int64_t last_receive_bytes = -1;
+  static int64_t last_transmit_bytes = -1;
   int64_t cur_receive_bytes = 0;
   int64_t cur_transmit_bytes = 0;
   if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
-    *receive_bytes = cur_receive_bytes - last_receive_bytes;
-    *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    if(last_receive_bytes >= 0 && last_transmit_bytes >= 0){
+      *receive_bytes = cur_receive_bytes - last_receive_bytes;
+      *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    }
+    else{
+      *receive_bytes = 0;
+      *transmit_bytes = 0;
+    }
+
     last_receive_bytes = cur_receive_bytes;
     last_transmit_bytes = cur_transmit_bytes;
   } else {

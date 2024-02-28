@@ -32,6 +32,9 @@ typedef struct SBlockOrderInfo {
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
+#define BLOCK_VERSION_1          1
+#define BLOCK_VERSION_2          2
+
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
@@ -264,7 +267,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pData
 
 bool  alreadyAddGroupId(char* ctbName);
 bool  isAutoTableName(char* ctbName);
-void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId);
+void  buildCtbNameAddGroupId(char* ctbName, uint64_t groupId);
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 

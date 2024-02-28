@@ -376,3 +376,7 @@ bool tjsonValidateJson(const char* jIn) {
 }
 
 const char* tjsonGetError() { return cJSON_GetErrorPtr(); }
+
+void tjsonDeleteItemFromObject(const SJson* pJson, const char* pName) {
+  cJSON_DeleteItemFromObject((cJSON*)pJson, pName);
+}

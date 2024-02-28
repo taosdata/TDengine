@@ -77,29 +77,16 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   SSdbRaw *pRaw = pAction->pRaw;
   SSdb    *pSdb = pMnode->pSdb;
-  SSdbRow *pRow = NULL;
-  void    *pObj = NULL;
-  int      code = -1;
+  int      code = 0;
 
   if (pRaw->status != SDB_STATUS_CREATING) goto _OUT;
 
-  pRow = (pSdb->decodeFps[pRaw->type])(pRaw);
-  if (pRow == NULL) goto _OUT;
-  pObj = sdbGetRowObj(pRow);
-  if (pObj == NULL) goto _OUT;
-
   SdbValidateFp validateFp = pSdb->validateFps[pRaw->type];
-  code = 0;
   if (validateFp) {
-    code = validateFp(pMnode, pTrans, pObj);
+    code = validateFp(pMnode, pTrans, pRaw);
   }
 
 _OUT:
-  if (pRow) {
-    SdbDeleteFp deleteFp = pSdb->deleteFps[pRaw->type];
-    if (deleteFp) (*deleteFp)(pSdb, pRow->pObj, false);
-    taosMemoryFreeClear(pRow);
-  }
   return code;
 }
 

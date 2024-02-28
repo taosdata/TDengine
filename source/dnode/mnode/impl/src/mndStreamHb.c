@@ -16,10 +16,6 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
-typedef struct {
-  SMsgHead head;
-} SMStreamHbRspMsg;
-
 typedef struct SFailedCheckpointInfo {
   int64_t streamUid;
   int64_t checkpointId;
@@ -69,7 +65,7 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
   taosArrayPush(pList, pInfo);
 }
 
-int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
+int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
@@ -119,7 +115,7 @@ static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, in
     } else {
       mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
              pStream->uid, transId);
-      code = createStreamResetStatusTrans(pMnode, pStream);
+      code = mndCreateStreamResetStatusTrans(pMnode, pStream);
     }
   }
 
