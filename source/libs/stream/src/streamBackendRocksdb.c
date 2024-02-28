@@ -2788,7 +2788,6 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
-#ifdef BUILD_NO_CALL
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateGetCur_rocksdb");
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
@@ -2838,7 +2837,6 @@ int32_t streamStateFuncDel_rocksdb(SStreamState* pState, const STupleKey* key) {
   STREAM_STATE_DEL_ROCKSDB(pState, "func", key);
   return 0;
 }
-#endif
 
 // session cf
 int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
@@ -3432,7 +3430,6 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   SSessionKey tmpKey = *key;
   int32_t     valSize = *pVLen;
   void*       tmp = taosMemoryMalloc(valSize);
-  // tdbRealloc(NULL, valSize);
   if (!tmp) {
     return -1;
   }
@@ -3506,13 +3503,11 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
   return code;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen) {
   int code = 0;
   STREAM_STATE_PUT_ROCKSDB(pState, "default", key, pVal, pVLen);
   return code;
 }
-#endif
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen) {
   int code = 0;
   STREAM_STATE_GET_ROCKSDB(pState, "default", key, pVal, pVLen);
@@ -3535,10 +3530,10 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
   if (pIter == NULL) {
     return -1;
   }
-
+  size_t klen = 0;
   rocksdb_iter_seek(pIter, start, strlen(start));
   while (rocksdb_iter_valid(pIter)) {
-    const char* key = rocksdb_iter_key(pIter, NULL);
+    const char* key = rocksdb_iter_key(pIter, &klen);
     int32_t     vlen = 0;
     const char* vval = rocksdb_iter_value(pIter, (size_t*)&vlen);
     char*       val = NULL;
@@ -3700,6 +3695,8 @@ uint32_t nextPow2(uint32_t x) {
   x = x | (x >> 16);
   return x + 1;
 }
+
+#ifdef BUILD_NO_CALL
 int32_t copyFiles(const char* src, const char* dst) {
   int32_t code = 0;
   // opt later, just hard link
@@ -3739,6 +3736,7 @@ _err:
   taosCloseDir(&pDir);
   return code >= 0 ? 0 : -1;
 }
+#endif
 
 int32_t isBkdDataMeta(char* name, int32_t len) {
   const char* pCurrent = "CURRENT";
