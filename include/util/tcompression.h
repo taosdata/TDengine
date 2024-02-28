@@ -156,7 +156,6 @@ int32_t tCompressStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppOut, int32_t *nOut, int32_t *nOrigin);
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData);
 
-
 typedef int32_t (*__data_compress_init)(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
                                         uint32_t intervals, int32_t ifAdtFse, const char *compressor);
 typedef int32_t (*__data_compress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
@@ -168,6 +167,18 @@ typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_
                                            const char type);
 typedef int32_t (*__data_decompress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                              const char type);
+
+typedef struct {
+  __data_compress_init      initFn;
+  __data_compress_l1_fn_t   l1CompFn;
+  __data_decompress_l1_fn_t l1DeCompFn;
+} TCompressL1;
+
+typedef struct {
+  __data_compress_init      initFn;
+  __data_compress_l2_fn_t   l2CompFn;
+  __data_decompress_l2_fn_t l2DeCompFn;
+} TCompressL2;
 
 typedef struct {
   int8_t                    type;

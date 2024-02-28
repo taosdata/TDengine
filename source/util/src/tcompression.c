@@ -2392,3 +2392,8 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     return -1;
   }
 }
+
+TCompressL1 compressL1Dict[] = {{NULL, NULL, NULL}, {NULL, NULL, NULL}};
+TCompressL2 compressL2Dict[] = {{NULL, NULL, NULL}, {NULL, NULL, NULL}};
+
+
