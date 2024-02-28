@@ -11,7 +11,11 @@ agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
 
-target=""
+target="taosx-agent"
+
+if command -v taosx >/dev/null; then
+  target="taosx"
+fi
 
 if command -v sudo >/dev/null; then
   csudo="sudo "
@@ -124,9 +128,10 @@ remove_taosx() {
     echo "${explorerName} is removed successfully!"
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
-    echo "${agentname} is removed successfully!"
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+    echo "${agentname} is removed successfully!"
 }
 
 # remove taosx-agent
@@ -134,8 +139,10 @@ remove_taos_agent() {
     stop_taosx_agent_service
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+    echo "${agentname} is removed successfully!"
 }
 
 remove_target() {
