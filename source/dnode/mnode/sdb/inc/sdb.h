@@ -106,7 +106,7 @@ typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
-typedef int32_t (*SdbValidateFp)(SMnode *pMnode, void *pTrans, void *pObj);
+typedef int32_t (*SdbValidateFp)(SMnode *pMnode, void *pTrans, SSdbRaw *pRaw);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
@@ -148,7 +148,9 @@ typedef enum {
   SDB_DB = 19,
   SDB_FUNC = 20,
   SDB_IDX = 21,
-  SDB_MAX = 22
+  SDB_COMPACT = 22,
+  SDB_COMPACT_DETAIL = 23,
+  SDB_MAX = 24
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -201,14 +203,14 @@ typedef struct SSdbIter {
 } SSdbIter;
 
 typedef struct {
-  ESdbType    sdbType;
-  EKeyType    keyType;
-  SdbDeployFp deployFp;
-  SdbEncodeFp encodeFp;
-  SdbDecodeFp decodeFp;
-  SdbInsertFp insertFp;
-  SdbUpdateFp updateFp;
-  SdbDeleteFp deleteFp;
+  ESdbType      sdbType;
+  EKeyType      keyType;
+  SdbDeployFp   deployFp;
+  SdbEncodeFp   encodeFp;
+  SdbDecodeFp   decodeFp;
+  SdbInsertFp   insertFp;
+  SdbUpdateFp   updateFp;
+  SdbDeleteFp   deleteFp;
   SdbValidateFp validateFp;
 } SSdbTable;
 

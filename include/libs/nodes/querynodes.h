@@ -119,6 +119,7 @@ typedef struct SLeftValueNode {
 typedef enum EHintOption {
   HINT_NO_BATCH_SCAN = 1,
   HINT_BATCH_SCAN,
+  HINT_PARA_TABLES_SORT  
 } EHintOption;
 
 typedef struct SHintNode {
@@ -500,6 +501,7 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs);
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs);
 
 int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes);
 

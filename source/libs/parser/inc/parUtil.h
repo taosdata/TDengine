@@ -115,7 +115,7 @@ int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
-int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf);
+int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type);
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
                       SArray* pTagName, SArray* pTagVals, STag** pTag);
 

@@ -24,6 +24,15 @@ extern "C" {
 
 typedef struct SVHashTable SVHashTable;
 
+struct SVHashTable {
+  uint32_t (*hash)(const void*);
+  int32_t (*compare)(const void*, const void*);
+  int32_t              numEntries;
+  uint32_t             numBuckets;
+  struct SVHashEntry** buckets;
+};
+
+#define vHashNumEntries(ht) ((ht)->numEntries)
 int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*compare)(const void*, const void*));
 int32_t vHashDestroy(SVHashTable** ht);
 int32_t vHashPut(SVHashTable* ht, void* obj);

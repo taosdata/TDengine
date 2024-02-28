@@ -1102,10 +1102,13 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && pattern[i] == c1 &&
-        (c1 == '_' || c1 == '%')) {
-        i++;
-        continue;
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        if (c1 != pattern[i]) {
+          return TSDB_PATTERN_NOMATCH;
+        } else {
+          i++;
+          continue;
+        }
       }
 
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
@@ -1176,10 +1179,13 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
       c1 = str[j++];
       nMatchChar++;
 
-      if (c == '\\' && pattern[i] == c1 &&
-        (c1 == '_' || c1 == '%')) {
-        i++;
-        continue;
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        if (c1 != pattern[i]) {
+          return TSDB_PATTERN_NOMATCH;
+        } else {
+          i++;
+          continue;
+        }
       }
 
       if (c == c1 || towlower(c) == towlower(c1) || (c == pInfo->umatchOne && c1 != 0)) {

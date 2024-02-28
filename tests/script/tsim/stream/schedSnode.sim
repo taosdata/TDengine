@@ -12,7 +12,7 @@ sleep 50
 sql create database test  vgroups 2;
 sql create database target vgroups 1;
 
-sql create snode on dnode 1
+#sql create snode on dnode 1
 
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);

@@ -181,6 +181,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pDelData->sKey = sKey;
   pDelData->eKey = eKey;
   pDelData->pNext = NULL;
+
+  taosWLockLatch(&pTbData->lock);
   if (pTbData->pHead == NULL) {
     ASSERT(pTbData->pTail == NULL);
     pTbData->pHead = pTbData->pTail = pDelData;
@@ -188,6 +190,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     pTbData->pTail->pNext = pDelData;
     pTbData->pTail = pDelData;
   }
+  taosWUnLockLatch(&pTbData->lock);
 
   pMemTable->nDel++;
   pMemTable->minVer = TMIN(pMemTable->minVer, version);
@@ -401,6 +404,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     SL_NODE_BACKWARD(pTbData->sl.pHead, iLevel) = NULL;
     SL_NODE_FORWARD(pTbData->sl.pTail, iLevel) = NULL;
   }
+  taosInitRWLatch(&pTbData->lock);
 
   taosWLockLatch(&pMemTable->latch);
 

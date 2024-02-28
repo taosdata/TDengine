@@ -824,6 +824,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     bool hasSubmit = false;
     for (int32_t i = 0; i < numOfBlocks; i++) {
       if (streamTaskShouldStop(&pTask->status)) {
+        taosHashCleanup(pTableIndexMap);
         return;
       }
 

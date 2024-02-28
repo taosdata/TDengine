@@ -808,6 +808,7 @@ typedef struct SCtgCacheItemInfo {
   do {                                               \
     CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);            \
     CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    return;                                          \
   } while (0)  
 
 #define CTG_API_ENTER()                              \

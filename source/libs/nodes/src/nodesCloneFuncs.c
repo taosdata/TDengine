@@ -422,6 +422,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(igLastNull);
   COPY_SCALAR_FIELD(groupOrderScan);
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
+  COPY_SCALAR_FIELD(paraTablesSort);  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -452,6 +453,7 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(ignoreGroupId);
+  COPY_SCALAR_FIELD(inputIgnoreGroup);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -634,6 +636,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(paraTablesSort);  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -679,6 +682,15 @@ static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhy
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pTargets);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiProjectCopy(const SProjectPhysiNode* pSrc, SProjectPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pProjections);
+  COPY_SCALAR_FIELD(mergeDataBlock);
+  COPY_SCALAR_FIELD(ignoreGroupId);
+  COPY_SCALAR_FIELD(inputIgnoreGroup);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -896,6 +908,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
       break;
     default:
       break;

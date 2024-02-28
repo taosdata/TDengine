@@ -125,6 +125,7 @@ endi
 
 $offset = $tbNum * $rowNum
 $offset = $offset - 1
+print select * from $stb order by ts limit 2 offset $offset
 sql select * from $stb order by ts limit 2 offset $offset
 if $rows != 1 then
   return -1

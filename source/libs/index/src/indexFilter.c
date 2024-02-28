@@ -17,6 +17,7 @@
 #include "index.h"
 #include "indexComm.h"
 #include "indexInt.h"
+#include "indexUtil.h"
 #include "nodes.h"
 #include "querynodes.h"
 #include "scalar.h"
@@ -77,15 +78,15 @@ typedef struct SIFParam {
   char          dbName[TSDB_DB_NAME_LEN];
   char          colName[TSDB_COL_NAME_LEN * 2 + 4];
 
-  SIndexMetaArg arg;
+  SIndexMetaArg      arg;
   SMetaDataFilterAPI api;
 } SIFParam;
 
 typedef struct SIFCtx {
-  int32_t       code;
-  SHashObj     *pRes;    /* element is SIFParam */
-  bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
-  SIndexMetaArg arg;
+  int32_t             code;
+  SHashObj           *pRes;    /* element is SIFParam */
+  bool                noExec;  // true: just iterate condition tree, and add hint to executor plan
+  SIndexMetaArg       arg;
   SMetaDataFilterAPI *pAPI;
 } SIFCtx;
 
@@ -669,6 +670,10 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
       if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
     }
     ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);
+    if (ret == 0) {
+      taosArraySort(output->result, uidCompare);
+      taosArrayRemoveDuplicate(output->result, uidCompare, NULL);
+    }
   }
   return ret;
 }
@@ -875,8 +880,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
-      taosArraySort(output->result, idxUidCompare);
-      taosArrayRemoveDuplicate(output->result, idxUidCompare, NULL);
+      taosArraySort(output->result, uidCompare);
+      taosArrayRemoveDuplicate(output->result, uidCompare, NULL);
     }
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
@@ -1016,7 +1021,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
   return code;
 }
 
-static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilterAPI* pAPI) {
+static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilterAPI *pAPI) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pNode == NULL) {
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -1054,7 +1059,8 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   return code;
 }
 
-int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, SIdxFltStatus *status, SMetaDataFilterAPI* pAPI) {
+int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, SIdxFltStatus *status,
+                    SMetaDataFilterAPI *pAPI) {
   SIdxFltStatus st = idxGetFltStatus(pFilterNode, pAPI);
   if (st == SFLT_NOT_INDEX) {
     *status = st;
@@ -1081,7 +1087,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
   return TSDB_CODE_SUCCESS;
 }
 
-SIdxFltStatus idxGetFltStatus(SNode *pFilterNode, SMetaDataFilterAPI* pAPI) {
+SIdxFltStatus idxGetFltStatus(SNode *pFilterNode, SMetaDataFilterAPI *pAPI) {
   SIdxFltStatus st = SFLT_NOT_INDEX;
   if (pFilterNode == NULL) {
     return SFLT_NOT_INDEX;

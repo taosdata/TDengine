@@ -16,6 +16,9 @@
 #include "tsdb.h"
 #include "tsdbFS2.h"
 
+extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
+extern int32_t tsdbCloseCompMonitor(STsdb *tsdb);
+
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
   pKeepCfg->precision = pCfg->precision;
@@ -75,6 +78,12 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
+#ifdef TD_ENTERPRISE
+  if (tsdbOpenCompMonitor(pTsdb) < 0) {
+    goto _err;
+  }
+#endif
+
   tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
             pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
@@ -98,6 +107,9 @@ int tsdbClose(STsdb **pTsdb) {
 
     tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
+#ifdef TD_ENTERPRISE
+    tsdbCloseCompMonitor(*pTsdb);
+#endif
     taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
