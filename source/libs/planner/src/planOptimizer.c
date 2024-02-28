@@ -6235,10 +6235,12 @@ EDealRes tsmaOptNodeRewriter(SNode** ppNode, void* ctx) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t tsmaOptRewriteNode(SNode* pNode, STSMAOptCtx* pCtx, const STSMAOptUsefulTsma* pTsma, bool rewriteTbName, bool rewriteTag) {
+static int32_t tsmaOptRewriteNode(SNode** pNode, STSMAOptCtx* pCtx, const STSMAOptUsefulTsma* pTsma, bool rewriteTbName, bool rewriteTag) {
   struct TsmaOptRewriteCtx ctx = {
       .pTsmaOptCtx = pCtx, .pTsma = pTsma, .rewriteTag = rewriteTag, .rewriteTbname = rewriteTbName, .code = 0};
-  nodesRewriteExpr(&pNode, tsmaOptNodeRewriter, &ctx);
+  SNode* pOut = *pNode;
+  nodesRewriteExpr(&pOut, tsmaOptNodeRewriter, &ctx);
+  if (ctx.code == TSDB_CODE_SUCCESS) *pNode = pOut;
   return ctx.code;
 }
 
@@ -6247,10 +6249,10 @@ static int32_t tsmaOptRewriteNodeList(SNodeList* pNodes, STSMAOptCtx* pCtx, cons
   int32_t code = 0;
   SNode*  pNode;
   FOREACH(pNode, pNodes) {
-    code = tsmaOptRewriteNode(pNode, pCtx, pTsma, rewriteTbName, rewriteTag);
+    SNode* pOut = pNode;
+    code = tsmaOptRewriteNode(&pOut, pCtx, pTsma, rewriteTbName, rewriteTag);
     if (TSDB_CODE_SUCCESS == code) {
-      // TODO do we need to replace node??
-      REPLACE_NODE(pNode);
+      REPLACE_NODE(pOut);
     }
   }
   return code;
@@ -6302,7 +6304,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       code = tsmaOptRewriteNodeList(pNewScan->pScanPseudoCols, pTsmaOptCtx, pTsma, false, true);
     }
     if (code == TSDB_CODE_SUCCESS) {
-      code = tsmaOptRewriteNode(pNewScan->pTagCond, pTsmaOptCtx, pTsma, true, true);
+      code = tsmaOptRewriteNode(&pNewScan->pTagCond, pTsmaOptCtx, pTsma, true, true);
     }
     if (code == TSDB_CODE_SUCCESS) {
       code = tsmaOptRewriteNodeList(pNewScan->pGroupTags, pTsmaOptCtx, pTsma, true, true);
