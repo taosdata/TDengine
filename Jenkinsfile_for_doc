@@ -2,21 +2,11 @@ pipeline {
     agent none
     options { skipDefaultCheckout() }
     stages {
-        stage('test'){
-            steps {
-                script {
-                    echo "${env.CHANGE_BRANCH}"
-                    echo "${env.CHANGE_URL}"
-                    echo "${env.JOB_NAME}"
-                }
-            }
-        }
-
         stage('check') {
             when {
                 allOf {
                     expression { env.CHANGE_BRANCH =~ /AaronChen/ } //TBD: main
-                    expression { env.CHANGE_URL =~ /\/TDengine\/docs\// }
+                    expression { env.CHANGE_URL =~ /\/TDengine\// }
                 }
             }
             agent{label "doc30"}
