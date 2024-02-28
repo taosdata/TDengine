@@ -205,6 +205,14 @@ function replaceExplorerEndpoint() {
 
 # install new taosx and taosx-agent
 install_taosx() {
+  if [ "$target" = "taosx" ]; then
+    install_taosx_only
+  else
+    install_agent_only
+  fi
+}
+
+install_taosx_only() {
     echo "install starting..."
     echo "install binary files to ${INSTALL_DIR}..."
     ${csudo}cp -fr bin/* ${INSTALL_DIR}
@@ -253,6 +261,28 @@ install_taosx() {
         fi
     fi
     print_tips
+}
+
+install_agent_only() {
+  echo "install starting..."
+  echo "install binary files to ${INSTALL_DIR}..."
+  ${csudo}cp -fr bin/* ${INSTALL_DIR}
+  check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
+  echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
+  ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
+  ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
+  echo "install services to ${SERVICE_CONFIG_DIR}..."
+  ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+  
+  ${csudo}systemctl daemon-reload
+
+  check_and_create_directory "${CONFIG_DIR}"
+  echo "install agent.toml file to ${CONFIG_DIR}..."
+  if [ -f ${CONFIG_DIR}/agent.toml ]; then
+      ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
+  else
+      [ -e ./etc/taos/agent.toml ] && ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
+  fi
 }
 
 check_java_env() {
