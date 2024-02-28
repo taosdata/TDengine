@@ -50,15 +50,8 @@
 #define _DEFAULT_SOURCE
 #include "tcompression.h"
 #include "lz4.h"
-#include "tRealloc.h"
 #include "tlog.h"
-#include "ttypes.h"
 
-
-
-TCompressPara compressDict = {
-    {},
-}
 #ifdef TD_TSZ
 #include "td_sz.h"
 #endif
@@ -72,7 +65,6 @@ static const int32_t TEST_NUMBER = 1;
 #ifdef TD_TSZ
 bool lossyFloat = false;
 bool lossyDouble = false;
-
 
 // init call
 int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
