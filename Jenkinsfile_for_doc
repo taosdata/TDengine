@@ -2,6 +2,15 @@ pipeline {
     agent none
     options { skipDefaultCheckout() }
     stages {
+        stage('test'){
+            steps {
+                script {
+                    echo "${env.CHANGE_BRANCH}"
+                    echo "${env.CHANGE_URL}"
+                }
+            }
+        }
+
         stage('check') {
             when {
                 allOf {
