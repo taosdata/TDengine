@@ -1035,7 +1035,7 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
     }
     {
       int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pageId) * pMemFile->pageSize, SEEK_SET);
-      if (ret == 0) {
+      if (ret >= 0) {
         ret = taosReadFile(pMemFile->pTdFile, pEntry->data, pMemFile->pageSize);
       }
       if (ret != pMemFile->pageSize) {
@@ -1154,7 +1154,7 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
 
       if (pMemFile->currPageId - pMemFile->startPageId >= pMemFile->numWritePages) {
         int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
-        if (ret == 0) {
+        if (ret >= 0) {
           ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writePageBuf, pMemFile->pageSize * pMemFile->numWritePages);
         }
         if (ret !=  pMemFile->pageSize * pMemFile->numWritePages) {
@@ -1183,8 +1183,8 @@ static int32_t saveDirtyPagesToExtRowsMemFile(SSortHandle* pHandle) {
     return TSDB_CODE_SUCCESS;
   }
   int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
-  int32_t numWriteBytes = pMemFile->pageSize * (pMemFile->currPageId - pMemFile->startPageId) + pMemFile->currPageOffset + 1;
-  if (ret == 0) {
+  int32_t numWriteBytes = pMemFile->pageSize * (pMemFile->currPageId - pMemFile->startPageId + 1);
+  if (ret >= 0) {
     ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writePageBuf, numWriteBytes);
   }
   if (ret != numWriteBytes) {
@@ -1460,9 +1460,6 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     }
     blockDataCleanup(pHandle->pDataBlock);
   }
-  if (pHandle->bSortByRowId) {
-    saveDirtyPagesToExtRowsMemFile(pHandle);
-  }
 
   SSDataBlock* pMemSrcBlk = createOneDataBlock(pHandle->pDataBlock, false);
   doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
@@ -1631,6 +1628,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   taosArrayDestroy(aExtSrc);
   tSimpleHashCleanup(mTableNumRows);
   if (pHandle->bSortByRowId) {
+    saveDirtyPagesToExtRowsMemFile(pHandle);
     freeExtRowMemFileWriteBuf(pHandle);
   }
   pHandle->type = SORT_SINGLESOURCE_SORT;
