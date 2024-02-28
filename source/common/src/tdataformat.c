@@ -93,21 +93,20 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
           flag |= HAS_VALUE;
           maxIdx = nkv;
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            ntp = ntp + tPutU32v(NULL, pColVal->value.nData, true) + pColVal->value.nData;
-            nkv = nkv + tPutI16v(NULL, pTColumn->colId, true) + tPutU32v(NULL, pColVal->value.nData, true) +
-                  pColVal->value.nData;
+            ntp = ntp + tPutU32v(NULL, pColVal->value.nData) + pColVal->value.nData;
+            nkv = nkv + tPutI16v(NULL, pTColumn->colId) + tPutU32v(NULL, pColVal->value.nData) + pColVal->value.nData;
           } else {
-            nkv = nkv + tPutI16v(NULL, pTColumn->colId, true) + pTColumn->bytes;
+            nkv = nkv + tPutI16v(NULL, pTColumn->colId) + pTColumn->bytes;
           }
 
           if (pTColumn->flags & COL_IS_KEY) {
             flag |= HAS_MULTI_KEY;
             numPrimaryKeyCols++;
-            ntp += (tPutI8(NULL, pTColumn->type, false)        // type
-                    + tPutI32v(NULL, pTColumn->offset, false)  // offset
+            ntp += (tPutI8(NULL, pTColumn->type)        // type
+                    + tPutI32v(NULL, pTColumn->offset)  // offset
             );
-            nkv += (tPutI8(NULL, pTColumn->type, false)  // type
-                    + tPutI32v(NULL, nIdx, false)        // index
+            nkv += (tPutI8(NULL, pTColumn->type)  // type
+                    + tPutI32v(NULL, nIdx)        // index
             );
           }
 
@@ -119,7 +118,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
           ASSERT((pTColumn->flags & COL_IS_KEY) == 0);
           flag |= HAS_NULL;
           maxIdx = nkv;
-          nkv += tPutI16v(NULL, -pTColumn->colId, true);
+          nkv += tPutI16v(NULL, -pTColumn->colId);
           nIdx++;
         } else {
           if (ASSERTS(0, "invalid input")) {
@@ -171,9 +170,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
       }
   }
   if (flag & HAS_MULTI_KEY) {
-    ntp += (tPutI8(NULL, numPrimaryKeyCols, false)        // numPrimaryKeyCols
-            + tPutU32v(NULL, pTSchema->numOfCols, false)  // numOfCols
-            + tPutU32v(NULL, pTSchema->flen, false)       // fixedLen
+    ntp += (tPutI8(NULL, numPrimaryKeyCols)        // numPrimaryKeyCols
+            + tPutU32v(NULL, pTSchema->numOfCols)  // numOfCols
+            + tPutU32v(NULL, pTSchema->flen)       // fixedLen
     );
   }
   // Key-Value Row Format
@@ -188,7 +187,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
     flag |= KV_FLG_BIG;
   }
   if (flag & HAS_MULTI_KEY) {
-    nkv += tPutI8(NULL, numPrimaryKeyCols, false);
+    nkv += tPutI8(NULL, numPrimaryKeyCols);
   }
   int32_t rowLength;
   if (nkv < ntp) {
@@ -225,9 +224,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   uint8_t *pEnd = ((uint8_t *)pRow) + rowLength;
 
   if (pRow->flag & HAS_MULTI_KEY) {
-    pEnd -= tPutI8(pEnd, numPrimaryKeyCols, false);      // numPrimaryKeyCols
-    pEnd -= tPutU32v(pEnd, pTSchema->numOfCols, false);  // numOfCols
-    pEnd -= tPutU32v(NULL, pTSchema->flen, false);       // fixedLen
+    pEnd -= tPutI8(pEnd, numPrimaryKeyCols);      // numPrimaryKeyCols
+    pEnd -= tPutU32v(pEnd, pTSchema->numOfCols);  // numOfCols
+    pEnd -= tPutU32v(NULL, pTSchema->flen);       // fixedLen
   }
   if (flag >> 4) {  // KV
     SKVIdx  *pIdx = (SKVIdx *)pRow->data;
@@ -255,9 +254,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
               ((uint32_t *)pIdx->idx)[iIdx] = (uint32_t)nv;
             }
 
-            nv += tPutI16v(pv + nv, pTColumn->colId, true);
+            nv += tPutI16v(pv + nv, pTColumn->colId);
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-              nv += tPutU32v(pv + nv, pColVal->value.nData, true);
+              nv += tPutU32v(pv + nv, pColVal->value.nData);
               memcpy(pv + nv, pColVal->value.pData, pColVal->value.nData);
               nv += pColVal->value.nData;
             } else {
@@ -266,8 +265,8 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
             }
 
             if (pRow->flag & HAS_MULTI_KEY) {
-              pEnd -= tPutI8(pEnd, pTColumn->type, false);
-              pEnd -= tPutI32v(pEnd, iIdx, false);
+              pEnd -= tPutI8(pEnd, pTColumn->type);
+              pEnd -= tPutI32v(pEnd, iIdx);
             }
 
             iIdx++;
@@ -279,7 +278,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
             } else {
               ((uint32_t *)pIdx->idx)[iIdx] = (uint32_t)nv;
             }
-            nv += tPutI16v(pv + nv, -pTColumn->colId, true);
+            nv += tPutI16v(pv + nv, -pTColumn->colId);
             iIdx++;
           }
 
@@ -343,7 +342,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
 
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
               *(int32_t *)(pf + pTColumn->offset) = nv;
-              nv += tPutU32v(pv + nv, pColVal->value.nData, true);
+              nv += tPutU32v(pv + nv, pColVal->value.nData);
               if (pColVal->value.nData) {
                 memcpy(pv + nv, pColVal->value.pData, pColVal->value.nData);
                 nv += pColVal->value.nData;
@@ -353,8 +352,8 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
             }
 
             if (pTColumn->flags & COL_IS_KEY) {
-              pEnd -= tPutI8(pEnd, pTColumn->type, false);
-              pEnd -= tPutI32v(pEnd, pTColumn->offset, false);
+              pEnd -= tPutI8(pEnd, pTColumn->type);
+              pEnd -= tPutI32v(pEnd, pTColumn->offset);
             }
           } else if (COL_VAL_IS_NONE(pColVal)) {  // NONE
             ROW_SET_BITMAP(pb, flag, iTColumn - 1, BIT_FLG_NONE);
@@ -440,7 +439,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       }
 
       int16_t cid;
-      pData += tGetI16v(pData, &cid, true);
+      pData += tGetI16v(pData, &cid);
 
       if (TABS(cid) == pTColumn->colId) {
         if (cid < 0) {
@@ -451,7 +450,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           pColVal->flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            pData += tGetU32v(pData, &pColVal->value.nData, true);
+            pData += tGetU32v(pData, &pColVal->value.nData);
             if (pColVal->value.nData > 0) {
               pColVal->value.pData = pData;
             } else {
@@ -477,7 +476,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       pColVal->flag = CV_FLAG_VALUE;
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         uint8_t *pData = pRow->data + pTSchema->flen + *(int32_t *)(pRow->data + pTColumn->offset);
-        pData += tGetU32v(pData, &pColVal->value.nData, true);
+        pData += tGetU32v(pData, &pColVal->value.nData);
         if (pColVal->value.nData) {
           pColVal->value.pData = pData;
         } else {
@@ -530,7 +529,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       pColVal->flag = CV_FLAG_VALUE;
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
-        pData += tGetU32v(pData, &pColVal->value.nData, true);
+        pData += tGetU32v(pData, &pColVal->value.nData);
         if (pColVal->value.nData) {
           pColVal->value.pData = pData;
         } else {
@@ -793,7 +792,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
       }
 
       int16_t cid;
-      pData += tGetI16v(pData, &cid, true);
+      pData += tGetI16v(pData, &cid);
 
       if (TABS(cid) == pTColumn->colId) {
         if (cid < 0) {
@@ -804,7 +803,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
           pIter->cv.flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            pData += tGetU32v(pData, &pIter->cv.value.nData, true);
+            pData += tGetU32v(pData, &pIter->cv.value.nData);
             if (pIter->cv.value.nData > 0) {
               pIter->cv.value.pData = pData;
             } else {
@@ -863,7 +862,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
     pIter->cv.flag = CV_FLAG_VALUE;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
       uint8_t *pData = pIter->pv + *(int32_t *)(pIter->pf + pTColumn->offset);
-      pData += tGetU32v(pData, &pIter->cv.value.nData, true);
+      pData += tGetU32v(pData, &pIter->cv.value.nData);
       if (pIter->cv.value.nData > 0) {
         pIter->cv.value.pData = pData;
       } else {
@@ -1006,7 +1005,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
         if (IS_VAR_DATA_TYPE(pColData->type)) {
           uint8_t *pData = pv + *(int32_t *)(pf + pTColumn->offset);
           uint32_t nData;
-          pData += tGetU32v(pData, &nData, true);
+          pData += tGetU32v(pData, &nData);
           if (flag == 0) {
             code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pData, nData);
           } else {
@@ -1080,7 +1079,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
           }
 
           int16_t cid;
-          pData += tGetI16v(pData, &cid, true);
+          pData += tGetI16v(pData, &cid);
 
           if (TABS(cid) == pTColumn->colId) {
             if (cid < 0) {
@@ -1093,7 +1092,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
             } else {
               uint32_t nData;
               if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-                pData += tGetU32v(pData, &nData, true);
+                pData += tGetU32v(pData, &nData);
               } else {
                 nData = 0;
               }
@@ -1160,7 +1159,7 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
   } else {
     uint8_t *pEnd = ((uint8_t *)pRow) + pRow->len;
 
-    pEnd -= tGetU8(pEnd, &key->numOfPKs, false);
+    pEnd -= tGetU8(pEnd, &key->numOfPKs);
 
     if (pRow->flag >> 4) {  // Key-Value format
       SKVIdx  *pKVIdx = (SKVIdx *)pRow->data;
@@ -1179,8 +1178,8 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
         uint8_t *pData;
         SValue  *pValue = &key->pks[iKey];
 
-        pEnd -= tGetI8(pEnd, &pValue->type, false);
-        pEnd -= tGetI32v(pEnd, &index, false);
+        pEnd -= tGetI8(pEnd, &pValue->type);
+        pEnd -= tGetI32v(pEnd, &index);
 
         if (pRow->flag & KV_FLG_LIT) {
           pData = pv + ((uint8_t *)pKVIdx->idx)[index];
@@ -1190,9 +1189,9 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
           pData = pv + ((uint32_t *)pKVIdx->idx)[index];
         }
 
-        pData += tGetI16v(pData, NULL, true);
+        pData += tGetI16v(pData, NULL);
         if (IS_VAR_DATA_TYPE(pValue->type)) {
-          pData += tGetU32v(pData, &pValue->nData, true);
+          pData += tGetU32v(pData, &pValue->nData);
           pValue->pData = pData;
         } else {
           memcpy(&pValue->val, pData, TYPE_BYTES[pValue->type]);
@@ -1204,8 +1203,8 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
       uint32_t fixedLen;
       uint32_t numOfCols;
 
-      pEnd -= tGetU32v(pEnd, &numOfCols, false);
-      pEnd -= tGetU32v(pEnd, &fixedLen, false);
+      pEnd -= tGetU32v(pEnd, &numOfCols);
+      pEnd -= tGetU32v(pEnd, &fixedLen);
 
       switch (pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) {
         case (HAS_VALUE | HAS_NONE):
@@ -1225,12 +1224,12 @@ void tRowGetKey(SRow *pRow, SRowKey *key) {
         int32_t offset;
         SValue *pValue = &key->pks[iKey];
 
-        pEnd -= tGetI8(pEnd, &pValue->type, false);
-        pEnd -= tGetI32v(pEnd, &offset, false);
+        pEnd -= tGetI8(pEnd, &pValue->type);
+        pEnd -= tGetI32v(pEnd, &offset);
 
         if (IS_VAR_DATA_TYPE(key->pks[iKey].type)) {
           pValue->pData = pv + *(int32_t *)(pf + offset);
-          pValue->pData += tGetU32v(pValue->pData, &pValue->nData, true);
+          pValue->pData += tGetU32v(pValue->pData, &pValue->nData);
         } else {
           memcpy(&key->pks[iKey].val, pf + offset, TYPE_BYTES[key->pks[iKey].type]);
         }
@@ -1430,18 +1429,18 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
   // key
   if (isJson) {
-    n += tPutCStr(p ? p + n : p, pTagVal->pKey, true);
+    n += tPutCStr(p ? p + n : p, pTagVal->pKey);
   } else {
-    n += tPutI16v(p ? p + n : p, pTagVal->cid, true);
+    n += tPutI16v(p ? p + n : p, pTagVal->cid);
     ASSERTS(pTagVal->cid > 0, "Invalid tag cid:%" PRIi16, pTagVal->cid);
   }
 
   // type
-  n += tPutI8(p ? p + n : p, pTagVal->type, true);
+  n += tPutI8(p ? p + n : p, pTagVal->type);
 
   // value
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-    n += tPutBinary(p ? p + n : p, pTagVal->pData, pTagVal->nData, true);
+    n += tPutBinary(p ? p + n : p, pTagVal->pData, pTagVal->nData);
   } else {
     p = p ? p + n : p;
     n += tDataTypes[pTagVal->type].bytes;
@@ -1455,17 +1454,17 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
   // key
   if (isJson) {
-    n += tGetCStr(p + n, &pTagVal->pKey, true);
+    n += tGetCStr(p + n, &pTagVal->pKey);
   } else {
-    n += tGetI16v(p + n, &pTagVal->cid, true);
+    n += tGetI16v(p + n, &pTagVal->cid);
   }
 
   // type
-  n += tGetI8(p + n, &pTagVal->type, true);
+  n += tGetI8(p + n, &pTagVal->type);
 
   // value
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-    n += tGetBinary(p + n, &pTagVal->pData, &pTagVal->nData, true);
+    n += tGetBinary(p + n, &pTagVal->pData, &pTagVal->nData);
   } else {
     memcpy(&(pTagVal->i64), p + n, tDataTypes[pTagVal->type].bytes);
     n += tDataTypes[pTagVal->type].bytes;
@@ -1695,7 +1694,7 @@ void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
     offset = pTag->idx[iTag];
   }
 
-  tPutI16v(p + offset, cid, true);
+  tPutI16v(p + offset, cid);
 }
 
 // STSchema ========================================
@@ -2635,19 +2634,11 @@ _exit:
   return code;
 }
 
-int32_t tColDataCompress(SColData             *colData,     // column data
-                         SColDataCompressInfo *info,        // compress info
-                         void                 *output,      // output
-                         int32_t               outputSize,  // output size
-                         SBuffer              *buffer       // assistant buffer
-) {
+int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
   SBuffer local;
-  char   *outputStart = output;
 
   ASSERT(colData->nVal > 0);
-
-  tBufferInit(&local);
 
   (*info) = (SColDataCompressInfo){
       .cmprAlg = info->cmprAlg,
@@ -2659,12 +2650,12 @@ int32_t tColDataCompress(SColData             *colData,     // column data
   };
 
   if (colData->flag == HAS_NONE || colData->flag == HAS_NULL) {
-    tBufferDestroy(&local);
     return 0;
   }
 
-  if (buffer == NULL) {
-    buffer = &local;
+  tBufferInit(&local);
+  if (assist == NULL) {
+    assist = &local;
   }
 
   // bitmap
@@ -2680,15 +2671,13 @@ int32_t tColDataCompress(SColData             *colData,     // column data
         .cmprAlg = info->cmprAlg,
     };
 
-    code = tCompressData(colData->pBitMap, info->bitmapOriginalSize, &cinfo, outputStart, outputSize, buffer);
+    code = tCompressDataToBuffer(colData->pBitMap, info->bitmapOriginalSize, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
     info->bitmapCompressedSize = cinfo.compressedSize;
-    outputStart += cinfo.compressedSize;
-    outputSize -= cinfo.compressedSize;
   }
 
   if (colData->flag == (HAS_NONE | HAS_NULL)) {
@@ -2705,15 +2694,13 @@ int32_t tColDataCompress(SColData             *colData,     // column data
         .cmprAlg = info->cmprAlg,
     };
 
-    code = tCompressData(colData->aOffset, info->offsetOriginalSize, &cinfo, outputStart, outputSize, buffer);
+    code = tCompressDataToBuffer(colData->aOffset, info->offsetOriginalSize, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
     info->offsetCompressedSize = cinfo.compressedSize;
-    outputStart += cinfo.compressedSize;
-    outputSize -= cinfo.compressedSize;
   }
 
   // data
@@ -2725,23 +2712,21 @@ int32_t tColDataCompress(SColData             *colData,     // column data
         .cmprAlg = info->cmprAlg,
     };
 
-    code = tCompressData(colData->pData, info->dataOriginalSize, &cinfo, outputStart, outputSize, buffer);
+    code = tCompressDataToBuffer(colData->pData, info->dataOriginalSize, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
     info->dataCompressedSize = cinfo.compressedSize;
-    outputStart += cinfo.compressedSize;
-    outputSize -= cinfo.compressedSize;
   }
 
   tBufferDestroy(&local);
   return 0;
 }
 
-int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompressInfo *info, SColData *colData,
-                           SBuffer *buffer) {
+int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo *info, SColData *colData,
+                           SBuffer *assist) {
   int32_t code;
   SBuffer local;
   char   *inputStart = input;
@@ -2749,8 +2734,8 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompres
   ASSERT(inputSize == info->bitmapCompressedSize + info->offsetCompressedSize + info->dataCompressedSize);
 
   tBufferInit(&local);
-  if (buffer == NULL) {
-    buffer = &local;
+  if (assist == NULL) {
+    assist = &local;
   }
 
   tColDataClear(colData);
@@ -2779,7 +2764,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompres
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pBitMap, cinfo.originalSize, buffer);
+    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pBitMap, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2807,7 +2792,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompres
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->aOffset, cinfo.originalSize, buffer);
+    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->aOffset, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2833,7 +2818,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompres
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pData, cinfo.originalSize, buffer);
+    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pData, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -3517,10 +3502,10 @@ _exit:
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
   int32_t n = 0;
 
-  n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid, true);
-  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->type, true);
-  n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nVal, true);
-  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->flag, true);
+  n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->type);
+  n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nVal);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->flag);
 
   // bitmap
   switch (pColData->flag) {
@@ -3544,7 +3529,7 @@ int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
       if (pBuf) memcpy(pBuf + n, pColData->aOffset, pColData->nVal << 2);
       n += (pColData->nVal << 2);
 
-      n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nData, true);
+      n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nData);
       if (pBuf) memcpy(pBuf + n, pColData->pData, pColData->nData);
       n += pColData->nData;
     } else {
@@ -3559,10 +3544,10 @@ int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
 int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
   int32_t n = 0;
 
-  n += tGetI16v(pBuf + n, &pColData->cid, true);
-  n += tGetI8(pBuf + n, &pColData->type, true);
-  n += tGetI32v(pBuf + n, &pColData->nVal, true);
-  n += tGetI8(pBuf + n, &pColData->flag, true);
+  n += tGetI16v(pBuf + n, &pColData->cid);
+  n += tGetI8(pBuf + n, &pColData->type);
+  n += tGetI32v(pBuf + n, &pColData->nVal);
+  n += tGetI8(pBuf + n, &pColData->flag);
 
   // bitmap
   switch (pColData->flag) {
@@ -3586,7 +3571,7 @@ int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
       pColData->aOffset = (int32_t *)(pBuf + n);
       n += (pColData->nVal << 2);
 
-      n += tGetI32v(pBuf + n, &pColData->nData, true);
+      n += tGetI32v(pBuf + n, &pColData->nData);
       pColData->pData = pBuf + n;
       n += pColData->nData;
     } else {
@@ -4078,35 +4063,29 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
   if (IS_VAR_DATA_TYPE(value->type)) {
     int32_t offset, nextOffset;
 
-    memcpy(&offset, (char *)tBufferGetData(&valCol->offsets) + idx * sizeof(offset), sizeof(offset));
+    tBufferGet(&valCol->offsets, idx, sizeof(offset), &offset);
     if (idx == valCol->numOfValues - 1) {
       nextOffset = tBufferGetSize(&valCol->data);
     } else {
-      memcpy(&nextOffset, (char *)tBufferGetData(&valCol->offsets) + (idx + 1) * sizeof(nextOffset),
-             sizeof(nextOffset));
+      tBufferGet(&valCol->offsets, idx + 1, sizeof(nextOffset), &nextOffset);
     }
     value->nData = nextOffset - offset;
-    value->pData = (uint8_t *)((char *)tBufferGetData(&valCol->data) + offset);
+    value->pData = (uint8_t *)tBufferGetDataAt(&valCol->data, offset);
   } else {
-    memcpy(&value->val, (char *)tBufferGetData(&valCol->data) + idx * tDataTypes[value->type].bytes,
-           tDataTypes[value->type].bytes);
+    tBufferGet(&valCol->data, idx, tDataTypes[value->type].bytes, &value->val);
   }
   return 0;
 }
 
 int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
-  SBuffer local;
+
+  ASSERT(valCol->numOfValues > 0);
 
   (*info) = (SValueColumnCompressInfo){
       .cmprAlg = info->cmprAlg,
       .type = valCol->type,
   };
-
-  tBufferInit(&local);
-  if (assist == NULL) {
-    assist = &local;
-  }
 
   // offset
   if (IS_VAR_DATA_TYPE(valCol->type)) {
@@ -4116,13 +4095,10 @@ int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *inf
     };
 
     code = tCompressDataToBuffer(valCol->offsets.data, valCol->offsets.size, &cinfo, output, assist);
-    if (code) {
-      tBufferDestroy(&local);
-      return code;
-    }
+    if (code) return code;
 
-    info->originalOffsetSize = cinfo.originalSize;
-    info->compressedOffsetSize = cinfo.compressedSize;
+    info->offsetOriginalSize = cinfo.originalSize;
+    info->offsetCompressedSize = cinfo.compressedSize;
   }
 
   // data
@@ -4132,14 +4108,11 @@ int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *inf
   };
 
   code = tCompressDataToBuffer(valCol->data.data, valCol->data.size, &cinfo, output, assist);
-  if (code) {
-    tBufferGetData(&local);
-    return code;
-  }
-  info->originalDataSize = cinfo.originalSize;
-  info->compressedDataSize = cinfo.compressedSize;
+  if (code) return code;
 
-  tBufferDestroy(&local);
+  info->dataOriginalSize = cinfo.originalSize;
+  info->dataCompressedSize = cinfo.compressedSize;
+
   return 0;
 }
 
@@ -4149,7 +4122,7 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
   SBuffer local;
   char   *inputStart = input;
 
-  ASSERT(inputSize == info->compressedOffsetSize + info->compressedDataSize);
+  ASSERT(inputSize == info->offsetCompressedSize + info->dataCompressedSize);
 
   tValueColumnClear(valCol);
   tBufferInit(&local);
@@ -4161,13 +4134,13 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
   valCol->type = info->type;
   // offset
   if (IS_VAR_DATA_TYPE(valCol->type)) {
-    valCol->numOfValues = info->originalOffsetSize / tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    valCol->numOfValues = info->offsetOriginalSize / tDataTypes[TSDB_DATA_TYPE_INT].bytes;
 
     SCompressInfo cinfo = {
         .dataType = TSDB_DATA_TYPE_INT,
         .cmprAlg = info->cmprAlg,
-        .originalSize = info->originalOffsetSize,
-        .compressedSize = info->compressedOffsetSize,
+        .originalSize = info->offsetOriginalSize,
+        .compressedSize = info->offsetCompressedSize,
     };
 
     code = tBufferEnsureCapacity(&valCol->offsets, cinfo.originalSize);
@@ -4184,15 +4157,15 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
     valCol->offsets.size = cinfo.originalSize;
     inputStart += cinfo.compressedSize;
   } else {
-    valCol->numOfValues = info->originalDataSize / tDataTypes[valCol->type].bytes;
+    valCol->numOfValues = info->dataOriginalSize / tDataTypes[valCol->type].bytes;
   }
 
   // data
   SCompressInfo cinfo = {
       .dataType = valCol->type,
       .cmprAlg = info->cmprAlg,
-      .originalSize = info->originalDataSize,
-      .compressedSize = info->compressedDataSize,
+      .originalSize = info->dataOriginalSize,
+      .compressedSize = info->dataCompressedSize,
   };
 
   code = tBufferEnsureCapacity(&valCol->data, cinfo.originalSize);
@@ -4226,13 +4199,13 @@ int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressI
   if (code) return code;
   code = tBufferPutI8(writer, compressInfo->type);
   if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->originalDataSize);
+  code = tBufferPutI32v(writer, compressInfo->dataOriginalSize);
   if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->compressedDataSize);
+  code = tBufferPutI32v(writer, compressInfo->dataCompressedSize);
   if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->originalOffsetSize);
+  code = tBufferPutI32v(writer, compressInfo->offsetOriginalSize);
   if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->compressedOffsetSize);
+  code = tBufferPutI32v(writer, compressInfo->offsetCompressedSize);
   if (code) return code;
 
   return 0;
@@ -4251,13 +4224,13 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
     if (code) return code;
     code = tBufferGetI8(reader, &compressInfo->type);
     if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->originalDataSize);
+    code = tBufferGetI32v(reader, &compressInfo->dataOriginalSize);
     if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->compressedDataSize);
+    code = tBufferGetI32v(reader, &compressInfo->dataCompressedSize);
     if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->originalOffsetSize);
+    code = tBufferGetI32v(reader, &compressInfo->offsetOriginalSize);
     if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->compressedOffsetSize);
+    code = tBufferGetI32v(reader, &compressInfo->offsetCompressedSize);
     if (code) return code;
   } else {
     return TSDB_CODE_INVALID_DATA_FMT;
@@ -4287,13 +4260,16 @@ int32_t tCompressData(void          *input,       // input
     SBuffer local;
 
     tBufferInit(&local);
-    if (info->cmprAlg == TWO_STAGE_COMP) {
-      if (buffer == NULL) {
-        buffer = &local;
-      }
+    if (buffer == NULL) {
+      buffer = &local;
+    }
 
+    if (info->cmprAlg == TWO_STAGE_COMP) {
       code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
-      if (code) return code;
+      if (code) {
+        tBufferDestroy(&local);
+        return code;
+      }
     }
 
     info->compressedSize = tDataTypes[info->dataType].compFunc(  //
@@ -4304,7 +4280,7 @@ int32_t tCompressData(void          *input,       // input
         outputSize,                                              // output size
         info->cmprAlg,                                           // compression algorithm
         buffer->data,                                            // buffer
-        extraSizeNeeded                                          // buffer size
+        buffer->capacity                                         // buffer size
     );
     if (info->compressedSize < 0) {
       tBufferDestroy(&local);
@@ -4335,12 +4311,16 @@ int32_t tDecompressData(void                *input,       // input
     SBuffer local;
 
     tBufferInit(&local);
+    if (buffer == NULL) {
+      buffer = &local;
+    }
+
     if (info->cmprAlg == TWO_STAGE_COMP) {
-      if (buffer == NULL) {
-        buffer = &local;
-      }
       code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
-      if (code) return code;
+      if (code) {
+        tBufferDestroy(&local);
+        return code;
+      }
     }
 
     int32_t decompressedSize = tDataTypes[info->dataType].decompFunc(
@@ -4378,8 +4358,7 @@ int32_t tCompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *inf
   return 0;
 }
 
-int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, const SCompressInfo *info, SBuffer *output,
-                                SBuffer *assist) {
+int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
   code = tBufferEnsureCapacity(output, output->size + info->originalSize);

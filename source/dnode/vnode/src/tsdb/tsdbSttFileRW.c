@@ -522,17 +522,17 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 
     // decode value columns
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), firstKeyInfos[i].compressedDataSize,
+      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), firstKeyInfos[i].dataCompressedSize,
                                     &firstKeyInfos[i], &statisBlock->firstKeyPKs[i], &reader->buffers[1]);
       TSDB_CHECK_CODE(code, lino, _exit);
-      size += firstKeyInfos[i].compressedDataSize;
+      size += firstKeyInfos[i].dataCompressedSize;
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), lastKeyInfos[i].compressedDataSize,
+      code = tValueColumnDecompress(tBufferGetDataAt(&reader->buffers[0], size), lastKeyInfos[i].dataCompressedSize,
                                     &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], &reader->buffers[1]);
       TSDB_CHECK_CODE(code, lino, _exit);
-      size += lastKeyInfos[i].compressedDataSize;
+      size += lastKeyInfos[i].dataCompressedSize;
     }
   }
 

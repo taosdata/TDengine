@@ -100,10 +100,10 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 typedef struct {
   int8_t  cmprAlg;  // filled by caller
   int8_t  type;
-  int32_t originalDataSize;
-  int32_t compressedDataSize;
-  int32_t originalOffsetSize;
-  int32_t compressedOffsetSize;
+  int32_t dataOriginalSize;
+  int32_t dataCompressedSize;
+  int32_t offsetOriginalSize;
+  int32_t offsetCompressedSize;
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
@@ -176,10 +176,9 @@ uint8_t     tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t     tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
-int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, void *output, int32_t outputSize,
-                         SBuffer *buffer);
-int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompressInfo *info, SColData *colData,
-                           SBuffer *helperBuffer);
+int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo *info, SColData *colData,
+                           SBuffer *assist);
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
@@ -356,8 +355,7 @@ int32_t tDecompressData(void                *input,       // input
                         SBuffer             *buffer       // assistant buffer provided by caller, can be NULL
 );
 int32_t tCompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist);
-int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, const SCompressInfo *info, SBuffer *output,
-                                SBuffer *assist);
+int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 
 #endif
 

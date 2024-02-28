@@ -151,18 +151,18 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
 
   tMapDataReset(pMapData);
 
-  n += tGetI32v(p + n, &pMapData->nItem, true);
+  n += tGetI32v(p + n, &pMapData->nItem);
   if (pMapData->nItem) {
     if (tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
 
     int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tGetI32v(p + n, &pMapData->aOffset[iItem], true);
+      n += tGetI32v(p + n, &pMapData->aOffset[iItem]);
       pMapData->aOffset[iItem] += lOffset;
       lOffset = pMapData->aOffset[iItem];
     }
 
-    n += tGetI32v(p + n, &pMapData->nData, true);
+    n += tGetI32v(p + n, &pMapData->nData);
     if (tRealloc(&pMapData->pData, pMapData->nData)) return -1;
     memcpy(pMapData->pData, p + n, pMapData->nData);
     n += pMapData->nData;
@@ -210,10 +210,10 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
   int32_t    n = 0;
   SBlockIdx *pBlockIdx = (SBlockIdx *)ph;
 
-  n += tGetI64(p + n, &pBlockIdx->suid, true);
-  n += tGetI64(p + n, &pBlockIdx->uid, true);
-  n += tGetI64v(p + n, &pBlockIdx->offset, true);
-  n += tGetI64v(p + n, &pBlockIdx->size, true);
+  n += tGetI64(p + n, &pBlockIdx->suid);
+  n += tGetI64(p + n, &pBlockIdx->uid);
+  n += tGetI64v(p + n, &pBlockIdx->offset);
+  n += tGetI64v(p + n, &pBlockIdx->size);
 
   return n;
 }
@@ -293,23 +293,23 @@ int32_t tGetDataBlk(uint8_t *p, void *ph) {
   int32_t   n = 0;
   SDataBlk *pDataBlk = (SDataBlk *)ph;
 
-  n += tGetI64v(p + n, &pDataBlk->minKey.version, true);
-  n += tGetI64v(p + n, &pDataBlk->minKey.ts, true);
-  n += tGetI64v(p + n, &pDataBlk->maxKey.version, true);
-  n += tGetI64v(p + n, &pDataBlk->maxKey.ts, true);
-  n += tGetI64v(p + n, &pDataBlk->minVer, true);
-  n += tGetI64v(p + n, &pDataBlk->maxVer, true);
-  n += tGetI32v(p + n, &pDataBlk->nRow, true);
-  n += tGetI8(p + n, &pDataBlk->hasDup, true);
-  n += tGetI8(p + n, &pDataBlk->nSubBlock, true);
+  n += tGetI64v(p + n, &pDataBlk->minKey.version);
+  n += tGetI64v(p + n, &pDataBlk->minKey.ts);
+  n += tGetI64v(p + n, &pDataBlk->maxKey.version);
+  n += tGetI64v(p + n, &pDataBlk->maxKey.ts);
+  n += tGetI64v(p + n, &pDataBlk->minVer);
+  n += tGetI64v(p + n, &pDataBlk->maxVer);
+  n += tGetI32v(p + n, &pDataBlk->nRow);
+  n += tGetI8(p + n, &pDataBlk->hasDup);
+  n += tGetI8(p + n, &pDataBlk->nSubBlock);
   for (int8_t iSubBlock = 0; iSubBlock < pDataBlk->nSubBlock; iSubBlock++) {
-    n += tGetI64v(p + n, &pDataBlk->aSubBlock[iSubBlock].offset, true);
-    n += tGetI32v(p + n, &pDataBlk->aSubBlock[iSubBlock].szBlock, true);
-    n += tGetI32v(p + n, &pDataBlk->aSubBlock[iSubBlock].szKey, true);
+    n += tGetI64v(p + n, &pDataBlk->aSubBlock[iSubBlock].offset);
+    n += tGetI32v(p + n, &pDataBlk->aSubBlock[iSubBlock].szBlock);
+    n += tGetI32v(p + n, &pDataBlk->aSubBlock[iSubBlock].szKey);
   }
   if (pDataBlk->nSubBlock == 1 && !pDataBlk->hasDup) {
-    n += tGetI64v(p + n, &pDataBlk->smaInfo.offset, true);
-    n += tGetI32v(p + n, &pDataBlk->smaInfo.size, true);
+    n += tGetI64v(p + n, &pDataBlk->smaInfo.offset);
+    n += tGetI32v(p + n, &pDataBlk->smaInfo.size);
   } else {
     pDataBlk->smaInfo.offset = 0;
     pDataBlk->smaInfo.size = 0;
@@ -364,17 +364,17 @@ int32_t tGetSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
   SSttBlk *pSttBlk = (SSttBlk *)ph;
 
-  n += tGetI64(p + n, &pSttBlk->suid, true);
-  n += tGetI64(p + n, &pSttBlk->minUid, true);
-  n += tGetI64(p + n, &pSttBlk->maxUid, true);
-  n += tGetI64v(p + n, &pSttBlk->minKey, true);
-  n += tGetI64v(p + n, &pSttBlk->maxKey, true);
-  n += tGetI64v(p + n, &pSttBlk->minVer, true);
-  n += tGetI64v(p + n, &pSttBlk->maxVer, true);
-  n += tGetI32v(p + n, &pSttBlk->nRow, true);
-  n += tGetI64v(p + n, &pSttBlk->bInfo.offset, true);
-  n += tGetI32v(p + n, &pSttBlk->bInfo.szBlock, true);
-  n += tGetI32v(p + n, &pSttBlk->bInfo.szKey, true);
+  n += tGetI64(p + n, &pSttBlk->suid);
+  n += tGetI64(p + n, &pSttBlk->minUid);
+  n += tGetI64(p + n, &pSttBlk->maxUid);
+  n += tGetI64v(p + n, &pSttBlk->minKey);
+  n += tGetI64v(p + n, &pSttBlk->maxKey);
+  n += tGetI64v(p + n, &pSttBlk->minVer);
+  n += tGetI64v(p + n, &pSttBlk->maxVer);
+  n += tGetI32v(p + n, &pSttBlk->nRow);
+  n += tGetI64v(p + n, &pSttBlk->bInfo.offset);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szBlock);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szKey);
 
   return n;
 }
@@ -386,26 +386,26 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
-  n += tPutI16v(p ? p + n : p, pBlockCol->cid, true);
-  n += tPutI8(p ? p + n : p, pBlockCol->type, true);
-  n += tPutI8(p ? p + n : p, pBlockCol->cflag, true);
-  n += tPutI8(p ? p + n : p, pBlockCol->flag, true);
-  n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin, true);
+  n += tPutI16v(p ? p + n : p, pBlockCol->cid);
+  n += tPutI8(p ? p + n : p, pBlockCol->type);
+  n += tPutI8(p ? p + n : p, pBlockCol->cflag);
+  n += tPutI8(p ? p + n : p, pBlockCol->flag);
+  n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap, true);
+      n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap);
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szOffset, true);
+      n += tPutI32v(p ? p + n : p, pBlockCol->szOffset);
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szValue, true);
+      n += tPutI32v(p ? p + n : p, pBlockCol->szValue);
     }
 
-    n += tPutI32v(p ? p + n : p, pBlockCol->offset, true);
+    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
   }
 
 _exit:
@@ -416,11 +416,11 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   int32_t    n = 0;
   SBlockCol *pBlockCol = (SBlockCol *)ph;
 
-  n += tGetI16v(p + n, &pBlockCol->cid, true);
-  n += tGetI8(p + n, &pBlockCol->type, true);
-  n += tGetI8(p + n, &pBlockCol->cflag, true);
-  n += tGetI8(p + n, &pBlockCol->flag, true);
-  n += tGetI32v(p + n, &pBlockCol->szOrigin, true);
+  n += tGetI16v(p + n, &pBlockCol->cid);
+  n += tGetI8(p + n, &pBlockCol->type);
+  n += tGetI8(p + n, &pBlockCol->cflag);
+  n += tGetI8(p + n, &pBlockCol->flag);
+  n += tGetI32v(p + n, &pBlockCol->szOrigin);
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
@@ -431,18 +431,18 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tGetI32v(p + n, &pBlockCol->szBitmap, true);
+      n += tGetI32v(p + n, &pBlockCol->szBitmap);
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tGetI32v(p + n, &pBlockCol->szOffset, true);
+      n += tGetI32v(p + n, &pBlockCol->szOffset);
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tGetI32v(p + n, &pBlockCol->szValue, true);
+      n += tGetI32v(p + n, &pBlockCol->szValue);
     }
 
-    n += tGetI32v(p + n, &pBlockCol->offset, true);
+    n += tGetI32v(p + n, &pBlockCol->offset);
   }
 
   return n;
@@ -496,10 +496,10 @@ int32_t tGetDelIdx(uint8_t *p, void *ph) {
   SDelIdx *pDelIdx = (SDelIdx *)ph;
   int32_t  n = 0;
 
-  n += tGetI64(p + n, &pDelIdx->suid, true);
-  n += tGetI64(p + n, &pDelIdx->uid, true);
-  n += tGetI64v(p + n, &pDelIdx->offset, true);
-  n += tGetI64v(p + n, &pDelIdx->size, true);
+  n += tGetI64(p + n, &pDelIdx->suid);
+  n += tGetI64(p + n, &pDelIdx->uid);
+  n += tGetI64v(p + n, &pDelIdx->offset);
+  n += tGetI64v(p + n, &pDelIdx->size);
 
   return n;
 }
@@ -522,9 +522,9 @@ int32_t tGetDelData(uint8_t *p, void *ph) {
   SDelData *pDelData = (SDelData *)ph;
   int32_t   n = 0;
 
-  n += tGetI64v(p + n, &pDelData->version, true);
-  n += tGetI64(p + n, &pDelData->sKey, true);
-  n += tGetI64(p + n, &pDelData->eKey, true);
+  n += tGetI64v(p + n, &pDelData->version);
+  n += tGetI64(p + n, &pDelData->sKey);
+  n += tGetI64(p + n, &pDelData->eKey);
 
   return n;
 }
@@ -1595,18 +1595,18 @@ _exit:
 int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
   int32_t n = 0;
 
-  n += tPutU32(p ? p + n : p, pHdr->delimiter, true);
-  n += tPutU32v(p ? p + n : p, pHdr->fmtVer, true);
-  n += tPutI64(p ? p + n : p, pHdr->suid, true);
-  n += tPutI64(p ? p + n : p, pHdr->uid, true);
-  n += tPutI32v(p ? p + n : p, pHdr->szUid, true);
-  n += tPutI32v(p ? p + n : p, pHdr->szVer, true);
-  n += tPutI32v(p ? p + n : p, pHdr->szKey, true);
-  n += tPutI32v(p ? p + n : p, pHdr->szBlkCol, true);
-  n += tPutI32v(p ? p + n : p, pHdr->nRow, true);
-  n += tPutI8(p ? p + n : p, pHdr->cmprAlg, true);
+  n += tPutU32(p ? p + n : p, pHdr->delimiter);
+  n += tPutU32v(p ? p + n : p, pHdr->fmtVer);
+  n += tPutI64(p ? p + n : p, pHdr->suid);
+  n += tPutI64(p ? p + n : p, pHdr->uid);
+  n += tPutI32v(p ? p + n : p, pHdr->szUid);
+  n += tPutI32v(p ? p + n : p, pHdr->szVer);
+  n += tPutI32v(p ? p + n : p, pHdr->szKey);
+  n += tPutI32v(p ? p + n : p, pHdr->szBlkCol);
+  n += tPutI32v(p ? p + n : p, pHdr->nRow);
+  n += tPutI8(p ? p + n : p, pHdr->cmprAlg);
   if (pHdr->fmtVer == 1) {
-    n += tPutI8(p ? p + n : p, pHdr->numPrimaryKeyCols, true);
+    n += tPutI8(p ? p + n : p, pHdr->numPrimaryKeyCols);
   }
 
   return n;
@@ -1616,18 +1616,18 @@ int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
   int32_t       n = 0;
   SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
 
-  n += tGetU32(p + n, &pHdr->delimiter, true);
-  n += tGetU32v(p + n, &pHdr->fmtVer, true);
-  n += tGetI64(p + n, &pHdr->suid, true);
-  n += tGetI64(p + n, &pHdr->uid, true);
-  n += tGetI32v(p + n, &pHdr->szUid, true);
-  n += tGetI32v(p + n, &pHdr->szVer, true);
-  n += tGetI32v(p + n, &pHdr->szKey, true);
-  n += tGetI32v(p + n, &pHdr->szBlkCol, true);
-  n += tGetI32v(p + n, &pHdr->nRow, true);
-  n += tGetI8(p + n, &pHdr->cmprAlg, true);
+  n += tGetU32(p + n, &pHdr->delimiter);
+  n += tGetU32v(p + n, &pHdr->fmtVer);
+  n += tGetI64(p + n, &pHdr->suid);
+  n += tGetI64(p + n, &pHdr->uid);
+  n += tGetI32v(p + n, &pHdr->szUid);
+  n += tGetI32v(p + n, &pHdr->szVer);
+  n += tGetI32v(p + n, &pHdr->szKey);
+  n += tGetI32v(p + n, &pHdr->szBlkCol);
+  n += tGetI32v(p + n, &pHdr->nRow);
+  n += tGetI8(p + n, &pHdr->cmprAlg);
   if (pHdr->fmtVer == 1) {
-    n += tGetI8(p + n, &pHdr->numPrimaryKeyCols, true);
+    n += tGetI8(p + n, &pHdr->numPrimaryKeyCols);
   } else {
     pHdr->numPrimaryKeyCols = 0;
   }
@@ -1639,11 +1639,11 @@ int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
   int32_t n = 0;
 
-  n += tPutI16v(p ? p + n : p, pColAgg->colId, true);
-  n += tPutI16v(p ? p + n : p, pColAgg->numOfNull, true);
-  n += tPutI64(p ? p + n : p, pColAgg->sum, true);
-  n += tPutI64(p ? p + n : p, pColAgg->max, true);
-  n += tPutI64(p ? p + n : p, pColAgg->min, true);
+  n += tPutI16v(p ? p + n : p, pColAgg->colId);
+  n += tPutI16v(p ? p + n : p, pColAgg->numOfNull);
+  n += tPutI64(p ? p + n : p, pColAgg->sum);
+  n += tPutI64(p ? p + n : p, pColAgg->max);
+  n += tPutI64(p ? p + n : p, pColAgg->min);
 
   return n;
 }
@@ -1651,11 +1651,11 @@ int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
   int32_t n = 0;
 
-  n += tGetI16v(p + n, &pColAgg->colId, true);
-  n += tGetI16v(p + n, &pColAgg->numOfNull, true);
-  n += tGetI64(p + n, &pColAgg->sum, true);
-  n += tGetI64(p + n, &pColAgg->max, true);
-  n += tGetI64(p + n, &pColAgg->min, true);
+  n += tGetI16v(p + n, &pColAgg->colId);
+  n += tGetI16v(p + n, &pColAgg->numOfNull);
+  n += tGetI64(p + n, &pColAgg->sum);
+  n += tGetI64(p + n, &pColAgg->max);
+  n += tGetI64(p + n, &pColAgg->min);
 
   return n;
 }
