@@ -2680,7 +2680,19 @@ int32_t ctgLaunchGetTbTSMATask(SCtgTask* pTask) {
     SCtgTaskReq tReq;
     tReq.pTask = pTask;
     tReq.msgIdx = pFetch->fetchIdx;
-    CTG_ERR_RET(ctgGetTbTSMAFromMnode(pCtg, pConn, pName, NULL, &tReq, TDMT_MND_GET_TABLE_TSMA));
+
+    switch (pFetch->fetchType) {
+      case FETCH_TSMA_SOURCE_TB_META: {
+        CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
+      } break;
+      case FETCH_TB_TSMA: {
+        CTG_ERR_RET(
+            ctgGetTbTSMAFromMnode(pCtg, pConn, &pFetch->tsmaSourceTbName, NULL, &tReq, TDMT_MND_GET_TABLE_TSMA));
+      } break;
+      default:
+        ASSERT(0);
+        break;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2782,6 +2794,38 @@ _return:
   CTG_RET(code);
 }
 
+static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, SHashObj* pVgHash, const STableTSMAInfoRsp* pTsmas) {
+  int32_t           code = 0;
+  SCtgTask*         pTask = tReq->pTask;
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  int32_t           subFetchIdx = 0;
+  SCtgTbTSMACtx*    pCtx = pTask->taskCtx;
+  SCtgTSMAFetch*    pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  STablesReq*       pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
+  const SName*      pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
+  SVgroupInfo*      pVgInfo = NULL;
+
+  pFetch->vgNum = taosHashGetSize(pVgHash);
+  for (int32_t i = 0; i < taosArrayGetSize(pTsmas->pTsmas); ++i) {
+    STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmas->pTsmas, i);
+    pVgInfo = taosHashIterate(pVgHash, NULL);
+    pTsmaInfo->reqTs = taosGetTimestampMs();
+    while (pVgInfo) {
+      // make StreamProgressReq, send it
+      SStreamProgressReq req = {.fetchIdx = pFetch->fetchIdx,
+                                .streamId = pTsmaInfo->streamUid,
+                                .subFetchIdx = subFetchIdx++,
+                                .vgId = pVgInfo->vgId};
+      CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
+      pFetch->subFetchNum++;
+      pVgInfo = taosHashIterate(pVgHash, pVgInfo);
+    }
+  }
+_return:
+  CTG_RET(code);
+}
+
 int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   bool               taskDone = false;
   int32_t            code = 0;
@@ -2796,19 +2840,20 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   SCtgDBCache*       pDbCache = NULL;
   STableTSMAInfo*    pTsma = NULL;
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
+  STablesReq*        pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
+  SName*             pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
   switch (reqType) {
     case TDMT_MND_GET_TABLE_TSMA: {
       STableTSMAInfoRsp* pOut = pMsgCtx->out;
+      pFetch->fetchType = FETCH_TSMA_STREAM_PROGRESS;
       pRes->pRes = pOut;
       pMsgCtx->out = NULL;
 
       if (pOut->pTsmas && taosArrayGetSize(pOut->pTsmas) > 0) {
         // fetch progress
-        STablesReq*  pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
-        const SName* pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
         ctgAcquireVgInfoFromCache(pCtg, pTbReq->dbFName, &pDbCache);
         if (!pDbCache) {
           // do not know which vnodes to fetch, fetch vnode list first
@@ -2818,23 +2863,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, tReq));
         } else {
           // fetch progress from every vnode
-          int32_t subFetchIdx = 0;
-          pFetch->vgNum = taosHashGetSize(pDbCache->vgCache.vgInfo->vgHash);
-          for (int32_t i = 0; i < taosArrayGetSize(pOut->pTsmas); ++i) {
-            STableTSMAInfo* pTsmaInfo = taosArrayGetP(pOut->pTsmas, i);
-            pTsmaInfo->reqTs = taosGetTimestampMs();
-            SVgroupInfo* pVgInfo = taosHashIterate(pDbCache->vgCache.vgInfo->vgHash, NULL);
-            while (pVgInfo) {
-              // make StreamProgressReq, send it
-              SStreamProgressReq req = {.fetchIdx = pFetch->fetchIdx,
-                                        .streamId = pTsmaInfo->streamUid,
-                                        .subFetchIdx = subFetchIdx++,
-                                        .vgId = pVgInfo->vgId};
-              CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
-              pFetch->subFetchNum++;
-              pVgInfo = taosHashIterate(pDbCache->vgCache.vgInfo->vgHash, pVgInfo);
-            }
-          }
+          CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pDbCache->vgCache.vgInfo->vgHash, pOut));
           ctgReleaseVgInfoToCache(pCtg, pDbCache);
           pDbCache = NULL;
         }
@@ -2876,27 +2905,42 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       }
     } break;
     case TDMT_MND_USE_DB: {
-      STablesReq*        pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
-      SName*             pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
-      SUseDbOutput*      pOut = (SUseDbOutput*)pMsgCtx->out;
-      STableTSMAInfoRsp* pTsmas = pRes->pRes;
-      int32_t            subFetchIdx = 0;
-      pFetch->vgNum = taosHashGetSize(pOut->dbVgroup->vgHash);
-      TSWAP(pOut->dbVgroup->vgHash, pVgHash);
-      for (int32_t i = 0; i < taosArrayGetSize(pTsmas->pTsmas); ++i) {
-        STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmas->pTsmas, i);
-        SVgroupInfo* pVgInfo = taosHashIterate(pVgHash, NULL);
-        while (pVgInfo) {
-          // make StreamProgressReq, send it
-          SStreamProgressReq req = {.fetchIdx = pFetch->fetchIdx,
-                                    .streamId = pTsmaInfo->streamUid,
-                                    .subFetchIdx = subFetchIdx++,
-                                    .vgId = pVgInfo->vgId};
-          CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
-          pFetch->subFetchNum++;
-          pVgInfo = taosHashIterate(pVgHash, pVgInfo);
-        }
+      SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
+
+      switch (pFetch->fetchType) {
+        case FETCH_TSMA_SOURCE_TB_META: {
+          SVgroupInfo vgInfo = {0};
+          CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, pOut->dbVgroup, pTbName, &vgInfo));
+
+          pFetch->vgId = vgInfo.vgId;
+          CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pTbName, &vgInfo, NULL, tReq));
+        } break;
+        case FETCH_TSMA_STREAM_PROGRESS: {
+          STableTSMAInfoRsp* pTsmas = pRes->pRes;
+          TSWAP(pOut->dbVgroup->vgHash, pVgHash);
+          CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pVgHash, pTsmas));
+        } break;
+        default:
+          ASSERT(0);
       }
+    } break;
+    case TDMT_VND_TABLE_META: {
+      // handle source tb meta
+      ASSERT(pFetch->fetchType == FETCH_TSMA_SOURCE_TB_META);
+      STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
+      pFetch->fetchType = FETCH_TB_TSMA;
+      pFetch->tsmaSourceTbName = *pTbName;
+      if (CTG_IS_META_NULL(pOut->metaType)) {
+        ctgTaskError("no tbmeta found when fetching tsma source tb meta: %s.%s", pTbName->dbname, pTbName->tname);
+        ctgRemoveTbMetaFromCache(pCtg, pTbName, false);
+        CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
+      }
+
+      if (META_TYPE_BOTH_TABLE == pOut->metaType) {
+        // rewrite tsma fetch table with it's super table name
+        snprintf(pFetch->tsmaSourceTbName.tname, TMIN(TSDB_TABLE_NAME_LEN, strlen(pOut->tbName) + 1), "%s", pOut->tbName);
+      }
+      CTG_ERR_JRET(ctgGetTbTSMAFromMnode(pCtg, pConn, &pFetch->tsmaSourceTbName, NULL, tReq, TDMT_MND_GET_TABLE_TSMA));
     } break;
     default:
       ASSERT(0);
@@ -2919,9 +2963,7 @@ _return:
     if (TSDB_CODE_MND_SMA_NOT_EXIST == code) {
       code = TSDB_CODE_SUCCESS;
     } else {
-      STablesReq* pReq = (STablesReq*)taosArrayGet(pCtx->pNames, pFetch->dbIdx);
-      SName*      pName = taosArrayGet(pReq->pTables, pFetch->tbIdx);
-      ctgTaskError("Get tsma for %d.%s.%s faield with err: %s", pName->acctId, pName->dbname, pName->tname,
+      ctgTaskError("Get tsma for %d.%s.%s faield with err: %s", pTbName->acctId, pTbName->dbname, pTbName->tname,
                    tstrerror(code));
     }
     bool allSubFetchFinished = false;

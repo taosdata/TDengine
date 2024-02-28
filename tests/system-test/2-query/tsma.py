@@ -50,6 +50,10 @@ class UsedTsma:
 
     def setIsTsma(self):
         self.is_tsma_ = self.name.endswith(self.TSMA_RES_STB_POSTFIX)
+        if not self.is_tsma_:
+            pos = self.name.find('_')
+            if pos == 32:
+                self.is_tsma_ = True
 
 class TSMAQueryContext:
     def __init__(self) -> None:
@@ -106,9 +110,12 @@ class TSMAQCBuilder:
         self.qc_.used_tsmas.append(used_tsma)
         return self
 
-    def should_query_with_tsma(self, tsma_name: str, ts_begin: str, ts_end: str) -> 'TSMAQCBuilder':
+    def should_query_with_tsma(self, tsma_name: str, ts_begin: str, ts_end: str, child_tb: bool = False) -> 'TSMAQCBuilder':
         used_tsma: UsedTsma = UsedTsma()
-        used_tsma.name = tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX
+        if child_tb:
+            used_tsma.name = tsma_name
+        else:
+            used_tsma.name = tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX
         used_tsma.time_range_start = self.to_timestamp(ts_begin)
         used_tsma.time_range_end = self.to_timestamp(ts_end)
         used_tsma.is_tsma_ = True
@@ -466,7 +473,7 @@ class TDTestCase:
 
     def test_query_sub_table(self):
         sql = 'select avg(c1) from t1'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
 
@@ -606,7 +613,7 @@ class TDTestCase:
         self.test_create_tsma_on_norm_table()
         self.test_create_tsma_on_child_table()
         self.test_create_recursive_tsma()
-        ## self.test_drop_stable()
+        ## self.test_drop_stable() ## drop stable and recreate a stable
         ## self.test_drop_ctable()
         self.test_drop_db()
 
