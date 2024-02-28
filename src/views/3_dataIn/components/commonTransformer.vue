@@ -577,6 +577,7 @@ import SplitExpression from "./splitExpression.vue";
 import { getDsnData } from "../utils.js";
 import Papa from "papaparse";
 import JsonEditor from "./jsonEditor.vue";
+import JSONbig from "json-bigint";
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -955,11 +956,8 @@ export default {
         ) {
         return "";
       }
-      if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true)) {
+      if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
         return val.toString();
-      }
-      if (typeof val == 'object') {
-        return JSON.parse(val);
       }
       return val;
     },
