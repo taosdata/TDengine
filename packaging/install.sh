@@ -4,7 +4,7 @@ set -e
 PREFIX="taos"
 xName="${PREFIX}x"
 INSTALL_DIR="/usr/bin"
-TAOSX_ROOT_DIR="/usr/local/${xName}"
+TAOSX_ROOT_DIR="/usr/local/${PREFIX}"
 CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
@@ -158,17 +158,17 @@ remove_target() {
 print_tips(){
     if [ "$target" = "taosx" ]; then
       echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
-      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+      # echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
       echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
       echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
-      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+      # echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
       echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
 
       echo -e "\n\033[32mtaosX and taosExplorer are installed successfully!\033[0m"
       echo -e "\033[32mTo access the TDengine management system: http://`hostname`:6060\033[0m"
       echo -e "\033[32mTo read the TDengine user manual: http://`hostname`:6060/docs-en\033[0m"
     else
-      echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
+      # echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
       echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
       echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
 
@@ -205,6 +205,14 @@ function replaceExplorerEndpoint() {
 
 # install new taosx and taosx-agent
 install_taosx() {
+  if [ "$target" = "taosx" ]; then
+    install_taosx_only
+  else
+    install_agent_only
+  fi
+}
+
+install_taosx_only() {
     echo "install starting..."
     echo "install binary files to ${INSTALL_DIR}..."
     ${csudo}cp -fr bin/* ${INSTALL_DIR}
@@ -253,6 +261,28 @@ install_taosx() {
         fi
     fi
     print_tips
+}
+
+install_agent_only() {
+  echo "install starting..."
+  echo "install binary files to ${INSTALL_DIR}..."
+  ${csudo}cp -fr bin/* ${INSTALL_DIR}
+  check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
+  echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
+  ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
+  ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
+  echo "install services to ${SERVICE_CONFIG_DIR}..."
+  ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+  
+  ${csudo}systemctl daemon-reload
+
+  check_and_create_directory "${CONFIG_DIR}"
+  echo "install agent.toml file to ${CONFIG_DIR}..."
+  if [ -f ${CONFIG_DIR}/agent.toml ]; then
+      ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
+  else
+      [ -e ./etc/taos/agent.toml ] && ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
+  fi
 }
 
 check_java_env() {

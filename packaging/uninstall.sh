@@ -4,7 +4,7 @@ set -e
 PREFIX="taos"
 xName="${PREFIX}x"
 INSTALL_DIR="/usr/bin"
-TAOSX_ROOT_DIR="/usr/local/${xName}"
+TAOSX_ROOT_DIR="/usr/local/${PREFIX}"
 CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
