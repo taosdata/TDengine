@@ -4370,6 +4370,8 @@ typedef struct STSMAOptUsefulTsma {
   const STableTSMAInfo* pTsma;          // NULL if no tsma available, which will use original data for calculation
   STimeWindow           scanRange;      // scan time range for this tsma
   SArray*               pTsmaScanCols;  // SArray<int32_t> index of tsmaFuncs array
+  char                  targetTbName[TSDB_TABLE_NAME_LEN];  // the scanning table name, used only when pTsma is not NULL
+  uint64_t              targetTbUid;                        // the scanning table uid, used only when pTsma is not NULL
 } STSMAOptUsefulTsma;
 
 typedef struct STSMAOptCtx {
@@ -4659,9 +4661,9 @@ SNodeList* tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNod
       // TODO why 2?
       pCol->colId = *idx + 2;
       pCol->tableType = TSDB_SUPER_TABLE;
-      pCol->tableId = pTsma->pTsma->destTbUid;
+      pCol->tableId = pTsma->targetTbUid;
       pCol->colType = COLUMN_TYPE_COLUMN;
-      strcpy(pCol->tableName, pTsma->pTsma->targetTb);
+      strcpy(pCol->tableName, pTsma->targetTbName);
       strcpy(pCol->dbName, pTsma->pTsma->targetDbFName);
       strcpy(pCol->colName, pFunc->node.aliasName);
       strcpy(pCol->node.aliasName, pFunc->node.aliasName);
@@ -4688,9 +4690,9 @@ static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptU
   for (int32_t i = 0; i < pTsma->pTsma->pTags->size; ++i) {
     const SSchema* pSchema = taosArrayGet(pTsma->pTsma->pTags, i);
     if (strcmp(pTagCol->colName, pSchema->name) == 0) {
-      strcpy(pTagCol->tableName, pTsma->pTsma->targetTb);
-      strcpy(pTagCol->tableAlias, pTsma->pTsma->targetTb);
-      pTagCol->tableId = pTsma->pTsma->destTbUid;
+      strcpy(pTagCol->tableName, pTsma->targetTbName);
+      strcpy(pTagCol->tableAlias, pTsma->targetTbName);
+      pTagCol->tableId = pTsma->targetTbUid;
       pTagCol->tableType = TSDB_SUPER_TABLE;
       pTagCol->colId = pSchema->colId;
       found = true;
@@ -4775,7 +4777,7 @@ struct TsmaOptRewriteCtx {
   int32_t                   code;
 };
 
-EDealRes tsmaOptRewriter(SNode** ppNode, void* ctx) {
+EDealRes tsmaOptNodeRewriter(SNode** ppNode, void* ctx) {
   SNode*                    pNode = *ppNode;
   int32_t                   code = 0;
   struct TsmaOptRewriteCtx* pCtx = ctx;
@@ -4792,6 +4794,27 @@ EDealRes tsmaOptRewriter(SNode** ppNode, void* ctx) {
     return DEAL_RES_ERROR;
   }
   return DEAL_RES_CONTINUE;
+}
+
+static int32_t tsmaOptRewriteNode(SNode* pNode, STSMAOptCtx* pCtx, const STSMAOptUsefulTsma* pTsma, bool rewriteTbName, bool rewriteTag) {
+  struct TsmaOptRewriteCtx ctx = {
+      .pTsmaOptCtx = pCtx, .pTsma = pTsma, .rewriteTag = rewriteTag, .rewriteTbname = rewriteTbName, .code = 0};
+  nodesRewriteExpr(&pNode, tsmaOptNodeRewriter, &ctx);
+  return ctx.code;
+}
+
+static int32_t tsmaOptRewriteNodeList(SNodeList* pNodes, STSMAOptCtx* pCtx, const STSMAOptUsefulTsma* pTsma,
+                                      bool rewriteTbName, bool rewriteTag) {
+  int32_t code = 0;
+  SNode*  pNode;
+  FOREACH(pNode, pNodes) {
+    code = tsmaOptRewriteNode(pNode, pCtx, pTsma, rewriteTbName, rewriteTag);
+    if (TSDB_CODE_SUCCESS == code) {
+      // TODO do we need to replace node??
+      REPLACE_NODE(pNode);
+    }
+  }
+  return code;
 }
 
 static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNewScan, const STSMAOptUsefulTsma* pTsma) {
@@ -4822,46 +4845,49 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       pNewScan->pScanCols = tsmaOptCreateTsmaScanCols(pTsma, pTsmaOptCtx->pAggFuncs);
       if (!pNewScan->pScanCols) code = TSDB_CODE_OUT_OF_MEMORY;
     }
+    if (pNewScan->tableType == TSDB_CHILD_TABLE) {
+    }
     if (code == TSDB_CODE_SUCCESS && pPkTsCol) {
-      tstrncpy(pPkTsCol->tableName, pTsma->pTsma->targetTb, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pPkTsCol->tableAlias, pTsma->pTsma->targetTb, TSDB_TABLE_NAME_LEN);
-      pPkTsCol->tableId = pTsma->pTsma->destTbUid;
-      pPkTsCol->tableType = TSDB_SUPER_TABLE;
+      tstrncpy(pPkTsCol->tableName, pTsma->targetTbName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pPkTsCol->tableAlias, pTsma->targetTbName, TSDB_TABLE_NAME_LEN);
+      pPkTsCol->tableId = pTsma->targetTbUid;
       nodesListMakeStrictAppend(&pNewScan->pScanCols, nodesCloneNode((SNode*)pPkTsCol));
     }
     if (code == TSDB_CODE_SUCCESS) {
+      // TODO handle child tables
       pNewScan->stableId = pTsma->pTsma->destTbUid;
-      pNewScan->tableId = pTsma->pTsma->destTbUid;
-      pNewScan->tableType = TSDB_SUPER_TABLE;
-      strcpy(pNewScan->tableName.tname, pTsma->pTsma->targetTb);  // TODO set dbName
+      pNewScan->tableId = pTsma->targetTbUid;
+      strcpy(pNewScan->tableName.tname, pTsma->targetTbName);
     }
     if (code == TSDB_CODE_SUCCESS) {
-      // pseudo columns
-      FOREACH(pNode, pNewScan->pScanPseudoCols) {
-        if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-          code = tsmaOptRewriteTag(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
-        }
-      }
+      code = tsmaOptRewriteNodeList(pNewScan->pScanPseudoCols, pTsmaOptCtx, pTsma, false, true);
     }
     if (code == TSDB_CODE_SUCCESS) {
-      FOREACH(pNode, pNewScan->pGroupTags) {
-        // TODO rewrite tag and tbname recursively
-        struct TsmaOptRewriteCtx ctx = {
-            .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
-        nodesRewriteExpr(&pNode, tsmaOptRewriter, &ctx);
-        if (ctx.code) {
-          code = ctx.code;
-        } else {
-          REPLACE_NODE(pNode);
+      code = tsmaOptRewriteNode(pNewScan->pTagCond, pTsmaOptCtx, pTsma, true, true);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = tsmaOptRewriteNodeList(pNewScan->pGroupTags, pTsmaOptCtx, pTsma, true, true);
+    }
+    if (pNewScan->pTsmaTargetCTbVgInfo) {
+      for (int32_t i = 0; i < taosArrayGetSize(pNewScan->pTsmas); ++i) {
+        STableTSMAInfo* pTsmaInfo = taosArrayGetP(pNewScan->pTsmas, i);
+        if (pTsmaInfo == pTsma->pTsma) {
+          SVgroupsInfo* pVgpsInfo = taosArrayGetP(pNewScan->pTsmaTargetCTbVgInfo, i);
+          taosMemoryFreeClear(pNewScan->pVgroupList);
+          int32_t len = sizeof(int32_t) + sizeof(SVgroupInfo) * pVgpsInfo->numOfVgroups;
+          pNewScan->pVgroupList = taosMemoryCalloc(1, len);
+          memcpy(pNewScan->pVgroupList, pVgpsInfo, len);
+          break;
         }
       }
     }
   } else {
+    // TODO rewrite tagcond?
     FOREACH(pNode, pNewScan->pGroupTags) {
       // rewrite tbname recursively
       struct TsmaOptRewriteCtx ctx = {
           .pTsmaOptCtx = pTsmaOptCtx, .pTsma = NULL, .rewriteTag = false, .rewriteTbname = true, .code = 0};
-      nodesRewriteExpr(&pNode, tsmaOptRewriter, &ctx);
+      nodesRewriteExpr(&pNode, tsmaOptNodeRewriter, &ctx);
       if (ctx.code) {
         code = ctx.code;
       } else {
@@ -4898,7 +4924,7 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
                                   const STSMAOptUsefulTsma* pTsma) {
   int32_t           code = 0;
   SColumnNode*      pColNode;
-  SWindowLogicNode* pWindow;
+  SWindowLogicNode* pWindow = NULL;
   SAggLogicNode*    pAgg;
   SNodeList*        pAggFuncs;
   SListCell*        pScanListCell;
@@ -4921,7 +4947,7 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
     if (fmIsGroupKeyFunc(pAggFunc->funcId)) {
       struct TsmaOptRewriteCtx ctx = {
           .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
-      nodesRewriteExpr(&pAggFuncNode, tsmaOptRewriter, &ctx);
+      nodesRewriteExpr(&pAggFuncNode, tsmaOptNodeRewriter, &ctx);
       if (ctx.code) {
         code = ctx.code;
       } else {
@@ -4998,7 +5024,7 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
     if (fmIsGroupKeyFunc(pAggFunc->funcId)) {
       struct TsmaOptRewriteCtx ctx = {
           .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
-      nodesRewriteExpr(&pAggFuncNode, tsmaOptRewriter, &ctx);
+      nodesRewriteExpr(&pAggFuncNode, tsmaOptNodeRewriter, &ctx);
       if (ctx.code) {
         code = ctx.code;
       } else {
@@ -5058,6 +5084,24 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   int32_t                   code = 0;
   const STSMAOptUsefulTsma* pTsma = NULL;
   SNodeList*                pAggFuncs = NULL;
+
+  for (int32_t i = 0; i < pTsmaOptCtx->pUsedTsmas->size; ++i) {
+    STSMAOptUsefulTsma* pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, i);
+    if (pTsma->pTsma) {
+      if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE) {
+        for (int32_t j = 0; j < pTsmaOptCtx->pScan->pTsmas->size; ++j) {
+          if (taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, j) == pTsma->pTsma) {
+            const STsmaTargetCTbInfo* pCtbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetCTbInfo, j);
+            strcpy(pTsma->targetTbName, pCtbInfo->ctableName);
+            pTsma->targetTbUid = pCtbInfo->uid;
+          }
+        }
+      } else {
+        strcpy(pTsma->targetTbName, pTsma->pTsma->targetTb);
+        pTsma->targetTbUid = pTsma->pTsma->destTbUid;
+      }
+    }
+  }
 
   for (int32_t i = 1; i < pTsmaOptCtx->pUsedTsmas->size && code == TSDB_CODE_SUCCESS; ++i) {
     pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, i);

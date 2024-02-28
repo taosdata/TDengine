@@ -2420,6 +2420,7 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
            30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   } else {
+    // TODO remove log
     qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
            " passed: %" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
@@ -2428,8 +2429,8 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   return ret;
 }
 
-int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx,
-                        int32_t flag) {
+int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
+                        CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName) {
   if (NULL == (*pFetchs)) {
     *pFetchs = taosArrayInit(CTG_DEFAULT_FETCH_NUM, sizeof(SCtgTSMAFetch));
   }
@@ -2439,6 +2440,10 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
   fetch.tbIdx = tbIdx;
   fetch.fetchIdx = (*fetchIdx)++;
   fetch.resIdx = resIdx;
+
+  fetch.flag = flag;
+  fetch.fetchType = fetchType;
+  if (sourceTbName) fetch.tsmaSourceTbName = *sourceTbName;
 
   taosArrayPush(*pFetchs, &fetch);
 

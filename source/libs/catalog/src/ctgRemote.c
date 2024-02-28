@@ -557,6 +557,11 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
           SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
           SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
           pName = ctgGetFetchName(ctx->pNames, fetch);
+        } else if (CTG_TASK_GET_TB_TSMA == pTask->type){
+          SCtgTbTSMACtx* pCtx = pTask->taskCtx;
+          SCtgTSMAFetch* pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
+          STablesReq*    pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
+          pName = taosArrayGet(pTbReq->pTables, pFetch->tbIdx);
         } else {
           SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
           pName = ctx->pName;
@@ -612,6 +617,11 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
         SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
         SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
         pName = ctgGetFetchName(ctx->pNames, fetch);
+      } else if (CTG_TASK_GET_TB_TSMA == pTask->type){
+        SCtgTbTSMACtx* pCtx = pTask->taskCtx;
+        SCtgTSMAFetch* pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
+        STablesReq*    pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
+        pName = taosArrayGet(pTbReq->pTables, pFetch->tbIdx);
       } else {
         SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
         pName = ctx->pName;
@@ -1556,6 +1566,7 @@ int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO test errors
 int32_t ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
                                       SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                       void* bInput) {
