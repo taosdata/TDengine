@@ -178,8 +178,9 @@ void *backendOpen() {
 
   {
     SSessionKey key;
-    char       *val = NULL;
-    int32_t     vlen = 0;
+    memset(&key, 0, sizeof(key));
+    char   *val = NULL;
+    int32_t vlen = 0;
     code = streamStateSessionGetKVByCur_rocksdb(pCurr, &key, (void **)&val, &vlen);
     ASSERT(code == 0);
     pCurr = streamStateSessionSeekKeyPrev_rocksdb(p, &key);
