@@ -14,3 +14,7 @@ endpoint = "http://localhost:6055"
 # Log keep days
 #
 #log_keep_days = 7
+
+# enable communication data compression between Agent and taosX
+#
+# compression = true
