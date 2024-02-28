@@ -7,6 +7,7 @@ pipeline {
                 script {
                     echo "${env.CHANGE_BRANCH}"
                     echo "${env.CHANGE_URL}"
+                    echo "${env.JOB_NAME}"
                 }
             }
         }
