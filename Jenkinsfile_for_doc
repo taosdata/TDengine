@@ -1,11 +1,11 @@
 pipeline {
     agent none
-    options { skipDefaultCheckout() } 
+    options { skipDefaultCheckout() }
     stages {
         stage('check') {
             when {
                 allOf {
-                    expression { env.CHANGE_BRANCH =~ /docs\// }
+                    expression { env.CHANGE_BRANCH =~ /AaronChen/ }
                     expression { env.CHANGE_URL =~ /\/TDinternal\/docs\// }
                 }
             }
