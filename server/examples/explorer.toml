@@ -44,8 +44,8 @@ grpc = "http://localhost:6055"
 
 # SSL certificate
 #
-certificate = "/path/to/ca.file"
+# certificate = "/path/to/ca.file"
 
 # SSL certificate key
 #
-certificate_key = "/path/to/key.file"
+# certificate_key = "/path/to/key.file"
