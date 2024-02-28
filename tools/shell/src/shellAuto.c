@@ -206,6 +206,7 @@ SWords shellCommands[] = {
     {"show grants full;", 0, 0, NULL},
     {"show grants logs;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
+    {"show views;", 0, 0, NULL},
     {"split vgroup <vgroup_id>", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
@@ -570,6 +571,7 @@ void showHelp() {
     split vgroup <vgroup_id>;\n\
     show compacts;\n\
     show compact \n\
+    show views;\n\
     show create view <all_table>;");
 #endif
 
