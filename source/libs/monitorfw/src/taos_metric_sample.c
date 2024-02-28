@@ -100,7 +100,7 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
   }
 
 #ifdef C11_ATOMIC
-  ///*_Atomic/ 
+  ///_Atomic/ 
   double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
