@@ -672,8 +672,9 @@ void taos_init_imp(void) {
   snprintf(logDirName, 64, "taoslog");
 #endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    // ignore create log failed, only print
     printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
+    tscInitRes = -1;
+    return;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
@@ -742,8 +743,11 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
-  } else {
-    taos_init();  // initialize global config
+  }
+
+  // initialize global config
+  if (taos_init() != 0) {
+    return -1;
   }
 
   SConfig     *pCfg = taosGetCfg();

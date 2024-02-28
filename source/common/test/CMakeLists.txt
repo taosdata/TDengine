@@ -35,7 +35,10 @@ target_include_directories(
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PUBLIC "${TD_SOURCE_DIR}/include/util"
 )
-
+add_test(
+    NAME dataformatTest
+    COMMAND dataformatTest
+)
 # tmsg test
 # add_executable(tmsgTest "")
 # target_sources(tmsgTest 

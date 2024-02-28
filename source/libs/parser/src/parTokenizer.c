@@ -166,6 +166,7 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",           TK_OUTPUTTYPE},
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
+    {"PARA_TABLES_SORT",     TK_PARA_TABLES_SORT},    
     {"PARTITION",            TK_PARTITION},
     {"PASS",                 TK_PASS},
     {"PORT",                 TK_PORT},

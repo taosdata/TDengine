@@ -612,6 +612,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   return writeLen;
 }
 
+bool lastErrorIsFileNotExist() {
+  DWORD dwError = GetLastError();
+  return dwError == ERROR_FILE_NOT_FOUND;
+}
+
 #else
 int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   int access = O_BINARY;
@@ -1006,6 +1011,8 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 #endif
 }
 
+bool lastErrorIsFileNotExist() { return errno == ENOENT; }
+
 #endif   // WINDOWS
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
@@ -1300,7 +1307,6 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   char   *data = taosMemoryMalloc(compressSize);
   gzFile  dstFp = NULL;
 
-  TdFilePtr pFile = NULL;
   TdFilePtr pSrcFile = NULL;
 
   pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
@@ -1340,8 +1346,8 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   }
 
 cmp_end:
-  if (pFile) {
-     taosCloseFile(&pFile);
+  if (fd >= 0) {
+    close(fd);
   }
   if (pSrcFile) {
     taosCloseFile(&pSrcFile);
