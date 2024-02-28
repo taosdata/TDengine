@@ -54,6 +54,11 @@
 #include "tlog.h"
 #include "ttypes.h"
 
+
+
+TCompressPara compressDict = {
+    {},
+}
 #ifdef TD_TSZ
 #include "td_sz.h"
 #endif
@@ -62,15 +67,16 @@ static const int32_t TEST_NUMBER = 1;
 #define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)
 #define SIMPLE8B_MAX_INT64 ((uint64_t)1152921504606846974LL)
 
-#define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
+#define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
 #ifdef TD_TSZ
 bool lossyFloat = false;
 bool lossyDouble = false;
 
+
 // init call
-int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
-                       int32_t ifAdtFse, const char* compressor) {
+int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                       uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
   // config
   lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
@@ -861,7 +867,7 @@ uint32_t decodeFloatValue(const char *const input, int32_t *const ipos, uint8_t 
   return diff;
 }
 
-static void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float* ostream) {
+static void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float *ostream) {
   uint8_t  flags = 0;
   int32_t  ipos = 1;
   int32_t  opos = 0;
@@ -899,8 +905,8 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
     tsDecompressFloatImplAvx2(input, nelements, output);
   } else if (tsSIMDEnable && tsAVX512Enable) {
     tsDecompressFloatImplAvx512(input, nelements, output);
-  } else { // alternative implementation without SIMD instructions.
-    tsDecompressFloatHelper(input, nelements, (float*)output);
+  } else {  // alternative implementation without SIMD instructions.
+    tsDecompressFloatHelper(input, nelements, (float *)output);
   }
 
   return nelements * FLOAT_BYTES;

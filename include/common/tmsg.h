@@ -534,13 +534,22 @@ struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 };
 
+// compress flag
+
+// |----l1 compAlg----|-----l2 compAlg---|---level--|
+// |------8bit--------|------16bit-------|---8bit---|
+
+#define COMPRESS_L1_TYPE(type)       ((type)&0xFF)
+#define COMPRESS_L2_TYPE(type)       (((type) >> 8) & 0xFFFF)
+#define COMPRESS_L2_TYPE_LEVEL(type) (((type) >> 24) & 0xFF)
+
 struct SSchema2 {
   int8_t   type;
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-  char     alias[TSDB_COL_NAME_LEN];
+  uint32_t compress;
 };
 
 typedef struct {
@@ -584,7 +593,7 @@ typedef struct {
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 // void    tFreeSSubmitBlkRsp(void* param);
-void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
+void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
@@ -1582,13 +1591,13 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
-  int32_t     contLen;
-  char*       pCont;
+  int32_t contLen;
+  char*   pCont;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
-void tFreeSStatisReq(SStatisReq *pReq);
+void    tFreeSStatisReq(SStatisReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -1946,7 +1955,7 @@ typedef struct {
 
 int32_t tSerializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
 // int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
-void    tFreeSShowReq(SShowReq* pReq);
+void tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
   int64_t       showId;
@@ -2735,7 +2744,7 @@ typedef struct {
     SVCreateTbReq* pReqs;
     SArray*        pArray;
   };
-  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVCreateTbBatchReq;
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
@@ -2828,7 +2837,7 @@ typedef struct {
   int32_t newCommentLen;
   char*   newComment;
   int64_t ctimeMs;  // fill by vnode
-  int8_t  source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t  source;   // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -3932,7 +3941,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_FROM_FILE          0x4
 #define TD_REQ_FROM_TAOX              0x8
 
-#define TD_REQ_FROM_TAOX_OLD          0x1     // for compatibility
+#define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 
 typedef struct {
   int32_t        flags;

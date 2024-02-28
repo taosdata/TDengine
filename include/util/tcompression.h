@@ -58,15 +58,17 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
-                       int32_t ifAdtFse, const char* compressor);
+int32_t     tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                           uint32_t intervals, int32_t ifAdtFse, const char *compressor);
 
-void    tsCompressExit();
+void tsCompressExit();
 
 int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                  char *const output);
 int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                   char *const output);
 
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,
@@ -139,8 +141,9 @@ int32_t getWordLength(char type);
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
 int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
 int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
-int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelements, char *const output, bool bigEndian);
-int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelements, char *const output, bool bigEndian);
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
+                                    bool bigEndian);
+int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output, bool bigEndian);
 
 /*************************************************************************
  *                  STREAM COMPRESSION
@@ -152,6 +155,29 @@ int32_t tCompressorDestroy(SCompressor *pCmprsor);
 int32_t tCompressStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppOut, int32_t *nOut, int32_t *nOrigin);
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData);
+
+
+typedef int32_t (*__data_compress_init)(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                                        uint32_t intervals, int32_t ifAdtFse, const char *compressor);
+typedef int32_t (*__data_compress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
+                                           const char type);
+typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, const int32_t nelements, char *const output,
+                                             const char type);
+
+typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
+                                           const char type);
+typedef int32_t (*__data_decompress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
+                                             const char type);
+
+typedef struct {
+  int8_t                    type;
+  int8_t                    level;
+  __data_compress_init      initFn;
+  __data_compress_l1_fn_t   l1CompFn;
+  __data_decompress_l1_fn_t l1DeCompFn;
+  __data_compress_l2_fn_t   l2CompFn;
+  __data_decompress_l2_fn_t l2DeCompFn;
+} TCompressPara;
 
 #ifdef __cplusplus
 }
