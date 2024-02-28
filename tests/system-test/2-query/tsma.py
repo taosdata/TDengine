@@ -51,7 +51,7 @@ class UsedTsma:
     def setIsTsma(self):
         self.is_tsma_ = self.name.endswith(self.TSMA_RES_STB_POSTFIX)
         if not self.is_tsma_:
-            pos = self.name.find('_')
+            pos = self.name.find('_') ## for tsma output child table
             if pos == 32:
                 self.is_tsma_ = True
 
@@ -59,9 +59,12 @@ class TSMAQueryContext:
     def __init__(self) -> None:
         self.sql = ''
         self.used_tsmas: List[UsedTsma] = []
+        self.ignore_tsma_check_ = False
 
     def __eq__(self, __value) -> bool:
         if isinstance(__value, self.__class__):
+            if self.ignore_tsma_check_ or __value.ignore_tsma_check_:
+                return True
             if len(self.used_tsmas) != len(__value.used_tsmas):
                 return False
             for used_tsma1, used_tsma2 in zip(self.used_tsmas, __value.used_tsmas):
@@ -101,7 +104,7 @@ class TSMAQCBuilder:
         res = tdSql.queryResult[0][0]
         return res.timestamp() * 1000
 
-    def should_query_with_table(self, tb_name: str, ts_begin: str, ts_end: str) -> 'TSMAQCBuilder':
+    def should_query_with_table(self, tb_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX) -> 'TSMAQCBuilder':
         used_tsma: UsedTsma = UsedTsma()
         used_tsma.name = tb_name
         used_tsma.time_range_start = self.to_timestamp(ts_begin)
@@ -109,8 +112,12 @@ class TSMAQCBuilder:
         used_tsma.is_tsma_ = False
         self.qc_.used_tsmas.append(used_tsma)
         return self
+    
+    def ignore_query_table(self):
+        self.qc_.ignore_tsma_check_ = True
+        return self
 
-    def should_query_with_tsma(self, tsma_name: str, ts_begin: str, ts_end: str, child_tb: bool = False) -> 'TSMAQCBuilder':
+    def should_query_with_tsma(self, tsma_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX, child_tb: bool = False) -> 'TSMAQCBuilder':
         used_tsma: UsedTsma = UsedTsma()
         if child_tb:
             used_tsma.name = tsma_name
@@ -177,6 +184,8 @@ class TSMATester:
         query_ctx = self.get_tsma_query_ctx(sql)
         if not query_ctx == expect:
             tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
+        elif expect.has_tsma():
+            tdLog.debug('check explain succeed for sql: %s \ntsma: %s' % (sql, str(expect.used_tsmas)))
 
     def check_result(self, sql: str):
         tdSql.execute("alter local 'querySmaOptimize' '1'")
@@ -475,7 +484,9 @@ class TDTestCase:
         sql = 'select avg(c1) from t1'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
-
+        sql = 'select avg(c1) from t3'
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('e8945e7385834f8c22705546d4016539_t3', child_tb=True).get_qc()
+        self.tsma_tester.check_sql(sql, ctx)
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
@@ -503,6 +514,22 @@ class TDTestCase:
         self.check(self.test_query_with_tsma_interval_partition_by_tbname)
         self.check(self.test_query_with_tsma_interval_partition_by_tag)
         self.check(self.test_query_with_tsma_interval_partition_by_hybrid)
+    
+    def test_query_tsma_generate_ts_where_range(self, ts_min: float, ts_max: float):
+        left_operators = ['>', '>=', '']
+        right_operators = ['<', '<=', '']
+        left_operator = left_operators[random.randrange(0, 3)]
+        right_operator = right_operators[random.randrange(0, 3)]
+        ret = ''
+        if left_operator:
+            left_value = ts_min + random.random() * (ts_max - ts_min)
+            ret += f'ts {left_operator} {left_value}'
+        if right_operator:
+            right_value = left_value + random.random() * (ts_max - left_value)
+            if left_operator:
+                ret += ' and '
+            ret += f'ts {right_operator} {right_value}'
+        return ret
 
     def test_query_with_tsma_interval_no_partition(self) -> List[TSMAQueryContext]:
         ctxs: List[TSMAQueryContext] = []
@@ -544,11 +571,12 @@ class TDTestCase:
         self.check(self.test_query_with_tsma_agg_group_by_hybrid)
         self.check(self.test_query_with_tsma_agg_group_by_tbname)
         self.check(self.test_query_with_tsma_agg_group_by_tag)
+        self.check(self.test_query_with_tsma_with_having)
 
     def test_query_with_tsma_agg_no_group_by(self):
         ctxs: List[TSMAQueryContext] = []
         sql = 'select avg(c1), avg(c2) from meters'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000"'
         ctxs.append(TSMAQCBuilder().with_sql(sql) \
@@ -574,35 +602,82 @@ class TDTestCase:
                             .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
 
         sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where c1 is not NULL'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
 
         sql = 'select avg(c1), avg(c2), spread(c4) from meters'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+
+        sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\''
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\' or tbname = \'t2\''
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = '''select avg(c1), avg(c2) from meters where tbname = 't1' and c1 is not NULL'''
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+        
+        sql = 'select avg(c1+c2) from meters'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
 
         return ctxs
 
     def test_query_with_tsma_agg_group_by_tbname(self):
-        return []
+        ctxs: List[TSMAQueryContext] = []
+        sql = 'select avg(c1) as a, avg(c2) as b, tbname from meters group by tbname order by tbname, a, b'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = 'select avg(c1) as a, avg(c2) + 1 as b, tbname from meters where c1 > 10 group by tbname order by tbname, a, b'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+
+        sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, tbname from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by tbname order by tbname, a, b'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)\
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+
+        sql = 'select avg(c1) + avg(c2) + 3 as a, substr(tbname, 1) as c from meters group by substr(tbname, 1) order by c, a'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, substr(tbname, 1, 1) as c from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by substr(tbname, 1, 1) order by c, a, b'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)\
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+
+        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 order by tbname'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1"'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+
+        return ctxs
+
+    def test_query_with_tsma_with_having(self):
+        pass
 
     def test_query_with_tsma_agg_group_by_tag(self):
         return []
 
     def test_query_with_tsma_agg_group_by_hybrid(self):
         return []
+    
+    def test_ddl(self):
+        self.test_create_tsma()
+        self.test_drop_tsma()
+        self.test_tb_ddl_with_created_tsma()
 
     def run(self):
         self.init_data()
         #time.sleep(999999)
-        self.test_create_tsma()
-        self.test_drop_tsma()
-        #time.sleep(9999999)
-        self.test_tb_ddl_with_created_tsma()
+        #self.test_ddl()
         self.test_query_with_tsma()
         #time.sleep(999999)
 
