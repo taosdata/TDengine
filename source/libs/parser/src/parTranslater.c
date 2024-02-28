@@ -3656,13 +3656,76 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
 }
 
 static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  int32_t code = 0;
   if (pCxt->createStream || QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt)) {
-    return getTableTsmas(pCxt, pName, &pRealTable->pTsmas);
+  if (isSelectStmt(pCxt->pCurrStmt) && pRealTable->pMeta->tableType != TSDB_SYSTEM_TABLE) {
+    code = getTableTsmas(pCxt, pName, &pRealTable->pTsmas);
+    // if select from a child table, fetch it's corresponding tsma target child table infos
+    if (TSDB_CODE_SUCCESS == code && pRealTable->pTsmas && pRealTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+      if (pRealTable->tsmaTargetCTbVgInfo) {
+        taosArrayDestroyP(pRealTable->tsmaTargetCTbVgInfo, taosMemoryFree);
+        pRealTable->tsmaTargetCTbVgInfo = NULL;
+      }
+      for (int32_t i = 0; i < pRealTable->pTsmas->size; ++i) {
+        STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
+        SName tsmaTargetCTbName = {0};
+        toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetCTbName);
+        int32_t len = snprintf(tsmaTargetCTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name);
+        len = taosCreateMD5Hash(tsmaTargetCTbName.tname, len);
+        sprintf(tsmaTargetCTbName.tname + len, "_%s", pRealTable->table.tableName);
+        SVgroupInfo vgInfo = {0};
+        bool exists = false;
+        code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tsmaTargetCTbName, &vgInfo, &exists);
+        if (TSDB_CODE_SUCCESS == code) {
+          ASSERT(exists);
+          if (!pRealTable->tsmaTargetCTbVgInfo) {
+            pRealTable->tsmaTargetCTbVgInfo = taosArrayInit(pRealTable->pTsmas->size, POINTER_BYTES);
+            if (!pRealTable->tsmaTargetCTbVgInfo) {
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              break;
+            }
+          }
+          SVgroupsInfo* pVgpsInfo = taosMemoryCalloc(1, sizeof(int32_t) + sizeof(SVgroupInfo));
+          if (!pVgpsInfo) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+          pVgpsInfo->numOfVgroups = 1;
+          pVgpsInfo->vgroups[0] = vgInfo;
+          taosArrayPush(pRealTable->tsmaTargetCTbVgInfo, &pVgpsInfo);
+        } else {
+          break;
+        }
+
+        STableMeta* pTableMeta = NULL;
+        if (code == TSDB_CODE_SUCCESS) {
+          SRequestConnInfo conn = {.pTrans = pCxt->pParseCxt->pTransporter,
+                                   .requestId = pCxt->pParseCxt->requestId,
+                                   .requestObjRefId = pCxt->pParseCxt->requestRid,
+                                   .mgmtEps = pCxt->pParseCxt->mgmtEpSet};
+          code = catalogGetTableMeta(pCxt->pParseCxt->pCatalog, &conn, &tsmaTargetCTbName, &pTableMeta);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          STsmaTargetCTbInfo ctbInfo = {0};
+          sprintf(ctbInfo.ctableName, "%s", tsmaTargetCTbName.tname);
+          ctbInfo.uid = pTableMeta->uid;
+          taosMemoryFree(pTableMeta);
+          if (!pRealTable->tsmaTargetCTbInfo) {
+            pRealTable->tsmaTargetCTbInfo = taosArrayInit(pRealTable->pTsmas->size, sizeof(STsmaTargetCTbInfo));
+            if (!pRealTable->tsmaTargetCTbInfo) {
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              break;
+            }
+          }
+
+          taosArrayPush(pRealTable->tsmaTargetCTbInfo, &ctbInfo);
+        }
+      }
+    }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -5562,20 +5625,19 @@ static int32_t findEqualCondTbname(STranslateContext* pCxt, SNode* pWhere, SArra
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SEqCondTbNameTableInfo* pInfo,
-                                          SVgroupsInfo* vgsInfo) {
+static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SArray* aTbnames, const char* dbName,
+                                          int32_t numOfVgroups, SVgroupsInfo* vgsInfo) {
   int32_t nVgroups = 0;
-  int32_t nTbls = taosArrayGetSize(pInfo->aTbnames);
+  int32_t nTbls = taosArrayGetSize(aTbnames);
 
-  if (nTbls >= pInfo->pRealTable->pVgroupList->numOfVgroups) {
+  if (nTbls >= numOfVgroups) {
     vgsInfo->numOfVgroups = 0;
     return TSDB_CODE_SUCCESS;
   }
 
   for (int j = 0; j < nTbls; ++j) {
-    char* dbName = pInfo->pRealTable->table.dbName;
     SName snameTb;
-    char* tbName = taosArrayGetP(pInfo->aTbnames, j);
+    char* tbName = taosArrayGetP(aTbnames, j);
     toName(pCxt->pParseCxt->acctId, dbName, tbName, &snameTb);
     SVgroupInfo vgInfo = {0};
     bool        bExists;
@@ -5605,16 +5667,55 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < taosArrayGetSize(aTables); ++i) {
     SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTables, i);
-    int32_t                 nTbls = taosArrayGetSize(pInfo->aTbnames);
+    int32_t nTbls = taosArrayGetSize(pInfo->aTbnames);
+    int32_t numOfVgs = pInfo->pRealTable->pVgroupList->numOfVgroups;
 
     SVgroupsInfo* vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
-    int32_t       nVgroups = 0;
-    findVgroupsFromEqualTbname(pCxt, pInfo, vgsInfo);
+    findVgroupsFromEqualTbname(pCxt, pInfo->aTbnames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
     if (vgsInfo->numOfVgroups != 0) {
       taosMemoryFree(pInfo->pRealTable->pVgroupList);
       pInfo->pRealTable->pVgroupList = vgsInfo;
     } else {
       taosMemoryFree(vgsInfo);
+    }    
+    vgsInfo = NULL;
+
+    if (pInfo->pRealTable->pTsmas) {
+      pInfo->pRealTable->tsmaTargetCTbVgInfo = taosArrayInit(pInfo->pRealTable->pTsmas->size, POINTER_BYTES);
+      if (!pInfo->pRealTable->tsmaTargetCTbVgInfo) return TSDB_CODE_OUT_OF_MEMORY;
+
+      for (int32_t i = 0; i < pInfo->pRealTable->pTsmas->size; ++i) {
+        STableTSMAInfo* pTsma = taosArrayGetP(pInfo->pRealTable->pTsmas, i);
+        SArray *pTbNames = taosArrayInit(pInfo->aTbnames->size, POINTER_BYTES);
+        if (!pTbNames) return TSDB_CODE_OUT_OF_MEMORY;
+
+        for (int32_t k = 0; k < pInfo->aTbnames->size; ++k) {
+          const char* pTbName = taosArrayGetP(pInfo->aTbnames, k);
+          char* pNewTbName = taosMemoryCalloc(1, 34 + strlen(pTbName) + 1);
+          if (!pNewTbName) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+          taosArrayPush(pTbNames, &pNewTbName);
+          sprintf(pNewTbName, "%s.%s", pTsma->dbFName, pTsma->name);
+          int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName));
+          sprintf(pNewTbName + len, "_%s", pTbName);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
+          if (!vgsInfo) code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          findVgroupsFromEqualTbname(pCxt, pTbNames, pInfo->pRealTable->table.dbName, numOfVgs, vgsInfo);
+          if (vgsInfo->numOfVgroups != 0) {
+            taosArrayPush(pInfo->pRealTable->tsmaTargetCTbVgInfo, &vgsInfo);
+          } else {
+            taosMemoryFree(vgsInfo);
+          }
+        }
+        taosArrayDestroyP(pTbNames, taosMemoryFree);
+        if (code) break;
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
