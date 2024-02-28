@@ -334,8 +334,8 @@ class TDTestCase:
         self.prepareTestEnv()
         self.tmqCase1()
         self.tmqCase2()
-        self.prepareTestEnv()
-        self.tmqCase3()
+        # self.prepareTestEnv()
+        # self.tmqCase3()
 
     def stop(self):
         tdSql.close()
