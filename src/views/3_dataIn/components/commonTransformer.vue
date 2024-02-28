@@ -958,6 +958,9 @@ export default {
       if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true)) {
         return val.toString();
       }
+      if (typeof val == 'object') {
+        return JSON.parse(val);
+      }
       return val;
     },
     async submitParse(name) {
@@ -1568,7 +1571,7 @@ export default {
         let outputTBData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index]];
+              return [item.name, this.filterEmpty(data[index])];
             })
           );
         });
