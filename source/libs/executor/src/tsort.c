@@ -1266,6 +1266,11 @@ int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsPageSize, int32
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
   pHandle->extRowsOrderInfo = *pOrder;
   initRowIdSort(pHandle);
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    qError("create sort mem file failed since %s, tempDir:%s", terrstr(), tsTempDir);
+    return terrno;
+  }
   int32_t code = createSortMemFile(pHandle);
   pHandle->bSortByRowId = true;
   return code;

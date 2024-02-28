@@ -4015,9 +4015,10 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
     int32_t memSize = 512 * 1024 * 1024;
-    // int32_t rowBytes = blockDataGetRowSize(pInfo->pResBlock) + taosArrayGetSize(pInfo->pResBlock->pDataBlock) + sizeof(int32_t);
-    // int32_t pageSize = TMAX(memSize/numOfTable, rowBytes);
-    tsortSetSortByRowId(pInfo->pSortHandle, pInfo->bufPageSize, memSize);
+    code = tsortSetSortByRowId(pInfo->pSortHandle, pInfo->bufPageSize, memSize);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   } else {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
@@ -4210,7 +4211,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     } else {
       if (pInfo->bNewFilesetEvent) {
         stopDurationForGroupTableMergeScan(pOperator);
-        startDurationForGroupTableMergeScan(pOperator);
+        code = startDurationForGroupTableMergeScan(pOperator);
+        if (code != TSDB_CODE_SUCCESS) {
+          T_LONG_JMP(pTaskInfo->env, terrno);
+        }
       } else {
         // Data of this group are all dumped, let's try the next group
         stopGroupTableMergeScan(pOperator);
