@@ -97,7 +97,7 @@ int32_t tsdbDataFileFlush(SDataFileWriter *writer);
 
 // head
 int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range);
+                               TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range);
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
 

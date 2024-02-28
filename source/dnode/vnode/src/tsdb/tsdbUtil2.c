@@ -357,7 +357,7 @@ int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buff
       ASSERT(0);
     }
 
-    code = tCompressData(tBufferGetData(bf), tBufferGetSize(bf), &info, buffer, helperBuffer);
+    code = tCompressDataToBuffer(tBufferGetData(bf), tBufferGetSize(bf), &info, buffer, helperBuffer);
     if (code) return code;
     brinBlk->size[i] = info.compressedSize;
     brinBlk->dp[0].size += info.compressedSize;

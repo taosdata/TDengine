@@ -494,8 +494,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
         .originalSize = statisBlk->numRec * sizeof(int64_t),
     };
 
-    code = tDecompressData(tBufferGetDataAt(&reader->buffers[0], size), statisBlk->size[i], &info,
-                           &statisBlock->buffers[i], &reader->buffers[1]);
+    code = tDecompressDataToBuffer(tBufferGetDataAt(&reader->buffers[0], size), statisBlk->size[i], &info,
+                                   &statisBlock->buffers[i], &reader->buffers[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
     size += statisBlk->size[i];
   }
@@ -672,8 +672,8 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
     };
 
     tBufferClear(&writer->buffers[0]);
-    code = tCompressData(tBufferGetData(&statisBlock->buffers[i]), tBufferGetSize(&statisBlock->buffers[i]), &info,
-                         &writer->buffers[0], &writer->buffers[1]);
+    code = tCompressDataToBuffer(tBufferGetData(&statisBlock->buffers[i]), tBufferGetSize(&statisBlock->buffers[i]),
+                                 &info, &writer->buffers[0], &writer->buffers[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbWriteFile(writer->fd, writer->file->size, tBufferGetData(&writer->buffers[0]), info.compressedSize);

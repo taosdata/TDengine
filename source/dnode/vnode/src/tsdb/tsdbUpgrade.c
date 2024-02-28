@@ -37,6 +37,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
     int8_t   cmprAlg;
     int32_t  szPage;
     uint8_t *bufArr[8];
+    SBuffer *buffers;
     // reader
     SArray    *aBlockIdx;
     SMapData   mDataBlk[1];
@@ -136,7 +137,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         if (ctx->brinBlock->numOfRecords >= ctx->maxRow) {
           SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
           code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                        ctx->brinBlkArray, ctx->bufArr, &range);
+                                        ctx->brinBlkArray, ctx->buffers, &range);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -145,7 +146,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
     if (ctx->brinBlock->numOfRecords > 0) {
       SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
       code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                    ctx->brinBlkArray, ctx->bufArr, &range);
+                                    ctx->brinBlkArray, ctx->buffers, &range);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

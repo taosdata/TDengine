@@ -612,6 +612,7 @@ struct SDataFileWriter {
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
   uint8_t *bufArr[5];
+  SBuffer *buffers;
 
   struct {
     bool             opened;
@@ -802,7 +803,7 @@ int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxV
 }
 
 int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range) {
+                               TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range) {
   if (brinBlock->numOfRecords == 0) return 0;
 
   int32_t code;
@@ -853,11 +854,11 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
       ASSERT(0);
     }
 
-    tBufferClear(NULL /* TODO */);
-    code = tCompressData(tBufferGetData(bf), tBufferGetSize(bf), &info, NULL /* TODO */, NULL /* TODO*/);
+    tBufferClear(&buffers[0]);
+    code = tCompressDataToBuffer(tBufferGetData(bf), tBufferGetSize(bf), &info, buffers[0].data, &buffers[1]);
     if (code) return code;
 
-    code = tsdbWriteFile(fd, *fileSize, NULL /* TODO */, info.compressedSize);
+    code = tsdbWriteFile(fd, *fileSize, buffers[0].data, buffers[0].size);
     if (code) return code;
 
     brinBlk.size[i] = info.compressedSize;
@@ -920,7 +921,7 @@ static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
   int32_t lino = 0;
 
   code = tsdbFileWriteBrinBlock(writer->fd[TSDB_FTYPE_HEAD], writer->brinBlock, writer->config->cmprAlg,
-                                &writer->files[TSDB_FTYPE_HEAD].size, writer->brinBlkArray, writer->config->bufArr,
+                                &writer->files[TSDB_FTYPE_HEAD].size, writer->brinBlkArray, writer->buffers,
                                 &writer->ctx->range);
   TSDB_CHECK_CODE(code, lino, _exit);
 
