@@ -55,7 +55,7 @@ def release(release_info,build_info):
 def init_release_dir(release_info):
     logging.info("init_release_dir")
     global release_dir, systemd_path, target
-    if release_info.Target == "agent":
+    if release_info.Target == "agent" or release_info.UploadAgent or release_info.BuildAgent:
         target = "taosx-agent"
     release_dir = release_info.InstallPath
     check_directory(release_dir)
@@ -295,13 +295,13 @@ def test_handle(release_info, process):
         print("Calling Package function...")
         chmodReleaseDir(release_info)
         make_tar_package(release_info)
-    elif process == "taosx":
+    elif process == "taosx" and release_info.UploadAgent == False and release_info.BuildAgent == False:
         print("Calling taosx function...")
         build_and_install_taosx_on_linux(release_info, "Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent_on_linux(release_info, "Debug")
-    elif process == "explorer":
+    elif process == "explorer" and release_info.UploadAgent == False and release_info.BuildAgent == False:
         print("Calling taos-explorer function...")
         install_taos_explorer_on_linux(release_info, "Release")
     elif process == "influxdb":
