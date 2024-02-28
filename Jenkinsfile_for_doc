@@ -2,10 +2,16 @@ pipeline {
     agent none
     options { skipDefaultCheckout() }
     stages {
+        stage('test'){
+            steps{
+                echo $CHANGE_BRANCH
+                echo $CHANGE_URL
+            }
+        }
         stage('check') {
             when {
                 allOf {
-                    expression { env.CHANGE_BRANCH =~ /AaronChen/ }
+                    expression { env.CHANGE_BRANCH =~ /AaronChen/ } //TBD: main
                     expression { env.CHANGE_URL =~ /\/TDinternal\/docs\// }
                 }
             }
