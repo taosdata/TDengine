@@ -67,7 +67,6 @@ class TDTestCase(TBase):
             dirs = glob.glob(dnodesRootDir)
             for dir in dirs:
                 if os.path.isdir(dir):
-                    tdLog.debug("delete dir: %s " % (dnodesRootDir))
                     self.remove_directory(os.path.join(dir, "wal"))
 
         sc.dnodeStart(1)
@@ -88,7 +87,7 @@ class TDTestCase(TBase):
             if bFinish:
                 break
 
-        self.timestamp_step = 1
+        self.timestamp_step = 1000
         self.insert_rows = 6000
         self.checkInsertCorrect()
         self.checkAggCorrect()
