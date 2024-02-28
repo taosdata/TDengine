@@ -16,10 +16,6 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
-typedef struct {
-  SMsgHead head;
-} SMStreamHbRspMsg;
-
 typedef struct SFailedCheckpointInfo {
   int64_t streamUid;
   int64_t checkpointId;

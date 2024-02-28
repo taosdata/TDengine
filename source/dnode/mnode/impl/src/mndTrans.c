@@ -1217,7 +1217,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   if (numOfActions == 0) return 0;
 
   if ((code = mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf)) != 0) {
-    return -1;
+    return code;
   }
 
   int32_t       numOfExecuted = 0;
