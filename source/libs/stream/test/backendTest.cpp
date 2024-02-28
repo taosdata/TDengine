@@ -142,23 +142,34 @@ void *backendOpen() {
   for (int i = 0; i < size; i++) {
     int64_t ts = taosGetTimestampMs();
     tsArray.push_back(ts);
-    STupleKey key = {.groupId = (uint64_t)(0), .ts = ts, .exprIdx = i};
+    STupleKey key = {0};
+    key.groupId = (uint64_t)(0);  //= {.groupId = (uint64_t)(0), .ts = ts, .exprIdx = i};
+    key.ts = ts;
+    key.exprIdx = i;
 
     const char *val = "Value";
     int32_t     len = strlen(val);
     streamStateFuncPut_rocksdb(p, &key, val, len);
   }
   for (int i = 0; i < size; i++) {
-    STupleKey key = {.groupId = (uint64_t)(0), .ts = tsArray[i], .exprIdx = i};
-    char     *val = NULL;
-    int32_t   len = 0;
+    STupleKey key = {0};  //{.groupId = (uint64_t)(0), .ts = tsArray[i], .exprIdx = i};
+    key.groupId = (uint64_t)(0);
+    key.ts = tsArray[i];
+    key.exprIdx = i;
+
+    char   *val = NULL;
+    int32_t len = 0;
     streamStateFuncGet_rocksdb(p, &key, (void **)&val, &len);
     ASSERT(len == strlen("Value"));
   }
   for (int i = 0; i < size; i++) {
-    STupleKey key = {.groupId = (uint64_t)(0), .ts = tsArray[i], .exprIdx = i};
-    char     *val = NULL;
-    int32_t   len = 0;
+    STupleKey key = {0};  //{.groupId = (uint64_t)(0), .ts = tsArray[i], .exprIdx = i};
+    key.groupId = (uint64_t)(0);
+    key.ts = tsArray[i];
+    key.exprIdx = i;
+
+    char   *val = NULL;
+    int32_t len = 0;
     streamStateFuncDel_rocksdb(p, &key);
   }
 
@@ -166,7 +177,10 @@ void *backendOpen() {
   tsArray.clear();
 
   for (int i = 0; i < size; i++) {
-    SSessionKey key = {.win = {.skey = i, .ekey = i}, .groupId = (uint64_t)(0)};
+    SSessionKey key = {0};  //{.win = {.skey = i, .ekey = i}, .groupId = (uint64_t)(0)};
+    key.win.skey = i;
+    key.win.ekey = i;
+    key.groupId = (uint64_t)(0);
     tsArray.push_back(i);
 
     const char *val = "Value";
@@ -179,7 +193,10 @@ void *backendOpen() {
   }
 
   for (int i = 0; i < size; i++) {
-    SSessionKey key = {.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
+    SSessionKey key = {0};  //{.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
+    key.win.skey = tsArray[i];
+    key.win.ekey = tsArray[i];
+    key.groupId = (uint64_t)(0);
 
     const char *val = "Value";
     int32_t     len = strlen(val);
@@ -219,7 +236,10 @@ void *backendOpen() {
            streamStateStateAddIfNotExist_rocksdb(p, &key, (char *)"key", strlen("key"), NULL, (void **)&val, &len));
   }
   for (int i = 0; i < size; i++) {
-    SSessionKey key = {.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
+    SSessionKey key = {0};  //{.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
+    key.win.skey = tsArray[i];
+    key.win.ekey = tsArray[i];
+    key.groupId = (uint64_t)(0);
 
     const char *val = "Value";
     int32_t     len = strlen(val);
@@ -229,20 +249,26 @@ void *backendOpen() {
   }
 
   for (int i = 0; i < size; i++) {
-    SWinKey     key = {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    SWinKey key = {0};  // {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    key.groupId = (uint64_t)(i);
+    key.ts = tsArray[i];
     const char *val = "Value";
     int32_t     vlen = strlen(val);
     ASSERT(streamStateFillPut_rocksdb(p, &key, val, vlen) == 0);
   }
   for (int i = 0; i < size; i++) {
-    SWinKey key = {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    SWinKey key = {0};  // {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    key.groupId = (uint64_t)(i);
+    key.ts = tsArray[i];
     char   *val = NULL;
     int32_t vlen = 0;
     ASSERT(streamStateFillGet_rocksdb(p, &key, (void **)&val, &vlen) == 0);
     taosMemoryFreeClear(val);
   }
   {
-    SWinKey          key = {.groupId = (uint64_t)(0), .ts = tsArray[0]};
+    SWinKey key = {0};  //{.groupId = (uint64_t)(0), .ts = tsArray[0]};
+    key.groupId = (uint64_t)(0);
+    key.ts = tsArray[0];
     SStreamStateCur *pCurr = streamStateFillGetCur_rocksdb(p, &key);
     ASSERT(pCurr != NULL);
 
@@ -267,7 +293,9 @@ void *backendOpen() {
   }
 
   for (int i = 0; i < size - 1; i++) {
-    SWinKey key = {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    SWinKey key = {0};  // {.groupId = (uint64_t)(i), .ts = tsArray[i]};
+    key.groupId = (uint64_t)(i);
+    key.ts = tsArray[i];
     char   *val = NULL;
     int32_t vlen = 0;
     ASSERT(streamStateFillDel_rocksdb(p, &key) == 0);
