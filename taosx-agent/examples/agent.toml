@@ -1,6 +1,6 @@
 # taosX service endpoint
 #
-endpoint = "http://localhost:6055"
+# endpoint = "http://localhost:6055"
 
 # !important!
 # Uncomment it and copy-paste the token generated in Explorer.
