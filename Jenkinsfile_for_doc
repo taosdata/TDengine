@@ -3,12 +3,12 @@ pipeline {
     options { skipDefaultCheckout() }
     stages {
         stage('check') {
-            //when {
-            //    allOf {
-            //        expression { env.CHANGE_BRANCH =~ /AaronChen/ } //TBD: main
-            //        expression { env.CHANGE_URL =~ /\/TDinternal\/docs\// }
-            //    }
-            //}
+            when {
+                allOf {
+                    expression { env.CHANGE_BRANCH =~ /AaronChen/ } //TBD: main
+                    expression { env.CHANGE_URL =~ /\/TDengine\/docs\// }
+                }
+            }
             agent{label "doc30"}
             steps {
                 echo 'docs CI check'
