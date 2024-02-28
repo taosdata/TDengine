@@ -200,7 +200,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   int32_t      lino = 0;
   int32_t      n = 0;
   SDiskDataHdr hdr;
-  SBlockCol    primaryKeyBlockCols[TD_MAX_PRIMARY_KEY_COL];
+  SBlockCol    primaryKeyBlockCols[TD_MAX_PK_COLS];
 
   // load key part
   code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szKey);
@@ -501,8 +501,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   }
 
   if (statisBlk->numOfPKs > 0) {
-    SValueColumnCompressInfo firstKeyInfos[TD_MAX_PRIMARY_KEY_COL];
-    SValueColumnCompressInfo lastKeyInfos[TD_MAX_PRIMARY_KEY_COL];
+    SValueColumnCompressInfo firstKeyInfos[TD_MAX_PK_COLS];
+    SValueColumnCompressInfo lastKeyInfos[TD_MAX_PK_COLS];
     SBufferReader            bfReader;
 
     tBufferReaderInit(&bfReader, true, size, &reader->buffers[0]);

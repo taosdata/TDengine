@@ -1384,7 +1384,7 @@ SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
 int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
                        int32_t aBufSize[]) {
   int32_t      code = 0;
-  SBlockCol    primaryKeyBlockCols[TD_MAX_PRIMARY_KEY_COL];
+  SBlockCol    primaryKeyBlockCols[TD_MAX_PK_COLS];
   SDiskDataHdr hdr = {
       .delimiter = TSDB_FILE_DLMT,
       .fmtVer = 0,
@@ -1511,7 +1511,7 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
 
   int32_t      n = 0;
   SDiskDataHdr hdr = {0};
-  SBlockCol    primaryKeyBlockCols[TD_MAX_PRIMARY_KEY_COL];
+  SBlockCol    primaryKeyBlockCols[TD_MAX_PK_COLS];
 
   // SDiskDataHdr
   n += tGetDiskDataHdr(pIn + n, &hdr);

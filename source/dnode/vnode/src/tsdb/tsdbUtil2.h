@@ -91,8 +91,8 @@ typedef struct {
       SBuffer counts;
     };
   };
-  SValueColumn firstKeyPKs[TD_MAX_PRIMARY_KEY_COL];
-  SValueColumn lastKeyPKs[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumn firstKeyPKs[TD_MAX_PK_COLS];
+  SValueColumn lastKeyPKs[TD_MAX_PK_COLS];
 } STbStatisBlock;
 
 typedef struct {
@@ -154,8 +154,8 @@ typedef struct {
       SBuffer counts;
     };
   };
-  SValueColumn firstKeyPKs[TD_MAX_PRIMARY_KEY_COL];
-  SValueColumn lastKeyPKs[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumn firstKeyPKs[TD_MAX_PK_COLS];
+  SValueColumn lastKeyPKs[TD_MAX_PK_COLS];
 } SBrinBlock;
 
 typedef struct {

@@ -268,7 +268,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   int32_t      lino = 0;
   int32_t      n = 0;
   SDiskDataHdr hdr;
-  SBlockCol    primaryKeyBlockCols[TD_MAX_PRIMARY_KEY_COL];
+  SBlockCol    primaryKeyBlockCols[TD_MAX_PK_COLS];
 
   // read key part
   code = tRealloc(&reader->config->bufArr[0], record->blockKeySize);

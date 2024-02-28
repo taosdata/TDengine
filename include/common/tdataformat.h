@@ -28,23 +28,25 @@
 extern "C" {
 #endif
 
-typedef struct SSchema      SSchema;
-typedef struct SSchema2     SSchema2;
-typedef struct STColumn     STColumn;
-typedef struct STSchema     STSchema;
-typedef struct SValue       SValue;
-typedef struct SColVal      SColVal;
-typedef struct SRow         SRow;
-typedef struct SRowIter     SRowIter;
-typedef struct STagVal      STagVal;
-typedef struct STag         STag;
-typedef struct SColData     SColData;
+typedef struct SSchema  SSchema;
+typedef struct SSchema2 SSchema2;
+typedef struct STColumn STColumn;
+typedef struct STSchema STSchema;
+typedef struct SValue   SValue;
+typedef struct SColVal  SColVal;
+typedef struct SRow     SRow;
+typedef struct SRowIter SRowIter;
+typedef struct STagVal  STagVal;
+typedef struct STag     STag;
+typedef struct SColData SColData;
+
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
 
-#define HAS_NONE      ((uint8_t)0x1)
-#define HAS_NULL      ((uint8_t)0x2)
-#define HAS_VALUE     ((uint8_t)0x4)
+#define HAS_NONE  ((uint8_t)0x1)
+#define HAS_NULL  ((uint8_t)0x2)
+#define HAS_VALUE ((uint8_t)0x4)
+
 #define HAS_MULTI_KEY ((uint8_t)0x8)
 
 // bitmap ================================
@@ -162,20 +164,22 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
-void          tColDataDestroy(void *ph);
-void          tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
-void          tColDataClear(SColData *pColData);
-void          tColDataDeepClear(SColData *pColData);
-int32_t       tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-int32_t       tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void          tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t       tColDataGetBitValue(const SColData *pColData, int32_t iVal);
-int32_t       tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
-int32_t       tColDataCompress(SColData *colData, SColDataCompressInfo *info, void *output, int32_t outputSize,
-                               SBuffer *buffer);
-int32_t       tColDataDecompress(void *input, int32_t inputSize, const SColDataCompressInfo *info, SColData *colData,
-                                 SBuffer *helperBuffer);
-extern void   (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+
+void        tColDataDestroy(void *ph);
+void        tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
+void        tColDataClear(SColData *pColData);
+void        tColDataDeepClear(SColData *pColData);
+int32_t     tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t     tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
+void        tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+uint8_t     tColDataGetBitValue(const SColData *pColData, int32_t iVal);
+int32_t     tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+
+int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, void *output, int32_t outputSize,
+                         SBuffer *buffer);
+int32_t tColDataDecompress(void *input, int32_t inputSize, const SColDataCompressInfo *info, SColData *colData,
+                           SBuffer *helperBuffer);
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
@@ -205,7 +209,7 @@ struct STSchema {
   STColumn columns[];
 };
 
-/*
+/* TODO: here may change
  * 1. Tuple format:
  *      SRow + [bit map +] fix-length data + [var-length data +] [(type + offset) * numPrimaryKeyCols + fixedLen +
  * numOfCols + numPrimaryKeyCols]
@@ -234,11 +238,11 @@ struct SValue {
   };
 };
 
-#define TD_MAX_PRIMARY_KEY_COL 8
+#define TD_MAX_PK_COLS 2
 struct SRowKey {
   TSKEY   ts;
   uint8_t numOfPKs;
-  SValue  pks[TD_MAX_PRIMARY_KEY_COL];
+  SValue  pks[TD_MAX_PK_COLS];
 };
 
 struct SColVal {

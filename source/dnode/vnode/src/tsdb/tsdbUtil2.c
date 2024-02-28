@@ -71,7 +71,7 @@ int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
     tBufferInit(&statisBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnInit(&statisBlock->firstKeyPKs[i]);
     tValueColumnInit(&statisBlock->lastKeyPKs[i]);
   }
@@ -84,7 +84,7 @@ int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
     tBufferDestroy(&statisBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnDestroy(&statisBlock->firstKeyPKs[i]);
     tValueColumnDestroy(&statisBlock->lastKeyPKs[i]);
   }
@@ -97,7 +97,7 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
     tBufferClear(&statisBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnClear(&statisBlock->firstKeyPKs[i]);
     tValueColumnClear(&statisBlock->lastKeyPKs[i]);
   }
@@ -173,7 +173,7 @@ int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
     tBufferInit(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnInit(&brinBlock->firstKeyPKs[i]);
     tValueColumnInit(&brinBlock->lastKeyPKs[i]);
   }
@@ -186,7 +186,7 @@ int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
     tBufferDestroy(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnDestroy(&brinBlock->firstKeyPKs[i]);
     tValueColumnDestroy(&brinBlock->lastKeyPKs[i]);
   }
@@ -199,7 +199,7 @@ int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
     tBufferClear(&brinBlock->buffers[i]);
   }
-  for (int32_t i = 0; i < TD_MAX_PRIMARY_KEY_COL; ++i) {
+  for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     tValueColumnClear(&brinBlock->firstKeyPKs[i]);
     tValueColumnClear(&brinBlock->lastKeyPKs[i]);
   }
@@ -364,8 +364,8 @@ int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buff
   }
 
   // encode primary keys
-  SValueColumnCompressInfo firstKeyPKsInfos[TD_MAX_PRIMARY_KEY_COL];
-  SValueColumnCompressInfo lastKeyPKsInfos[TD_MAX_PRIMARY_KEY_COL];
+  SValueColumnCompressInfo firstKeyPKsInfos[TD_MAX_PK_COLS];
+  SValueColumnCompressInfo lastKeyPKsInfos[TD_MAX_PK_COLS];
 
   for (int32_t i = 0; i < brinBlk->numOfPKs; ++i) {
     SValueColumn *vc = &brinBlock->firstKeyPKs[i];
