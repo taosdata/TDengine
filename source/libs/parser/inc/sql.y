@@ -326,7 +326,7 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ tags_literal(D).              { A = createAlterTableSetTag(pCxt, B, &C, D); }
+  full_table_name(B) SET TAG column_name(C) NK_EQ tags_literal(D).                { A = createAlterTableSetTag(pCxt, B, &C, D); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -707,7 +707,7 @@ tags_literal(A) ::= NK_BOOL(B).                                                 
 tags_literal(A) ::= NULL(B).                                                      { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B, NULL); }
 
 tags_literal(A) ::= literal_func(B).                                              { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, NULL, B); }
-/*tags_literal(A) ::= duration_literal(B).                                          { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, NULL, B); }*/
+/*tags_literal(A) ::= duration_literal(B).                                        { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, NULL, B); }*/
 
 %type tags_literal_list                                                           { SNodeList* }
 %destructor tags_literal_list                                                     { nodesDestroyList($$); }
