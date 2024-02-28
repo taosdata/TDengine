@@ -16,6 +16,10 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 
 class BackendEnv : public ::testing::Test {
  protected:
@@ -56,18 +60,22 @@ void *backendOpen() {
   // default/state/fill/sess/func/parname/partag
   int32_t              size = 100;
   std::vector<int64_t> tsArray;
-  for (int i = 0; i < size; i++) {
-    int64_t     ts = taosGetTimestampMs();
-    SWinKey     key = {.groupId = (uint64_t)(i), .ts = ts};
+  for (int32_t i = 0; i < size; i++) {
+    int64_t ts = taosGetTimestampMs();
+    SWinKey key;  // = {.groupId = (uint64_t)(i), .ts = ts};
+    key.groupId = (uint64_t)(i);
+    key.ts = ts;
     const char *val = "value data";
     int32_t     vlen = strlen(val);
     streamStatePut_rocksdb(p, &key, (char *)val, vlen);
 
     tsArray.push_back(ts);
   }
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     int64_t ts = tsArray[i];
-    SWinKey key = {.groupId = (uint64_t)(i), .ts = ts};
+    SWinKey key = {0};  //{.groupId = (uint64_t)(i), .ts = ts};
+    key.groupId = (uint64_t)(i);
+    key.ts = ts;
 
     const char *val = "value data";
     int32_t     len = 0;
@@ -76,14 +84,20 @@ void *backendOpen() {
     ASSERT(len == strlen(val));
   }
   int64_t ts = tsArray[0];
-  SWinKey key = {.groupId = (uint64_t)(0), .ts = ts};
+  SWinKey key = {0};  // {.groupId = (uint64_t)(0), .ts = ts};
+  key.groupId = (uint64_t)(0);
+  key.ts = ts;
+
   streamStateDel_rocksdb(p, &key);
 
   streamStateClear_rocksdb(p);
 
   for (int i = 0; i < size; i++) {
-    int64_t     ts = tsArray[i];
-    SWinKey     key = {.groupId = (uint64_t)(i), .ts = ts};
+    int64_t ts = tsArray[i];
+    SWinKey key = {0};  //{.groupId = (uint64_t)(i), .ts = ts};
+    key.groupId = (uint64_t)(i);
+    key.ts = ts;
+
     const char *val = "value data";
     int32_t     len = 0;
     char       *newVal = NULL;
@@ -96,7 +110,10 @@ void *backendOpen() {
     int64_t ts = taosGetTimestampMs();
     tsArray.push_back(ts);
 
-    SWinKey     key = {.groupId = (uint64_t)(i), .ts = ts};
+    SWinKey key = {0};  //{.groupId = (uint64_t)(i), .ts = ts};
+    key.groupId = (uint64_t)(i);
+    key.ts = ts;
+
     const char *val = "value data";
     int32_t     vlen = strlen(val);
     streamStatePut_rocksdb(p, &key, (char *)val, vlen);
