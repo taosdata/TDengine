@@ -352,7 +352,7 @@ void taosResetLog() {
 static bool taosCheckFileIsOpen(char *logFileName) {
   TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
   if (pFile == NULL) {
-    if (errno == ENOENT) {
+    if (lastErrorIsFileNotExist()) {
       return false;
     } else {
       printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
@@ -576,6 +576,9 @@ void taosPrintSlowLog(const char *format, ...) {
   len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 - len, format, argpointer);
   va_end(argpointer);
 
+  if (len < 0 || len > LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2) {
+    len = LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2;
+  }
   buffer[len++] = '\n';
   buffer[len] = 0;
 

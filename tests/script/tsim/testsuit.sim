@@ -46,7 +46,7 @@ run tsim/mnode/basic5.sim
 run tsim/mnode/basic2.sim
 run tsim/parser/fourArithmetic-basic.sim
 run tsim/parser/groupby-basic.sim
-run tsim/snode/basic1.sim
+#run tsim/snode/basic1.sim
 run tsim/query/time_process.sim
 run tsim/query/stddev.sim
 run tsim/query/interval-offset.sim

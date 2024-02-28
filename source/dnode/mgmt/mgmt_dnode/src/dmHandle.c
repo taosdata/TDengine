@@ -130,7 +130,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, 5000);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[512] = {0};
@@ -326,12 +326,12 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
+#if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
   }
-
+#endif
   if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;

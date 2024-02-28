@@ -387,7 +387,7 @@ class TDTestCase:
         tdSql.query('select last(c1) from meters partition by t1')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
-        tdSql.checkRows(2)
+        tdSql.checkRows(5)
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c2 int"])
         p.check_returncode()
         tdSql.query_success_failed('select last(c1) from meters partition by t1',  queryTimes=10, expectErrInfo="Invalid column name: c1")

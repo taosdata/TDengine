@@ -216,11 +216,11 @@ static const SSysDbTableSchema userTblDistSchema[] = {
 };
 
 static const SSysDbTableSchema userUsersSchema[] = {
-    {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "super", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
-    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
-    {.name = "sysinfo", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "super", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "sysinfo", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
 };
 
 GRANTS_SCHEMA;
@@ -268,7 +268,7 @@ static const SSysDbTableSchema configSchema[] = {
 };
 
 static const SSysDbTableSchema variablesSchema[] = {
-    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "scope", .bytes = TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
@@ -296,7 +296,7 @@ static const SSysDbTableSchema subscriptionSchema[] = {
 static const SSysDbTableSchema vnodesSchema[] = {
     {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = true},
     {.name = "status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "role_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
@@ -304,11 +304,26 @@ static const SSysDbTableSchema vnodesSchema[] = {
 };
 
 static const SSysDbTableSchema userUserPrivilegesSchema[] = {
-    {.name = "user_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "user_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
+static const SSysDbTableSchema userCompactsSchema[] = {
+    {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userCompactsDetailSchema[] = {
+    {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "finished", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysTableMeta infosMeta[] = {
@@ -326,7 +341,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TAGS, userTagsSchema, tListLen(userTagsSchema), false},
     {TSDB_INS_TABLE_COLS, userColsSchema, tListLen(userColsSchema), false},
     // {TSDB_INS_TABLE_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
-    {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), false},
+    {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), true},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema), true},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), true},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false},
@@ -336,7 +351,9 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
     {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false},
     {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
-    {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), false},
+    {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), true},
+    {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
+    {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

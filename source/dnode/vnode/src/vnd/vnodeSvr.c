@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "audit.h"
 #include "tencode.h"
 #include "tmsg.h"
+#include "tstrbuild.h"
 #include "vnd.h"
 #include "vndCos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "audit.h"
-#include "tstrbuild.h"
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                        SRpcMsg *pOriginRpc);
+static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                       SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                      SRpcMsg *pOriginRpc);
+static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                     SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -42,6 +42,9 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+
+extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -180,7 +183,12 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     ttlReq.pTbUids = tbUids;
   }
 
-  { // prepare new content
+  if (ttlReq.nUids == 0) {
+    code = TSDB_CODE_MSG_PREPROCESSED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  {  // prepare new content
     int32_t reqLenNew = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
     int32_t contLenNew = reqLenNew + sizeof(SMsgHead);
 
@@ -204,7 +212,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 _exit:
   taosArrayDestroy(tbUids);
 
-  if (code) {
+  if (code && code != TSDB_CODE_MSG_PREPROCESSED) {
     vError("vgId:%d, %s:%d failed to preprocess drop ttl request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
            tstrerror(code), TMSG_INFO(pMsg->msgType));
   } else {
@@ -459,8 +467,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       break;
   }
 
-_exit:
-  if (code) {
+  if (code && code != TSDB_CODE_MSG_PREPROCESSED) {
     vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
            TMSG_INFO(pMsg->msgType));
   }
@@ -616,6 +623,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_SYNC_CONFIG_CHANGE:
       vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
       break;
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_KILL_COMPACT:
+      vnodeProcessKillCompactReq(pVnode, ver, pReq, len, pRsp);
+      break;
+#endif
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -725,6 +737,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_QUERY_COMPACT_PROGRESS:
+      return vnodeQueryCompactProgress(pVnode, pMsg);
+#endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
@@ -873,8 +889,8 @@ _err:
   return -1;
 }
 
-static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                        SRpcMsg *pOriginRpc) {
+static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                       SRpcMsg *pOriginRpc) {
   SDecoder           decoder = {0};
   SEncoder           encoder = {0};
   int32_t            rcode = 0;
@@ -902,7 +918,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
   rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
   tbUids = taosArrayInit(req.nReqs, sizeof(int64_t));
-  tbNames = taosArrayInit(req.nReqs, sizeof(char*));
+  tbNames = taosArrayInit(req.nReqs, sizeof(char *));
   if (rsp.pArray == NULL || tbUids == NULL || tbNames == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -924,8 +940,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       goto _exit;
     }
 
-    if(tsEnableAudit && tsEnableAuditCreateTable){
-      char* str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+    if (tsEnableAudit && tsEnableAuditCreateTable) {
+      char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         rcode = -1;
@@ -979,26 +995,26 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVCreateTbBatchRsp(&encoder, &rsp);
 
-  if(tsEnableAudit && tsEnableAuditCreateTable){
+  if (tsEnableAudit && tsEnableAuditCreateTable) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     SName name = {0};
     tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
     SStringBuilder sb = {0};
-    for(int32_t i = 0; i < tbNames->size; i++){
-      char** key = (char**)taosArrayGet(tbNames, i);
+    for (int32_t i = 0; i < tbNames->size; i++) {
+      char **key = (char **)taosArrayGet(tbNames, i);
       taosStringBuilderAppendStringLen(&sb, *key, strlen(*key));
-      if(i < tbNames->size - 1){
+      if (i < tbNames->size - 1) {
         taosStringBuilderAppendChar(&sb, ',');
       }
       taosMemoryFreeClear(*key);
     }
 
-    size_t    len = 0;
-    char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
+    size_t len = 0;
+    char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditAddRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
     }
 
@@ -1010,7 +1026,7 @@ _exit:
     pCreateReq = req.pReqs + iReq;
     taosMemoryFree(pCreateReq->sql);
     taosMemoryFree(pCreateReq->comment);
-    taosArrayDestroy(pCreateReq->ctb.tagName);    
+    taosArrayDestroy(pCreateReq->ctb.tagName);
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
@@ -1143,7 +1159,7 @@ _exit:
 }
 
 static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
-                                    SRpcMsg *pOriginRpc) {
+                                     SRpcMsg *pOriginRpc) {
   SVDropTbBatchReq req = {0};
   SVDropTbBatchRsp rsp = {0};
   SDecoder         decoder = {0};
@@ -1170,7 +1186,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   // process req
   tbUids = taosArrayInit(req.nReqs, sizeof(int64_t));
   rsp.pArray = taosArrayInit(req.nReqs, sizeof(SVDropTbRsp));
-  tbNames = taosArrayInit(req.nReqs, sizeof(char*));
+  tbNames = taosArrayInit(req.nReqs, sizeof(char *));
   if (tbUids == NULL || rsp.pArray == NULL || tbNames == NULL) goto _exit;
 
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
@@ -1192,9 +1208,9 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
 
     taosArrayPush(rsp.pArray, &dropTbRsp);
-    
-    if(tsEnableAuditCreateTable){
-      char* str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+
+    if (tsEnableAuditCreateTable) {
+      char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       strcpy(str, pDropTbReq->name);
       taosArrayPush(tbNames, &str);
     }
@@ -1203,32 +1219,32 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   tdUpdateTbUidList(pVnode->pSma, pStore, false);
 
-  if(tsEnableAuditCreateTable){
+  if (tsEnableAuditCreateTable) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     SName name = {0};
     tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
     SStringBuilder sb = {0};
-    for(int32_t iReq = 0; iReq < req.nReqs; iReq++){
-      char** key = (char**)taosArrayGet(tbNames, iReq);
+    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+      char **key = (char **)taosArrayGet(tbNames, iReq);
       taosStringBuilderAppendStringLen(&sb, *key, strlen(*key));
-      if(iReq < req.nReqs - 1){
+      if (iReq < req.nReqs - 1) {
         taosStringBuilderAppendChar(&sb, ',');
       }
       taosMemoryFreeClear(*key);
     }
 
-    size_t    len = 0;
-    char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
+    size_t len = 0;
+    char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditAddRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
     }
 
     taosStringBuilderDestroy(&sb);
   }
-  
+
 _exit:
   taosArrayDestroy(tbUids);
   tdUidStoreFree(pStore);
@@ -1513,10 +1529,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
       SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
       TSKEY    *aKey = (TSKEY *)(pColData->pData);
-      vDebug("vgId:%d submit %d rows data, uid:%"PRId64, TD_VID(pVnode), pColData->nVal, pSubmitTbData->uid);
+      vDebug("vgId:%d submit %d rows data, uid:%" PRId64, TD_VID(pVnode), pColData->nVal, pSubmitTbData->uid);
 
       for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
-        vDebug("vgId:%d uid:%"PRId64" ts:%"PRId64, TD_VID(pVnode), pSubmitTbData->uid, aKey[iRow]);
+        vDebug("vgId:%d uid:%" PRId64 " ts:%" PRId64, TD_VID(pVnode), pSubmitTbData->uid, aKey[iRow]);
 
         if (aKey[iRow] < minKey || aKey[iRow] > maxKey || (iRow > 0 && aKey[iRow] <= aKey[iRow - 1])) {
           code = TSDB_CODE_INVALID_MSG;
@@ -1529,9 +1545,9 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
 
-      vDebug("vgId:%d submit %d rows data, uid:%"PRId64, TD_VID(pVnode), nRow, pSubmitTbData->uid);
+      vDebug("vgId:%d submit %d rows data, uid:%" PRId64, TD_VID(pVnode), nRow, pSubmitTbData->uid);
       for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-        vDebug("vgId:%d uid:%"PRId64" ts:%"PRId64, TD_VID(pVnode), pSubmitTbData->uid, aRow[iRow]->ts);
+        vDebug("vgId:%d uid:%" PRId64 " ts:%" PRId64, TD_VID(pVnode), pSubmitTbData->uid, aRow[iRow]->ts);
 
         if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey || (iRow > 0 && aRow[iRow]->ts <= aRow[iRow - 1]->ts)) {
           code = TSDB_CODE_INVALID_MSG;
@@ -1641,7 +1657,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
           code = terrno;
           vError("vgId:%d failed to create table:%s, code:%s", TD_VID(pVnode), pSubmitTbData->pCreateTbReq->name,
-              tstrerror(terrno));
+                 tstrerror(terrno));
           goto _exit;
         }
         terrno = 0;

@@ -1033,6 +1033,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       mndReleaseTopic(pMnode, pTopic);
       goto _OVER;
     }
+    mndReleaseTopic(pMnode, pTopic);
     taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
   }
 
@@ -1043,6 +1044,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       mndReleaseTopic(pMnode, pTopic);
       goto _OVER;
     }
+    mndReleaseTopic(pMnode, pTopic);
     taosHashRemove(newUser.topics, alterReq.objname, len);
   }
 
@@ -1388,7 +1390,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
 
-      char objName[20] = {0};
+      char objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(objName, "all", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);

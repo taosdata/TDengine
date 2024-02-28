@@ -946,7 +946,7 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
     SNode*            pTarget = NULL;
     bool              found = false;
     FOREACH(pTarget, pTargets) {
-      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) ||
+      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) || 
           (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))) {
         code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pTarget));
         if (TSDB_CODE_SUCCESS != code) {
@@ -1045,8 +1045,10 @@ static int32_t stbSplSplitSortNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
 
 static int32_t stbSplGetSplitNodeForScan(SStableSplitInfo* pInfo, SLogicNode** pSplitNode) {
   *pSplitNode = pInfo->pSplitNode;
-  if (NULL != pInfo->pSplitNode->pParent && QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pInfo->pSplitNode->pParent) &&
-      NULL == pInfo->pSplitNode->pParent->pLimit && NULL == pInfo->pSplitNode->pParent->pSlimit) {
+  if (NULL != pInfo->pSplitNode->pParent && 
+      QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pInfo->pSplitNode->pParent) &&
+      NULL == pInfo->pSplitNode->pParent->pLimit && NULL == pInfo->pSplitNode->pParent->pSlimit && 
+      !((SProjectLogicNode*)pInfo->pSplitNode->pParent)->inputIgnoreGroup) {
     *pSplitNode = pInfo->pSplitNode->pParent;
     if (NULL != pInfo->pSplitNode->pLimit) {
       (*pSplitNode)->pLimit = nodesCloneNode(pInfo->pSplitNode->pLimit);

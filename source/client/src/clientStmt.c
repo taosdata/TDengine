@@ -229,7 +229,7 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
   }
   STableDataCxt* pDst = NULL;
 
-  STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc, true));
+  STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc, true, true));
 
   SStmtTableCache cache = {
       .pDataCtx = pDst,
@@ -406,10 +406,6 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (NULL == pStmt->sql.pTableCache || taosHashGetSize(pStmt->sql.pTableCache) <= 0) {
     if (pStmt->bInfo.inExecCache) {
-      if (ASSERT(taosHashGetSize(pStmt->exec.pBlockHash) == 1)) {
-        tscError("stmtGetFromCache error");
-        return TSDB_CODE_TSC_STMT_CACHE_ERROR;
-      }
       pStmt->bInfo.needParse = false;
       tscDebug("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;
@@ -689,7 +685,7 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
 int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_DLOG("start to bind stmt data, colIdx: %d", colIdx);
+  STMT_DLOG("start to bind stmt data, colIdx: %d, rowNum: %d", colIdx, bind->num);
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 

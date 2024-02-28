@@ -169,6 +169,7 @@ typedef struct SBoundColInfo {
 } SBoundColInfo;
 
 typedef struct STableDataCxt {
+  bool           metaPointer;
   STableMeta*    pMeta;
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;

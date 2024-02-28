@@ -621,7 +621,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->igExpired = pScanLogicNode->igExpired;
   pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
-
+  pTableScan->paraTablesSort = pScanLogicNode->paraTablesSort;
+  
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pTableScan->scan.node.pOutputDataBlockDesc->dataBlockId, -1, pScanLogicNode->pTags,
@@ -1429,6 +1430,7 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
 
   pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
   pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
+  pProject->inputIgnoreGroup = pProjectLogicNode->inputIgnoreGroup;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {

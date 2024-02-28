@@ -729,6 +729,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SDbObj *           pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
   SStreamObj         streamObj = {0};
+  char              *sql = NULL;
+  int32_t            sqlLen = 0;
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -759,8 +761,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  char* sql = NULL;
-  int32_t sqlLen = 0;
   if(createStreamReq.sql != NULL){
     sqlLen = strlen(createStreamReq.sql);
     sql = taosMemoryMalloc(sqlLen + 1);

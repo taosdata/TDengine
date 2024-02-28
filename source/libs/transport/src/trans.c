@@ -140,11 +140,7 @@ void* rpcMallocCont(int64_t contLen) {
   return start + sizeof(STransMsgHead);
 }
 
-void rpcFreeCont(void* cont) {
-  if (cont == NULL) return;
-  taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
-  tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
-}
+void rpcFreeCont(void* cont) { transFreeMsg(cont); }
 
 void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);

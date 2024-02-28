@@ -381,6 +381,18 @@ SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToke
   return (SNode*)val;
 }
 
+static bool hasHint(SNodeList* pHintList, EHintOption hint) {
+  if (!pHintList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pHintList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == hint) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
@@ -392,6 +404,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
       }
       break;
     }
+    case HINT_PARA_TABLES_SORT:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
+      break;    
     default:
       return true;
   }
@@ -454,6 +469,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         opt = HINT_NO_BATCH_SCAN;
         break;
+      case TK_PARA_TABLES_SORT:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_PARA_TABLES_SORT;
+        break;        
       case TK_NK_LP:
         lastComma = false;
         if (0 == opt || inParamList) {
@@ -1578,6 +1601,13 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   return (SNode*)pStmt;
 }
 
+SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCompactsStmt* pStmt = (SShowCompactsStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1687,6 +1717,13 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
   pStmt->pDbName = pDbName;
   pStmt->pTbName = pTbName;
   pStmt->pTags = pTags;
+  return (SNode*)pStmt;
+}
+
+SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)nodesMakeNode(QUERY_NODE_SHOW_COMPACT_DETAILS_STMT);
+  pStmt->pCompactId = pCompactId;
   return (SNode*)pStmt;
 }
 

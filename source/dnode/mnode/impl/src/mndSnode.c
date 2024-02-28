@@ -257,6 +257,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
 
@@ -275,49 +276,52 @@ _OVER:
 }
 
 static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  int32_t          code = -1;
-  SSnodeObj       *pObj = NULL;
-  SDnodeObj       *pDnode = NULL;
-  SMCreateSnodeReq createReq = {0};
+//  SMnode          *pMnode = pReq->info.node;
+//  int32_t          code = -1;
+//  SSnodeObj       *pObj = NULL;
+//  SDnodeObj       *pDnode = NULL;
+//  SMCreateSnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  mInfo("snode:%d, start to create", createReq.dnodeId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
-    goto _OVER;
-  }
-
-  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
-  if (pObj != NULL) {
-    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
-    goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
-    goto _OVER;
-  }
-
-  pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
-  if (pDnode == NULL) {
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto _OVER;
-  }
-
-  code = mndCreateSnode(pMnode, pReq, pDnode, &createReq);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
-    return -1;
-  }
-
-  mndReleaseSnode(pMnode, pObj);
-  mndReleaseDnode(pMnode, pDnode);
-  tFreeSMCreateQnodeReq(&createReq);
-  return code;
+  terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+  return terrno;
+//
+//  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+//    terrno = TSDB_CODE_INVALID_MSG;
+//    goto _OVER;
+//  }
+//
+//  mInfo("snode:%d, start to create", createReq.dnodeId);
+//  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
+//    goto _OVER;
+//  }
+//
+//  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
+//  if (pObj != NULL) {
+//    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+//    goto _OVER;
+//  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
+//    goto _OVER;
+//  }
+//
+//  pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
+//  if (pDnode == NULL) {
+//    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+//    goto _OVER;
+//  }
+//
+//  code = mndCreateSnode(pMnode, pReq, pDnode, &createReq);
+//  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+//
+//_OVER:
+//  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+//    mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
+//    return -1;
+//  }
+//
+//  mndReleaseSnode(pMnode, pObj);
+//  mndReleaseDnode(pMnode, pDnode);
+//  tFreeSMCreateQnodeReq(&createReq);
+//  return code;
 }
 
 static int32_t mndSetDropSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
@@ -378,6 +382,7 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
   if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;

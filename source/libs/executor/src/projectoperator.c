@@ -27,6 +27,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo     limitInfo;
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
+  bool           inputIgnoreGroup;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -109,7 +110,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
-
+  pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
+  
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     pInfo->mergeDataBlocks = false;
   } else {
@@ -298,6 +300,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         return pBlock;
       }
 
+      if (pProjectInfo->inputIgnoreGroup) {
+        pBlock->info.id.groupId = 0;
+      }
+
       int32_t status = discardGroupDataBlock(pBlock, pLimitInfo);
       if (status == PROJECT_RETRIEVE_CONTINUE) {
         continue;
@@ -453,7 +459,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 _error:
   destroyIndefinitOperatorInfo(pInfo);
   taosMemoryFree(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 

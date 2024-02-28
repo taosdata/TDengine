@@ -342,6 +342,21 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
+static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record){
+  pBlockInfo->uid = record->uid;
+  pBlockInfo->firstKey = record->firstKey;
+  pBlockInfo->lastKey = record->lastKey;
+  pBlockInfo->minVer = record->minVer;
+  pBlockInfo->maxVer = record->maxVer;
+  pBlockInfo->blockOffset = record->blockOffset;
+  pBlockInfo->smaOffset = record->smaOffset;
+  pBlockInfo->blockSize = record->blockSize;
+  pBlockInfo->blockKeySize = record->blockKeySize;
+  pBlockInfo->smaSize = record->smaSize;
+  pBlockInfo->numRow = record->numRow;
+  pBlockInfo->count = record->count;
+}
+
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
   bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
@@ -399,8 +414,9 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
       pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
     }
     for (int32_t i = 0; i < numOfBlocks; ++i) {
-      SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[0][i].uid, .tbBlockIdx = i};
-      blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
+      SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      recordToBlockInfo(&blockInfo, record);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
 
@@ -435,11 +451,12 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t pos = tMergeTreeGetChosenIndex(pTree);
     int32_t index = sup.indexPerTable[pos]++;
 
-    SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[pos][index].uid, .tbBlockIdx = index};
-    blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
+    SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    recordToBlockInfo(&blockInfo, record);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
-    STableBlockScanInfo *pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
+    STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
     if (pTableScanInfo->pBlockIdxList == NULL) {
       size_t szTableDataBlocks = taosArrayGetSize(pTableScanInfo->pBlockList);
       pTableScanInfo->pBlockIdxList = taosArrayInit(szTableDataBlocks, sizeof(STableDataBlockIdx));
@@ -493,7 +510,7 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
   int32_t     code = 0;
   STombRecord record = {0};
 
-  uint64_t    uid = pReader->status.uidList.tableUidList[*j];
+  uint64_t             uid = pReader->status.uidList.tableUidList[*j];
   STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
   if (pScanInfo->pFileDelData == NULL) {
     pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
@@ -584,12 +601,12 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
       return code;
     }
 
-//    uint64_t uid = pReader->status.uidList.tableUidList[j];
+    //    uint64_t uid = pReader->status.uidList.tableUidList[j];
 
-//    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-//    if (pScanInfo->pFileDelData == NULL) {
-//      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
-//    }
+    //    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+    //    if (pScanInfo->pFileDelData == NULL) {
+    //      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+    //    }
 
     ETombBlkCheckEnum ret = 0;
     code = doCheckTombBlock(&block, pReader, numOfTables, &j, &ret);
@@ -639,6 +656,7 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
 
   SDelData* p = NULL;
   if (pMemTbData != NULL) {
+    taosRLockLatch(&pMemTbData->lock);
     p = pMemTbData->pHead;
     while (p) {
       if (p->version <= ver) {
@@ -647,6 +665,7 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
 
       p = p->pNext;
     }
+    taosRUnLockLatch(&pMemTbData->lock);
   }
 
   if (piMemTbData != NULL) {

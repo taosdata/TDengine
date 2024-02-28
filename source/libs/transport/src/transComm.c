@@ -87,6 +87,7 @@ void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
+  tTrace("rpc free cont:%p", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
@@ -665,6 +666,7 @@ void transDestroySyncMsg(void* msg) {
   STransSyncMsg* pSyncMsg = msg;
   tsem_destroy(pSyncMsg->pSem);
   taosMemoryFree(pSyncMsg->pSem);
+  transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);
   taosMemoryFree(pSyncMsg);
 }
