@@ -1,11 +1,13 @@
 from urllib.parse import uses_relative
 import taos
+import taosws
 import sys
 import os
 import time
 import platform
 import inspect
 from taos.tmq import Consumer
+from taos.tmq import *
 
 from pathlib import Path
 from util.log import *
@@ -106,6 +108,9 @@ class TDTestCase:
         tdDnodes.stop(1)
         print(f"start taosd: rm -rf {dataPath}/*  && nohup taosd -c {cPath} & ")
         os.system(f"rm -rf {dataPath}/*  && nohup taosd -c {cPath} & " )
+        os.system(f"killall taosadapter" )
+        os.system(f" nohup taosadapter & " )
+
         sleep(5)
 
 
@@ -167,7 +172,41 @@ class TDTestCase:
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
+        
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+        try:
+            consumer.subscribe(["tmq_test_topic"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
 
+        while True:
+            message = consumer.poll(timeout=1.0)
+            if message:
+                print("message")
+                id = message.vgroup()
+                topic = message.topic()
+                database = message.database()
+
+                for block in message:
+                    nrows = block.nrows()
+                    ncols = block.ncols()
+                    for row in block:
+                        print(row)
+                    values = block.fetchall()
+                    print(nrows, ncols)
+
+                consumer.commit(message)
+            else:
+                print("break")
+                break
+
+        consumer.close()
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
@@ -193,6 +232,7 @@ class TDTestCase:
         tdsql=tdCom.newTdSql()
         print(tdsql)
         cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+        print(os.system(cmd))
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
         
