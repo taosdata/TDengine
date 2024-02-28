@@ -111,6 +111,8 @@ const actions = {
       if (JSON.stringify(params) === '{}') return resolve();
       execFn(params, name)
         .then(() => {
+          // 解决删除后又立马创建同名数据库
+          commit('SET_CURRENT_DBNAME',"")
           commit('SET_CURRENT_DBNAME',name)
           if (state.formStatus == "create") {
             commit("HANDLE_ADD_DB");
