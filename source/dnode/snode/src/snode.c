@@ -85,15 +85,14 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   // checkpoint ver is the kept version, handled data should be the next version.
-  if (pTask->chkInfo.checkpointId != 0) {
-    pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
+  if (pChkInfo->checkpointId != 0) {
+    pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
+    pChkInfo->processedVer = pChkInfo->checkpointVer;
     sndInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64,
             pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
-  char *p = NULL;
-  streamTaskGetStatus(pTask, &p);
-
+  char* p = streamTaskGetStatus(pTask)->name;
   if (pTask->info.fillHistory) {
     sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
@@ -147,7 +146,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  tqStreamTaskResetStatus(pSnode->pMeta);
+  streamMetaResetTaskStatus(pSnode->pMeta);
   streamMetaStartAllTasks(pSnode->pMeta);
   return 0;
 }
@@ -173,16 +172,18 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:  // 1036
       break;
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
-      return tqStreamTaskProcessScanHistoryFinishReq(pSnode->pMeta, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return tqStreamTaskProcessScanHistoryFinishRsp(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
       return tqStreamTaskProcessCheckReq(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return tqStreamTaskProcessCheckRsp(pSnode->pMeta, pMsg, true);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqStreamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_HEARTBEAT_RSP:
+      return tqStreamProcessStreamHbRsp(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_REQ_CHKPT_RSP:
+      return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
+      return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);
@@ -195,7 +196,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DEPLOY: {
       void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, -1, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb,pMsg->info.conn.applyIndex, pReq, len, true, true);
     }
 
     case TDMT_STREAM_TASK_DROP:
@@ -204,6 +205,10 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
     case TDMT_VND_STREAM_TASK_RESET:
       return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_TASK_PAUSE:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_RESUME:
+      return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
     default:
       ASSERT(0);
   }

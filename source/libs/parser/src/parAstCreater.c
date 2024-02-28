@@ -371,6 +371,18 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+static bool hasHint(SNodeList* pHintList, EHintOption hint) {
+  if (!pHintList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pHintList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == hint) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
@@ -384,6 +396,13 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     }
     case HINT_SORT_FOR_GROUP:
       if (paramNum > 0) return true;
+      if (hasHint(*ppHintList, HINT_PARTITION_FIRST)) return true;
+      break;
+    case HINT_PARTITION_FIRST:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_SORT_FOR_GROUP)) return true;
+      break;
+    case HINT_PARA_TABLES_SORT:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
       break;
     default:
       return true;
@@ -454,6 +473,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SORT_FOR_GROUP;
+        break;
+      case TK_PARTITION_FIRST:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_PARTITION_FIRST;
+        break;
+      case TK_PARA_TABLES_SORT:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_PARA_TABLES_SORT;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -857,6 +892,20 @@ SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* 
   pEvent->pStartCond = pStartCond;
   pEvent->pEndCond = pEndCond;
   return (SNode*)pEvent;
+}
+
+SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCountWindowNode* pCount = (SCountWindowNode*)nodesMakeNode(QUERY_NODE_COUNT_WINDOW);
+  CHECK_OUT_OF_MEM(pCount);
+  pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
+  if (NULL == pCount->pCol) {
+    nodesDestroyNode((SNode*)pCount);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
+  pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
+  return (SNode*)pCount;
 }
 
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
@@ -2160,6 +2209,17 @@ SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
   pStmt->ignoreNotExists = ignoreNotExists;
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->cgroup, pCGroupId);
+  return (SNode*)pStmt;
+}
+
+SNode* createAlterClusterStmt(SAstCreateContext* pCxt, const SToken* pConfig, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterClusterStmt* pStmt = (SAlterClusterStmt*)nodesMakeNode(QUERY_NODE_ALTER_CLUSTER_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  trimString(pConfig->z, pConfig->n, pStmt->config, sizeof(pStmt->config));
+  if (NULL != pValue) {
+    trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
+  }
   return (SNode*)pStmt;
 }
 

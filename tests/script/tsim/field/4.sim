@@ -619,56 +619,56 @@ if $data00 != 100 then
 endi
 
 print =============== step22
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 group by tgcol1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 group by tgcol1 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1  group by tgcol1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1  group by tgcol1 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol1 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol1 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
 print =============== step23
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 group by tgcol2 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 group by tgcol2 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1  group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1  group by tgcol2 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol2 order by count(tbcol1) desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1

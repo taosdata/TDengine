@@ -122,6 +122,8 @@ typedef struct SExHandle {
 
 typedef struct {
   STransMsg* pRsp;
+  SEpSet     epSet;
+  int8_t     hasEpSet;
   tsem_t*    pSem;
   int8_t     inited;
   SRWLatch   latch;
@@ -317,7 +319,8 @@ int transReleaseSrvHandle(void* handle);
 
 int  transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
 int  transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int  transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int32_t timeoutMs);
+int  transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+                              int32_t timeoutMs);
 int  transSendResponse(const STransMsg* msg);
 int  transRegisterMsg(const STransMsg* msg);
 int  transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
@@ -424,6 +427,8 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */

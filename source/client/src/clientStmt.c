@@ -406,10 +406,6 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (NULL == pStmt->sql.pTableCache || taosHashGetSize(pStmt->sql.pTableCache) <= 0) {
     if (pStmt->bInfo.inExecCache) {
-      if (ASSERT(taosHashGetSize(pStmt->exec.pBlockHash) == 1)) {
-        tscError("stmtGetFromCache error");
-        return TSDB_CODE_TSC_STMT_CACHE_ERROR;
-      }
       pStmt->bInfo.needParse = false;
       tscDebug("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;

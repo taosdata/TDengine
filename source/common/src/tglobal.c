@@ -27,7 +27,7 @@
 #include "cus_name.h"
 #endif
 
-GRANT_CFG_DECLARE;
+// GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
 
@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 4.0;
+float   tsRatioOfVnodeStreamThreads = 1.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -72,6 +72,7 @@ int32_t tsPQSortMemThreshold = 16;      // M
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
+int32_t tsSnapReplMaxWaitN = 128;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -93,11 +94,14 @@ char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
+bool     tsMonitorLogProtocol = false;
+int32_t  tsMonitorIntervalForBasic = 30;
+bool     tsMonitorForceV2 = true;
 
 // audit
-bool     tsEnableAudit = true;
-bool     tsEnableAuditCreateTable = true;
-int32_t  tsAuditInterval = 5000;
+bool    tsEnableAudit = true;
+bool    tsEnableAuditCreateTable = true;
+int32_t tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -108,7 +112,7 @@ bool    tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char *   tsTelemUri = "/report";
+char    *tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
 bool tsEnableCrashReport = false;
@@ -252,7 +256,7 @@ int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 60;
 float   tsSinkDataRate = 2.0;
-int32_t tsStreamNodeCheckInterval = 15;
+int32_t tsStreamNodeCheckInterval = 16;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
@@ -264,6 +268,8 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
+int     tsStreamAggCnt = 1000;
+bool    tsDisableCount = true;
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -282,7 +288,7 @@ int32_t tsS3BlockCacheSize = 16;   // number of blocks
 int32_t tsS3PageCacheSize = 4096;  // number of pages
 int32_t tsS3UploadDelaySec = 60 * 60 * 24;
 
-bool    tsExperimental = true;
+bool tsExperimental = true;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -423,7 +429,7 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "asyncLog", tsAsyncLog, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
-  if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "simDebugFlag", simDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
@@ -497,7 +503,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0)
     return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_SERVER, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, CFG_SCOPE_CLIENT,
                   CFG_DYN_NONE) != 0)
     return -1;
@@ -533,6 +539,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "disableCount", tsDisableCount, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
   return 0;
 }
 
@@ -621,7 +631,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
       0)
     return -1;
 
-  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, CFG_SCOPE_SERVER,
+  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 4, CFG_SCOPE_SERVER,
                   CFG_DYN_NONE) != 0)
     return -1;
 
@@ -673,6 +683,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER,
                   CFG_DYN_NONE) != 0)
     return -1;
+  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16,
+                  (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
@@ -688,11 +701,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-
+  if (cfgAddBool(pCfg, "monitorLogProtocol", tsMonitorLogProtocol, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorIntervalForBasic", tsMonitorIntervalForBasic, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
+  if (cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+    
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH, CFG_DYN_ENT_SERVER) != 0) return -1;
@@ -711,8 +727,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
-  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
-      0)
+  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER,
+                  CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
@@ -746,6 +762,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
+  if (cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
 
   if (cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER,
@@ -801,7 +819,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
-  GRANT_CFG_ADD;
+  // GRANT_CFG_ADD;
   return 0;
 }
 
@@ -962,6 +980,7 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
   qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
   cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+  simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
 }
 
 static void taosSetServerLogCfg(SConfig *pCfg) {
@@ -1074,6 +1093,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
   tsMetaCacheMaxSize = cfgGetItem(pCfg, "metaCacheMaxSize")->i32;
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+  tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
+  tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
   if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
     return -1;
   }
@@ -1088,6 +1109,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
+
+  tsDisableCount = cfgGetItem(pCfg, "disableCount")->bval;
   return 0;
 }
 
@@ -1148,7 +1171,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
   tsMonitorComp = cfgGetItem(pCfg, "monitorComp")->bval;
   tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
-
+  tsMonitorLogProtocol = cfgGetItem(pCfg, "monitorLogProtocol")->bval;
+  tsMonitorIntervalForBasic = cfgGetItem(pCfg, "monitorIntervalForBasic")->i32;
+  tsMonitorForceV2 = cfgGetItem(pCfg, "monitorForceV2")->i32;
+  
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
   tsAuditInterval = cfgGetItem(pCfg, "auditInterval")->i32;
@@ -1182,6 +1208,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
+  tsSnapReplMaxWaitN = cfgGetItem(pCfg, "syncSnapReplMaxWaitN")->i32;
 
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
@@ -1208,6 +1235,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsStreamAggCnt = cfgGetItem(pCfg, "streamAggCnt")->i32;
+  tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
   tsStreamCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i32;
   tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->fval;
 
@@ -1224,7 +1253,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
 
-  GRANT_CFG_GET;
+  // GRANT_CFG_GET;
   return 0;
 }
 
@@ -1278,7 +1307,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     taosSetServerLogCfg(pCfg);
   }
 
-  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
+  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
   if (taosMulModeMkDir(tsLogDir, 0777, true) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1356,6 +1385,8 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   taosSetSystemCfg(tsCfg);
   if (taosSetFileHandlesLimit() != 0) return -1;
 
+  taosSetAllDebugFlag(cfgGetItem(tsCfg, "debugFlag")->i32);
+
   cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
@@ -1374,7 +1405,7 @@ void taosCleanupCfg() {
 
 typedef struct {
   const char *optionName;
-  void *      optionVar;
+  void       *optionVar;
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
@@ -1387,7 +1418,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
-        bool *  pVar = pOptions[d].optionVar;
+        bool   *pVar = pOptions[d].optionVar;
         uInfo("%s set from %d to %d", optName, *pVar, flag);
         *pVar = flag;
         terrno = TSDB_CODE_SUCCESS;
@@ -1399,7 +1430,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
         *pVar = flag;
 
         if (isDebugflag) {
-          taosSetDebugFlag(pOptions[d].optionVar, optName, flag, true);
+          taosSetDebugFlag(pOptions[d].optionVar, optName, flag);
         }
         terrno = TSDB_CODE_SUCCESS;
       } break;
@@ -1447,8 +1478,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
-    int32_t flag = pItem->i32;
-    taosSetAllDebugFlag(flag, true);
+    taosSetAllDebugFlag(pItem->i32);
     return 0;
   }
 
@@ -1460,43 +1490,41 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag}, {"tdbDebugFlag", &tdbDebugFlag},
         {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},     {"smaDebugFlag", &smaDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},     {"metaDebugFlag", &metaDebugFlag},
-        {"jniDebugFlag", &jniDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
+        {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
     };
 
-    static OptionNameAndVar options[] = {
-        {"audit", &tsEnableAudit},
-        {"asynclog", &tsAsyncLog},
-        {"disableStream", &tsDisableStream},
-        {"enableWhiteList", &tsEnableWhiteList},
-        {"telemetryReporting", &tsEnableTelem},
-        {"monitor", &tsEnableMonitor},
+    static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
+                                         {"asynclog", &tsAsyncLog},
+                                         {"disableStream", &tsDisableStream},
+                                         {"enableWhiteList", &tsEnableWhiteList},
+                                         {"telemetryReporting", &tsEnableTelem},
+                                         {"monitor", &tsEnableMonitor},
 
-        {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
-        {"minDiskFreeSize", &tsMinDiskFreeSize},
+                                         {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
+                                         {"minDiskFreeSize", &tsMinDiskFreeSize},
 
-        {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
-        {"checkpointInterval", &tsStreamCheckpointInterval},
-        {"keepAliveIdle", &tsKeepAliveIdle},
-        {"logKeepDays", &tsLogKeepDays},
-        {"maxStreamBackendCache", &tsMaxStreamBackendCache},
-        {"mqRebalanceInterval", &tsMqRebalanceInterval},
-        {"numOfLogLines", &tsNumOfLogLines},
-        {"queryRspPolicy", &tsQueryRspPolicy},
-        {"timeseriesThreshold", &tsTimeSeriesThreshold},
-        {"tmqMaxTopicNum", &tmqMaxTopicNum},
-        {"transPullupInterval", &tsTransPullupInterval},
-        {"compactPullupInterval", &tsCompactPullupInterval},
-        {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
-        {"ttlBatchDropNum", &tsTtlBatchDropNum},
-        {"ttlFlushThreshold", &tsTtlFlushThreshold},
-        {"ttlPushInterval", &tsTtlPushIntervalSec},
-        //{"s3BlockSize", &tsS3BlockSize},
-        {"s3BlockCacheSize", &tsS3BlockCacheSize},
-        {"s3PageCacheSize", &tsS3PageCacheSize},
-        {"s3UploadDelaySec", &tsS3UploadDelaySec},
-        {"supportVnodes", &tsNumOfSupportVnodes},
-        {"experimental", &tsExperimental}
-    };
+                                         {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
+                                         {"checkpointInterval", &tsStreamCheckpointInterval},
+                                         {"keepAliveIdle", &tsKeepAliveIdle},
+                                         {"logKeepDays", &tsLogKeepDays},
+                                         {"maxStreamBackendCache", &tsMaxStreamBackendCache},
+                                         {"mqRebalanceInterval", &tsMqRebalanceInterval},
+                                         {"numOfLogLines", &tsNumOfLogLines},
+                                         {"queryRspPolicy", &tsQueryRspPolicy},
+                                         {"timeseriesThreshold", &tsTimeSeriesThreshold},
+                                         {"tmqMaxTopicNum", &tmqMaxTopicNum},
+                                         {"transPullupInterval", &tsTransPullupInterval},
+                                         {"compactPullupInterval", &tsCompactPullupInterval},
+                                         {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
+                                         {"ttlBatchDropNum", &tsTtlBatchDropNum},
+                                         {"ttlFlushThreshold", &tsTtlFlushThreshold},
+                                         {"ttlPushInterval", &tsTtlPushIntervalSec},
+                                         //{"s3BlockSize", &tsS3BlockSize},
+                                         {"s3BlockCacheSize", &tsS3BlockCacheSize},
+                                         {"s3PageCacheSize", &tsS3PageCacheSize},
+                                         {"s3UploadDelaySec", &tsS3UploadDelaySec},
+                                         {"supportVnodes", &tsNumOfSupportVnodes},
+                                         {"experimental", &tsExperimental}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1524,8 +1552,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   switch (lowcaseName[0]) {
     case 'd': {
       if (strcasecmp("debugFlag", name) == 0) {
-        int32_t flag = pItem->i32;
-        taosSetAllDebugFlag(flag, true);
+        taosSetAllDebugFlag(pItem->i32);
         matched = true;
       }
       break;
@@ -1598,10 +1625,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsTempSpace.reserved);
         matched = true;
-      } else if (strcasecmp("minimalDataDirGB", name) == 0) {
-        tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-        uInfo("%s set to %" PRId64, name, tsDataSpace.reserved);
-        matched = true;
       } else if (strcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
@@ -1672,10 +1695,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
           return -1;
         }
         matched = true;
-      } else if (strcasecmp("telemetryServer", name) == 0) {
-        uInfo("%s set from %s to %s", name, pItem->str, tsTelemServer);
-        tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
-        matched = true;
       }
       break;
     }
@@ -1691,36 +1710,35 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         {"cDebugFlag", &cDebugFlag},     {"dDebugFlag", &dDebugFlag},     {"fsDebugFlag", &fsDebugFlag},
         {"idxDebugFlag", &idxDebugFlag}, {"jniDebugFlag", &jniDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"smaDebugFlag", &smaDebugFlag}, {"tmrDebugFlag", &tmrDebugFlag},
-        {"uDebugFlag", &uDebugFlag},
+        {"uDebugFlag", &uDebugFlag},     {"simDebugFlag", &simDebugFlag},
     };
 
-    static OptionNameAndVar options[] = {
-        {"asyncLog", &tsAsyncLog},
-        {"assert", &tsAssert},
-        {"compressMsgSize", &tsCompressMsgSize},
-        {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
-        {"crashReporting", &tsEnableCrashReport},
-        {"enableCoreFile", &tsAsyncLog},
-        {"enableQueryHb", &tsEnableQueryHb},
-        {"keepColumnName", &tsKeepColumnName},
-        {"keepAliveIdle", &tsKeepAliveIdle},
-        {"logKeepDays", &tsLogKeepDays},
-        {"maxInsertBatchRows", &tsMaxInsertBatchRows},
-        {"maxRetryWaitTime", &tsMaxRetryWaitTime},
-        {"minSlidingTime", &tsMinSlidingTime},
-        {"minIntervalTime", &tsMinIntervalTime},
-        {"numOfLogLines", &tsNumOfLogLines},
-        {"querySmaOptimize", &tsQuerySmaOptimize},
-        {"queryPolicy", &tsQueryPolicy},
-        {"queryPlannerTrace", &tsQueryPlannerTrace},
-        {"queryNodeChunkSize", &tsQueryNodeChunkSize},
-        {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
-        {"smlDot2Underline", &tsSmlDot2Underline},
-        {"shellActivityTimer", &tsShellActivityTimer},
-        {"slowLogThreshold", &tsSlowLogThreshold},
-        {"useAdapter", &tsUseAdapter},
-        {"experimental", &tsExperimental}
-    };
+    static OptionNameAndVar options[] = {{"asyncLog", &tsAsyncLog},
+                                         {"assert", &tsAssert},
+                                         {"compressMsgSize", &tsCompressMsgSize},
+                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
+                                         {"crashReporting", &tsEnableCrashReport},
+                                         {"enableCoreFile", &tsAsyncLog},
+                                         {"enableQueryHb", &tsEnableQueryHb},
+                                         {"keepColumnName", &tsKeepColumnName},
+                                         {"keepAliveIdle", &tsKeepAliveIdle},
+                                         {"logKeepDays", &tsLogKeepDays},
+                                         {"maxInsertBatchRows", &tsMaxInsertBatchRows},
+                                         {"maxRetryWaitTime", &tsMaxRetryWaitTime},
+                                         {"minSlidingTime", &tsMinSlidingTime},
+                                         {"minIntervalTime", &tsMinIntervalTime},
+                                         {"numOfLogLines", &tsNumOfLogLines},
+                                         {"querySmaOptimize", &tsQuerySmaOptimize},
+                                         {"queryPolicy", &tsQueryPolicy},
+                                         {"queryPlannerTrace", &tsQueryPlannerTrace},
+                                         {"queryNodeChunkSize", &tsQueryNodeChunkSize},
+                                         {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
+                                         {"smlDot2Underline", &tsSmlDot2Underline},
+                                         {"shellActivityTimer", &tsShellActivityTimer},
+                                         {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"useAdapter", &tsUseAdapter},
+                                         {"experimental", &tsExperimental},
+                                         {"disableCount", &tsDisableCount}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1736,9 +1754,9 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer) {
   return taosCfgDynamicOptionsForClient(pCfg, name);
 }
 
-void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite) {
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
   SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
-  if (pItem != NULL && (rewrite || pItem->i32 == 0)) {
+  if (pItem != NULL) {
     pItem->i32 = flagVal;
   }
   if (pFlagPtr != NULL) {
@@ -1746,33 +1764,71 @@ void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, 
   }
 }
 
-void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
-  if (flag <= 0) return;
-
-  taosSetDebugFlag(NULL, "debugFlag", flag, rewrite);
-  taosSetDebugFlag(NULL, "simDebugFlag", flag, rewrite);
-  taosSetDebugFlag(NULL, "tmrDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, rewrite);
-  uInfo("all debug flag are set to %d", flag);
+static int taosLogVarComp(void const *lp, void const *rp) {
+  SLogVar *lpVar = (SLogVar *)lp;
+  SLogVar *rpVar = (SLogVar *)rp;
+  return strcasecmp(lpVar->name, rpVar->name);
 }
 
-int8_t taosGranted() { return atomic_load_8(&tsGrant); }
+static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
+  if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
+    return;
+  }
+  taosSetDebugFlag(pFlagPtr, name, flag);
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
+  if (flag <= 0) return;
+
+  SArray      *noNeedToSetVars = NULL;
+  SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
+  if (pItem != NULL) {
+    pItem->i32 = flag;
+    noNeedToSetVars = pItem->array;
+  }
+
+  taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tmrDebugFlag, "tmrDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
+
+  taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars);
+
+  taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+
+  taosArrayClear(noNeedToSetVars);  // reset array
+
+  uInfo("all debug flag are set to %d", flag);
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+}
+
+int8_t taosGranted(int8_t type) {
+  switch (type) {
+    case TSDB_GRANT_ALL:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_ALL;
+    case TSDB_GRANT_AUDIT:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_AUDIT;
+    case TSDB_GRANT_VIEW:
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
+    default:
+      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      break;
+  }
+  return 0;
+}

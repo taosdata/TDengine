@@ -175,4 +175,8 @@ IF(NOT TD_DARWIN)
     NAME idxFstUT 
     COMMAND idxFstUT 
   )
+  add_test(
+    NAME idxFstTest
+    COMMAND idxFstTest 
+  )
 ENDIF ()

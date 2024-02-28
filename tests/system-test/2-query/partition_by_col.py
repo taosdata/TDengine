@@ -27,7 +27,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -167,6 +167,16 @@ class TDTestCase:
         sql = 'select count(*), c1 from meters partition by c1 interval(1s)'
         sql_hint = 'select /*+ sort_for_group() */ count(*), c1 from meters partition by c1 interval(1s)'
         self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+
+        sql = 'select count(*), c1 from meters partition by c1'
+        sql_hint = 'select /*+ sort_for_group() partition_first()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ partition_first()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ partition_first() sort_for_group()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ sort_for_group() partition_first()*/ count(*), c1 from meters partition by c1'
         self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
     def add_order_by(self, sql: str, order_by: str, select_list: str = "*") -> str:

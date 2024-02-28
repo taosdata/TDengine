@@ -48,6 +48,8 @@ typedef struct {
 typedef struct {
   void        *serverRpc;
   void        *clientRpc;
+  void        *statusRpc;
+  void        *syncRpc;
   SDnodeHandle msgHandles[TDMT_MAX];
 } SDnodeTrans;
 
@@ -70,7 +72,6 @@ typedef struct SUdfdData {
   int32_t      dnodeId;
 } SUdfdData;
 
-#ifndef TD_MODULE_OPTIMIZE
 typedef struct SDnode {
   int8_t        once;
   bool          stop;
@@ -84,21 +85,6 @@ typedef struct SDnode {
   SMgmtWrapper  wrappers[NODE_END];
   SDnodeTrans   trans;
 } SDnode;
-#else
-typedef struct SDnode {
-  int8_t        once;
-  bool          stop;
-  EDndRunStatus status;
-  SStartupInfo  startup;
-  SDnodeTrans   trans;
-  SUdfdData     udfdData;
-  TdThreadMutex mutex;
-  TdFilePtr     lockfile;
-  SDnodeData    data;
-  STfs         *pTfs;
-  SMgmtWrapper  wrappers[NODE_END];
-} SDnode;
-#endif
 
 // dmEnv.c
 SDnode *dmInstance();
@@ -113,12 +99,7 @@ int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 int32_t       dmInitVars(SDnode *pDnode);
 void          dmClearVars(SDnode *pDnode);
-#ifdef TD_MODULE_OPTIMIZE
-int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers);
-bool    dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
-#else
-int32_t dmInitModule(SDnode *pDnode);
-#endif
+int32_t       dmInitModule(SDnode *pDnode);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
@@ -136,19 +117,18 @@ int32_t dmInitServer(SDnode *pDnode);
 void    dmCleanupServer(SDnode *pDnode);
 int32_t dmInitClient(SDnode *pDnode);
 int32_t dmInitStatusClient(SDnode *pDnode);
+int32_t dmInitSyncClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
 void    dmCleanupStatusClient(SDnode *pDnode);
+void    dmCleanupSyncClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SDnode *pDnode);
-#ifdef TD_MODULE_OPTIMIZE
-int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers);
-#else
 int32_t dmInitMsgHandle(SDnode *pDnode);
-#endif
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // dmMonitor.c
 void dmSendMonitorReport();
 void dmSendAuditRecords();
+void dmSendMonitorReportBasic();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);

@@ -97,7 +97,6 @@ typedef struct {
 struct STQ {
   SVnode*         pVnode;
   char*           path;
-  int64_t         walLogLastVer;
   SRWLatch        lock;
   SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
@@ -119,7 +118,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
@@ -145,7 +144,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
-                         const char* pIdStr);
+                         const char* pIdStr, bool newSubTableRule);
 void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
@@ -153,18 +152,18 @@ char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tq util
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
+int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
-int32_t setDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                               SSubmitTbData* pTableData, const char* id);
+int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
+                                 SSubmitTbData* pTableData, const char* id);
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
 SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
-                                       SSDataBlock* pDataBlock, SArray* pTagArray);
+                                       SSDataBlock* pDataBlock, SArray* pTagArray, bool newSubTableRule);
 
 #ifdef __cplusplus
 }

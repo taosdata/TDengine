@@ -1,4 +1,4 @@
-build/
+*build/
 compile_commands.json
 CMakeSettings.json
 .cache
@@ -132,3 +132,5 @@ tools/taos-tools
 tools/taosws-rs
 tags
 .clangd
+*CMakeCache*
+*CMakeFiles*

@@ -405,15 +405,15 @@ if __name__ == "__main__":
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
-            tdDnodes = ClusterDnodes(dnodeslist)
-            tdDnodes.init(deployPath, masterIp)
-            tdDnodes.setTestCluster(testCluster)
-            tdDnodes.setValgrind(valgrind)
-            tdDnodes.stopAll()
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index, updateCfgDict)
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.starttaosd(dnode.index)
+            clusterDnodes.init(dnodeslist, deployPath, masterIp)
+            clusterDnodes.setTestCluster(testCluster)
+            clusterDnodes.setValgrind(valgrind)
+            clusterDnodes.setAsan(asan)
+            clusterDnodes.stopAll()
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.deploy(dnode.index, updateCfgDict)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
                             
             if restful or websocket:
@@ -560,17 +560,6 @@ if __name__ == "__main__":
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
                     conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
-                # tdSql.init(conn.cursor())
-                # tdSql.execute("create qnode on dnode 1")
-                # tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
-                # tdSql.query("show local variables;")
-                # for i in range(tdSql.queryRows):
-                #     if tdSql.queryResult[i][0] == "queryPolicy" :
-                #         if int(tdSql.queryResult[i][1]) == int(queryPolicy):
-                #             tdLog.info('alter queryPolicy to %d successfully'%queryPolicy)
-                #         else :
-                #             tdLog.debug(tdSql.queryResult)
-                #             tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
 
                 cursor = conn.cursor()
                 cursor.execute("create qnode on dnode 1")
@@ -591,16 +580,15 @@ if __name__ == "__main__":
             print(independentMnode,"independentMnode valuse")
             # create dnode list
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
-            tdDnodes = ClusterDnodes(dnodeslist)
-            tdDnodes.init(deployPath, masterIp)
-            tdDnodes.setTestCluster(testCluster)
-            tdDnodes.setValgrind(valgrind)
-            tdDnodes.setAsan(asan)
-            tdDnodes.stopAll()
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,updateCfgDict)
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.starttaosd(dnode.index)
+            clusterDnodes.init(dnodeslist, deployPath, masterIp)
+            clusterDnodes.setTestCluster(testCluster)
+            clusterDnodes.setValgrind(valgrind)
+            clusterDnodes.setAsan(asan)
+            clusterDnodes.stopAll()
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.deploy(dnode.index,updateCfgDict)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
             if restful or websocket:

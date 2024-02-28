@@ -703,7 +703,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
           code = terrno;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        code = tqBuildDeleteReq(pSma->pVnode->pTq, NULL, output, &deleteReq, "");
+        code = tqBuildDeleteReq(pSma->pVnode->pTq, NULL, output, &deleteReq, "", true);
         TSDB_CHECK_CODE(code, lino, _exit);
         code = tdRSmaProcessDelReq(pSma, suid, pItem->level, &deleteReq);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -750,6 +750,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         }
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
+        pReq = NULL;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -1553,7 +1554,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
         }
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
-        if ((terrno = extractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
+        if ((terrno = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
                                           &packData.pDataBlock, 1))) {
           taosFreeQitem(msg);
           goto _err;

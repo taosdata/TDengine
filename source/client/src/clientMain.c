@@ -57,10 +57,6 @@ void taos_cleanup(void) {
 
   tscStopCrashReport();
 
-  int32_t id = clientReqRefPool;
-  clientReqRefPool = -1;
-  taosCloseRef(id);
-
   hbMgrCleanUp();
 
   catalogDestroy();
@@ -70,14 +66,18 @@ void taos_cleanup(void) {
   qCleanupKeywordsTable();
   nodesDestroyAllocatorSet();
 
+  cleanupTaskQueue();
+
+  int32_t id = clientReqRefPool;
+  clientReqRefPool = -1;
+  taosCloseRef(id);
+
   id = clientConnRefPool;
   clientConnRefPool = -1;
   taosCloseRef(id);
 
   rpcCleanup();
   tscDebug("rpc cleanup");
-
-  cleanupTaskQueue();
 
   taosConvDestroy();
 
@@ -279,6 +279,7 @@ void taos_close_internal(void *taos) {
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  // clientMonitorClose(pTscObj->pAppInfo->instKey);
 
   taosRemoveRef(clientConnRefPool, pTscObj->id);
 }

@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER   2
+#define MND_SUBSCRIBE_VER_NUMBER   3
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 #define MND_CONSUMER_LOST_HB_CNT          6
@@ -530,51 +530,50 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     }
   }
 
-//  if(taosHashGetSize(pOutput->pSub->consumerHash) == 0) {                            // if all consumer is removed
-    SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key);  // put all offset rows
-    if (pSub) {
-      taosRLockLatch(&pSub->lock);
-      if (pOutput->pSub->offsetRows == NULL) {
-        pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
-      }
-      pIter = NULL;
-      while (1) {
-        pIter = taosHashIterate(pSub->consumerHash, pIter);
-        if (pIter == NULL) break;
-        SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-        SMqConsumerEp *pConsumerEpNew = taosHashGet(pOutput->pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
+  SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key);  // put all offset rows
+  if (pSub) {
+    taosRLockLatch(&pSub->lock);
+    if (pOutput->pSub->offsetRows == NULL) {
+      pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
+    }
+    pIter = NULL;
+    while (1) {
+      pIter = taosHashIterate(pSub->consumerHash, pIter);
+      if (pIter == NULL) break;
+      SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+      SMqConsumerEp *pConsumerEpNew = taosHashGet(pOutput->pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
 
-        for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
-          OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
-          bool jump = false;
-          for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++){
-            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
-            if(pVgEp->vgId == d1->vgId){
-              jump = true;
-              mInfo("pSub->offsetRows jump, because consumer id:0x%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
-              break;
-            }
-          }
-          if(jump) continue;
-          bool find = false;
-          for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
-            OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
-            if (d1->vgId == d2->vgId) {
-              d2->rows += d1->rows;
-              d2->offset = d1->offset;
-              find = true;
-              mInfo("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
-              break;
-            }
-          }
-          if(!find){
-            taosArrayPush(pOutput->pSub->offsetRows, d1);
+      for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
+        OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
+        bool jump = false;
+        for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++){
+          SMqVgEp *pVgEp = taosArrayGetP(pConsumerEpNew->vgs, i);
+          if(pVgEp->vgId == d1->vgId){
+            jump = true;
+            mInfo("pSub->offsetRows jump, because consumer id:0x%"PRIx64 " and vgId:%d not change", pConsumerEp->consumerId, pVgEp->vgId);
+            break;
           }
         }
+        if(jump) continue;
+        bool find = false;
+        for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
+          OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
+          if (d1->vgId == d2->vgId) {
+            d2->rows += d1->rows;
+            d2->offset = d1->offset;
+            d2->ever = d1->ever;
+            find = true;
+            mInfo("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
+            break;
+          }
+        }
+        if(!find){
+          taosArrayPush(pOutput->pSub->offsetRows, d1);
+        }
       }
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-//    }
+    }
+    taosRUnLockLatch(&pSub->lock);
+    mndReleaseSubscribe(pMnode, pSub);
   }
 
   // 8. generate logs
@@ -737,8 +736,6 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mInfo("start to process mq timer");
-
   // iterate all consumers, find all modification
   while (1) {
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
@@ -749,7 +746,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
 
-    mInfo("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64 ", hbstatus:%d",
+    mDebug("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64 ", hbstatus:%d",
           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->createTime,
           hbStatus);
 
@@ -852,6 +849,8 @@ void mndRebCntDec() {
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   int code = 0;
+  mInfo("start to process mq timer");
+
   if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
     return code;
@@ -1405,8 +1404,9 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t cons
     }
     if(data){
       // vg id
-      char buf[TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      char buf[TSDB_OFFSET_LEN*2 + VARSTR_HEADER_SIZE] = {0};
       tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
+      sprintf(varDataVal(buf) + strlen(varDataVal(buf)), "/%"PRId64, data->ever);
       varDataSetLen(buf, strlen(varDataVal(buf)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, *numOfRows, (const char *)buf, false);

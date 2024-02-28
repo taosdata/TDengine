@@ -117,6 +117,10 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 int32_t taosSetFileHandlesLimit();
 
+int32_t taosLinkFile(char *src, char *dst);
+
+bool lastErrorIsFileNotExist();
+
 #ifdef __cplusplus
 }
 #endif
