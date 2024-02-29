@@ -25,8 +25,6 @@
 extern "C" {
 #endif
 
-typedef TARRAY2(SBlockIdx) TBlockIdxArray;
-typedef TARRAY2(SDataBlk) TDataBlkArray;
 typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 
 typedef struct {

@@ -1044,32 +1044,6 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDataFileWriteDataBlk(SDataFileWriter *writer, const TDataBlkArray *dataBlkArray) {
-  if (TARRAY2_SIZE(dataBlkArray) == 0) return 0;
-
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  int32_t   ftype = TSDB_FTYPE_HEAD;
-  SBlockIdx blockIdx[1] = {{
-      .suid = writer->ctx->tbid->suid,
-      .uid = writer->ctx->tbid->uid,
-      .offset = writer->files[ftype].size,
-      .size = TARRAY2_DATA_LEN(dataBlkArray),
-  }};
-
-  code =
-      tsdbWriteFile(writer->fd[ftype], blockIdx->offset, (const uint8_t *)TARRAY2_DATA(dataBlkArray), blockIdx->size);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  writer->files[ftype].size += blockIdx->size;
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
 static int32_t tsdbDataFileDoWriteTSRow(SDataFileWriter *writer, TSDBROW *row) {
   int32_t code = 0;
   int32_t lino = 0;
