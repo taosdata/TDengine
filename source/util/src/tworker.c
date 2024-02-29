@@ -417,9 +417,9 @@ _OVER:
     return NULL;
   } else {
     while (worker->pid <= 0) taosMsleep(10);
-    queue->threadId = worker->pid;
-    uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle,
-          queue->threadId);
+
+    taosQueueSetThreadId(queue, worker->pid);
+    uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, worker->pid);
     return queue;
   }
 }
