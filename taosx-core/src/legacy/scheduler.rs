@@ -379,7 +379,7 @@ async fn worker(
                                             table = table.as_str(),
                                             time_range = query.time_range,
                                         );
-                                        // set breakpoint async
+                                        // set breakpoint
                                         if let Some(task_id) = task_id.clone() {
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
@@ -397,7 +397,8 @@ async fn worker(
                                                             "set breakpoint failed, err: {err:#}"
                                                         );
                                                     };
-                                                });
+                                                })
+                                                .await?;
                                             }
                                         }
                                         break;
