@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    backtrace,
+    path::{Path, PathBuf},
+};
 
 use serve::monitor::MonitorCfg;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
@@ -571,6 +574,13 @@ fn main() -> Result<()> {
     set_env_log_home_dir(args.global.logs_home.clone());
     set_env_log_keep_days(args.global.log_keep_days.clone());
 
+    // Set a panic hook
+    std::panic::set_hook(Box::new(|info| {
+        tracing::error!(
+            message = "panic occurred",
+            error = ?info,
+        );
+    }));
     // Initialize tracing layers
     let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
     if let Some(_) = args.opt_args.verbose.as_ref() {
@@ -595,7 +605,6 @@ fn main() -> Result<()> {
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
     print_effective_config(&level_filter, &args);
-
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
             let span = tracing::info_span!("main");
