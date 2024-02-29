@@ -1,7 +1,7 @@
 aux_source_directory(src IMPLEMENT_SRC)
 add_library(dnode STATIC ${IMPLEMENT_SRC})
 target_link_libraries(
-    dnode mgmt_mnode mgmt_qnode mgmt_snode mgmt_vnode mgmt_dnode
+    dnode mgmt_mnode mgmt_qnode mgmt_snode mgmt_vnode mgmt_dnode monitorfw
 )
 
 IF (TD_STORAGE)
@@ -13,6 +13,10 @@ IF (TD_STORAGE)
   ENDIF()
 
 ENDIF ()
+
+IF (DEFINED GRANT_CFG_INCLUDE_DIR)
+  add_definitions(-DGRANTS_CFG)
+ENDIF()
 
 target_include_directories(
     dnode

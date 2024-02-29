@@ -16,6 +16,7 @@
 #include "planInt.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "tglobal.h"
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;

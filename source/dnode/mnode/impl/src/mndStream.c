@@ -724,7 +724,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add into buffer firstly
   // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
   taosThreadMutexLock(&execInfo.lock);
-  mDebug("stream tasks register into node list");
+  mDebug("stream stream:%s tasks register into node list", createReq.name);
   saveStreamTasksInfo(&streamObj, &execInfo);
   taosThreadMutexUnlock(&execInfo.lock);
 
@@ -879,7 +879,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   int64_t ts = taosGetTimestampMs();
   if (mndTrigger == 1 && (ts - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000)) {
     //    mWarn("checkpoint interval less than the threshold, ignore it");
-    return -1;
+    return TSDB_CODE_SUCCESS;
   }
 
   bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHECKPOINT_NAME, lock);
@@ -2180,6 +2180,17 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   mndReleaseStream(pMnode, pStream);
   taosThreadMutexUnlock(&execInfo.lock);
+
+  {
+    SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamReqCheckpointRspMsg)};
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    SMsgHead* pHead = rsp.pCont;
+    pHead->vgId = htonl(req.nodeId);
+
+    tmsgSendRsp(&rsp);
+
+    pReq->info.handle = NULL;   // disable auto rsp
+  }
 
   return 0;
 }

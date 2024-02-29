@@ -106,6 +106,9 @@ extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
+extern bool     tsMonitorLogProtocol;
+extern int32_t  tsMonitorIntervalForBasic;
+extern bool     tsMonitorForceV2;
 
 // audit
 extern bool     tsEnableAudit;
@@ -230,10 +233,10 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
-void    taosSetAllDebugFlag(int32_t flag);
-void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
-void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted(int8_t type);
+void   taosSetGlobalDebugFlag(int32_t flag);
+void   taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
+void   taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
+int8_t taosGranted(int8_t type);
 
 #ifdef __cplusplus
 }

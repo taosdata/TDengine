@@ -1181,7 +1181,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       return TSDB_CODE_SUCCESS;
     }
   } else {
-    ASSERT(status == TASK_STATUS__HALT);
+//    ASSERT(status == TASK_STATUS__HALT);
+    if (status != TASK_STATUS__HALT) {
+      tqError("s-task:%s should in halt status, let's halt it directly", pTask->id.idStr);
+//      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
+    }
   }
 
   // check if the checkpoint msg already sent or not.
@@ -1230,4 +1234,12 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
 // this function is needed, do not try to remove it.
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamProcessStreamHbRsp(pTq->pStreamMeta, pMsg);
+}
+
+int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamProcessReqCheckpointRsp(pTq->pStreamMeta, pMsg);
+}
+
+int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamProcessCheckpointReadyRsp(pTq->pStreamMeta, pMsg);
 }
