@@ -109,7 +109,12 @@ class TDTestCase:
         print(f"start taosd: rm -rf {dataPath}/*  && nohup taosd -c {cPath} & ")
         os.system(f"rm -rf {dataPath}/*  && nohup taosd -c {cPath} & " )
         os.system(f"killall taosadapter" )
-        os.system(f" nohup taosadapter & " )
+        os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml  " )
+        taosadapter_cfg=f"{cPath}/taosadapter.toml"
+        taosadapter_log_path=f"{cPath}/../log/"
+        self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
+        
+        os.system(f" nohup taosadapter -c  {taosadapter_cfg} & " )
 
         sleep(5)
 
@@ -121,7 +126,24 @@ class TDTestCase:
     def is_list_same_as_ordered_list(self,unordered_list, ordered_list):
         sorted_list = sorted(unordered_list)
         return sorted_list == ordered_list
-        
+
+    def alter_string_in_file(self,file,old_str,new_str):
+        """
+        replace str in file
+        :param file
+        :param old_str
+        :param new_str
+        :return:
+        """
+        file_data = ""
+        with open(file, "r", encoding="utf-8") as f:
+            for line in f:
+                if old_str in line:
+                    line = line.replace(old_str,new_str)
+                file_data += line
+        with open(file,"w",encoding="utf-8") as f:
+            f.write(file_data)
+
     def run(self):
         scriptsPath = os.path.dirname(os.path.realpath(__file__))
         distro_id = distro.id()
@@ -168,7 +190,7 @@ class TDTestCase:
         # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
         # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
         # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
-        os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/tmqBasic.json ")
+        self.alter_string_in_file("0-others/tmqBasic.json", "/etc/taos/", cPath)
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
