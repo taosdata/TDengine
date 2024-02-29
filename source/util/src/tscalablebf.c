@@ -20,7 +20,7 @@
 
 #define DEFAULT_GROWTH           2
 #define DEFAULT_TIGHTENING_RATIO 0.5
-#define DEFAULT_MAX_BLOOMFILTERS 5
+#define DEFAULT_MAX_BLOOMFILTERS 4
 #define SBF_INVALID              -1
 #define SBF_VALID                0
 
