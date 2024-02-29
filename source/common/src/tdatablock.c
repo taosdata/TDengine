@@ -1682,21 +1682,27 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (n >= total || n == 0) return;
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    int32_t newLen = pColInfoData->varmeta.offset[n];
-    if (-1 == newLen) {
-      for (int i = n - 1; i >= 0; --i) {
-        newLen = pColInfoData->varmeta.offset[i];
-        if (newLen != -1) {
-          if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-            newLen += getJsonValueLen(pColInfoData->pData + newLen);
-          } else {
-            newLen += varDataTLen(pColInfoData->pData + newLen);
+    if (pColInfoData->varmeta.length != 0) {
+      int32_t newLen = pColInfoData->varmeta.offset[n];
+      if (-1 == newLen) {
+        for (int i = n - 1; i >= 0; --i) {
+          newLen = pColInfoData->varmeta.offset[i];
+          if (newLen != -1) {
+            if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+              newLen += getJsonValueLen(pColInfoData->pData + newLen);
+            } else {
+              newLen += varDataTLen(pColInfoData->pData + newLen);
+            }
+            break;
           }
-          break;
         }
       }
+      if (newLen <= -1) {
+        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
+      } else {
+        pColInfoData->varmeta.length = newLen;
+      }
     }
-    pColInfoData->varmeta.length = newLen;
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
