@@ -919,16 +919,14 @@ while True:
 </TabItem>
 <TabItem value="websocket" label="WebSocket 连接">
 
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。
 
 ```python
 while True:
     message = consumer.poll(1)
     if not message:
         continue
-    err = message.error()
-    if err is not None:
-        raise err
+    
     for block in message:
         for row in block:
             print(row)

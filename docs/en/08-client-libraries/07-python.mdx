@@ -912,16 +912,14 @@ while True:
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
 
-The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
+The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. 
 
 ```python
 while True:
     message = consumer.poll(1)
     if not message:
         continue
-    err = message.error()
-    if err is not None:
-        raise err
+    
     for block in message:
         for row in block:
             print(row)
