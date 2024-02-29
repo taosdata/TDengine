@@ -2223,11 +2223,10 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
     int32_t rsp = tmq_subscribe(tmq, lst);
+    tmq_list_destroy(lst);
     if (rsp != 0) {
       return rsp;
     }
-
-    tmq_list_destroy(lst);
   } else {
     tscInfo("consumer:0x%" PRIx64 " not in ready state, close it directly", tmq->consumerId);
   }
