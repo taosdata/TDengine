@@ -1,5 +1,4 @@
 /*
-
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify

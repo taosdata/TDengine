@@ -419,20 +419,20 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     return 0;
   }
 
-  if ((pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) == HAS_NONE) {
+  if (pRow->flag == HAS_NONE) {
     *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
     return 0;
   }
 
-  if ((pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) == HAS_NULL) {
+  if (pRow->flag == HAS_NULL) {
     *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
     return 0;
   }
 
-  SPrimaryKeyIndex indices[TD_MAX_PK_COLS];
+  SPrimaryKeyIndex index;
   uint8_t         *data = pRow->data;
   for (int32_t i = 0; i < pRow->numOfPKs; i++) {
-    data += tGetPrimaryKeyIndex(data, &indices[i]);
+    data += tGetPrimaryKeyIndex(data, &index);
   }
 
   if (pRow->flag >> 4) {  // KV Row
@@ -688,12 +688,9 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
   pIter->pTSchema = pTSchema;
   pIter->iTColumn = 0;
 
-  if ((pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) == HAS_NONE ||
-      (pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) == HAS_NULL)
-    goto _exit;
+  if (pRow->flag == HAS_NONE || pRow->flag == HAS_NULL) goto _exit;
 
-  uint8_t *data = pRow->data;
-
+  uint8_t         *data = pRow->data;
   SPrimaryKeyIndex index;
   for (int32_t i = 0; i < pRow->numOfPKs; i++) {
     data += tGetPrimaryKeyIndex(data, &index);
@@ -710,7 +707,7 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
       pIter->pv = pIter->pIdx->idx + (pIter->pIdx->nCol << 2);  // * sizeof(uint32_t)
     }
   } else {
-    switch (pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+    switch (pRow->flag) {
       case (HAS_NULL | HAS_NONE):
         pIter->pb = data;
         break;
@@ -768,13 +765,12 @@ SColVal *tRowIterNext(SRowIter *pIter) {
     goto _exit;
   }
 
-  uint8_t tflag = (pIter->pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE));
-  if (tflag == HAS_NONE) {
+  if (pIter->pRow->flag == HAS_NONE) {
     pIter->cv = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
     goto _exit;
   }
 
-  if (tflag == HAS_NULL) {
+  if (pIter->pRow->flag == HAS_NULL) {
     pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
     goto _exit;
   }
@@ -829,7 +825,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   } else {  // Tuple
     uint8_t bv = BIT_FLG_VALUE;
     if (pIter->pb) {
-      switch (tflag) {
+      switch (pIter->pRow->flag) {
         case (HAS_NULL | HAS_NONE):
           bv = GET_BIT1(pIter->pb, pIter->iTColumn - 1);
           break;
@@ -935,25 +931,29 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
   int32_t   iTColumn = 1;
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
 
-  uint8_t *pb = NULL, *pf = NULL, *pv = NULL;
+  uint8_t         *pb = NULL, *pf = NULL, *pv = NULL;
+  SPrimaryKeyIndex index;
+  uint8_t         *data = pRow->data;
+  for (int32_t i = 0; i < pRow->numOfPKs; i++) {
+    data += tGetPrimaryKeyIndex(data, &index);
+  }
 
-  uint8_t tflag = pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE);
-  switch (tflag) {
+  switch (pRow->flag) {
     case HAS_VALUE:
-      pf = pRow->data;  // TODO: fix here
+      pf = data;  // TODO: fix here
       pv = pf + pTSchema->flen;
       break;
     case (HAS_NULL | HAS_NONE):
-      pb = pRow->data;
+      pb = data;
       break;
     case (HAS_VALUE | HAS_NONE):
     case (HAS_VALUE | HAS_NULL):
-      pb = pRow->data;
+      pb = data;
       pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
       pv = pf + pTSchema->flen;
       break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      pb = pRow->data;
+      pb = data;
       pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
       pv = pf + pTSchema->flen;
       break;
@@ -968,7 +968,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
         ASSERT(pTColumn->type == pColData->type);
         if (pb) {
           uint8_t bv;
-          switch (tflag) {
+          switch (pRow->flag) {
             case (HAS_NULL | HAS_NONE):
               bv = GET_BIT1(pb, iTColumn - 1);
               break;
