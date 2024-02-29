@@ -1022,19 +1022,8 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   }
   taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
-  int32_t     rsp;
-  int32_t     retryCnt = 0;
   tmq_list_t* lst = tmq_list_new();
-  while (1) {
-    rsp = tmq_subscribe(tmq, lst);
-    if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-      break;
-    } else {
-      retryCnt++;
-      taosMsleep(500);
-    }
-  }
-
+  int32_t  rsp = tmq_subscribe(tmq, lst);
   tmq_list_destroy(lst);
   return rsp;
 }
@@ -1279,10 +1268,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while (TSDB_CODE_MND_CONSUMER_NOT_READY == doAskEp(tmq)) {
-    if (retryCnt++ > MAX_RETRY_COUNT) {
+  while ((code = doAskEp(tmq)) != 0) {
+    if (retryCnt++ > MAX_RETRY_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry:%d in 500ms", tmq->consumerId, retryCnt);
-      code = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto FAIL;
     }
 
@@ -2234,14 +2222,9 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
 
     int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
-    while (1) {
-      int32_t rsp = tmq_subscribe(tmq, lst);
-      if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-        break;
-      } else {
-        retryCnt++;
-        taosMsleep(500);
-      }
+    int32_t rsp = tmq_subscribe(tmq, lst);
+    if (rsp != 0) {
+      return rsp;
     }
 
     tmq_list_destroy(lst);
