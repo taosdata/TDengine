@@ -1085,6 +1085,7 @@
 ,,y,script,./test.sh -f tsim/parser/join_multivnode.sim
 ,,y,script,./test.sh -f tsim/parser/join.sim
 ,,y,script,./test.sh -f tsim/parser/last_cache.sim
+,,y,script,./test.sh -f tsim/parser/last_both.sim
 ,,y,script,./test.sh -f tsim/parser/last_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim
