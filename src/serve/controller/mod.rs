@@ -1593,12 +1593,6 @@ impl TaskController {
         .fetch_one(&self.pool)
         .await
         .unwrap_or_default();
-        tracing::debug!(
-            "running_tasks_count: {}, completed_tasks_count: {}, failed_tasks_count: {}",
-            running_tasks_count,
-            completed_tasks_count,
-            failed_tasks_count
-        );
         (
             running_tasks_count,
             completed_tasks_count,
