@@ -931,7 +931,7 @@ void shellReadHistory() {
 
   char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
+  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = taosStrdup(line);
