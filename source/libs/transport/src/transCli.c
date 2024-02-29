@@ -1996,10 +1996,9 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   taosMemoryFree(pMsg);
 }
 static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param) {
+  if (arg == NULL) return;
+
   SCliMsg* pMsg = arg;
-  if (pMsg == NULL) {
-    return;
-  }
   if (param != NULL) {
     SCliThrd* pThrd = param;
     if (pThrd->destroyAhandleFp) (*pThrd->destroyAhandleFp)(pMsg->msg.info.ahandle);
@@ -2095,7 +2094,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
-  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsgWrapper, NULL);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsgWrapper, (void*)pThrd);
   transAsyncPoolDestroy(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue, destroyCmsgAndAhandle);
