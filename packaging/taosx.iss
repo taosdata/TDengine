@@ -104,11 +104,14 @@ begin
   //    WizardForm.DirEdit.Text := InputDirWizardPage.Values[0] + '/{#SubDirectory}';
   //    WizardForm.DirEdit.Update;
   //end;
-  if CurPageID = InputQueryPage.ID then
+  if '{#AppName}' = 'taosx' then
   begin
-    ExplorerAddInput := InputQueryPage.Values[0];
+    if CurPageID = InputQueryPage.ID then
     begin
-      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      ExplorerAddInput := InputQueryPage.Values[0];
+      begin
+        ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      end;
     end;
   end;
   Result := True;
@@ -238,12 +241,14 @@ begin
   OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
   + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
   AfterID := OutputMsgCheckJava.ID;
-
-  InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
-  InputQueryPage.Add('&Default:localhost', False);
-  InputQueryPage.Values[0] := 'localhost';
-  AfterID := InputQueryPage.ID;
-
+  
+  if '{#AppName}' = 'taosx' then
+  begin
+    InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
+    InputQueryPage.Add('&Default:localhost', False);
+    InputQueryPage.Values[0] := 'localhost';
+    AfterID := InputQueryPage.ID;
+  end;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
