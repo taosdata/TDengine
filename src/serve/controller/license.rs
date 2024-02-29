@@ -65,22 +65,26 @@ impl<'a> LicenseValidator<'a> {
             return Ok(edition);
         }
 
-        match self.from.driver.as_str() {
-            "opc"
-            | "opcua"
-            | "opcda"
-            | "pi"
-            | "pibackfill"
-            | "mqtt"
-            | "influxdb"
-            | "opentsdb"
-            | "tmq"
-            | "taos"
-            | taosx_core::runners::kafka::KAFKA_ID
-            | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-                validate_connector_license(self.from, self.to, self.pool).await
+        if self.to.driver == "taos" {
+            match self.from.driver.as_str() {
+                "opc"
+                | "opcua"
+                | "opcda"
+                | "pi"
+                | "pibackfill"
+                | "mqtt"
+                | "influxdb"
+                | "opentsdb"
+                | "tmq"
+                | "taos"
+                | taosx_core::runners::kafka::KAFKA_ID
+                | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
+                    validate_connector_license(self.from, self.to, self.pool).await
+                }
+                _ => Ok(LicenseKind::Good),
             }
-            _ => Ok(LicenseKind::Good),
+        } else {
+            Ok(LicenseKind::Good)
         }
     }
 }
