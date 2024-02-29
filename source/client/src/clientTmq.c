@@ -876,12 +876,13 @@ int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
   STaosQall* qall = taosAllocateQall();
   taosReadAllQitems(pTmq->delayedTask, qall);
 
-  if (qall->numOfItems == 0) {
+  int32_t numOfItems = taosQallItemSize(qall);
+  if (numOfItems == 0) {
     taosFreeQall(qall);
     return TSDB_CODE_SUCCESS;
   }
 
-  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, numOfItems);
   int8_t* pTaskType = NULL;
   taosGetQitem(qall, (void**)&pTaskType);
 
@@ -1839,7 +1840,7 @@ static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal
 }
 
 static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
-  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, tmq->qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQallItemSize(tmq->qall));
 
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
