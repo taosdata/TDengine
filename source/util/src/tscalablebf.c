@@ -35,6 +35,8 @@ SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate) {
   if (pSBf == NULL) {
     return NULL;
   }
+  pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
+  pSBf->status = SBF_VALID;
   pSBf->numBits = 0;
   pSBf->bfArray = taosArrayInit(defaultSize, sizeof(void *));
   if (tScalableBfAddFilter(pSBf, expectedEntries, errorRate * DEFAULT_TIGHTENING_RATIO) == NULL) {
@@ -44,8 +46,6 @@ SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate) {
   pSBf->growth = DEFAULT_GROWTH;
   pSBf->hashFn1 = HASH_FUNCTION_1;
   pSBf->hashFn2 = HASH_FUNCTION_2;
-  pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
-  pSBf->status = SBF_VALID;
   return pSBf;
 }
 
