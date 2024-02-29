@@ -94,6 +94,9 @@ int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
 }
 
 int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+  if (pSBf->status == SBF_INVALID) {
+    return TSDB_CODE_FAILED;
+  }
   uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
   uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
   int32_t size = taosArrayGetSize(pSBf->bfArray);
