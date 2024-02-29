@@ -4768,11 +4768,11 @@ int32_t tDeserializeSQueryCompactProgressRsp(void *buf, int32_t bufLen, SQueryCo
 
   if (tStartDecode(&decoder) < 0) return -1;
 
-  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->numberFileset) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->finished) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -2;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -3;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -4;
+  if (tDecodeI32(&decoder, &pReq->numberFileset) < 0) return -5;
+  if (tDecodeI32(&decoder, &pReq->finished) < 0) return -6;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
