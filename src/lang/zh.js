@@ -26,7 +26,7 @@ export default {
   execute: "执行",
   previewall: "预览所有",
   copyDsn: "复制 DSN",
-
+  getDsn: "获取 DSN",
   clone: "复制",
   delete: "删除",
   pInName: "请输入名称",

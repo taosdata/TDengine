@@ -28,7 +28,7 @@ export default {
   execute: "Execute",
   previewall: "Preview All",
   copyDsn: "Copy DSN",
-
+  getDsn: "Get DSN",
   clone: "Clone",
   delete: "Delete",
   pInName: "Please enter the name",
