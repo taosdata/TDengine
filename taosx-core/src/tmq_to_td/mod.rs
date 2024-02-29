@@ -191,7 +191,7 @@ async fn write_data(
             let with_raw_block = async {
                 if let Err(err) = taos.write_raw_block(&raw).await {
                     let code = *err.code().deref();
-                    tracing::debug!(" try to rescover from error: {}", code);
+                    tracing::debug!("try to recover from error: {}", code);
                     match code {
                         0x0118 => {
                             // TODO
