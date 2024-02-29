@@ -896,13 +896,13 @@ Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 flo
 
 ```python
 while True:
-    res = consumer.poll(1)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
-    val = res.value()
+    val = message.value()
 
     for block in val:
         print(block.fetchall())
@@ -915,10 +915,10 @@ Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 flo
 
 ```python
 while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
     for block in message:

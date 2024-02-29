@@ -887,13 +887,13 @@ The `poll` function is used to consume data in tmq. The parameter of the `poll` 
 
 ```python
 while True:
-    res = consumer.poll(1)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
-    val = res.value()
+    val = message.value()
 
     for block in val:
         print(block.fetchall())
@@ -906,10 +906,10 @@ The `poll` function is used to consume data in tmq. The parameter of the `poll` 
 
 ```python
 while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
     for block in message:
