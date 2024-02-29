@@ -358,13 +358,15 @@ static int32_t mndAddKillCompactAction(SMnode *pMnode, STrans *pTrans, SVgObj *p
 }
 
 static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompact) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "kill-compact");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "kill-compact");
   if (pTrans == NULL) {
     mError("compact:%" PRId32 ", failed to drop since %s", pCompact->compactId, terrstr());
     return -1;
   }
   mInfo("trans:%d, used to kill compact:%" PRId32, pTrans->id, pCompact->compactId);
-/*
+
+  mndTransSetDbName(pTrans, pCompact->dbname, NULL);
+
   SSdbRaw *pCommitRaw = mndCompactActionEncode(pCompact);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
@@ -372,8 +374,8 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-*/
-  void   *pIter = NULL;
+
+  void *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
@@ -606,7 +608,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     return 0;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-compact-progress");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, NULL, "update-compact-progress");
   if (pTrans == NULL) {
     mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
     return -1;
@@ -614,6 +616,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   mInfo("compact:%d, trans:%d, used to update compact progress.", compactId, pTrans->id);
 
   SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
+
+  mndTransSetDbName(pTrans, pCompact->dbname, NULL);
 
   pIter = NULL;
   while (1) {
