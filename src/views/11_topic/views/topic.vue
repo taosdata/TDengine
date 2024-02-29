@@ -26,10 +26,14 @@
         </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column min-width="200" label="DSN" prop="dsn">
+      <el-table-column width="90" :label="$t('getDsn')" prop="dsn">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.dsn" placement="top-start">
-            <copy-text :text="scope.row.dsn" isShowBtnText></copy-text>
+            <!-- <copy-text :text="scope.row.dsn" isShowBtnText></copy-text> -->
+            <el-button class="copy-btn" size="mini" @click="copyDsn(scope.row.dsn)">
+              <el-icon class="el-icon-document-copy"></el-icon>
+              {{ $t('copy') }}
+            </el-button>
           </el-tooltip>
         </template>
       </el-table-column>
@@ -117,8 +121,8 @@
   import { createTopic, getTopics, delTopic } from "@/api/topic";
   import { getDSN } from "@/utils/index";
   import { SubscriptionDocsUrl } from "@/const";
-  import { parsinginZone } from '@/utils'
-  import CopyText from '@/components/CopyText.vue'
+  import { parsinginZone, copy } from '@/utils'
+  import CopyText from '@/components/CopyText.vue';
   
   export default {
     components: {
@@ -263,7 +267,10 @@
           topicId: data.topicId
         }
       });
-    }
+    },
+    copyDsn(dsn) {
+      copy(dsn);
+    },
     },
   };
 </script>
@@ -277,6 +284,9 @@
   }
   .language-sql {
     white-space: inherit !important;
+  }
+  .copy-btn {
+    cursor: pointer;
   }
 </style>
 

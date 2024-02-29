@@ -35,13 +35,13 @@
         <section class="dsn" v-if="infoType === 'database'">
           <el-form-item :key="`dsn-for-${infoData['name']}`" :label="'DSN:'">
             <div class="copy-wrapper">
-              <div class="nowrap">{{ dsn + "/" + infoData["name"] }}</div> 
+              <!-- <div class="nowrap">{{ dsn + "/" + infoData["name"] }}</div>  -->
               <el-tooltip
                 placement="top"
-                :content="$t('copyDsn')"
+                :content="`${dsn}/${infoData['name']}`"
                 effect="light"
               >
-                <el-button class="copy-btn" :title="$t('copy')" type="text" size="mini" @click="copyDsn">
+                <el-button class="copy-btn" type="text" size="mini" @click="copyDsn">
                   <el-icon class="el-icon-document-copy"></el-icon>
                   {{ $t("copy") }}
                 </el-button>
