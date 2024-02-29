@@ -626,15 +626,12 @@ class StreamComputingTest(TDCase):
     def get_subtable(self, tbname_pre):
         self.tdSql.query(f'show {self.dbname}.tables')
         tbname_list = list(map(lambda x:x[0], self.tdSql.query_data))
-        print("----tbname_list:", tbname_list)
         for tbname in tbname_list:
             if tbname_pre in tbname:
                 return tbname
 
     def get_subtable_wait(self, tbname_pre):
-        print("----tbname_pre:", tbname_pre)
         tbname = self.get_subtable(tbname_pre)
-        print("----tbname:", tbname)
         latency = 0
         while tbname is None:
             tbname = self.get_subtable(tbname_pre)
@@ -1024,7 +1021,6 @@ class StreamComputingTest(TDCase):
             if pause:
                 for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
                     self.tdCom.pause_stream(stream_name, True)
-            
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
             #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
@@ -1035,7 +1031,6 @@ class StreamComputingTest(TDCase):
             #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
             # if self.delete and i%2 != 0:
             #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
-            
             # self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
             #     self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
@@ -1047,7 +1042,7 @@ class StreamComputingTest(TDCase):
             else:
                 partition_elm = ""
             query_interval_value = (i+1) % count_window_value
-            # # ! TD-28557 
+            # # ! TD-28557
             # TODO to be continued
             if i == self.range_count - 1:
                 disorder_ts_value = str(self.date_time)+f'+{i-watermark+count_window_value+11}s'
@@ -1081,9 +1076,6 @@ class StreamComputingTest(TDCase):
             #                 self.tdCom.check_query_data(f'select {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
             #             else:
             #                 self.tdCom.check_query_data(f'select {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.tb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
-                
-        
-        
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
@@ -1162,12 +1154,12 @@ class StreamComputingTest(TDCase):
             res1 = self.tdSql.query_data
             self.tdSql.checkNotEqual(res1, res2)
             self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} count_window({count_window_value}{sliding_value}) order by `min(c1)`,`max(c2)`', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by `min(c1)`,`max(c2)`')
-            
+
             disorder_ts_value = str(o_dt)+f'+{i-watermark-1}s'
             self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=disorder_ts_value)
             # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
             self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} count_window({count_window_value}{sliding_value}) order by `min(c1)`,`max(c2)`', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by `min(c1)`,`max(c2)`', reverse_check=True)
-              
+
         if check_stream_task:
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks()
@@ -1253,7 +1245,7 @@ class StreamComputingTest(TDCase):
             #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
             # if self.delete and i%2 != 0:
             #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
-            
+
             # self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
             # if self.update and i%2 == 0:
             #     self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
@@ -1292,9 +1284,6 @@ class StreamComputingTest(TDCase):
             #                 self.tdCom.check_query_data(f'select {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
             #             else:
             #                 self.tdCom.check_query_data(f'select {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.tb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
-                
-        
-        
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
@@ -1368,12 +1357,12 @@ class StreamComputingTest(TDCase):
             res1 = self.tdSql.query_data
             self.tdSql.checkNotEqual(res1, res2)
             self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({count_window_value}s) order by `min(c1)`,`max(c2)`', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by `min(c1)`,`max(c2)`')
-            
+
             disorder_ts_value = str(o_dt)+f'+{i-watermark-1}s'
             self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=disorder_ts_value)
             # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
             self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({count_window_value}s) order by `min(c1)`,`max(c2)`', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by `min(c1)`,`max(c2)`', reverse_check=True)
-              
+
         if check_stream_task:
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks()
@@ -3051,7 +3040,6 @@ class StreamComputingTest(TDCase):
                     self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
             ts_value = str(self.date_time)+f'+{i}s'
             # new_ts_bigint = self.date_time + i
-            
             # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
             # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
             # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
@@ -3067,10 +3055,9 @@ class StreamComputingTest(TDCase):
             #                 self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart limit {int(i/count_window_value)}', int(i/count_window_value))
             #         else:
             #             self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} count_window({count_window_value}{sliding_value}) order by wstart limit {int(i/count_window_value)-1}', int(i/count_window_value)-1)
-            
+
             if i == 0:
                 window_close_ts = self.cal_watermark_window_close_count_window_endts(self.date_time, count_window_value, self.dataDict['watermark'])
-                print("window_close_ts000", window_close_ts)
             else:
                 self.date_time = window_close_ts + self.offset
                 window_close_ts += count_window_value*self.offset
@@ -4978,50 +4965,6 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # error case
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=0, ignore_expired=1, use_except=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=0, use_except=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, fill_value="NULL", use_except=True)
-        # self.at_once_count_window(count_window_value=1, partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5), checkpoint_check=True)
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5))
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=5, max_delay=f"{random.randint(5, 6)}s", delete=False)
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", delete=True)
-        # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", partition=None)
-        # TODO refactor -> need different c1
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition="tbname,c1")
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition=None)
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), delete=True)
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), delete=True, checkpoint_check=True)
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), sliding=random.randint(1, 5))
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20))
-        # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), fill_history_value=1)
-        # for delete in [True]:
-        #     for fill_history_value in [1]:
-        #         # ! TD-28858 fill_history = 1
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.partitial_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.exchange_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
-        #         # self-define tag
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.partitial_tag_filter_des_select_elm, use_exist_stb=True)
-        #         self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.exchange_tag_filter_des_select_elm, use_exist_stb=True)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=10, fill_history_value=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=100, fill_history_value=1)
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=random.randint(15, 20))
-        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, t1", delete=True, watermark=random.randint(15, 20))
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), check_stream_task=True, checkpoint_check=True, pause=True, resume=True)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=0, check_stream_task=True)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=1, check_stream_task=True)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=False, watermark=100)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100)
-        self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
-
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True)
         # ! stream_sql_0204_1.txt
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=True, watermark=random.randint(15, 20), ignore_expired=1)
@@ -5030,7 +4973,7 @@ class StreamComputingTest(TDCase):
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname, abs(c1)", delete=True, watermark=100, ignore_expired=1)
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname, t1", delete=True, watermark=random.randint(15, 20), ignore_expired=1)
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True, checkpoint_check=True)
-        return
+        # return
         # TODO
         # return
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
@@ -5152,6 +5095,31 @@ class StreamComputingTest(TDCase):
             self.at_once_state_window(state_window="c1", partition="tbname", case_when="case when c1 >= 0 then c1 else c2 end")
             self.at_once_interval(interval=random.randint(10, 15), partition=self.stream_case_when_tbname, case_when=f'case when {self.stream_case_when_tbname} = tbname then {self.partition_tbname_alias} else tbname end')
             self.at_once_session(session=random.randint(10, 15), partition=self.stream_case_when_tbname, delete=True, case_when=f'case when {self.stream_case_when_tbname} = tbname then {self.partition_tbname_alias} else tbname end')
+            # TODO refactor
+            # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5), checkpoint_check=True)
+            # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", sliding=random.randint(1, 5))
+            # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=5, max_delay=f"{random.randint(5, 6)}s", delete=False)
+            # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", delete=True)
+            # self.max_delay_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", partition=None)
+            # TODO refactor -> need different c1
+            # self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition="tbname,c1")
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), partition=None)
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), delete=True)
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), delete=True, checkpoint_check=True)
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), sliding=random.randint(1, 5))
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20))
+            self.window_close_count_window(count_window_value=random.choice([5, 10]), watermark=random.randint(15, 20), fill_history_value=1)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=10, fill_history_value=1)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=100, fill_history_value=1)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition=None, delete=True, watermark=random.randint(15, 20))
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, t1", delete=True, watermark=random.randint(15, 20))
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), check_stream_task=True, checkpoint_check=True, pause=True, resume=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=0, check_stream_task=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_update=1, check_stream_task=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=False, watermark=100)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
             # ## for existed stb
             for delete in [True, False]:
                 for fill_history_value in [0, 1]:
@@ -5188,6 +5156,16 @@ class StreamComputingTest(TDCase):
                     self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1")
                     self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.partitial_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
                     self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.exchange_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.partitial_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.exchange_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
+                    # self-define tag
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.partitial_tag_filter_des_select_elm, use_exist_stb=True)
+                    self.at_once_count_window_ext(count_window_value=random.randint(5, 15), delete=delete, watermark=random.randint(15, 20), fill_history_value=fill_history_value, partition=f'{self.partitial_tag_filter_des_select_elm},tbname', subtable=None, stb_field_name_value=None, tag_value=self.exchange_tag_filter_des_select_elm, use_exist_stb=True)
             # error cases
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value="", tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm.replace("c1","c19"), tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)
@@ -5208,7 +5186,11 @@ class StreamComputingTest(TDCase):
             self.at_once_event_window(partition="tbname", fill_value="NULL", use_except=True)
             self.at_once_event_window_ext(partition=f'{self.tag_filter_des_select_elm}', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1", use_except=True)
             self.at_once_event_window_ext(partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True, constant_col="c1", use_except=True)
-
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=0, ignore_expired=1, use_except=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=0, use_except=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, fill_value="NULL", use_except=True)
+            self.at_once_count_window(count_window_value=1, partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
             # * not stable and put them last
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
 
