@@ -1,7 +1,4 @@
-use std::{
-    backtrace,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
