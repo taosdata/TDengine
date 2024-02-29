@@ -1,4 +1,5 @@
 /*
+
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
@@ -46,8 +47,6 @@ typedef struct SValueColumn SValueColumn;
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
 #define HAS_VALUE ((uint8_t)0x4)
-
-#define HAS_MULTI_KEY ((uint8_t)0x8)
 
 // bitmap ================================
 const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
@@ -208,23 +207,26 @@ struct STSchema {
   STColumn columns[];
 };
 
-/* TODO: here may change
+/*
  * 1. Tuple format:
- *      SRow + [bit map +] fix-length data + [var-length data +] [(type + offset) * numPrimaryKeyCols + fixedLen +
- * numOfCols + numPrimaryKeyCols]
+ *      SRow + [(type, offset) * numOfPKs +] [bit map +] fix-length data + [var-length data]
  *
  * 2. K-V format:
- *      SRow + numColsNotNone + u8/u16/u32 * numColsNotNone + ([-]cid [+ data]) * numColsNotNone + [(type + index) *
- * numPrimaryKeyCols + numPrimaryKeyCols】
+ *      SRow + [(type, offset) * numOfPKs +] offset array + ([-]cid [+ data]) * numColsNotNone
  */
 struct SRow {
   uint8_t  flag;
-  uint8_t  rsv;
+  uint8_t  numOfPKs;
   uint16_t sver;
   uint32_t len;
   TSKEY    ts;
   uint8_t  data[];
 };
+
+typedef struct {
+  int8_t   type;
+  uint32_t offset;
+} SPrimaryKeyIndex;
 
 struct SValue {
   int8_t type;
