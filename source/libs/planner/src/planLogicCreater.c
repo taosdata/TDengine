@@ -549,7 +549,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
   pJoin->pWindowOffset = nodesCloneNode(pJoinTable->pWindowOffset);
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
-  pJoin->winPrimEqCond = nodesCloneNode(pJoinTable->winPrimCond);
+  pJoin->addPrimEqCond = nodesCloneNode(pJoinTable->addPrimCond);
   pJoin->node.pChildren = nodesMakeList();
   pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && pSelect->hasAggFuncs;
   if (NULL == pJoin->node.pChildren) {

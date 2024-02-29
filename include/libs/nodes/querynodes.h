@@ -245,7 +245,7 @@ typedef struct SJoinTableNode {
   EJoinSubType subType;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
-  SNode*       winPrimCond;
+  SNode*       addPrimCond;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
   SNode*       pParent;

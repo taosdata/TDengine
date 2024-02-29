@@ -25,11 +25,12 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "ttypes.h"
+#include "functionMgt.h"
 #include "mergejoin.h"
 
 
 int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp) {
-  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
 
   pGrp->beginIdx = pTable->blkRowIdx;
   pGrp->readIdx = pTable->blkRowIdx;
@@ -768,6 +769,44 @@ static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoinTableCtx* pTable) {
+  if (NULL == pNode) {
+    pCtx->targetSlotId = pTable->primCol->srcSlot;
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (QUERY_NODE_TARGET != nodeType(pNode)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }  
+
+  STargetNode* pTarget = (STargetNode*)pNode;
+  if (QUERY_NODE_FUNCTION != nodeType(pTarget->pExpr)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
+  if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (4 != pFunc->pParameterList->length && 5 != pFunc->pParameterList->length) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SValueNode* pUnit = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  SValueNode* pCurrTz = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2) : NULL;
+  SValueNode* pTimeZone = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4) : (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+
+  pCtx->truncateUnit = pUnit->typeData;
+  if (NULL != pCurrTz && 0 == pCurrTz->typeData) {
+    pCtx->timezoneUnit = offsetFromTz(pTimeZone->datum.p, TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+  }
+
+  pCtx->targetSlotId = pTarget->slotId;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat) {
   SMJoinTableCtx* pTable = &pJoin->tbs[idx];
   pTable->downStream = pDownstream[idx];
@@ -807,6 +846,8 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
   } else {
     pTable->multiEqGrpRows = true;
   }
+
+  MJ_ERR_RET(mJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
   
   return TSDB_CODE_SUCCESS;
 }
@@ -842,26 +883,56 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
   pInfo->build->downStreamIdx = buildIdx;
   pInfo->probe->downStreamIdx = probeIdx;
 
+  if (0 == buildIdx) {
+    pInfo->build->primExpr = pJoinNode->leftPrimExpr;
+    pInfo->probe->primExpr = pJoinNode->rightPrimExpr;
+  } else {
+    pInfo->build->primExpr = pJoinNode->rightPrimExpr;
+    pInfo->probe->primExpr = pJoinNode->leftPrimExpr;
+  }
+  
   pInfo->build->type = E_JOIN_TB_BUILD;
   pInfo->probe->type = E_JOIN_TB_PROBE;
 }
 
+int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
+  if (NULL == pTable->primExpr) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SMJoinPrimExprCtx* pCtx = &pTable->primCtx;
+  SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
+  SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
+  if (0 != pCtx->timezoneUnit) {
+    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+      ((int64_t*)pPrimOut->pData)[i] = (((int64_t*)pPrimIn->pData)[i] - pCtx->timezoneUnit) / pCtx->truncateUnit * pCtx->truncateUnit;
+    }
+  } else {
+    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  SSDataBlock* pTmp = NULL;
   int32_t dsIdx = pTable->downStreamIdx; 
   if (E_JOIN_TB_PROBE == pTable->type) {
     if (pTable->remainInBlk) {
-      SSDataBlock* pTmp = pTable->remainInBlk;
+      pTmp = pTable->remainInBlk;
       pTable->remainInBlk = NULL;
       (*pJoin->grpResetFp)(pJoin);
       pTable->lastInGid = pTmp->info.id.groupId;
-      return pTmp;
+      goto _return;
     }
 
     if (pTable->dsFetchDone) {
       return NULL;
     }
 
-    SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
+    pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
@@ -869,11 +940,11 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
     
     if (0 == pTable->lastInGid) {
       pTable->lastInGid = pTmp->info.id.groupId;
-      return pTmp;
+      goto _return;
     }
 
     if (pTable->lastInGid == pTmp->info.id.groupId) {
-      return pTmp;
+      goto _return;
     }
 
     pTable->remainInBlk = pTmp;
@@ -886,10 +957,10 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
   while (true) {
     if (pTable->remainInBlk) {
       if (pTable->remainInBlk->info.id.groupId == pProbe->lastInGid) {
-        SSDataBlock* pTmp = pTable->remainInBlk;
+        pTmp = pTable->remainInBlk;
         pTable->remainInBlk = NULL;
         pTable->lastInGid = pTmp->info.id.groupId;
-        return pTmp;
+        goto _return;
       }
 
       if (pTable->remainInBlk->info.id.groupId > pProbe->lastInGid) {
@@ -912,7 +983,10 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
     pTable->remainInBlk = pTmp;
   }
 
-  return NULL;
+_return:
+
+  mJoinLaunchPrimExpr(pTmp, pTable);
+  return pTmp;
 }
 
 static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
@@ -923,6 +997,8 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
   SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTable->downStreamIdx);
   if (NULL == pTmp) {
     pTable->dsFetchDone = true;
+  } else {
+    mJoinLaunchPrimExpr(pTmp, pTable);
   }
 
   return pTmp;
@@ -1022,7 +1098,7 @@ void mJoinResetForBuildTable(SMJoinTableCtx* pTable) {
 }
 
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart) {
-  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
   SMJoinGrpRows* pGrp = NULL;
 
   if (*(int64_t*)colDataGetNumData(pCol, pTable->blkRowIdx) != timestamp) {
@@ -1496,6 +1572,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
       switch (pJoin->subType) {
         case JOIN_STYPE_OUTER:          
           pJoin->joinFp = mLeftJoinDo;
+          pJoin->grpResetFp = mLeftJoinGroupReset;
           break;
         case JOIN_STYPE_SEMI: 
           pJoin->joinFp = mSemiJoinDo;

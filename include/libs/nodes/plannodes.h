@@ -131,7 +131,7 @@ typedef struct SJoinLogicNode {
   SNode*         pWindowOffset;
   SNode*         pJLimit;
   EJoinAlgorithm joinAlgo;
-  SNode*         winPrimEqCond;
+  SNode*         addPrimEqCond;
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
   SNode*         pColOnCond;

@@ -1285,7 +1285,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 }
 
 /** Time functions **/
-static int64_t offsetFromTz(char *timezone, int64_t factor) {
+int64_t offsetFromTz(char *timezone, int64_t factor) {
   char *minStr = &timezone[3];
   int64_t minutes = taosStr2Int64(minStr, NULL, 10);
   memset(minStr, 0, strlen(minStr));

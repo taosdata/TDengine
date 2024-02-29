@@ -812,7 +812,7 @@ static int32_t setColEqCond(SNode* pEqCond, int32_t subType, int16_t leftBlkId, 
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
         SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-        if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+        if (QUERY_NODE_COLUMN != nodeType(pParam)) {
           planError("invalid primary cond left timetruncate param type, leftParamType:%d", nodeType(pParam));
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
@@ -856,7 +856,7 @@ static int32_t setColEqCond(SNode* pEqCond, int32_t subType, int16_t leftBlkId, 
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
         SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-        if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+        if (QUERY_NODE_COLUMN != nodeType(pParam)) {
           planError("invalid primary cond right timetruncate param type, rightParamType:%d", nodeType(pParam));
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
@@ -915,11 +915,17 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     if (TSDB_CODE_SUCCESS == code) {
       code = setColEqCond(pJoin->pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);  
     }
+    if (TSDB_CODE_SUCCESS == code && NULL != pJoin->leftPrimExpr) {
+      code = addDataBlockSlot(pCxt, &pJoin->leftPrimExpr, pLeftDesc);
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL != pJoin->rightPrimExpr) {
+      code = addDataBlockSlot(pCxt, &pJoin->rightPrimExpr, pRightDesc);
+    }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->winPrimEqCond) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->addPrimEqCond) {
     SNode* pPrimKeyCond = NULL;
-    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->winPrimEqCond,
+    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->addPrimEqCond,
                   &pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);  

@@ -480,8 +480,8 @@ static bool mLeftJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoi
     }
 
     if (buildGot) {
-      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCol->srcSlot);
-      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCol->srcSlot);
+      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCtx.targetSlotId);
+      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCtx.targetSlotId);
       if (*((int64_t*)pProbeCol->pData + pJoin->probe->blkRowIdx) > *((int64_t*)pBuildCol->pData + pJoin->build->blk->info.rows - 1)) {
         pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
         continue;
@@ -585,7 +585,7 @@ SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && (pJoin->build->dsFetchDone || (pCtx->groupJoin && NULL == pJoin->build->blk))) {
+    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && MJOIN_TB_GRP_ROWS_DONE(pJoin->build, pCtx->groupJoin)) {
       pCtx->probeNEqGrp.blk = pJoin->probe->blk;
       pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
       pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
@@ -1856,7 +1856,7 @@ int32_t mAsofLowerAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWindow
   do {
       grp.blk = pTable->blk;
       
-      SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
+      SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
 
       if (*(int64_t*)colDataGetNumData(pCol, pTable->blkRowIdx) != timestamp) {
         return TSDB_CODE_SUCCESS;
@@ -2176,7 +2176,7 @@ SSDataBlock* mAsofLowerJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && (pJoin->build->dsFetchDone || (pCtx->groupJoin && NULL == pJoin->build->blk))) {
+    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && MJOIN_TB_GRP_ROWS_DONE(pJoin->build, pCtx->groupJoin)) {
       pCtx->probeGrp.beginIdx = pJoin->probe->blkRowIdx;
       pCtx->probeGrp.readIdx = pCtx->probeGrp.beginIdx;
       pCtx->probeGrp.endIdx = pJoin->probe->blk->info.rows - 1;
@@ -2312,7 +2312,7 @@ int32_t mAsofGreaterFillDumpGrpCache(SMJoinWindowCtx* pCtx, bool lastBuildGrp) {
 }
 
 int32_t mAsofGreaterSkipEqRows(SMJoinWindowCtx* pCtx, SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk) {
-  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
   
   if (*(int64_t*)colDataGetNumData(pCol, pTable->blkRowIdx) != timestamp) {
     *wholeBlk = false;
@@ -2468,8 +2468,8 @@ static bool mAsofGreaterRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* p
     }
 
     if (buildGot) {
-      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCol->srcSlot);
-      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCol->srcSlot);
+      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCtx.targetSlotId);
+      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCtx.targetSlotId);
       if (*((int64_t*)pProbeCol->pData + pJoin->probe->blkRowIdx) > *((int64_t*)pBuildCol->pData + pJoin->build->blk->info.rows - 1)) {
         pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
         MJOIN_POP_TB_BLK(&pCtx->cache);
@@ -2564,7 +2564,7 @@ SSDataBlock* mAsofGreaterJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && (pJoin->build->dsFetchDone || (pCtx->groupJoin && NULL == pJoin->build->blk))) {
+    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && MJOIN_TB_GRP_ROWS_DONE(pJoin->build, pCtx->groupJoin)) {
       pCtx->probeGrp.beginIdx = pJoin->probe->blkRowIdx;
       pCtx->probeGrp.readIdx = pCtx->probeGrp.beginIdx;
       pCtx->probeGrp.endIdx = pJoin->probe->blk->info.rows - 1;
@@ -2663,8 +2663,8 @@ static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin
     }
 
     if (buildGot && !pCtx->lowerRowsAcq) {
-      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCol->srcSlot);
-      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCol->srcSlot);
+      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCtx.targetSlotId);
+      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCtx.targetSlotId);
       if (*((int64_t*)pProbeCol->pData + pJoin->probe->blkRowIdx) > *((int64_t*)pBuildCol->pData + pJoin->build->blk->info.rows - 1)) {
         pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
         continue;
@@ -2681,7 +2681,7 @@ static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin
 
 int32_t mWinJoinAddWinBeginBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SMJoinTableCtx* build, bool* winEnd) {
   SSDataBlock* pBlk = build->blk;
-  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCtx.targetSlotId);
   if (*((int64_t*)pCol->pData + pBlk->info.rows - 1) >= pCtx->winBeginTs) {
     for (; build->blkRowIdx < pBlk->info.rows; build->blkRowIdx++) {
       if (*((int64_t*)pCol->pData + build->blkRowIdx) < pCtx->winBeginTs) {
@@ -2715,7 +2715,7 @@ int32_t mWinJoinAddWinBeginBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SM
 
 int32_t mWinJoinAddWinEndBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SMJoinTableCtx* build, bool* winEnd) {
   SSDataBlock* pBlk = build->blk;
-  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCtx.targetSlotId);
   SMJoinGrpRows grp = {.blk = pBlk, .beginIdx = build->blkRowIdx};
 
   if (*((int64_t*)pCol->pData + build->blkRowIdx) > pCtx->winEndTs) {
@@ -2771,7 +2771,7 @@ int32_t mWinJoinMoveWinBegin(SMJoinWindowCtx* pCtx) {
     int32_t grpNum = taosArrayGetSize(pCache->grps);
     for (int32_t i = 0; i < grpNum; ++i) {
       SMJoinGrpRows* pGrp = taosArrayGet(pCache->grps, i);
-      SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCol->srcSlot);
+      SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCtx.targetSlotId);
       if (*((int64_t*)pCol->pData + pGrp->blk->info.rows - 1) < pCtx->winBeginTs) {
         pCache->rowNum -= (pGrp->blk->info.rows - pGrp->beginIdx);
         if (pGrp->blk == pCache->outBlk) {
@@ -2861,7 +2861,7 @@ int32_t mWinJoinMoveWinEnd(SMJoinWindowCtx* pCtx) {
   }
   
   SMJoinGrpRows* pGrp = taosArrayGetLast(pCache->grps);
-  SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCol->srcSlot);
+  SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCtx.targetSlotId);
   if (*((int64_t*)pCol->pData + pGrp->blk->info.rows - 1) <= pCtx->winEndTs) {
     pCache->rowNum += pGrp->blk->info.rows - pGrp->endIdx - 1;
     if (pCache->rowNum >= pCtx->jLimit) {

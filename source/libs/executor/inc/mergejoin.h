@@ -82,51 +82,59 @@ typedef struct SMJoinNMatchCtx {
   int32_t grpIdx;
 } SMJoinNMatchCtx;
 
+// for now timetruncate only
+typedef struct SMJoinPrimExprCtx {
+  int64_t truncateUnit;
+  int64_t timezoneUnit;
+  int32_t targetSlotId;
+} SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {
-  EJoinTableType type;
-  int32_t        downStreamIdx;
-  SOperatorInfo* downStream;
-  bool           dsInitDone;
-  bool           dsFetchDone;
+  EJoinTableType     type;
+  int32_t            downStreamIdx;
+  SOperatorInfo*     downStream;
+  bool               dsInitDone;
+  bool               dsFetchDone;
+  SNode*             primExpr;
+  SMJoinPrimExprCtx  primCtx;
 
-  int32_t        blkId;
-  SQueryStat     inputStat;
+  int32_t            blkId;
+  SQueryStat         inputStat;
 
-  uint64_t       lastInGid;
-  SSDataBlock*   remainInBlk;
+  uint64_t           lastInGid;
+  SSDataBlock*       remainInBlk;
 
-  SMJoinColMap*  primCol;
-  char*          primData;
+  SMJoinColMap*      primCol;
+  char*              primData;
 
-  int32_t        finNum;
-  SMJoinColMap*  finCols;
+  int32_t            finNum;
+  SMJoinColMap*      finCols;
   
-  int32_t        keyNum;
-  int32_t        keyNullSize;
-  SMJoinColInfo* keyCols;
-  char*          keyBuf;
-  char*          keyData;
+  int32_t            keyNum;
+  int32_t            keyNullSize;
+  SMJoinColInfo*     keyCols;
+  char*              keyBuf;
+  char*              keyData;
 
-  bool           newBlk;
-  SSDataBlock*   blk;
-  int32_t        blkRowIdx;
+  bool               newBlk;
+  SSDataBlock*       blk;
+  int32_t            blkRowIdx;
 
   // merge join
   
-  int64_t        grpTotalRows;
-  int32_t        grpIdx;
-  bool           noKeepEqGrpRows;
-  bool           multiEqGrpRows;
-  int64_t        eqRowLimit;
-  int64_t        eqRowNum;
-  SArray*        eqGrps;
-  SArray*        createdBlks;
+  int64_t            grpTotalRows;
+  int32_t            grpIdx;
+  bool               noKeepEqGrpRows;
+  bool               multiEqGrpRows;
+  int64_t            eqRowLimit;
+  int64_t            eqRowNum;
+  SArray*            eqGrps;
+  SArray*            createdBlks;
 
   // hash join
 
-  int32_t        grpArrayIdx;
-  SArray*        pGrpArrays;
+  int32_t            grpArrayIdx;
+  SArray*            pGrpArrays;
 
   bool               multiRowsGrp;
   int32_t            grpRowIdx;
@@ -134,11 +142,11 @@ typedef struct SMJoinTableCtx {
   SMJoinHashGrpRows* pHashGrpRows;
   SSHashObj*         pGrpHash;  
 
-  int64_t          rowBitmapSize;
-  int64_t          rowBitmapOffset;
-  char*            pRowBitmap;
+  int64_t            rowBitmapSize;
+  int64_t            rowBitmapOffset;
+  char*              pRowBitmap;
   
-  SMJoinNMatchCtx  nMatchCtx;
+  SMJoinNMatchCtx    nMatchCtx;
 } SMJoinTableCtx;
 
 typedef struct SMJoinMatchInfo {
@@ -321,6 +329,7 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_PROBE_TB_ROWS_DONE(_tb) ((_tb)->blkRowIdx >= (_tb)->blk->info.rows)
 #define FJOIN_PROBE_TB_ROWS_DONE(_tb) ((NULL == (_tb)->blk) || ((_tb)->blkRowIdx >= (_tb)->blk->info.rows))
 #define MJOIN_BUILD_TB_ROWS_DONE(_tb) ((NULL == (_tb)->blk) || ((_tb)->blkRowIdx >= (_tb)->blk->info.rows))
+#define MJOIN_TB_GRP_ROWS_DONE(_tb, _grpJoin) ((_tb)->dsFetchDone || ((_grpJoin) && NULL == (_tb)->blk && NULL != (_tb)->remainInBlk))
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
@@ -378,7 +387,7 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
   do {                                                                          \
     if (NULL != (_tb)->blk && (_tb)->blkRowIdx < (_tb)->blk->info.rows) {       \
-      (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
+      (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCtx.targetSlotId);   \
       (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
     } else {                                                                    \
       (_ts) = INT64_MAX;                                                        \
@@ -423,6 +432,7 @@ SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator);
 void mJoinResetGroupTableCtx(SMJoinTableCtx* pCtx);
 void mJoinResetTableCtx(SMJoinTableCtx* pCtx);
+void mLeftJoinGroupReset(SMJoinOperatorInfo* pJoin);
 void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin);
 bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);

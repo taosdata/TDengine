@@ -56,7 +56,6 @@ char* getJoinSTypeString(EJoinSubType type) {
 
 char* getFullJoinTypeString(EJoinType type, EJoinSubType stype) {
   static char* joinFullType[][8] = {
-    {}, 
     {"INNER", "INNER", "INNER", "INNER", "INNER", "INNER ANY", "INNER", "INNER"},
     {"LEFT", "LEFT", "LEFT OUTER", "LEFT SEMI", "LEFT ANTI", "LEFT ANY", "LEFT ASOF", "LEFT WINDOW"},
     {"RIGHT", "RIGHT", "RIGHT OUTER", "RIGHT SEMI", "RIGHT ANTI", "RIGHT ANY", "RIGHT ASOF", "RIGHT WINDOW"},
@@ -816,7 +815,7 @@ void nodesDestroyNode(SNode* pNode) {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
       nodesDestroyNode(pJoin->pWindowOffset);
       nodesDestroyNode(pJoin->pJLimit);
-      nodesDestroyNode(pJoin->winPrimCond);
+      nodesDestroyNode(pJoin->addPrimCond);
       nodesDestroyNode(pJoin->pLeft);
       nodesDestroyNode(pJoin->pRight);
       nodesDestroyNode(pJoin->pOnCond);
@@ -1286,7 +1285,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pWindowOffset);
       nodesDestroyNode(pLogicNode->pJLimit);
-      nodesDestroyNode(pLogicNode->winPrimEqCond);
+      nodesDestroyNode(pLogicNode->addPrimEqCond);
       nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
       nodesDestroyNode(pLogicNode->pColEqCond);
       nodesDestroyNode(pLogicNode->pColOnCond);

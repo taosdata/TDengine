@@ -581,3 +581,7 @@ sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s,
 sql_error select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 having(a.ts > 0) order by count(*);
 sql_error select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s) slimit 1;
 sql_error select a.ts, b.ts from sta a left window join sta b on a.t1=1 window_offset(-1s, 1s) order by a.t1, a.ts;
+sql_error select a.ts, b.ts from sta a left window join sta b on a.ts > 1 window_offset(-1s, 1s) where a.ts = b.ts;
+sql_error select a.ts, b.ts from sta a left window join sta b on a.ts =b.ts window_offset(-1s, 1s) where a.ts = b.ts;
+sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1, 1) where a.ts = b.ts;
+sql_error select a.ts, b.ts from (select * from sta) a left window join sta b window_offset(-1s, 1s) where a.ts = b.ts;

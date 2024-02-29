@@ -74,3 +74,6 @@ if $data11 != 4 then
   return -1
 endi
 
+sql_error select a.ts, b.ts from sta a left semi join sta b jlimit 3 where a.ts > b.ts;
+sql_error select a.ts, b.ts from sta a left semi join sta b where a.ts > b.ts;
+sql_error select a.ts, b.ts from sta a left semi join sta b on a.ts > 1 where a.ts = b.ts;

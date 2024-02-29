@@ -1,0 +1,81 @@
+sql connect
+sql use test0;
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h) and a.col1=b.col1;
+if $rows != 12 then
+  return -1
+endi
+
+sql select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1m) = b.ts;
+if $rows != 16 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) = a.ts;
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.col1,timetruncate(a.col1, 1h) from sta a left join sta b on a.ts = b.ts and timetruncate(a.col1, 1h) = timetruncate(a.col1, 1h);
+if $rows != 12 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left semi join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left anti join sta b on timetruncate(a.ts, 1h) = timetruncate(b.ts, 1h);
+if $rows != 0 then
+  return -1
+endi
+
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h);
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2;
+if $rows != 16 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 8;
+if $rows != 64 then
+  return -1
+endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 9;
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.ts, b.ts from sta a left asof join sta b on a.col1 =b.col1 and timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h) jlimit 2;
+if $rows != 8 then
+  return -1
+endi
+
+sql select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2 where timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h);
+if $rows != 16 then
+  return -1
+endi
+
+sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts=b.ts and a.ts=b.ts;
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h) and timetruncate(a.ts, 1h) > timetruncate(b.ts, 1h);
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) and a.ts > timetruncate(b.ts, 1s) jlimit 2;
+sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts > timetruncate(b.ts, 1s) and timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2;
+sql_error select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) and a.ts =b.col1 jlimit 2;
+sql_error select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) + 1 = a.ts;
+sql_error select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) = a.ts + 1;
+sql_error select a.ts, b.col1 from sta a left join sta b on b.ts + 1 = a.ts + 1;
+
+
+

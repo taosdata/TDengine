@@ -960,10 +960,31 @@ if $data11 != 2 then
   return -1
 endi
 
+sql select a.ts, b.ts from sta a left asof join sta b;
+if $rows != 8 then
+  return -1
+endi
+sql select a.ts, b.ts from sta a left asof join sta b jlimit 3;
+if $rows != 22 then
+  return -1
+endi
+sql select a.ts, b.ts from sta a left asof join sta b where a.ts > b.ts;
+if $rows != 0 then
+  return -1
+endi
+sql select a.ts, b.ts from sta a left asof join sta b jlimit 3 where a.ts > b.ts;
+if $rows != 10 then
+  return -1
+endi
+
+sql_error select a.ts, b.ts from sta a asof join sta b on a.ts = b.ts;
+sql_error select a.ts, b.ts from sta a full asof join sta b on a.ts = b.ts;
+sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts != b.ts;
 sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts >=b.ts and a.col1=a.ts;
 sql_error select a.ts, b.ts from sta a left asof join sta b on a.ts >=b.ts and a.col1 > 1;
 sql_error select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1 > b.col1 jlimit 2 order by a.ts;
 sql_error select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1 = 1 jlimit 2 order by a.ts;
 sql_error select a.t1, a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;
 sql_error select count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000' slimit 1;
+sql_error select a.ts, b.ts from (select * from sta) a left asof join sta b where a.ts = b.ts;
 

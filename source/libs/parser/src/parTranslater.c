@@ -3244,7 +3244,7 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return pRewriteCxt.errCode;
 }
 
-static int32_t addPrimEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTableNode* rightTable) {
+static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTableNode* rightTable, EJoinType joinType, EJoinSubType subType) {
   struct STableMeta* pLMeta = leftTable->pMeta;
   struct STableMeta* pRMeta = rightTable->pMeta;
 
@@ -3256,7 +3256,13 @@ static int32_t addPrimEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTabl
   SOperatorNode* pOp = (SOperatorNode*)*pCond;
   pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  pOp->opType = OP_TYPE_EQUAL;
+  if (IS_WINDOW_JOIN(subType)) {
+    pOp->opType = OP_TYPE_EQUAL;
+  } else if (JOIN_TYPE_LEFT == joinType) {
+    pOp->opType = OP_TYPE_GREATER_EQUAL;
+  } else {
+    pOp->opType = OP_TYPE_LOWER_EQUAL;
+  }
 
   SColumnNode* pLeft = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pLeft) {
@@ -3302,25 +3308,25 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
                                    "Join requires valid time series input");
   }
   
-  if (JOIN_STYPE_WIN == pJoinTable->subType) {
+  if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
     if (QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pLeft) || QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pRight)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Only support WINDOW join between tables");
+                                     "Only support ASOF/WINDOW join between tables");
     }
 
     SRealTableNode* pLeft = (SRealTableNode*)pJoinTable->pLeft;
     if (TSDB_SUPER_TABLE != pLeft->pMeta->tableType && TSDB_CHILD_TABLE != pLeft->pMeta->tableType && TSDB_NORMAL_TABLE != pLeft->pMeta->tableType) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Unsupported WINDOW join table type");
+                                     "Unsupported ASOF/WINDOW join table type");
     }
 
     SRealTableNode* pRight = (SRealTableNode*)pJoinTable->pRight;
     if (TSDB_SUPER_TABLE != pRight->pMeta->tableType && TSDB_CHILD_TABLE != pRight->pMeta->tableType && TSDB_NORMAL_TABLE != pRight->pMeta->tableType) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Unsupported WINDOW join table type");
+                                     "Unsupported ASOF/WINDOW join table type");
     }    
 
-    return addPrimEqCond(&pJoinTable->winPrimCond, pLeft, pRight);
+    return addPrimJoinEqCond(&pJoinTable->addPrimCond, pLeft, pRight, pJoinTable->joinType, pJoinTable->subType);
   }
   
   return TSDB_CODE_SUCCESS;

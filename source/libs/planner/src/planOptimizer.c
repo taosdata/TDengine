@@ -98,8 +98,8 @@ static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 static SJoinOptimizeOpt gJoinWhereOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
 /*INNER*/  {{PUSH_DOWN_ALL_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
-/*LEFT*/   {{0},                  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}},
-/*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
+/*LEFT*/   {{0},                  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}},
+/*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
 };
 
@@ -757,8 +757,14 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   }
 
   SOperatorNode* pOper = (SOperatorNode*)pCond;
-  if (OP_TYPE_EQUAL != pOper->opType && JOIN_STYPE_ASOF != pJoin->subType) {
-    return false;
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    if (JOIN_STYPE_ASOF != pJoin->subType) {
+      return false;
+    }
+    if (OP_TYPE_GREATER_THAN != pOper->opType && OP_TYPE_GREATER_EQUAL != pOper->opType &&
+        OP_TYPE_LOWER_THAN != pOper->opType && OP_TYPE_LOWER_EQUAL != pOper->opType) {
+      return false;
+    }
   }
 
   SSHashObj* pLeftTables = NULL;
@@ -809,8 +815,7 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppPrim
   SNodeList* pOnConds = NULL;
   SNode*     pCond = NULL;
   WHERE_EACH(pCond, pLogicCond->pParameterList) {
-    if (pdcJoinIsPrimEqualCond(pJoin, pCond)) {
-      nodesDestroyNode(*ppPrimEqCond);
+    if (pdcJoinIsPrimEqualCond(pJoin, pCond) && (NULL == *ppPrimEqCond)) {
       *ppPrimEqCond = nodesCloneNode(pCond);
       ERASE_NODE(pLogicCond->pParameterList);
     } else {
@@ -1195,11 +1200,15 @@ static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLo
 
 static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pFullOnCond) {
-    if (IS_WINDOW_JOIN(pJoin->subType)) {
+    if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
       return TSDB_CODE_SUCCESS;
     }
+
+    if (NULL == pJoin->node.pConditions) {      
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
+    }
     
-    if ((!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) || NULL == pJoin->node.pConditions) {
+    if (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
     }
   }
@@ -1210,14 +1219,21 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
     if (errCond) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
     }
-    if (IS_WINDOW_JOIN(pJoin->subType)) {
+    if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
       return TSDB_CODE_SUCCESS;
     }
     
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-  } else if (IS_WINDOW_JOIN(pJoin->subType)) {
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
   }
+
+  if (IS_ASOF_JOIN(pJoin->subType)) {
+    nodesDestroyNode(pJoin->addPrimEqCond);
+    pJoin->addPrimEqCond = NULL;
+  } 
+
+  if (IS_WINDOW_JOIN(pJoin->subType)) {
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+  } 
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1235,6 +1251,21 @@ static int32_t pdcJoinHandleGrpJoinCond(SOptimizeContext* pCxt, SJoinLogicNode* 
       pJoin->pTagEqCond = NULL;
       nodesDestroyNode(pJoin->pFullOnCond);
       pJoin->pFullOnCond = NULL;
+      if (!pJoin->allEqTags) {
+        SNode* pNode = NULL;
+        FOREACH(pNode, pJoin->pLeftEqNodes) {
+          SColumnNode* pCol = (SColumnNode*)pNode;
+          if (COLUMN_TYPE_TAG != pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+            return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+          }
+        }
+        FOREACH(pNode, pJoin->pRightEqNodes) {
+          SColumnNode* pCol = (SColumnNode*)pNode;
+          if (COLUMN_TYPE_TAG != pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+            return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
+          }
+        }
+      }
       break;
     default:
       break;
