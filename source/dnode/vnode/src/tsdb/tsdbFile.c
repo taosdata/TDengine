@@ -93,11 +93,11 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 }
 
 // EXPOSED APIS ==================================================
-static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
-  int32_t     len = strlen(p1);
+static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
+  const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
+  int32_t len = strlen(p1);
 
-  char *p = memcpy(fname, p1, len);
+  char* p = memcpy(fname, p1, len);
   p += len;
 
   *(p++) = TD_DIRSEP[0];
@@ -125,25 +125,25 @@ static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t 
 }
 
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
-  char *p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
+  char* p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
   memcpy(p, ".head", 5);
   p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
-  char *p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
+  char* p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
   memcpy(p, ".data", 5);
   p[5] = 0;
 }
 
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
-  char *p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
   memcpy(p, ".stt", 4);
   p[4] = 0;
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
-  char *p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
+  char* p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
   memcpy(p, ".sma", 4);
   p[4] = 0;
 }
