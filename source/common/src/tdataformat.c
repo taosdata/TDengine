@@ -1243,7 +1243,10 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
   return 0;
 }
 
-int32_t tRowKeyCmpr(const void *p1, const void *p2) {
+// NOTE:
+// set key->numOfPKs to 0 as the smallest key with ts
+// set key->numOfPKs to (TD_MAX_PK_COLS + 1) as the largest key with ts
+int32_t tRowKeyCompare(const void *p1, const void *p2) {
   SRowKey *key1 = (SRowKey *)p1;
   SRowKey *key2 = (SRowKey *)p2;
 
@@ -1253,9 +1256,15 @@ int32_t tRowKeyCmpr(const void *p1, const void *p2) {
     return 1;
   }
 
-  for (uint8_t iKey = 0; iKey < key1->numOfPKs; iKey++) {
-    int32_t ret = tValueCompare(&key1->pks[iKey], &key2->pks[iKey]);
-    if (ret) return ret;
+  if (key1->numOfPKs == key2->numOfPKs) {
+    for (uint8_t iKey = 0; iKey < key1->numOfPKs; iKey++) {
+      int32_t ret = tValueCompare(&key1->pks[iKey], &key2->pks[iKey]);
+      if (ret) return ret;
+    }
+  } else if (key1->numOfPKs < key2->numOfPKs) {
+    return -1;
+  } else {
+    return 1;
   }
 
   return 0;

@@ -1033,7 +1033,7 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
 
     tStatisBlockGet(writer->staticBlock, writer->staticBlock->numOfRecords, &record);
 
-    if (tRowKeyCmpr(&key.key, &record.lastKey) > 0) {
+    if (tRowKeyCompare(&key.key, &record.lastKey) > 0) {
       // TODO: update count and last key
       //   TARRAY2_LAST(writer->staticBlock->count)++;
       //   TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;

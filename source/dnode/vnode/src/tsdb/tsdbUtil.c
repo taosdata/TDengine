@@ -625,7 +625,7 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
 }
 
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
-  int32_t c = tRowKeyCmpr(&key1->key, &key2->key);
+  int32_t c = tRowKeyCompare(&key1->key, &key2->key);
 
   if (c) {
     return c;

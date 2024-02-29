@@ -124,7 +124,7 @@ int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetKey(SRow *pRow, SRowKey *key);
-int32_t tRowKeyCmpr(const void *p1, const void *p2);
+int32_t tRowKeyCompare(const void *p1, const void *p2);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
