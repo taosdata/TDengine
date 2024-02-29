@@ -132,6 +132,7 @@ impl Monitor {
         recorder.install();
         let taosx_id = self.taosx_id;
         let controller = self.controller.clone();
+        let monitor_enabled = self.cfg.fqdn.is_some();
         tokio::spawn(async move {
             init_agents(controller.clone()).await.unwrap();
             use sysinfo::*;
@@ -156,6 +157,7 @@ impl Monitor {
                     process_id,
                     controller.clone(),
                     monitor_interval,
+                    monitor_enabled,
                 )
                 .await;
             }
@@ -276,6 +278,7 @@ pub async fn process_metrics(
     process_id: sysinfo::Pid,
     controller: TaskControllerRef,
     monitor_interval: u64,
+    monitor_enabled: bool,
 ) -> anyhow::Result<()> {
     sys.refresh_all();
     let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
@@ -299,12 +302,14 @@ pub async fn process_metrics(
             .set(disk.written_bytes as f64 / monitor_interval as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
-    // task summeries
-    let (running_tasks, completed_tasks, failed_tasks) =
-        controller.get_task_summaries(monitor_interval).await;
-    gauge!("running_tasks", &labels).set(running_tasks as f64);
-    gauge!("completed_tasks", &labels).set(completed_tasks as f64);
-    gauge!("failed_tasks", &labels).set(failed_tasks as f64);
+    if monitor_enabled {
+        // task summeries
+        let (running_tasks, completed_tasks, failed_tasks) =
+            controller.get_task_summaries(monitor_interval).await;
+        gauge!("running_tasks", &labels).set(running_tasks as f64);
+        gauge!("completed_tasks", &labels).set(completed_tasks as f64);
+        gauge!("failed_tasks", &labels).set(failed_tasks as f64);
+    }
     // connector process metrics
     update_sub_connector_process_metrics(
         sys,
