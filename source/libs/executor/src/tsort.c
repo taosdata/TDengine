@@ -63,8 +63,8 @@ typedef struct SSortMemFile {
   int32_t numMemPages;
   SSHashObj* mActivePages;
 
-  //FILE* pTdFile;
-  TdFilePtr pTdFile;
+  FILE* pTdFile;
+  // TdFilePtr pTdFile;
   char memFilePath[PATH_MAX];
 } SSortMemFile;
 
@@ -237,6 +237,14 @@ void destroyTuple(void* t) {
     destoryAllocatedTuple(pDesc->data);
     taosMemoryFree(pDesc);
   }
+}
+
+int tsortSeekFile(FILE* file, int64_t offset, int whence) {
+  #ifdef WINDOWS
+  return _fseeki64(file, offset, whence);
+  #else
+  return fseeko(file, offset, whence);
+  #endif
 }
 
 /**
@@ -1034,11 +1042,11 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
       ++pMemFile->numMemPages;
     }
     {
-      int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pageId) * pMemFile->pageSize, SEEK_SET);
-      if (ret >= 0) {
-        ret = taosReadFile(pMemFile->pTdFile, pEntry->data, pMemFile->pageSize);
+      int ret = tsortSeekFile(pMemFile->pTdFile, ((int64_t)pageId) * pMemFile->pageSize, SEEK_SET);
+      if (ret == 0) {
+        ret = fread(pEntry->data, pMemFile->pageSize, 1, pMemFile->pTdFile);
       }
-      if (ret != pMemFile->pageSize) {
+      if (ret != 1) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         if (freeEntryWhenError) {
           taosMemoryFreeClear(pEntry->data);
@@ -1088,8 +1096,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   SSortMemFile* pMemFile = taosMemoryCalloc(1, sizeof(SSortMemFile));
 
   taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-  pMemFile->pTdFile =
-      taosOpenFile(pMemFile->memFilePath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  pMemFile->pTdFile = fopen(pMemFile->memFilePath, "w+");
   if (pMemFile->pTdFile == NULL) {
     taosMemoryFree(pMemFile);
     return TAOS_SYSTEM_ERROR(errno);
@@ -1133,7 +1140,8 @@ static int32_t destroySortMemFile(SSortHandle* pHandle) {
   taosMemoryFree(pMemFile->writePageBuf);
   pMemFile->writePageBuf = NULL;
 
-  taosCloseFile(&pMemFile->pTdFile);
+  fclose(pMemFile->pTdFile);
+  pMemFile->pTdFile = NULL;
   taosRemoveFile(pMemFile->memFilePath);
   taosMemoryFree(pMemFile);
   pHandle->pExtRowsMemFile = NULL;
@@ -1153,11 +1161,11 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
       pMemFile->currPageOffset = 0;
 
       if (pMemFile->currPageId - pMemFile->startPageId >= pMemFile->numWritePages) {
-        int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
-        if (ret >= 0) {
-          ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writePageBuf, pMemFile->pageSize * pMemFile->numWritePages);
+        int ret = tsortSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
+        if (ret == 0) {
+          ret = fwrite(pMemFile->writePageBuf, pMemFile->pageSize * pMemFile->numWritePages, 1, pMemFile->pTdFile);
         }
-        if (ret !=  pMemFile->pageSize * pMemFile->numWritePages) {
+        if (ret !=  1) {
           terrno = TAOS_SYSTEM_ERROR(errno);
           return terrno;
         }          
@@ -1182,12 +1190,12 @@ static int32_t saveDirtyPagesToExtRowsMemFile(SSortHandle* pHandle) {
   if (!pMemFile->bDirty) {
     return TSDB_CODE_SUCCESS;
   }
-  int64_t ret = taosLSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
+  int ret = tsortSeekFile(pMemFile->pTdFile, ((int64_t)pMemFile->startPageId) * pMemFile->pageSize, SEEK_SET);
   int32_t numWriteBytes = pMemFile->pageSize * (pMemFile->currPageId - pMemFile->startPageId + 1);
-  if (ret >= 0) {
-    ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writePageBuf, numWriteBytes);
+  if (ret == 0) {
+    ret = fwrite(pMemFile->writePageBuf, numWriteBytes, 1, pMemFile->pTdFile);
   }
-  if (ret != numWriteBytes) {
+  if (ret != 1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
