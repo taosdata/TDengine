@@ -221,7 +221,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   bData->nRow = hdr.nRow;
 
   // decode primary key column indices
-  for (int32_t i = 0; i < hdr.numPrimaryKeyCols; i++) {
+  for (int32_t i = 0; i < hdr.numOfPKs; i++) {
     n += tGetBlockCol(reader->config->bufArr[0] + n, primaryKeyBlockCols + i);
   }
 
@@ -249,7 +249,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   n += hdr.szKey;
 
   // decode primary key columns
-  for (int32_t i = 0; i < hdr.numPrimaryKeyCols; i++) {
+  for (int32_t i = 0; i < hdr.numOfPKs; i++) {
     SColData *pColData;
 
     code = tBlockDataAddColData(bData, primaryKeyBlockCols[i].cid, primaryKeyBlockCols[i].type,
