@@ -164,31 +164,50 @@ typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, const int3
                                              const char type);
 
 typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
-                                           const char type);
+                                           int32_t outputSize, const char type);
 typedef int32_t (*__data_decompress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
-                                             const char type);
+                                             int32_t outputSize, const char type);
 
 typedef struct {
   __data_compress_init      initFn;
-  __data_compress_l1_fn_t   l1CompFn;
-  __data_decompress_l1_fn_t l1DeCompFn;
-} TCompressL1;
+  __data_compress_l1_fn_t   comprFn;
+  __data_decompress_l1_fn_t decomprFn;
+} TCompressL1FnSet;
 
 typedef struct {
   __data_compress_init      initFn;
-  __data_compress_l2_fn_t   l2CompFn;
-  __data_decompress_l2_fn_t l2DeCompFn;
-} TCompressL2;
+  __data_compress_l2_fn_t   comprFn;
+  __data_decompress_l2_fn_t decomprFn;
+
+} TCompressL2FnSet;
 
 typedef struct {
   int8_t                    type;
   int8_t                    level;
   __data_compress_init      initFn;
-  __data_compress_l1_fn_t   l1CompFn;
-  __data_decompress_l1_fn_t l1DeCompFn;
-  __data_compress_l2_fn_t   l2CompFn;
-  __data_decompress_l2_fn_t l2DeCompFn;
+  __data_compress_l1_fn_t   l1CmprFn;
+  __data_decompress_l1_fn_t l1DecmprFn;
+  __data_compress_l2_fn_t   l2CmprFn;
+  __data_decompress_l2_fn_t l2DecmprFn;
 } TCompressPara;
+
+typedef enum L1Compress {
+  L1_DISABLED,
+  L1_SIMPLE_8B,
+  L1_XOR,
+  L1_RLE,
+  L1_MAX,
+} EL1CompressFuncType;
+
+typedef enum L2Compress {
+  L2_DISABLED,
+  L2_LZ4,
+  L2_ZLIB,
+  L2_ZSTD,
+  L2_TSZ,
+  L2_XZ,
+  L2_MAX,
+} EL2ComressFuncType;
 
 #ifdef __cplusplus
 }
