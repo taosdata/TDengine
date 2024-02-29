@@ -27,6 +27,27 @@
 #define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
+static bool hasCountWindowNode(SPhysiNode* pNode) {
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT) {
+    return true;
+  } else {
+    size_t size = LIST_LENGTH(pNode->pChildren);
+
+    for (int32_t i = 0; i < size; ++i) {
+      SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pNode->pChildren, i);
+      if (hasCountWindowNode(pChild)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+}
+
+static bool isCountWindowStreamTask(SSubplan* pPlan) {
+  return hasCountWindowNode((SPhysiNode*)pPlan->pNode);
+}
+
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
   SNode*      pAst = NULL;
@@ -320,6 +341,17 @@ static void streamTaskSetDataRange(SStreamTask* pTask, int64_t skey, SArray* pVe
   }
 }
 
+static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFillhistoryTask) {
+  bool hasCountWindowNode = isCountWindowStreamTask(pPlan);
+
+  if (hasCountWindowNode && (!isFillhistoryTask)) {
+    SStreamStatus* pStatus = &pTask->status;
+    mDebug("s-task:0x%x status set %s from %s for count window agg task with fill-history option set",
+           pTask->id.taskId, streamTaskGetStatusStr(TASK_STATUS__HALT), streamTaskGetStatusStr(pStatus->taskStatus));
+    pStatus->taskStatus = TASK_STATUS__HALT;
+  }
+}
+
 static SStreamTask* buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam) {
   uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
   SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
@@ -365,13 +397,17 @@ static void setHTasksId(SStreamObj* pStream) {
 
 static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset, int64_t skey,
                                SArray* pVerList, SVgObj* pVgroup, bool isFillhistory, bool useTriggerParam) {
-  // new stream task
   SStreamTask* pTask = buildSourceTask(pStream, pEpset, isFillhistory, useTriggerParam);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
+
   mDebug("doAddSourceTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
+
+  if (pStream->conf.fillHistory) {
+    haltInitialTaskStatus(pTask, plan, isFillhistory);
+  }
 
   streamTaskSetDataRange(pTask, skey, pVerList, pVgroup->vgId);
 
@@ -380,6 +416,7 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
     terrno = code;
     return terrno;
   }
+
   return TDB_CODE_SUCCESS;
 }
 

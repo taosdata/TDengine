@@ -18,6 +18,9 @@ from frame.autogen import *
 
 
 class TDTestCase(TBase):
+    updatecfgDict = {
+        'slowLogScope':"query"
+    }
 
     def init(self, conn, logSql, replicaVar=3):
         super(TDTestCase, self).init(conn, logSql, replicaVar=3, db="snapshot", checkColName="c1")

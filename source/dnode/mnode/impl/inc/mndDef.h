@@ -464,6 +464,7 @@ typedef struct {
   char*    pAst1;
   char*    pAst2;
   SRWLatch lock;
+  int8_t   source;
 } SStbObj;
 
 typedef struct {

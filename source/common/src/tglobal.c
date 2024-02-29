@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 0.5F;
+float   tsRatioOfVnodeStreamThreads = 1.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -1606,10 +1606,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsTempSpace.reserved);
         matched = true;
-      } else if (strcasecmp("minimalDataDirGB", name) == 0) {
-        tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-        uInfo("%s set to %" PRId64, name, tsDataSpace.reserved);
-        matched = true;
       } else if (strcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
@@ -1679,10 +1675,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
           return -1;
         }
-        matched = true;
-      } else if (strcasecmp("telemetryServer", name) == 0) {
-        uInfo("%s set from %s to %s", name, pItem->str, tsTelemServer);
-        tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
         matched = true;
       }
       break;

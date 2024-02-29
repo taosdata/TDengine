@@ -317,14 +317,14 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   if (pTask == NULL) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
-    taosMemoryFree(req.pRetrieve);
+    tDeleteStreamRetrieveReq(&req);
     return -1;
   }
 
   int32_t code = 0;
-  if(pTask->info.taskLevel == TASK_LEVEL__SOURCE){
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     code = streamProcessRetrieveReq(pTask, &req);
-  }else{
+  } else {
     req.srcNodeId = pTask->info.nodeId;
     req.srcTaskId = pTask->id.taskId;
     code = broadcastRetrieveMsg(pTask, &req);
@@ -334,7 +334,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   sendRetrieveRsp(&req, &rsp);
 
   streamMetaReleaseTask(pMeta, pTask);
-  taosMemoryFree(req.pRetrieve);
+  tDeleteStreamRetrieveReq(&req);
   return code;
 }
 
@@ -611,6 +611,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     }
     streamMetaReleaseTask(pMeta, pTask);
   }
+
+  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, true);
 
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
@@ -934,4 +936,11 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
   return taosArrayGetSize(pMeta->pTaskList);
+}
+
+int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+
+  return TSDB_CODE_SUCCESS;
 }

@@ -109,7 +109,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = (fillHistory || hasFillhistory) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
+  pTask->status.taskStatus = fillHistory? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -127,7 +127,6 @@ int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo)
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->childId) < 0) return -1;
-  /*if (tEncodeI64(pEncoder, pInfo->processedVer) < 0) return -1;*/
   if (tEncodeSEpSet(pEncoder, &pInfo->epSet) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->stage) < 0) return -1;
   return 0;
@@ -137,7 +136,6 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
   if (tDecodeI32(pDecoder, &pInfo->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->nodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->childId) < 0) return -1;
-  /*if (tDecodeI64(pDecoder, &pInfo->processedVer) < 0) return -1;*/
   if (tDecodeSEpSet(pDecoder, &pInfo->epSet) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->stage) < 0) return -1;
   return 0;
@@ -297,7 +295,6 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 }
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
-  int64_t ver;
   int64_t skip64;
   int8_t  skip8;
   int32_t skip32;
@@ -497,6 +494,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
       pRange->range.maxVer = ver;
       pRange->range.minVer = ver;
     } else {
+      // the initial value of processedVer/nextProcessVer/checkpointVer for stream task with related fill-history task
+      // is set at the mnode.
       if (pTask->info.fillHistory == 1) {
         pChkInfo->checkpointVer = pRange->range.maxVer;
         pChkInfo->processedVer = pRange->range.maxVer;
@@ -505,6 +504,15 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
         pChkInfo->checkpointVer = pRange->range.minVer - 1;
         pChkInfo->processedVer = pRange->range.minVer - 1;
         pChkInfo->nextProcessVer = pRange->range.minVer;
+
+        { // for compatible purpose, remove it later
+          if (pRange->range.minVer == 0) {
+            pChkInfo->checkpointVer = 0;
+            pChkInfo->processedVer = 0;
+            pChkInfo->nextProcessVer = 1;
+            stDebug("s-task:%s update the processedVer to 0 from -1 due to compatible purpose", pTask->id.idStr);
+          }
+        }
       }
     }
   }
@@ -649,7 +657,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
 
   streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_STOP);
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
-  while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */ !streamTaskIsIdle(pTask)) {
+  while (!streamTaskIsIdle(pTask)) {
     stDebug("s-task:%s level:%d wait for task to be idle and then close, check again in 100ms", id,
             pTask->info.taskLevel);
     taosMsleep(100);
@@ -756,15 +764,19 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock) {
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool metaLock) {
+  if (pTask == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (metaLock) {
-    streamMetaWLock(pTask->pMeta);
+    streamMetaWLock(pMeta);
   }
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
@@ -774,18 +786,24 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock) {
 
     taosThreadMutexLock(&(*ppStreamTask)->lock);
     CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
+
+    if (resetRelHalt) {
+      (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
+      stDebug("s-task:0x%" PRIx64 " set the status to be ready", sTaskId.taskId);
+    }
+
     streamMetaSaveTask(pMeta, *ppStreamTask);
     taosThreadMutexUnlock(&(*ppStreamTask)->lock);
   }
 
   if (metaLock) {
-    streamMetaWUnLock(pTask->pMeta);
+    streamMetaWUnLock(pMeta);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId) {
+int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t resetRelHalt) {
   SVDropStreamTaskReq* pReq = rpcMallocCont(sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -795,6 +813,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
+  pReq->resetRelHalt = resetRelHalt;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);

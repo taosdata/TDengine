@@ -64,8 +64,6 @@ typedef struct {
   SSchemaWrapper*      schema;
   char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
   int8_t               recoverStep;
-//  bool                 recoverStep1Finished;
-//  bool                 recoverStep2Finished;
   int8_t               recoverScanFinished;
   SQueryTableDataCond  tableCond;
   SVersionRange        fillHistoryVer;
@@ -84,7 +82,6 @@ struct SExecTaskInfo {
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
   SArray*               schemaInfos;
-  SSchemaInfo           schemaInfo;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
   EOPTR_EXEC_MODEL      execModel;  // operator execution model [batch model|stream model]
