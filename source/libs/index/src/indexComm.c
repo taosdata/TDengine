@@ -76,8 +76,8 @@ char* idxInt2str(int64_t val, char* dst, int radix) {
   return dst - 1;
 }
 __compar_fn_t idxGetCompar(int8_t type) {
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
-      type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_NCHAR ||
+      type == TSDB_DATA_TYPE_GEOMETRY) {
     return (__compar_fn_t)strcmp;
   }
   return getComparFunc(type, 0);
@@ -108,8 +108,8 @@ static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {
-  if (dtype == TSDB_DATA_TYPE_BINARY || dtype == TSDB_DATA_TYPE_NCHAR ||
-      dtype == TSDB_DATA_TYPE_VARBINARY || dtype == TSDB_DATA_TYPE_GEOMETRY) {
+  if (dtype == TSDB_DATA_TYPE_BINARY || dtype == TSDB_DATA_TYPE_NCHAR || dtype == TSDB_DATA_TYPE_VARBINARY ||
+      dtype == TSDB_DATA_TYPE_GEOMETRY) {
     return tDoCompare(func, cmptype, a, b);
   }
 #if 1
@@ -290,6 +290,7 @@ int idxUidCompare(const void* a, const void* b) {
   uint64_t r = *(uint64_t*)b;
   return l - r;
 }
+#ifdef BUILD_NO_CALL
 int32_t idxConvertData(void* src, int8_t type, void** dst) {
   int tlen = -1;
   switch (type) {
@@ -372,6 +373,8 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
   // indexMayFillNumbericData(*dst, tlen);
   return tlen;
 }
+#endif
+
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   if (src == NULL) {
     *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
