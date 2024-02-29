@@ -323,7 +323,6 @@ check_install_env(){
     echo "Check Java env for InfluxDB/OpenTSDB Connector"
     check_java_env
 }
-getUserInputEndpoint
 check_install_env
 
 # main entry point
