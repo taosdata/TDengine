@@ -19,7 +19,7 @@ from util.dnodes import TDDnode
 from util.cluster import *
 import subprocess
 
-BASEVERSION = "3.0.2.3"
+BASEVERSION = "3.2.0.0"
 class TDTestCase:
     def caseDescription(self):
         f'''
