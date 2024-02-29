@@ -23,8 +23,11 @@ namespace TDPIConnector.TDEngine.Models
         public string Type { get; set; }
         public string DataReference { get; set; }
         public string TagValue { get; set; }
-        public bool IsTag()
+        public bool IsTDengineTag()
         {
+            if (DataReference == "Table Lookup" || DataReference == "String Builder") {
+                return true;
+            }
             return string.IsNullOrEmpty(DataReference);
         }
     }

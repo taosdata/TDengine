@@ -38,7 +38,11 @@ namespace TDPIConnector.PI
             {
                 int k = i % afDataPipes.Count;
                 if (elements[i].HasInvalidAttr()) continue;
-                attributeSetLists[k].AddRange(elements[i].AFSDKObject.Attributes);
+                foreach (AFAttributeWrapper attr in elements[i].Attributes ) {
+                    if (!attr.IsTDengineTag()) {
+                        attributeSetLists[k].Add(attr.AFSDKObject);
+                    }
+                }
             }
 
             for (int i = 0; i < afDataPipes.Count; i++)

@@ -276,7 +276,10 @@ namespace TDPIConnector.PI
         public IEnumerable<AFValuesWrapper> GetAttributesRecordedValues(AFAttributeListWrapper afAttributes, DateTime startTime, DateTime endTime, int count)
         {
             DateTime currentDateTime = startTime;
-            AFAttributeList attributeList = afAttributes.AFSDKObject;
+             AFAttributeList attributeList = new AFAttributeList { };
+            foreach (AFAttributeWrapper atrr in afAttributes) {
+                attributeList.Add(atrr.AFSDKObject);
+            }
            
             PIPagingConfiguration config = new PIPagingConfiguration(PIPageType.TagCount, count);
 

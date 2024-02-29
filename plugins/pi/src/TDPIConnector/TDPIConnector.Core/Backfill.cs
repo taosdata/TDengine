@@ -145,7 +145,12 @@ namespace TDPIConnector.Core
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             AFAttributeListWrapper attributes = new AFAttributeListWrapper();
-            attributes.AddRange(element.Attributes);
+            foreach (AFAttributeWrapper attribute in element.Attributes) {
+                if (!attribute.IsTDengineTag()) // tag update is not here
+                {
+                    attributes.Add(attribute);
+                }
+            }
 
             var currentStart = startTime;
             do
@@ -161,7 +166,7 @@ namespace TDPIConnector.Core
                     {
                         found = true;
                         AFAttributeWrapper attribute = values[0].Attribute;
-                        if (string.IsNullOrEmpty(attribute.DataReference))
+                        if (attribute.IsTDengineTag())
                         {
                             var valuestring = attribute.ToStringWithUOM();
                             log.Info($"element tag {element.Name}: {attribute.Name}:{valuestring}");

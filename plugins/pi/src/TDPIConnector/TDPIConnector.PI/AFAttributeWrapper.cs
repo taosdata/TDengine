@@ -225,5 +225,13 @@ namespace TDPIConnector.PI
             }
             return res;
         }
+        public bool IsTDengineTag()
+        {
+            if (DataReference == "Table Lookup" || DataReference == "String Builder")
+            {
+                return true;
+            }
+            return string.IsNullOrEmpty(DataReference);
+        }
     }
 }

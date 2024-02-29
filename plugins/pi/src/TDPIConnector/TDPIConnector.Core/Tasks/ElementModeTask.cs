@@ -32,7 +32,14 @@ namespace TDPIConnector.Core.Tasks
             this.task = new Task(async () =>
             {
                 log.Info("Process datapipe, AF Element Mode observer start...");
-                this.afDataPipeWrapper = this.piSystemManager.AddSignups(this.elements.Values.ToList(), elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
+                try {
+                    this.afDataPipeWrapper = this.piSystemManager.AddSignups(this.elements.Values.ToList(), elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
+                }
+                catch (Exception e)
+                {
+                    log.Error("Error Occured when AF Element AddSignups.", e);
+                    stopTaskRequested = true;
+                }
                 while (!stopTaskRequested)
                 {
                     if (!StandbyManager.Instance.PIConnectionError)

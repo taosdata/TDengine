@@ -260,7 +260,7 @@ namespace TDPIConnector.Core
             newColumns.Add("ts", "TIMESTAMP");
             foreach (var col in superTable.Columns)
             {
-                if (col.IsTag())
+                if (col.IsTDengineTag())
                 {
                     newTags.Add(col.Name, "NCHAR(100)");
                 }
