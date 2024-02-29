@@ -16,6 +16,7 @@
 #include "audit.h"
 #include "cos.h"
 #include "tencode.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tstrbuild.h"
 #include "vnd.h"
@@ -1708,7 +1709,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
 
-  if(pSubmitRsp->affectedRows > 0 && strlen(pOriginalMsg->info.conn.user) > 0){
+  if(tsEnableMonitor && pSubmitRsp->affectedRows > 0 && strlen(pOriginalMsg->info.conn.user) > 0){
     const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS, pVnode->monitor.strClusterId, 
                                     pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
                                     pOriginalMsg->info.conn.user, "Success"};

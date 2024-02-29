@@ -194,26 +194,26 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   while (pVnode->refCount > 0) taosMsleep(10);
 
   dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
-        pVnode->pWriteW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pWriteW.queue));
   tMultiWorkerCleanup(&pVnode->pWriteW);
 
   dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
-        pVnode->pSyncW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncW.queue));
   tMultiWorkerCleanup(&pVnode->pSyncW);
 
   dInfo("vgId:%d, wait for vnode sync rd queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
-        pVnode->pSyncRdW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncRdW.queue));
   tMultiWorkerCleanup(&pVnode->pSyncRdW);
 
   dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
-        pVnode->pApplyW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pApplyW.queue));
   tMultiWorkerCleanup(&pVnode->pApplyW);
 
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
-        pVnode->pFetchQ->threadId);
+        taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
   tqNotifyClose(pVnode->pImpl->pTq);

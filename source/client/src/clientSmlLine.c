@@ -20,14 +20,14 @@
 
 #include "clientSml.h"
 
-#define IS_COMMA(sql) (*(sql) == COMMA && *((sql)-1) != SLASH)
-#define IS_SPACE(sql) (*(sql) == SPACE && *((sql)-1) != SLASH)
-#define IS_EQUAL(sql) (*(sql) == EQUAL && *((sql)-1) != SLASH)
+#define IS_COMMA(sql,escapeChar) (*(sql) == COMMA && (*((sql)-1) != SLASH || ((sql)-1 == escapeChar)))
+#define IS_SPACE(sql,escapeChar) (*(sql) == SPACE && (*((sql)-1) != SLASH || ((sql)-1 == escapeChar)))
+#define IS_EQUAL(sql,escapeChar) (*(sql) == EQUAL && (*((sql)-1) != SLASH || ((sql)-1 == escapeChar)))
 
 #define IS_SLASH_LETTER_IN_FIELD_VALUE(sql) (*((sql)-1) == SLASH && (*(sql) == QUOTE || *(sql) == SLASH))
 
 #define IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) \
-  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == EQUAL))
+  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == EQUAL || *(sql) == SLASH))
 
 #define PROCESS_SLASH_IN_FIELD_VALUE(key, keyLen)  \
   for (int i = 1; i < keyLen; ++i) {               \
@@ -198,7 +198,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
   int     cnt = 0;
 
   while (*sql < sqlEnd) {
-    if (unlikely(IS_SPACE(*sql))) {
+    if (unlikely(IS_SPACE(*sql,NULL))) {
       break;
     }
 
@@ -207,18 +207,21 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     size_t      keyLen = 0;
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
+    const char *escapeChar = NULL;
+
     while (*sql < sqlEnd) {
-      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         terrno = TSDB_CODE_SML_INVALID_DATA;
         return -1;
       }
-      if (unlikely(IS_EQUAL(*sql))) {
+      if (unlikely(IS_EQUAL(*sql,escapeChar))) {
         keyLen = *sql - key;
         (*sql)++;
         break;
       }
       if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+        escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
       }
@@ -238,15 +241,16 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     size_t      valueLenEscaped = 0;
     while (*sql < sqlEnd) {
       // parse value
-      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         break;
-      } else if (unlikely(IS_EQUAL(*sql))) {
+      } else if (unlikely(IS_EQUAL(*sql,escapeChar))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         terrno = TSDB_CODE_SML_INVALID_DATA;
         return -1;
       }
 
       if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+        escapeChar = *sql;
         valueLenEscaped++;
         valueEscaped = true;
       }
@@ -293,7 +297,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     }
 
     cnt++;
-    if (IS_SPACE(*sql)) {
+    if (IS_SPACE(*sql,escapeChar)) {
       break;
     }
     (*sql)++;
@@ -326,7 +330,7 @@ static int32_t smlParseTagLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
 static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *currElement) {
   int cnt = 0;
   while (*sql < sqlEnd) {
-    if (unlikely(IS_SPACE(*sql))) {
+    if (unlikely(IS_SPACE(*sql,NULL))) {
       break;
     }
 
@@ -335,17 +339,19 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     size_t      keyLen = 0;
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
+    const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
-      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
-      if (unlikely(IS_EQUAL(*sql))) {
+      if (unlikely(IS_EQUAL(*sql,escapeChar))) {
         keyLen = *sql - key;
         (*sql)++;
         break;
       }
       if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+        escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
       }
@@ -363,7 +369,6 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     bool        valueEscaped = false;
     size_t      valueLenEscaped = 0;
     int         quoteNum = 0;
-    const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
       // parse value
       if (unlikely(*(*sql) == QUOTE && (*(*sql - 1) != SLASH || (*sql - 1) == escapeChar))) {
@@ -374,7 +379,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
         }
         continue;
       }
-      if (quoteNum % 2 == 0 && (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql)))) {
+      if (quoteNum % 2 == 0 && (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar)))) {
         break;
       }
       if (IS_SLASH_LETTER_IN_FIELD_VALUE(*sql) && (*sql - 1) != escapeChar) {
@@ -437,7 +442,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     }
 
     cnt++;
-    if (IS_SPACE(*sql)) {
+    if (IS_SPACE(*sql,escapeChar)) {
       break;
     }
     (*sql)++;
@@ -453,19 +458,18 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   elements->measure = sql;
   // parse measure
   size_t measureLenEscaped = 0;
+  const char *escapeChar = NULL;
   while (sql < sqlEnd) {
-    if (unlikely((sql != elements->measure) && IS_SLASH_LETTER_IN_MEASUREMENT(sql))) {
-      elements->measureEscaped = true;
-      measureLenEscaped++;
-      sql++;
-      continue;
-    }
-    if (unlikely(IS_COMMA(sql))) {
+    if (unlikely(IS_COMMA(sql,escapeChar) || IS_SPACE(sql,escapeChar))) {
       break;
     }
 
-    if (unlikely(IS_SPACE(sql))) {
-      break;
+    if (unlikely((sql != elements->measure) && IS_SLASH_LETTER_IN_MEASUREMENT(sql))) {
+      elements->measureEscaped = true;
+      escapeChar = sql;
+      measureLenEscaped++;
+      sql++;
+      continue;
     }
     sql++;
   }
@@ -478,8 +482,11 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   // to get measureTagsLen before
   const char *tmp = sql;
   while (tmp < sqlEnd) {
-    if (unlikely(IS_SPACE(tmp))) {
+    if (unlikely(IS_SPACE(tmp,escapeChar))) {
       break;
+    }
+    if(unlikely(IS_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp))){
+      escapeChar = tmp;
     }
     tmp++;
   }
