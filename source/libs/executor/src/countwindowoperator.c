@@ -118,6 +118,8 @@ int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       if (prevRows <= pInfo->windowSliding) {
         if (pBuffInfo->winRows > pInfo->windowSliding) {
           step = pInfo->windowSliding - prevRows;
+        } else {
+          step = pInfo->windowSliding;
         }
       } else {
         step = 0;
