@@ -114,7 +114,7 @@ class TDTestCase:
         taosadapter_log_path=f"{cPath}/../log/"
         self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
         
-        os.system(f" nohup taosadapter -c  {taosadapter_cfg} & " )
+        os.system(f" taosadapter --version && nohup taosadapter -c  {taosadapter_cfg} & " )
 
         sleep(5)
 
@@ -194,7 +194,7 @@ class TDTestCase:
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
-        
+        os.system(f" taosadapter --version " )        
         consumer_dict = {
             "group.id": "g1",
             "td.connect.user": "root",
