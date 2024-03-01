@@ -21,7 +21,7 @@ TDengine的主要功能如下：
 8. 支持[集群](../cluster/)，可以通过多节点进行水平扩展，并通过多副本实现高可靠
 9. 提供[命令行程序](../reference/taos-shell)，便于管理集群，检查系统状态，做即席查询
 10. 提供多种数据的[导入](../operation/import)、[导出](../operation/export)
-11. 支持对[TDengine 集群本身的监控](/operation/monitor)
+11. 支持对[TDengine 集群本身的监控](../operation/monitor)
 12. 提供各种语言的[连接器](../reference/connector): C/C++, Java, Go, Python, Rust, Node.JS, C# 
 13. 支持 [REST 接口](../reference/rest-api/)
 14. 支持与[ Grafana 无缝集成](../third-party/grafana)
