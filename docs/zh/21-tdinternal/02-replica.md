@@ -38,7 +38,7 @@ TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储
 
 **Quorum:**
 
-指数据写入成功所需要的确认数。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replication(副本数）。这个参数在启动一个同步模块实例时需要提供。
+指数据写入成功所需要的确认数。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum \<= replication(副本数）。这个参数在启动一个同步模块实例时需要提供。
 
 **WAL：**
 

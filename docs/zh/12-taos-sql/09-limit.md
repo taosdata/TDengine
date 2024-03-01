@@ -22,7 +22,7 @@ TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进
 
 IS NOT NULL 与不为空的表达式适用范围。
 
-IS NOT NULL 支持所有类型的列。不为空的表达式为 <\>""，仅对非数值类型的列适用。
+IS NOT NULL 支持所有类型的列。不为空的表达式为 \<>""，仅对非数值类型的列适用。
 
 ## ORDER BY 的限制
 
