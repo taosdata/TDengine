@@ -44,7 +44,7 @@ npm install @tdengine/rest
 
 2. Node.js 版本
 
-   原生连接器 `@tdengine/client` 目前兼容的 Node.js 版本为：>=v10.20.0 <= v10.9.0 || >=v12.8.0 <= v12.9.1
+   原生连接器 `@tdengine/client` 目前兼容的 Node.js 版本为：>=v10.20.0 \<= v10.9.0 || >=v12.8.0 \<= v12.9.1
 
 3. "Unable to establish connection"，"Unable to resolve FQDN"
 
