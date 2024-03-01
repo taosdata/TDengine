@@ -89,12 +89,14 @@ static int32_t taosArrayResize(SArray* pArray) {
 int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
   if (newCap > pArray->capacity) {
     float factor = BOUNDARY_BIG_FACTOR;
-    if(newCap * pArray->elemSize > BOUNDARY_SIZE){
+    if (newCap * pArray->elemSize > BOUNDARY_SIZE) {
       factor = BOUNDARY_SMALL_FACTOR;
     }
+
     size_t tsize = (pArray->capacity * factor);
     while (newCap > tsize) {
-      tsize = (tsize * factor);
+      size_t newSize = (tsize * factor);
+      tsize = (newSize == tsize) ? (tsize + 2) : newSize;
     }
 
     pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);

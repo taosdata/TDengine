@@ -21,6 +21,40 @@
 int64_t tsRpcQueueMemoryAllowed = 0;
 int64_t tsRpcQueueMemoryUsed = 0;
 
+struct STaosQueue {
+  STaosQnode   *head;
+  STaosQnode   *tail;
+  STaosQueue   *next;     // for queue set
+  STaosQset    *qset;     // for queue set
+  void         *ahandle;  // for queue set
+  FItem         itemFp;
+  FItems        itemsFp;
+  TdThreadMutex mutex;
+  int64_t       memOfItems;
+  int32_t       numOfItems;
+  int64_t       threadId;
+  int64_t       memLimit;
+  int64_t       itemLimit;
+};
+
+struct STaosQset {
+  STaosQueue   *head;
+  STaosQueue   *current;
+  TdThreadMutex mutex;
+  tsem_t        sem;
+  int32_t       numOfQueues;
+  int32_t       numOfItems;
+};
+
+struct STaosQall {
+  STaosQnode *current;
+  STaosQnode *start;
+  int32_t     numOfItems;
+  int64_t     memOfItems;
+  int32_t     unAccessedNumOfItems;
+  int64_t     unAccessMemOfItems;
+};
+
 void taosSetQueueMemoryCapacity(STaosQueue *queue, int64_t cap) { queue->memLimit = cap; }
 void taosSetQueueCapacity(STaosQueue *queue, int64_t size) { queue->itemLimit = size; }
 
@@ -496,6 +530,12 @@ int64_t taosQallUnAccessedMemSize(STaosQall *qall) { return qall->unAccessMemOfI
 
 void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
+
+void taosQueueSetThreadId(STaosQueue* pQueue, int64_t threadId) {
+  pQueue->threadId = threadId;
+}
+
+int64_t taosQueueGetThreadId(STaosQueue *pQueue) { return pQueue->threadId; }
 
 #if 0
 

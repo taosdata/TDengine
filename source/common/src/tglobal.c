@@ -269,7 +269,6 @@ int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
 int     tsStreamAggCnt = 10;
-bool    tsDisableCount = true;
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -541,8 +540,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-
-  if (cfgAddBool(pCfg, "disableCount", tsDisableCount, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
   return 0;
 }
 
@@ -1109,8 +1106,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
-
-  tsDisableCount = cfgGetItem(pCfg, "disableCount")->bval;
   return 0;
 }
 
@@ -1739,8 +1734,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
                                          {"shellActivityTimer", &tsShellActivityTimer},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"useAdapter", &tsUseAdapter},
-                                         {"experimental", &tsExperimental},
-                                         {"disableCount", &tsDisableCount}};
+                                         {"experimental", &tsExperimental}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);

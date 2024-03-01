@@ -581,8 +581,8 @@ typedef struct {
   };
 } SSubmitRsp;
 
-int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
-int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+// int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
+// int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 // void    tFreeSSubmitBlkRsp(void* param);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
@@ -885,8 +885,8 @@ typedef struct {
   int64_t maxStorage;
 } SCreateAcctReq, SAlterAcctReq;
 
-int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
-int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
+// int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
+// int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
 
 typedef struct {
   char    user[TSDB_USER_LEN];
@@ -3446,7 +3446,7 @@ int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexR
 
 typedef SMDropSmaReq SDropTagIndexReq;
 
-int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
+// int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 
 typedef struct {
@@ -3567,8 +3567,8 @@ typedef struct {
   int8_t igNotExists;
 } SMDropFullTextReq;
 
-int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
-int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+// int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+// int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
 
 typedef struct {
   char indexFName[TSDB_INDEX_FNAME_LEN];

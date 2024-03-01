@@ -1009,19 +1009,19 @@ int32_t tDeserializeSCreateTagIdxReq(void *buf, int32_t bufLen, SCreateTagIndexR
   tDecoderClear(&decoder);
   return 0;
 }
-int32_t tSerializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *pReq) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-  if (tStartEncode(&encoder) < 0) return -1;
-  tEndEncode(&encoder);
+// int32_t tSerializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *pReq) {
+//   SEncoder encoder = {0};
+//   tEncoderInit(&encoder, buf, bufLen);
+//   if (tStartEncode(&encoder) < 0) return -1;
+//   tEndEncode(&encoder);
 
-  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+//   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+//   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
 
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
+//   int32_t tlen = encoder.pos;
+//   tEncoderClear(&encoder);
+//   return tlen;
+// }
 int32_t tDeserializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
@@ -1035,6 +1035,7 @@ int32_t tDeserializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *
 
   return 0;
 }
+
 int32_t tSerializeSMCreateFullTextReq(void *buf, int32_t bufLen, SMCreateFullTextReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -1059,32 +1060,32 @@ void tFreeSMCreateFullTextReq(SMCreateFullTextReq *pReq) {
   // impl later
   return;
 }
-int32_t tSerializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
+// int32_t tSerializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
+//   SEncoder encoder = {0};
+//   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
+//   if (tStartEncode(&encoder) < 0) return -1;
 
-  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+//   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
 
-  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+//   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
 
-  tEndEncode(&encoder);
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
-int32_t tDeserializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+//   tEndEncode(&encoder);
+//   int32_t tlen = encoder.pos;
+//   tEncoderClear(&encoder);
+//   return tlen;
+// }
+// int32_t tDeserializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+//   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
 
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tEndDecode(&decoder);
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tSerializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
   SEncoder encoder = {0};
@@ -1474,44 +1475,44 @@ void tFreeSStatisReq(SStatisReq *pReq) {
   taosMemoryFreeClear(pReq->pCont);
 }
 
-int32_t tSerializeSCreateAcctReq(void *buf, int32_t bufLen, SCreateAcctReq *pReq) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
+// int32_t tSerializeSCreateAcctReq(void *buf, int32_t bufLen, SCreateAcctReq *pReq) {
+//   SEncoder encoder = {0};
+//   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->maxUsers) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->maxDbs) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->maxTimeSeries) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->maxStreams) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->accessState) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->maxStorage) < 0) return -1;
-  tEndEncode(&encoder);
+//   if (tStartEncode(&encoder) < 0) return -1;
+//   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
+//   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
+//   if (tEncodeI32(&encoder, pReq->maxUsers) < 0) return -1;
+//   if (tEncodeI32(&encoder, pReq->maxDbs) < 0) return -1;
+//   if (tEncodeI32(&encoder, pReq->maxTimeSeries) < 0) return -1;
+//   if (tEncodeI32(&encoder, pReq->maxStreams) < 0) return -1;
+//   if (tEncodeI32(&encoder, pReq->accessState) < 0) return -1;
+//   if (tEncodeI64(&encoder, pReq->maxStorage) < 0) return -1;
+//   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
+//   int32_t tlen = encoder.pos;
+//   tEncoderClear(&encoder);
+//   return tlen;
+// }
 
-int32_t tDeserializeSCreateAcctReq(void *buf, int32_t bufLen, SCreateAcctReq *pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+// int32_t tDeserializeSCreateAcctReq(void *buf, int32_t bufLen, SCreateAcctReq *pReq) {
+//   SDecoder decoder = {0};
+//   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->maxUsers) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->maxDbs) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->maxTimeSeries) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->maxStreams) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->accessState) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->maxStorage) < 0) return -1;
-  tEndDecode(&decoder);
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
+//   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->maxUsers) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->maxDbs) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->maxTimeSeries) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->maxStreams) < 0) return -1;
+//   if (tDecodeI32(&decoder, &pReq->accessState) < 0) return -1;
+//   if (tDecodeI64(&decoder, &pReq->maxStorage) < 0) return -1;
+//   tEndDecode(&decoder);
 
-  tDecoderClear(&decoder);
-  return 0;
-}
+//   tDecoderClear(&decoder);
+//   return 0;
+// }
 
 int32_t tSerializeSDropUserReq(void *buf, int32_t bufLen, SDropUserReq *pReq) {
   SEncoder encoder = {0};
@@ -5238,11 +5239,11 @@ int32_t tDeserializeSQueryCompactProgressRsp(void *buf, int32_t bufLen, SQueryCo
 
   if (tStartDecode(&decoder) < 0) return -1;
 
-  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->numberFileset) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->finished) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -2;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -3;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -4;
+  if (tDecodeI32(&decoder, &pReq->numberFileset) < 0) return -5;
+  if (tDecodeI32(&decoder, &pReq->finished) < 0) return -6;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -7934,64 +7935,64 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   return 0;
 }
 
-static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
-  if (tStartDecode(pDecoder) < 0) return -1;
+// static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
+//   if (tStartDecode(pDecoder) < 0) return -1;
 
-  if (tDecodeI32(pDecoder, &pBlock->code) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
-  pBlock->tblFName = taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
-  if (NULL == pBlock->tblFName) return -1;
-  if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
-  if (tDecodeI64v(pDecoder, &pBlock->sver) < 0) return -1;
+//   if (tDecodeI32(pDecoder, &pBlock->code) < 0) return -1;
+//   if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
+//   pBlock->tblFName = taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
+//   if (NULL == pBlock->tblFName) return -1;
+//   if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
+//   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
+//   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
+//   if (tDecodeI64v(pDecoder, &pBlock->sver) < 0) return -1;
 
-  int32_t meta = 0;
-  if (tDecodeI32(pDecoder, &meta) < 0) return -1;
-  if (meta) {
-    pBlock->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-    if (NULL == pBlock->pMeta) return -1;
-    if (tDecodeSTableMetaRsp(pDecoder, pBlock->pMeta) < 0) return -1;
-  } else {
-    pBlock->pMeta = NULL;
-  }
+//   int32_t meta = 0;
+//   if (tDecodeI32(pDecoder, &meta) < 0) return -1;
+//   if (meta) {
+//     pBlock->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+//     if (NULL == pBlock->pMeta) return -1;
+//     if (tDecodeSTableMetaRsp(pDecoder, pBlock->pMeta) < 0) return -1;
+//   } else {
+//     pBlock->pMeta = NULL;
+//   }
 
-  tEndDecode(pDecoder);
-  return 0;
-}
+//   tEndDecode(pDecoder);
+//   return 0;
+// }
 
-int32_t tEncodeSSubmitRsp(SEncoder *pEncoder, const SSubmitRsp *pRsp) {
-  int32_t nBlocks = taosArrayGetSize(pRsp->pArray);
+// int32_t tEncodeSSubmitRsp(SEncoder *pEncoder, const SSubmitRsp *pRsp) {
+//   int32_t nBlocks = taosArrayGetSize(pRsp->pArray);
 
-  if (tStartEncode(pEncoder) < 0) return -1;
+//   if (tStartEncode(pEncoder) < 0) return -1;
 
-  if (tEncodeI32v(pEncoder, pRsp->numOfRows) < 0) return -1;
-  if (tEncodeI32v(pEncoder, pRsp->affectedRows) < 0) return -1;
-  if (tEncodeI32v(pEncoder, nBlocks) < 0) return -1;
-  for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
-    if (tEncodeSSubmitBlkRsp(pEncoder, (SSubmitBlkRsp *)taosArrayGet(pRsp->pArray, iBlock)) < 0) return -1;
-  }
+//   if (tEncodeI32v(pEncoder, pRsp->numOfRows) < 0) return -1;
+//   if (tEncodeI32v(pEncoder, pRsp->affectedRows) < 0) return -1;
+//   if (tEncodeI32v(pEncoder, nBlocks) < 0) return -1;
+//   for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
+//     if (tEncodeSSubmitBlkRsp(pEncoder, (SSubmitBlkRsp *)taosArrayGet(pRsp->pArray, iBlock)) < 0) return -1;
+//   }
 
-  tEndEncode(pEncoder);
-  return 0;
-}
+//   tEndEncode(pEncoder);
+//   return 0;
+// }
 
-int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
-  if (tStartDecode(pDecoder) < 0) return -1;
+// int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
+//   if (tStartDecode(pDecoder) < 0) return -1;
 
-  if (tDecodeI32v(pDecoder, &pRsp->numOfRows) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pRsp->affectedRows) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pRsp->nBlocks) < 0) return -1;
-  pRsp->pBlocks = taosMemoryCalloc(pRsp->nBlocks, sizeof(*pRsp->pBlocks));
-  if (pRsp->pBlocks == NULL) return -1;
-  for (int32_t iBlock = 0; iBlock < pRsp->nBlocks; iBlock++) {
-    if (tDecodeSSubmitBlkRsp(pDecoder, pRsp->pBlocks + iBlock) < 0) return -1;
-  }
+//   if (tDecodeI32v(pDecoder, &pRsp->numOfRows) < 0) return -1;
+//   if (tDecodeI32v(pDecoder, &pRsp->affectedRows) < 0) return -1;
+//   if (tDecodeI32v(pDecoder, &pRsp->nBlocks) < 0) return -1;
+//   pRsp->pBlocks = taosMemoryCalloc(pRsp->nBlocks, sizeof(*pRsp->pBlocks));
+//   if (pRsp->pBlocks == NULL) return -1;
+//   for (int32_t iBlock = 0; iBlock < pRsp->nBlocks; iBlock++) {
+//     if (tDecodeSSubmitBlkRsp(pDecoder, pRsp->pBlocks + iBlock) < 0) return -1;
+//   }
 
-  tEndDecode(pDecoder);
-  tDecoderClear(pDecoder);
-  return 0;
-}
+//   tEndDecode(pDecoder);
+//   tDecoderClear(pDecoder);
+//   return 0;
+// }
 
 // void tFreeSSubmitBlkRsp(void *param) {
 //   if (NULL == param) {
