@@ -71,7 +71,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 44 | SHOW STREAMS	| 调整 | 2.x版本此命令显示系统中已创建的连续查询的信息。3.0版本废除了连续查询，用流代替。此命令显示已创建的流。
 | 45 | SHOW SUBSCRIPTIONS | 新增 | 显示当前数据库下的所有的订阅关系
 | 46 | SHOW TABLES | 调整 | 3.0版本只显示表名。
-| 47 | SHOW TABLE DISTRIBUTED | 新增 | 显示表的数据分布信息。代替2.x版本中的SELECT _block_dist() FROM { tb_name | stb_name }方式。
+| 47 | SHOW TABLE DISTRIBUTED | 新增 | 显示表的数据分布信息。代替2.x版本中的SELECT _block_dist() FROM \{ tb_name | stb_name }方式。
 | 48 | SHOW TOPICS | 新增 | 显示当前数据库下的所有订阅主题。
 | 49 | SHOW TRANSACTIONS | 新增 | 显示当前系统中正在执行的事务的信息。
 | 50 | SHOW DNODE VARIABLES | 新增 |显示指定DNODE的配置参数。

@@ -166,8 +166,8 @@ AllowWebSockets
 - 兼容 InfluxDB v1 写接口
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
-  - <http://opentsdb.net/docs/build/html/api_http/put.html>
-  - <http://opentsdb.net/docs/build/html/api_telnet/put.html>
+  - \<http://opentsdb.net/docs/build/html/api_http/put.html>
+  - \<http://opentsdb.net/docs/build/html/api_telnet/put.html>
 - 与 collectd 无缝连接
   collectd 是一个系统统计收集守护程序，请访问 [https://collectd.org/](https://collectd.org/) 了解更多信息。
 - Seamless connection with StatsD
@@ -202,7 +202,7 @@ AllowWebSockets
 - `precision` TDengine 使用的时间精度
 - `u` TDengine 用户名
 - `p` TDengine 密码
-- `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考[创建表文档](taos-sql/table/#创建表)的 TTL 参数。
+- `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考[创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
 
 注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例： curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"

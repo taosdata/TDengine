@@ -23,7 +23,7 @@ import CAsync from "./_c_async.mdx";
 TDengine 采用 SQL 作为查询语言。应用程序可以通过 REST API 或连接器发送 SQL 语句，用户还可以通过 TDengine 命令行工具 taos 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
 
 - 单列、多列数据查询
-- 标签和数值的多种过滤条件：>, <, =, <\>, like 等
+- 标签和数值的多种过滤条件：>, \<, =, \<>, like 等
 - 聚合结果的分组（Group by）、排序（Order by）、约束输出（Limit/Offset）
 - 时间窗口（Interval）、会话窗口（Session）和状态窗口（State_window）等窗口切分聚合查询
 - 数值列及聚合结果的四则运算
@@ -128,7 +128,7 @@ Query OK, 6 rows in database (0.005515s)
 
 ### 查询数据
 
-在 [SQL 写入](/develop/insert-data/sql-writing) 一章，我们创建了 power 数据库，并向 meters 表写入了一些数据，以下示例代码展示如何查询这个表的数据。
+在 [SQL 写入](../insert-data/sql-writing) 一章，我们创建了 power 数据库，并向 meters 表写入了一些数据，以下示例代码展示如何查询这个表的数据。
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -160,7 +160,7 @@ Query OK, 6 rows in database (0.005515s)
 :::note
 
 1. 无论是使用 REST 连接还是原生连接的连接器，以上示例代码都能正常工作。
-2. 唯一需要注意的是：由于 REST 接口无状态， 不能使用 `use db` 语句来切换数据库。除了在 REST 参数中指定数据库以外也可以在 SQL 语句中使用 <db_name>.<table_name> 来指定数据库。
+2. 唯一需要注意的是：由于 REST 接口无状态， 不能使用 `use db` 语句来切换数据库。除了在 REST 参数中指定数据库以外也可以在 SQL 语句中使用 \<db_name>.\<table_name> 来指定数据库。
 
 :::
 

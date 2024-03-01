@@ -143,7 +143,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
 **注意**：JSON 类型仅在 tag 中支持。  
 由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
-GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](/taos-sql/data-type/#数据类型)  
+GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java)  
 
@@ -368,7 +368,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
 - TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
 
-此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
+此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](../../reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
 
