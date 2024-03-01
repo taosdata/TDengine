@@ -87,7 +87,7 @@ taos --dump-config
 | TCP | 6030 | 客户端与服务端之间通讯。 | 由配置文件设置 serverPort 决定。 |
 | TCP | 6035 | 多节点集群的节点间通讯。 | 随 serverPort 端口变化。 |
 | TCP | 6040 | 多节点集群的节点间数据同步。 | 随 serverPort 端口变化。 |
-| TCP | 6041 | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
+| TCP | 6041 | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](../../reference/taosadapter/)。 |
 | TCP | 6042 | Arbitrator 的服务端口。 | 随 Arbitrator 启动参数设置变化。 |
 | TCP | 6043 | TaosKeeper 监控服务端口。 | 随 TaosKeeper 启动参数设置变化。 |
 | TCP | 6044 | 支持 StatsD 的数据接入端口。 | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。 |
@@ -254,7 +254,7 @@ TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提�
 
 客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
 
-在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用 charset 来指定字符编码。
+在 Linux 中 locale 的命名规则为: \<语言>_\<地区>.\<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用 charset 来指定字符编码。
 
 :::
 
@@ -800,7 +800,7 @@ charset 的有效值是 UTF-8。
 
 :::note
 HTTP 服务在 2.4.0.0（不含）以前的版本中由 taosd 提供，在 2.4.0.0 以后（含）由 taosAdapter 提供。
-本节的配置参数仅在 2.4.0.0（不含）以前的版本中生效。如果您使用的是 2.4.0.0（含）及以后的版本请参考[文档](/reference/taosadapter/)。
+本节的配置参数仅在 2.4.0.0（不含）以前的版本中生效。如果您使用的是 2.4.0.0（含）及以后的版本请参考[文档](../../reference/taosadapter/)。
 
 :::
 
@@ -827,7 +827,7 @@ HTTP 服务在 2.4.0.0（不含）以前的版本中由 taosd 提供，在 2.4.0
 | 属性     | 说明                                                                                        |
 | -------- | ------------------------------------------------------------------------------------------- |
 | 适用范围 | 仅服务端适用                                                                                |
-| 含义     | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
+| 含义     | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](../../reference/taosadapter/)。 |
 | 缺省值   | 2                                                                                           |
 
 ### restfulRowLimit
@@ -835,7 +835,7 @@ HTTP 服务在 2.4.0.0（不含）以前的版本中由 taosd 提供，在 2.4.0
 | 属性     | 说明                                                                                                  |
 | -------- | ----------------------------------------------------------------------------------------------------- |
 | 适用范围 | 仅服务端适用                                                                                          |
-| 含义     | RESTFul 接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
+| 含义     | RESTFul 接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](../../reference/taosadapter/)。 |
 | 缺省值   | 10240                                                                                                 |
 | 补充说明 | 最大 10,000,000                                                                                       |
 

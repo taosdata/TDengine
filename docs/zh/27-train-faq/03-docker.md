@@ -90,7 +90,7 @@ taos>
 
 TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
 
-在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](/taos-sql/)。
+在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](../../taos-sql/)。
 
 ### 在宿主机访问 Docker 容器中的 TDengine server
 
@@ -125,7 +125,7 @@ TDengine REST API 详情请参考[官方文档](../../reference/rest-api/)。
 
 在 TDengine 2.4.0.0 之后版本的 Docker 容器，开始提供一个独立运行的组件 taosAdapter，代替之前版本 TDengine 中 taosd 进程中内置的 http server。taosAdapter 支持通过 RESTful 接口对 TDengine server 的数据写入和查询能力，并提供和 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。在新版本 Docker 镜像中，默认启用了 taosAdapter，也可以使用 docker run 命令中设置 TAOS_DISABLE_ADAPTER=true 来禁用 taosAdapter；也可以在 docker run 命令中单独使用 taosAdapter，而不运行 taosd 。
 
-注意：如果容器中运行 taosAdapter，需要根据需要映射其他端口，具体端口默认配置和修改方法请参考[taosAdapter 文档](/reference/taosadapter/)。
+注意：如果容器中运行 taosAdapter，需要根据需要映射其他端口，具体端口默认配置和修改方法请参考[taosAdapter 文档](../../reference/taosadapter/)。
 
 使用 docker 运行 TDengine 2.4.0.4 版本镜像（taosd + taosAdapter）：
 

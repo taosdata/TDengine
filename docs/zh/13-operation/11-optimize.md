@@ -2,7 +2,7 @@
 title: 性能优化
 ---
 
-因数据行 [update](/train-faq/faq/#update)、表删除、数据过期等原因，TDengine 的磁盘存储文件有可能出现数据碎片，影响查询操作的性能表现。从 2.1.3.0 版本开始，新增 SQL 指令 COMPACT 来启动碎片重整过程：
+因数据行 [update](../../train-faq/faq/#update)、表删除、数据过期等原因，TDengine 的磁盘存储文件有可能出现数据碎片，影响查询操作的性能表现。从 2.1.3.0 版本开始，新增 SQL 指令 COMPACT 来启动碎片重整过程：
 
 ```sql
 COMPACT VNODES IN (vg_id1, vg_id2, ...)
@@ -49,21 +49,21 @@ COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会�
 | create time |              |                                                            |                                        |
 | ntables     |              |                                                            |                                        |
 | vgroups     |              |                                                            |                                        |
-| replica     | **YES**      | 在线 dnode 数目为:<br/>1：1-1；<br/>2：1-2；<br/>\>=3：1-3 | ALTER DATABASE <dbname\> REPLICA _n_   |
-| quorum      | **YES**      | 1-2                                                        | ALTER DATABASE <dbname\> QUORUM _n_    |
+| replica     | **YES**      | 在线 dnode 数目为:<br/>1：1-1；<br/>2：1-2；<br/>>=3：1-3 | ALTER DATABASE \<dbname> REPLICA _n_   |
+| quorum      | **YES**      | 1-2                                                        | ALTER DATABASE \<dbname> QUORUM _n_    |
 | days        |              |                                                            |                                        |
-| keep        | **YES**      | days-365000                                                | ALTER DATABASE <dbname\> KEEP _n_      |
+| keep        | **YES**      | days-365000                                                | ALTER DATABASE \<dbname> KEEP _n_      |
 | cache       |              |                                                            |                                        |
-| blocks      | **YES**      | 3-1000                                                     | ALTER DATABASE <dbname\> BLOCKS _n_    |
+| blocks      | **YES**      | 3-1000                                                     | ALTER DATABASE \<dbname> BLOCKS _n_    |
 | minrows     |              |                                                            |                                        |
 | maxrows     |              |                                                            |                                        |
 | wal         |              |                                                            |                                        |
 | fsync       |              |                                                            |                                        |
-| comp        | **YES**      | 0-2                                                        | ALTER DATABASE <dbname\> COMP _n_      |
+| comp        | **YES**      | 0-2                                                        | ALTER DATABASE \<dbname> COMP _n_      |
 | precision   |              |                                                            |                                        |
 | status      |              |                                                            |                                        |
 | update      |              |                                                            |                                        |
-| cachelast   | **YES**      | 0 \| 1 \| 2 \| 3                                           | ALTER DATABASE <dbname\> CACHELAST _n_ |
+| cachelast   | **YES**      | 0 \| 1 \| 2 \| 3                                           | ALTER DATABASE \<dbname> CACHELAST _n_ |
 
 **说明：**在 2.1.3.0 版本之前，通过 ALTER DATABASE 语句修改这些参数后，需要重启服务器才能生效。
 

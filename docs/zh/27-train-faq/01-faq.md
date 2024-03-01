@@ -74,7 +74,7 @@ title: 常见问题及反馈
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
- - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
+ - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName \{fqdn} -Port \{port} 检测服务段端口是否访问
 
 10. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括 TCP 和 UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
@@ -222,7 +222,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 ### 23. TDengine 2.0 都会用到哪些网络端口？
 
-使用到的网络端口请看文档：[serverport](/reference/config/#serverport)
+使用到的网络端口请看文档：[serverport](../../reference/config/#serverport)
 
 需要注意，文档上列举的端口号都是以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么列举的端口都会随之出现变化，管理员可以参考上述的信息调整防火墙设置。
 
