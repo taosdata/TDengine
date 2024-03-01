@@ -632,7 +632,7 @@ pub async fn tmq_to_td(
         );
         if precision_of_from != precision_of_to {
             bail!(
-                "The precision of the source database {source_database} and the target database {target_database} are different: source={precision_of_from}, to={precision_of_from}"
+                "The precision of the source database {source_database} and the target database {target_database} are different: source={precision_of_from}, to={precision_of_to}"
             );
         }
     }
