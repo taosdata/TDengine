@@ -834,6 +834,7 @@ pub async fn tmq_to_td(
 
     drop(target_taos);
     drop(target_pool);
+    drop(source_pool);
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
