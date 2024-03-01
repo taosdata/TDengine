@@ -106,15 +106,15 @@ class TDTestCase:
             print(f"{packageName} has been exists")
         os.system(f" cd {packagePath} &&  tar xvf  {packageName} && cd {packageTPath} &&  ./install.sh  -e no  " )
         tdDnodes.stop(1)
-        print(f"start taosd: rm -rf {dataPath}/*  && nohup taosd -c {cPath} & ")
-        os.system(f"rm -rf {dataPath}/*  && nohup taosd -c {cPath} & " )
+        print(f"start taosd: rm -rf {dataPath}/*  && nohup /usr/bin/taosd -c {cPath} & ")
+        os.system(f"rm -rf {dataPath}/*  && nohup  /usr/bin/taosd -c {cPath} & " )
         os.system(f"killall taosadapter" )
         os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml  " )
         taosadapter_cfg=f"{cPath}/taosadapter.toml"
         taosadapter_log_path=f"{cPath}/../log/"
         self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
         
-        os.system(f" taosadapter --version && nohup taosadapter -c  {taosadapter_cfg} & " )
+        os.system(f"  /usr/bin/taosadapter --version && nohup  /usr/bin/taosadapter -c  {taosadapter_cfg} & " )
 
         sleep(5)
 
@@ -194,7 +194,7 @@ class TDTestCase:
         # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
-        os.system(f" taosadapter --version " )        
+        os.system(f"  /usr/bin/taosadapter --version " )        
         consumer_dict = {
             "group.id": "g1",
             "td.connect.user": "root",
