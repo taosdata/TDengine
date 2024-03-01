@@ -4015,7 +4015,7 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
     int32_t memSize = 512 * 1024 * 1024;
-    code = tsortSetSortByRowId(pInfo->pSortHandle, pInfo->bufPageSize, memSize);
+    code = tsortSetSortByRowId(pInfo->pSortHandle, memSize);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
