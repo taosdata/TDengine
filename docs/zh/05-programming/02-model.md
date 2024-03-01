@@ -23,7 +23,7 @@ TDengine 采用类关系型数据模型，需要建库、建表。因此对于�
 
 ## 创建超级表
 
-一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用 TDengine, 需要对每个类型的数据采集点创建一个超级表。以 [表 1](../../tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令创建超级表：
+一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用 TDengine, 需要对每个类型的数据采集点创建一个超级表。以 [表 1](/tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令创建超级表：
 
 ```sql
 CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
