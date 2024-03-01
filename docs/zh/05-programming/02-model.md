@@ -37,7 +37,7 @@ CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase floa
 
 ## 创建表
 
-TDengine 对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以 [表 1](../../tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令建表：
+TDengine 对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以 [表 1](/tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令建表：
 
 ```sql
 CREATE TABLE power.d1001 USING meters TAGS ("California.SanFrancisco", 2);
