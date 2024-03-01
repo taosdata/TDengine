@@ -268,7 +268,7 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
-int     tsStreamAggCnt = 2;
+int     tsStreamAggCnt = 10;
 bool    tsDisableCount = true;
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
