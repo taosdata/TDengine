@@ -582,10 +582,63 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
+    let source_pool = TaosBuilder::from_dsn(&from)?.pool()?;
+    let target_pool = target_builder.pool()?;
 
-    let target = target_builder.pool()?;
-    let target_taos = target.get().await?;
+    // check if the from database and the targe database have the same precision for each topic
+    tracing::debug!("check precision of source and target database");
+    for topic in &topics {
+        let source_database = &topic.database;
+        let target_database = if let Some(target) = target_database.as_ref() {
+            target
+        } else {
+            source_database
+        };
+        let target_taos = target_pool.get().await?;
+        let precision_of_to = target_taos.query_one::<String, String>(format!("select `precision` from information_schema.ins_databases where name='{target_database}'")).await;
+        if let Err(err) = precision_of_to {
+            // 可能因为当前用户没有权限查询 information_schema, 此时忽略错误。
+            tracing::debug!(err = ?err, "get precision of target database {target_database} failed.");
+            continue;
+        }
+        let precision_of_to = precision_of_to.unwrap();
+        if precision_of_to.is_none() {
+            // 可能因为目标数据库不存在，此时会自动创建和源库相同精度的数据库,也忽略。
+            tracing::debug!("get precision of target database {target_database} failed: None");
+            continue;
+        }
+        let precision_of_to = precision_of_to.unwrap();
+        tracing::debug!(
+            "precision of target database {}: {}",
+            target_database,
+            precision_of_to
+        );
+        let source_taos = source_pool.get().await?;
+        let precision_of_from = source_taos.query_one::<String, String>(format!("select `precision` from information_schema.ins_databases where name='{source_database}'")).await;
+        if let Err(err) = precision_of_from {
+            tracing::debug!(err = ?err, "get precision of source database {source_database} failed.");
+            continue;
+        }
+        let precision_of_from = precision_of_from.unwrap();
+        if precision_of_from.is_none() {
+            tracing::debug!("get precision of source database {source_database} failed: None");
+            continue;
+        }
+        let precision_of_from = precision_of_from.unwrap();
+        tracing::debug!(
+            "precision of source database {}: {}",
+            source_database,
+            precision_of_from
+        );
+        if precision_of_from != precision_of_to {
+            bail!(
+                "The precision of the source database {source_database} and the target database {target_database} are different: source={precision_of_from}, to={precision_of_from}"
+            );
+        }
+    }
+    tracing::debug!("precision check done");
 
+    let target_taos = target_pool.get().await?;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
     for topic in topics {
@@ -780,7 +833,7 @@ pub async fn tmq_to_td(
     // for consumers in consumers_receiver.
 
     drop(target_taos);
-    drop(target);
+    drop(target_pool);
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
