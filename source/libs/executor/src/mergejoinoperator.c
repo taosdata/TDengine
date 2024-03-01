@@ -798,7 +798,7 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
   SValueNode* pTimeZone = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4) : (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
 
   pCtx->truncateUnit = pUnit->typeData;
-  if (NULL != pCurrTz && 0 == pCurrTz->typeData) {
+  if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
     pCtx->timezoneUnit = offsetFromTz(pTimeZone->datum.p, TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
   }
 
@@ -905,7 +905,7 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
   if (0 != pCtx->timezoneUnit) {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = (((int64_t*)pPrimIn->pData)[i] - pCtx->timezoneUnit) / pCtx->truncateUnit * pCtx->truncateUnit;
+      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit - pCtx->timezoneUnit;
     }
   } else {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {

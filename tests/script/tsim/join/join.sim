@@ -23,17 +23,17 @@ sql drop database if exists testa
 sql create database testa vgroups 3;
 sql use testa;
 
-sql create table sta1(ts timestamp, f int, g int) tags (t int);
-sql insert into cta11 using sta1 tags(1) values('2023-10-16 09:10:11', 100111, 1001110);
-sql insert into cta12 using sta1 tags(2) values('2023-10-16 09:10:12', 100112, 1001120);
-sql insert into cta13 using sta1 tags(3) values('2023-10-16 09:10:13', 100113, 1001130);
-sql insert into cta14 using sta1 tags(4) values('2023-10-16 09:10:14', 100114, 1001140);
+sql create table sta1(ts timestamp, f int, g bigint) tags (t int);
+sql insert into cta11 using sta1 tags(1) values('2023-10-16 09:10:11.001', 100111, 1001110);
+sql insert into cta12 using sta1 tags(2) values('2023-10-16 09:10:12.001', 100112, 1001120);
+sql insert into cta13 using sta1 tags(3) values('2023-10-16 09:10:13.001', 100113, 1001130);
+sql insert into cta14 using sta1 tags(4) values('2023-10-16 09:10:14.001', 100114, 1001140);
 
-sql create table st2(ts timestamp, f int, g int) tags (t int);
-sql insert into cta21 using st2 tags(1) values('2023-10-16 09:10:11', 100221, 1002210);
-sql insert into cta22 using st2 tags(2) values('2023-10-16 09:10:12', 100222, 1002220);
-sql insert into cta23 using st2 tags(3) values('2023-10-16 09:10:13', 100223, 1002230);
-sql insert into cta24 using st2 tags(4) values('2023-10-16 09:10:14', 100224, 1002240);
+sql create table sta2(ts timestamp, f int, g bigint) tags (t int);
+sql insert into cta21 using sta2 tags(1) values('2023-10-16 09:10:11.002', 100221, 1002210);
+sql insert into cta22 using sta2 tags(2) values('2023-10-16 09:10:12.002', 100222, 1002220);
+sql insert into cta23 using sta2 tags(3) values('2023-10-16 09:10:13.002', 100223, 1002230);
+sql insert into cta24 using sta2 tags(4) values('2023-10-16 09:10:14.002', 100224, 1002240);
 
 sql create table stt(ts timestamp, f int, g int) tags (t int);
 sql create table tt using stt tags(99);

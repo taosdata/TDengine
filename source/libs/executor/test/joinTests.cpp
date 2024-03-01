@@ -197,6 +197,7 @@ typedef struct {
   bool    filter;
   bool    asc;
   bool    grpJoin;
+  bool    timetruncate;
   SExecTaskInfo* pTask;
 } SJoinTestParam;
 
