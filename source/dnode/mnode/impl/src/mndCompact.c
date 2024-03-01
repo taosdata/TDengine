@@ -454,7 +454,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[MND_COMPACT_ID_LEN] = {0};
+  char obj[TSDB_INT32_ID_LEN] = {0};
   sprintf(obj, "%d", pCompact->compactId);
 
   auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
@@ -490,13 +490,17 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  return -1;
+  return TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST;
 }
 
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
   SQueryCompactProgressRsp req = {0};
-  if (tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req) != 0) {
+  int32_t code = 0;
+  code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    mError("failed to deserialize vnode-query-compact-progress-rsp, ret:%d, pCont:%p, len:%d", 
+          code, pReq->pCont, pReq->contLen);
     return -1;
   }
 
@@ -504,10 +508,10 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
         req.compactId, req.vgId, req.dnodeId, req.numberFileset, req.finished);
 
   SMnode        *pMnode = pReq->info.node;
-  int32_t       code = -1;
-  
 
-  if(mndUpdateCompactProgress(pMnode, pReq, req.compactId, &req) != 0){
+  code = mndUpdateCompactProgress(pMnode, pReq, req.compactId, &req);
+  if(code != 0){
+    terrno = code;
     mError("compact:%d, failed to update progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
         req.compactId, req.vgId, req.dnodeId, req.numberFileset, req.finished);
     return -1;
