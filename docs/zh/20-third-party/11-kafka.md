@@ -293,7 +293,7 @@ Query OK, 4 row(s) in set (0.004208s)
 
 TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
-TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](../../develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)， 然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-source-test。
 
@@ -410,7 +410,7 @@ confluent local services connect connector unload TDengineSourceConnector
 ### TDengine Sink Connector 特有的配置
 
 1. `connection.database`： 目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
-2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '${topic}'。 比如 kafka_${topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
+2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '$\{topic}'。 比如 kafka_$\{topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
 3. `batch.size`: 分批写入每批记录数。当 Sink Connector 一次接收到的数据大于这个值时将分批写入。
 4. `max.retries`: 发生错误时的最大重试次数。默认为 1。
 5. `retry.backoff.ms`: 发送错误时重试的时间间隔。单位毫秒，默认为 3000。

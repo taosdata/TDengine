@@ -312,11 +312,11 @@ Query OK, 1 row(s) in set (0.001091s)
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
 | >             | larger than              | all types except bool                     |
-| <             | smaller than             | all types except bool                     |
+| \<             | smaller than             | all types except bool                     |
 | >=            | larger than or equal to  | all types except bool                     |
-| <=            | smaller than or equal to | all types except bool                     |
+| \<=            | smaller than or equal to | all types except bool                     |
 | =             | equal to                 | all types                                 |
-| <\>           | not equal to             | all types                                 |
+| \<>           | not equal to             | all types                                 |
 | is [not] null | is null or is not null   | all types                                 |
 | between and   | within a certain range   | all types except bool                     |
 | in            | match any value in a set | all types except first column `timestamp` |
@@ -325,10 +325,10 @@ Query OK, 1 row(s) in set (0.001091s)
 
 **使用说明**:
 
-- <\> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
+- \<> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 - like 算子使用通配符字符串进行匹配检查。
-  - 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意 ASCII 字符。
-  - 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
+  - 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'_'（下划线）匹配单个任意 ASCII 字符。
+  - 如果希望匹配字符串中原本就带有的 _（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
   - 通配符字符串最长不能超过 20 字节。（从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
 - 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
   - 从 2.3.0.0 版本开始，已支持完整的同一列和/或不同列间的 AND/OR 运算。

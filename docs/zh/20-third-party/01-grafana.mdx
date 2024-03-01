@@ -13,7 +13,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 要让 Grafana 能正常添加 TDengine 数据源，需要以下几方面的准备工作。
 
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../reference/taosadapter)
 
 记录以下信息：
 
@@ -22,7 +22,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ## 安装 Grafana
 
-目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：<https://grafana.com/grafana/download>。
+目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：\<https://grafana.com/grafana/download>。
 
 ## 配置 Grafana
 
@@ -95,7 +95,7 @@ sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
-之后，用户可以直接通过 <http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
+之后，用户可以直接通过 \<http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource1.webp)
 
@@ -107,7 +107,7 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 
 ![TDengine Database Grafana plugin add data source](./add_datasource3.webp)
 
-- Host： TDengine 集群中提供 REST 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine REST 服务的端口号(6041)，默认 <http://localhost:6041>。
+- Host： TDengine 集群中提供 REST 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine REST 服务的端口号(6041)，默认 \<http://localhost:6041>。
 - User：TDengine 用户名。
 - Password：TDengine 用户密码。
 
@@ -180,7 +180,7 @@ docker run -d \
 
 3. 使用 docker-compose 命令启动 TDengine + Grafana ：`docker-compose up -d`。
 
-打开 Grafana <http://localhost:3000>，现在可以添加 Dashboard 了。
+打开 Grafana \<http://localhost:3000>，现在可以添加 Dashboard 了。
 
 </TabItem>
 </Tabs>
@@ -205,7 +205,7 @@ docker run -d \
 
 ### 导入 Dashboard
 
-在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。该 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。其他安装方式和相关使用说明请见 [TDinsight 用户手册](/reference/tdinsight/)。
+在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。该 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。其他安装方式和相关使用说明请见 [TDinsight 用户手册](../../reference/tdinsight/)。
 
 使用 TDengine 作为数据源的其他面板，可以[在此搜索](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource)。以下是一份不完全列表：
 
