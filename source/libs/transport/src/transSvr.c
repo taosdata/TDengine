@@ -1186,6 +1186,13 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
       return;
     }
     transQueuePop(&conn->srvMsgs);
+
+    // remove all ready registed msg
+    if (conn->regArg.init) {
+      transFreeMsg(conn->regArg.msg.pCont);
+      conn->regArg.init = 0;
+    }
+
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;
