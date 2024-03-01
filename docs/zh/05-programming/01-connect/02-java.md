@@ -72,7 +72,7 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 <!-- exclude -->
 
 :::note IMPORTANT
-替换 <jdbcURL\> 为 真实的 JDBC URL，比如 `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`。
+替换 \<jdbcURL> 为 真实的 JDBC URL，比如 `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`。
 
 获取真实的 JDBC URL 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Java“。
 :::
