@@ -180,12 +180,13 @@ class TSMATester:
 
         return query_ctx
 
-    def check_explain(self, sql: str, expect: TSMAQueryContext):
+    def check_explain(self, sql: str, expect: TSMAQueryContext) -> TSMAQueryContext:
         query_ctx = self.get_tsma_query_ctx(sql)
         if not query_ctx == expect:
             tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
         elif expect.has_tsma():
             tdLog.debug('check explain succeed for sql: %s \ntsma: %s' % (sql, str(expect.used_tsmas)))
+        return query_ctx
 
     def check_result(self, sql: str):
         tdSql.execute("alter local 'querySmaOptimize' '1'")
@@ -196,20 +197,20 @@ class TSMATester:
 
         if no_tsma_res is None or tsma_res is None:
             if no_tsma_res != tsma_res:
-                tdLog.exit("comparing tsma res for: %s got different rows of result: with tsma: %s, with tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
+                tdLog.exit("comparing tsma res for: %s got different rows of result: without tsma: %s, with tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
             else:
                 return
 
         if len(no_tsma_res) != len(tsma_res):
-            tdLog.exit("comparing tsma res for: %s got differnt rows of result: without tsma: %d, with tsma: %d" % (sql, len(no_tsma_res), len(tsma_res)))
+            tdLog.exit("comparing tsma res for: %s got different rows of result: \nwithout tsma: %s\nwith    tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
         for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
             if row_no_tsma != row_tsma:
                 tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n  tsma res: %s" % (sql, str(row_no_tsma), str(row_tsma), str(no_tsma_res), str(tsma_res)))
         tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' % (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
-        self.check_explain(sql, expect=expect)
-        if expect.has_tsma():
+        actual_ctx = self.check_explain(sql, expect=expect)
+        if actual_ctx.has_tsma():
             self.check_result(sql)
 
     def check_sqls(self, sqls: list[str], expects: list[TSMAQueryContext]):
@@ -218,10 +219,24 @@ class TSMATester:
 
 class TSMATesterSQLGeneratorOptions:
     def __init__(self) -> None:
-        pass
+        self.ts_min: int = 1537146000000 - 1000 * 60 * 60
+        self.ts_max: int = 1537150999000 + 1000 * 60 * 60
+        self.times: int = 100
+        self.pk_col: str = 'ts'
+        self.column_prefix: str = 'c'
+        self.column_num: int = 9 ### c1 - c10
+        self.tags_prefix: str = 't'
+        self.tag_num: int = 6  ### t1 - t6
+        self.child_table_name_prefix: str = 't'
+        self.child_table_num: int = 10  #### t0 - t9
+        self.where_ts_range: bool = False
+        self.where_tbname_func: bool = False
+        self.where_tag_func: bool = False
+        self.where_col_func: bool = False
+        self.where_type = None
 
 class TSMATestSQLGenerator:
-    def __init__(self, opts: TSMATesterSQLGeneratorOptions):
+    def __init__(self, opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()):
         self.db_name_: str = ''
         self.tb_name_: str = ''
         self.ts_scan_range_: List[float] = [float(UsedTsma.TS_MIN), float(UsedTsma.TS_MAX)]
@@ -233,6 +248,31 @@ class TSMATestSQLGenerator:
         self.where_list_: List[str] = []
         self.group_or_partition_by_list: List[str] = []
         self.interval: str = ''
+    
+    def get_depth_one_str_funcs(self, name: str) -> List[str]:
+        concat1 = f'CONCAT({name}, "_concat")'
+        concat2 = f'CONCAT({name}, {name})'
+        concat3 = f'CONCAT({name}, {name}, {name})'
+        start = random.randint(1, 3)
+        len  =random.randint(0,3)
+        substr = f'SUBSTR({name}, {start}, {len})'
+        lower = f'LOWER({name})'
+        ltrim = f'LTRIM({name})'
+        return [concat1, concat2, concat3, substr, lower, ltrim, name]
+    
+    def generate_depthed_str_func(self, name: str, depth: int) -> str:
+        if depth == 1:
+            return random.choice(self.get_depth_one_str_funcs(name))
+        name = self.generate_depthed_str_func(name, depth - 1)
+        return random.choice(self.get_depth_one_str_funcs(name))
+    
+    def generate_str_func(self, column_name: str, depth: int = 0) -> str:
+        if depth == 0:
+            depth = random.randint(1,3)
+        
+        ret = self.generate_depthed_str_func(column_name, depth)
+        tdLog.debug(f'generating str func: {ret}')
+        return ret
 
     def get_random_type(self, funcs):
         rand: int = randrange(1, len(funcs))
@@ -241,56 +281,55 @@ class TSMATestSQLGenerator:
     def generate_one(self) -> str:
         pass
 
-    def generate_timestamp(self, left: float = -1) -> str:
+    def generate_where(self, type: int) -> str:
         pass
 
-    def _generate_between(self):
-        def generate(generator: TSMATestSQLGenerator):
-            left = generator.generate_timestamp()
-            return "BTEWEEN %s and %s" % (left, generator.generate_timestamp(left))
-        return self.get_random_type([lambda: '', generate])
+    def generate_timestamp(self, min: float = -1, max: float = 0) -> int:
+        milliseconds_aligned = random.randint(int(min), int(max))
+        seconds_aligned = int( milliseconds_aligned/ 1000) * 1000
+        minutes_aligned = int(milliseconds_aligned / 1000 / 60) * 1000 * 60
+        hour_aligned = int(milliseconds_aligned / 1000 / 60 / 60) * 1000 * 60 * 60
 
-    def _generate_scan_range_operators(self):
-        left = self._generate_scan_range_left()
-        right = self._generate_scan_range_right(float(left.split(' ')[-1]))
-        if len(left) == 0 and len(right) == 0:
-            return ''
-        sql = ' ts '
-        if len(left) > 0:
-            sql += '%s ' % (left)
+        return random.choice([milliseconds_aligned, seconds_aligned, seconds_aligned, minutes_aligned, minutes_aligned, hour_aligned, hour_aligned])
 
-        if len(right) > 0:
-            if len(sql) > 0:
-                sql += 'and ts '
-            sql += '%s ' % (right)
-        return sql
+    def generate_ts_where_range(self):
+        left_operators = ['>', '>=', '']
+        right_operators = ['<', '<=', '']
+        left_operator = left_operators[random.randrange(0, 3)]
+        right_operator = right_operators[random.randrange(0, 3)]
+        a = ''
+        left_value = None
+        if left_operator:
+            left_value = self.generate_timestamp(self.opts_.ts_min, self.opts_.ts_max)
+            a += f'{self.opts_.pk_col} {left_operator} {left_value}'
+        if right_operator:
+            if left_value:
+                start = left_value
+            else:
+                start = self.opts_.ts_min
+            right_value = self.generate_timestamp(start, self.opts_.ts_max)
+            if left_operator:
+                a += ' AND '
+            a += f'{self.opts_.pk_col} {right_operator} {right_value}'
+        tdLog.debug(f'{self.opts_.pk_col} range with: {a}')
+        if len(a) > 0:
+            return f' {a}'
+        return a
 
-    def _generate_scan_range_left(self) -> str:
-        def a(g: TSMATestSQLGenerator):
-            return '>= %s' % (g.generate_timestamp())
-        def b(g: TSMATestSQLGenerator):
-            return '> %s' % (g.generate_timestamp())
-        return self.get_random_type([lambda: '', a, b])
+    def generate_interval(self, intervals: List[str]) -> str:
+        value = random.choice(intervals)
+        return f'INTERVAL({value})'
+    
+    def generate_where_tbname(self) -> str:
+        return self.generate_str_func('tbname')
 
-    def _generate_scan_range_right(self, left: float) -> str:
-        def a(g:TSMATestSQLGenerator):
-            return '< %s' % (self.generate_timestamp(left))
-        def b(g:TSMATestSQLGenerator):
-            return '<= %s' % (self.generate_timestamp(left))
-        return self._generate_scan_range([lambda: '', a, b])
+    def generate_where_tag(self) -> str:
+        #tag_idx = random.randint(1, self.opts_.tag_num)
+        #tag = self.opts_.tags_prefix + str(tag_idx)
+        return self.generate_str_func('t3')
 
-    ## generate ts scan ranges
-    def _generate_scan_range(self) -> str:
-        empty = lambda: ''
-        def a(g:TSMATestSQLGenerator):
-            return g._generate_between()
-        def b(g:TSMATestSQLGenerator):
-            return g._generate_scan_range_operators()
-        def ts_range(g:TSMATestSQLGenerator):
-            return g.get_random_type([a,b])
-        return self.get_random_type([empty, ts_range])
+    def generate_where_conditions(self) -> str:
 
-    def _generate_where_conditions(self) -> str:
         pass
 
     ## generate func in tsmas(select list)
@@ -324,6 +363,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
         self.tsma_tester: TSMATester = TSMATester(tdSql)
+        self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -515,22 +555,6 @@ class TDTestCase:
         self.check(self.test_query_with_tsma_interval_partition_by_tag)
         self.check(self.test_query_with_tsma_interval_partition_by_hybrid)
     
-    def test_query_tsma_generate_ts_where_range(self, ts_min: float, ts_max: float):
-        left_operators = ['>', '>=', '']
-        right_operators = ['<', '<=', '']
-        left_operator = left_operators[random.randrange(0, 3)]
-        right_operator = right_operators[random.randrange(0, 3)]
-        ret = ''
-        if left_operator:
-            left_value = ts_min + random.random() * (ts_max - ts_min)
-            ret += f'ts {left_operator} {left_value}'
-        if right_operator:
-            right_value = left_value + random.random() * (ts_max - left_value)
-            if left_operator:
-                ret += ' and '
-            ret += f'ts {right_operator} {right_value}'
-        return ret
-
     def test_query_with_tsma_interval_no_partition(self) -> List[TSMAQueryContext]:
         ctxs: List[TSMAQueryContext] = []
         sql = 'select avg(c1), avg(c2) from meters interval(5m)'
@@ -552,6 +576,18 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009','2018-09-17 09:29:59.999') \
                         .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
                             .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.664').get_qc())
+        
+        for i in range(1, 1000):
+            where = self.tsma_sql_generator.generate_ts_where_range()
+            if len(where) > 0:
+                where = f'WHERE {where}'
+            interval = self.tsma_sql_generator.generate_interval(['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200'])
+            if len(interval) > 0:
+                pseudo_cols = "_wstart, _wend,"
+            else:
+                pseudo_cols = ''
+            sql = f"select {pseudo_cols} avg(c1), avg(c2) from meters {where} {interval}"
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().get_qc())
         return ctxs
 
     def test_query_with_tsma_interval_partition_by_tbname(self):
@@ -661,7 +697,7 @@ class TDTestCase:
         return ctxs
 
     def test_query_with_tsma_with_having(self):
-        pass
+        return []
 
     def test_query_with_tsma_agg_group_by_tag(self):
         return []
