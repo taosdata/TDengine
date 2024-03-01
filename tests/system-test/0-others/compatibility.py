@@ -113,8 +113,9 @@ class TDTestCase:
         taosadapter_cfg=f"{cPath}/taosadapter.toml"
         taosadapter_log_path=f"{cPath}/../log/"
         self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
-        
-        os.system(f"  /usr/bin/taosadapter --version && nohup  /usr/bin/taosadapter -c  {taosadapter_cfg} & " )
+        self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
+
+        os.system(f"  /usr/bin/taosadapter --version && nohup  LD_LIBRARY_PATH=/usr/lib  /usr/bin/taosadapter -c  {taosadapter_cfg} & " )
 
         sleep(5)
 
@@ -158,7 +159,7 @@ class TDTestCase:
         dbname = "test"
         stb = f"{dbname}.meters"
         self.installTaosd(bPath,cPath)
-        os.system(f"echo 'debugFlag 145' > {cPath}/taos.cfg ")
+        os.system(f"echo 'debugFlag 145' >> {cPath}/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
@@ -201,12 +202,14 @@ class TDTestCase:
             "td.connect.pass": "taosdata",
             "auto.offset.reset": "earliest",
         }
+        # time.sleep(36000)
+
         consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
         try:
             consumer.subscribe(["tmq_test_topic"])
         except TmqError:
             tdLog.exit(f"subscribe error")
-        time.sleep(9999999999)
+        time.sleep(36000)
         # while True:
         #     message = consumer.poll(timeout=1.0)
         #     if message:
