@@ -53,7 +53,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
   ```  
 
-关于如何开发自定义函数，请参考 [UDF使用说明](../../develop/udf)。
+关于如何开发自定义函数，请参考 [UDF使用说明](/develop/udf)。
 
 ## 管理 UDF
 
