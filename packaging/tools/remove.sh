@@ -348,9 +348,9 @@ remove_taoskeeper() {
 }
 
 function uninstall_taosx() {
-  if [ -f ${installDir}/uninstall.sh ]; then
+  if [ -f ${installDir}/uninstall_taosx.sh ]; then
     cd ${installDir}
-    bash uninstall.sh
+    bash uninstall_taosx.sh
   fi
 }
 
@@ -411,6 +411,7 @@ if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
   fi
 fi
 
+command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 
 echo "${productName2} is removed successfully!"
 echo
