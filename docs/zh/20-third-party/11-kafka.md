@@ -293,7 +293,7 @@ Query OK, 4 row(s) in set (0.004208s)
 
 TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
-TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](../../develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)， 然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-source-test。
 

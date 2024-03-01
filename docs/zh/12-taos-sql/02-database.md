@@ -16,24 +16,24 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    1. UPDATE 设为 0 时，表示不允许更新数据，后发送的相同时间戳的数据会被直接丢弃；
    2. UPDATE 设为 1 时，表示更新全部列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；
    3. UPDATE 设为 2 时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
-   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-faq/faq)。
+   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](../../train-faq/faq)。
 3. 数据库名最大长度为 33；
 4. 一条 SQL 语句的最大长度为 65480 个字符；
 5. 创建数据库时可用的参数有：
-   - cache: [详细说明](/reference/config/#cache)
-   - blocks: [详细说明](/reference/config/#blocks)
-   - days: [详细说明](/reference/config/#days)
-   - keep: [详细说明](/reference/config/#keep)
-   - minRows: [详细说明](/reference/config/#minrows)
-   - maxRows: [详细说明](/reference/config/#maxrows)
-   - wal: [详细说明](/reference/config/#wallevel)
-   - fsync: [详细说明](/reference/config/#fsync)
-   - update: [详细说明](/reference/config/#update)
-   - cacheLast: [详细说明](/reference/config/#cachelast)
-   - replica: [详细说明](/reference/config/#replica)
-   - quorum: [详细说明](/reference/config/#quorum)
-   - comp: [详细说明](/reference/config/#comp)
-   - precision: [详细说明](/reference/config/#precision)
+   - cache: [详细说明](../../reference/config/#cache)
+   - blocks: [详细说明](../../reference/config/#blocks)
+   - days: [详细说明](../../reference/config/#days)
+   - keep: [详细说明](../../reference/config/#keep)
+   - minRows: [详细说明](../../reference/config/#minrows)
+   - maxRows: [详细说明](../../reference/config/#maxrows)
+   - wal: [详细说明](../../reference/config/#wallevel)
+   - fsync: [详细说明](../../reference/config/#fsync)
+   - update: [详细说明](../../reference/config/#update)
+   - cacheLast: [详细说明](../../reference/config/#cachelast)
+   - replica: [详细说明](../../reference/config/#replica)
+   - quorum: [详细说明](../../reference/config/#quorum)
+   - comp: [详细说明](../../reference/config/#comp)
+   - precision: [详细说明](../../reference/config/#precision)
 6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
 
 :::
