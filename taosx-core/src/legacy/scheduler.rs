@@ -398,6 +398,7 @@ async fn worker(
                                                         );
                                                     };
                                                 })
+                                                .in_current_span()
                                                 .await?;
                                             }
                                         }
