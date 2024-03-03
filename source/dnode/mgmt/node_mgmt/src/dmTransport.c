@@ -345,6 +345,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.dfp = destroyAhandle;
 
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;

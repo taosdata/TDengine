@@ -26,6 +26,8 @@ typedef struct SScalableBf {
   SArray  *bfArray;  // array of bloom filters
   uint32_t growth;
   uint64_t numBits;
+  uint32_t maxBloomFilters;
+  int8_t   status;
   _hash_fn_t hashFn1;
   _hash_fn_t hashFn2;
 } SScalableBf;
