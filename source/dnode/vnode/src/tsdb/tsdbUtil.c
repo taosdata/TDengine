@@ -1591,6 +1591,20 @@ _exit:
   return code;
 }
 
+typedef struct SBlockDataCmprInfo {
+  // TODO
+} SBlockDataCmprInfo;
+
+int32_t tBlockDataCompress(SBlockData *blockData, SBlockDataCmprInfo *info, SBuffer *buffer, SBuffer *assist) {
+  // TODO
+  return 0;
+}
+
+int32_t tBlockDataDecompress(SBufferReader *reader, const SBlockDataCmprInfo *info, SBlockData *blockData) {
+  // TODO
+  return 0;
+}
+
 // SDiskDataHdr ==============================
 int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
   int32_t n = 0;

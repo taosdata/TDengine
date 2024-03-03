@@ -503,22 +503,20 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   if (statisBlk->numOfPKs > 0) {
     SValueColumnCompressInfo firstKeyInfos[TD_MAX_PK_COLS];
     SValueColumnCompressInfo lastKeyInfos[TD_MAX_PK_COLS];
-    SBufferReader            bfReader;
-
-    tBufferReaderInit(&bfReader, true, size, &reader->buffers[0]);
+    SBufferReader            br = BUFFER_READER_INITIALIZER(size, &reader->buffers[0]);
 
     // decode compress info
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnCompressInfoDecode(&bfReader, &firstKeyInfos[i]);
+      code = tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      code = tValueColumnCompressInfoDecode(&bfReader, &lastKeyInfos[i]);
+      code = tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    size = bfReader.offset;
+    size = br.offset;
 
     // decode value columns
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
@@ -686,19 +684,17 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
 
   // compress primary keys
   if (statisBlk.numOfPKs > 0) {
-    SBufferWriter            bfWriter;
     SValueColumnCompressInfo compressInfo = {.cmprAlg = statisBlk.cmprAlg};
 
     tBufferClear(&writer->buffers[0]);
     tBufferClear(&writer->buffers[1]);
-    tBufferWriterInit(&bfWriter, true, 0, &writer->buffers[0]);
 
     for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
       code =
           tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, &writer->buffers[1], &writer->buffers[2]);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tValueColumnCompressInfoEncode(&compressInfo, &bfWriter);
+      code = tValueColumnCompressInfoEncode(&compressInfo, &writer->buffers[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -706,7 +702,7 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
       code = tValueColumnCompress(&statisBlock->lastKeyPKs[i], &compressInfo, &writer->buffers[1], &writer->buffers[2]);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tValueColumnCompressInfoEncode(&compressInfo, &bfWriter);
+      code = tValueColumnCompressInfoEncode(&compressInfo, &writer->buffers[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

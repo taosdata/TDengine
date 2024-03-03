@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
 #include "tRealloc.h"
-#include "tcoding.h"
 #include "tdatablock.h"
 #include "tlog.h"
 
@@ -3993,15 +3992,14 @@ int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
   ASSERT(value->type == valCol->type);
 
   if (IS_VAR_DATA_TYPE(value->type)) {
-    int32_t offset = tBufferGetSize(&valCol->data);
-    if ((code = tBufferAppend(&valCol->offsets, &offset, sizeof(offset)))) {
+    if ((code = tBufferPutI32(&valCol->offsets, tBufferGetSize(&valCol->data)))) {
       return code;
     }
-    if ((code = tBufferAppend(&valCol->data, value->pData, value->nData))) {
+    if ((code = tBufferPut(&valCol->data, value->pData, value->nData))) {
       return code;
     }
   } else {
-    return tBufferAppend(&valCol->data, &value->val, tDataTypes[value->type].bytes);
+    return tBufferPut(&valCol->data, &value->val, tDataTypes[value->type].bytes);
   }
   valCol->numOfValues++;
 
@@ -4015,18 +4013,20 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
 
   value->type = valCol->type;
   if (IS_VAR_DATA_TYPE(value->type)) {
-    int32_t offset, nextOffset;
+    int32_t       offset, nextOffset;
+    SBufferReader reader = BUFFER_READER_INITIALIZER(idx * sizeof(offset), &valCol->offsets);
 
-    tBufferGet(&valCol->offsets, idx, sizeof(offset), &offset);
+    tBufferGetI32(&reader, &offset);
     if (idx == valCol->numOfValues - 1) {
       nextOffset = tBufferGetSize(&valCol->data);
     } else {
-      tBufferGet(&valCol->offsets, idx + 1, sizeof(nextOffset), &nextOffset);
+      tBufferGetI32(&reader, &nextOffset);
     }
     value->nData = nextOffset - offset;
     value->pData = (uint8_t *)tBufferGetDataAt(&valCol->data, offset);
   } else {
-    tBufferGet(&valCol->data, idx, tDataTypes[value->type].bytes, &value->val);
+    SBufferReader reader = BUFFER_READER_INITIALIZER(idx * tDataTypes[value->type].bytes, &valCol->data);
+    tBufferGet(&reader, tDataTypes[value->type].bytes, &value->val);
   }
   return 0;
 }
@@ -4140,54 +4140,42 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
   return 0;
 }
 
-int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBufferWriter *writer) {
+int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *info, SBuffer *buffer) {
   int32_t code;
-  uint8_t formatVersion = 0;
+  uint8_t fmtVer = 0;
 
-  // format version
-  code = tBufferPutU8(writer, formatVersion);
-  if (code) return code;
-
-  // struct info
-  code = tBufferPutI8(writer, compressInfo->cmprAlg);
-  if (code) return code;
-  code = tBufferPutI8(writer, compressInfo->type);
-  if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->dataOriginalSize);
-  if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->dataCompressedSize);
-  if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->offsetOriginalSize);
-  if (code) return code;
-  code = tBufferPutI32v(writer, compressInfo->offsetCompressedSize);
-  if (code) return code;
+  if ((code = tBufferPutU8(buffer, fmtVer))) return code;
+  if ((code = tBufferPutI8(buffer, info->cmprAlg))) return code;
+  if ((code = tBufferPutI8(buffer, info->type))) return code;
+  if (IS_VAR_DATA_TYPE(info->type)) {
+    if ((code = tBufferPutI32v(buffer, info->offsetOriginalSize))) return code;
+    if ((code = tBufferPutI32v(buffer, info->offsetCompressedSize))) return code;
+  }
+  if ((code = tBufferPutI32v(buffer, info->dataOriginalSize))) return code;
+  if ((code = tBufferPutI32v(buffer, info->dataCompressedSize))) return code;
 
   return 0;
 }
 
-int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo) {
+int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *info) {
   int32_t code;
-  uint8_t formatVersion;
+  uint8_t fmtVer;
 
-  // format version
-  code = tBufferGetU8(reader, &formatVersion);
-  if (code) return code;
-
-  if (formatVersion == 0) {
-    code = tBufferGetI8(reader, &compressInfo->cmprAlg);
-    if (code) return code;
-    code = tBufferGetI8(reader, &compressInfo->type);
-    if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->dataOriginalSize);
-    if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->dataCompressedSize);
-    if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->offsetOriginalSize);
-    if (code) return code;
-    code = tBufferGetI32v(reader, &compressInfo->offsetCompressedSize);
-    if (code) return code;
+  if ((code = tBufferGetU8(reader, &fmtVer))) return code;
+  if (fmtVer == 0) {
+    if ((code = tBufferGetI8(reader, &info->cmprAlg))) return code;
+    if ((code = tBufferGetI8(reader, &info->type))) return code;
+    if (IS_VAR_DATA_TYPE(info->type)) {
+      if ((code = tBufferGetI32v(reader, &info->offsetOriginalSize))) return code;
+      if ((code = tBufferGetI32v(reader, &info->offsetCompressedSize))) return code;
+    } else {
+      info->offsetOriginalSize = 0;
+      info->offsetCompressedSize = 0;
+    }
+    if ((code = tBufferGetI32v(reader, &info->dataOriginalSize))) return code;
+    if ((code = tBufferGetI32v(reader, &info->dataCompressedSize))) return code;
   } else {
-    return TSDB_CODE_INVALID_DATA_FMT;
+    ASSERT(0);
   }
 
   return 0;

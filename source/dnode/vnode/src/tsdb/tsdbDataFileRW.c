@@ -19,7 +19,8 @@
 struct SDataFileReader {
   SDataFileReaderConfig config[1];
 
-  uint8_t *bufArr[5];
+  SBuffer  local[5];
+  SBuffer *buffers;
 
   struct {
     bool headFooterLoaded;
@@ -89,9 +90,14 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); i++) {
+    tBufferInit(reader[0]->local + i);
+  }
+
   reader[0]->config[0] = config[0];
-  if (reader[0]->config->bufArr == NULL) {
-    reader[0]->config->bufArr = reader[0]->bufArr;
+  reader[0]->buffers = config->buffers;
+  if (reader[0]->buffers == NULL) {
+    reader[0]->buffers = reader[0]->local;
   }
 
   if (fname) {
@@ -125,19 +131,14 @@ int32_t tsdbDataFileReaderClose(SDataFileReader **reader) {
   TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
   TARRAY2_DESTROY(reader[0]->brinBlkArray, NULL);
 
-#if 0
-  TARRAY2_DESTROY(reader[0]->dataBlkArray, NULL);
-  TARRAY2_DESTROY(reader[0]->blockIdxArray, NULL);
-#endif
-
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
     if (reader[0]->fd[i]) {
       tsdbCloseFile(&reader[0]->fd[i]);
     }
   }
 
-  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->bufArr); ++i) {
-    tFree(reader[0]->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); ++i) {
+    tBufferDestroy(reader[0]->local + i);
   }
 
   taosMemoryFree(reader[0]);
@@ -188,38 +189,81 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], brinBlk->dp->size);
+  // load data
+  tBufferClear(&reader->buffers[0]);
+  code = tBufferEnsureCapacity(&reader->buffers[0], brinBlk->dp->size);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  code =
-      tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, reader->config->bufArr[0], brinBlk->dp->size, 0);
+  code = tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, reader->buffers[0].data, brinBlk->dp->size, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
+  reader->buffers[0].size = brinBlk->dp->size;
 
-#if 0
-  int32_t size = 0;
+  // decode brin block
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
   tBrinBlockClear(brinBlock);
-  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); i++) {
-    code = tsdbDecmprData(reader->config->bufArr[0] + size, brinBlk->size[i], TSDB_DATA_TYPE_BIGINT, brinBlk->cmprAlg,
-                          &reader->config->bufArr[1], brinBlk->numRec * sizeof(int64_t), &reader->config->bufArr[2]);
+  brinBlock->numOfPKs = brinBlk->numOfPKs;
+  brinBlock->numOfRecords = brinBlk->numRec;
+  for (int32_t i = 0; i < 10; i++) {
+    SCompressInfo cinfo = {
+        .cmprAlg = brinBlk->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .compressedSize = brinBlk->size[i],
+        .originalSize = brinBlk->numRec * sizeof(int64_t),
+    };
+    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), brinBlk->size[i], &cinfo,
+                                   brinBlock->buffers + i, reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND_BATCH(&brinBlock->dataArr1[i], reader->config->bufArr[1], brinBlk->numRec);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    size += brinBlk->size[i];
+    br.offset += brinBlk->size[i];
   }
 
-  for (int32_t i = 0, j = ARRAY_SIZE(brinBlock->dataArr1); i < ARRAY_SIZE(brinBlock->dataArr2); i++, j++) {
-    code = tsdbDecmprData(reader->config->bufArr[0] + size, brinBlk->size[j], TSDB_DATA_TYPE_INT, brinBlk->cmprAlg,
-                          &reader->config->bufArr[1], brinBlk->numRec * sizeof(int32_t), &reader->config->bufArr[2]);
+  for (int32_t i = 10; i < 15; i++) {
+    SCompressInfo cinfo = {
+        .cmprAlg = brinBlk->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_INT,
+        .compressedSize = brinBlk->size[i],
+        .originalSize = brinBlk->numRec * sizeof(int32_t),
+    };
+    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), brinBlk->size[i], &cinfo,
+                                   brinBlock->buffers + i, reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND_BATCH(&brinBlock->dataArr2[i], reader->config->bufArr[1], brinBlk->numRec);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    size += brinBlk->size[j];
+    br.offset += brinBlk->size[i];
   }
-#endif
+
+  // primary keys
+  if (brinBlk->numOfPKs > 0) {  // decode the primary keys
+    SValueColumnCompressInfo firstInfos[TD_MAX_PK_COLS];
+    SValueColumnCompressInfo lastInfos[TD_MAX_PK_COLS];
+
+    for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&br, firstInfos + i);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&br, lastInfos + i);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
+      SValueColumnCompressInfo *info = firstInfos + i;
+      int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
+
+      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), totalCompressedSize, info,
+                                    brinBlock->firstKeyPKs + i, reader->buffers + 1);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      br.offset += totalCompressedSize;
+    }
+
+    for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
+      SValueColumnCompressInfo *info = lastInfos + i;
+      int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
+
+      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), totalCompressedSize, info,
+                                    brinBlock->lastKeyPKs + i, reader->buffers + 1);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      br.offset += totalCompressedSize;
+    }
+  }
+
+  ASSERT(br.offset == br.buffer->size);
 
 _exit:
   if (code) {
@@ -232,13 +276,15 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], record->blockSize);
+  // load data
+  tBufferClear(&reader->buffers[0]);
+  code = tBufferEnsureCapacity(&reader->buffers[0], record->blockSize);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  code =
-      tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, reader->config->bufArr[0], record->blockSize, 0);
+  code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, reader->buffers[0].data, record->blockSize, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
+  reader->buffers[0].size = record->blockSize;
 
+  // decompress
   code = tDecmprBlockData(reader->config->bufArr[0], record->blockSize, bData, &reader->config->bufArr[1]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -611,7 +657,7 @@ struct SDataFileWriter {
 
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
-  uint8_t *bufArr[5];
+  SBuffer  local[5];
   SBuffer *buffers;
 
   struct {
@@ -673,8 +719,8 @@ static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
   tBlockDataDestroy(writer->ctx->blockData);
   tBrinBlockDestroy(writer->ctx->brinBlock);
 
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->bufArr); ++i) {
-    tFree(writer->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->local); ++i) {
+    tBufferDestroy(writer->local + i);
   }
 
   tDestroyTSchema(writer->skmRow->pTSchema);
@@ -691,7 +737,7 @@ static int32_t tsdbDataFileWriterDoOpenReader(SDataFileWriter *writer) {
       SDataFileReaderConfig config[1] = {{
           .tsdb = writer->config->tsdb,
           .szPage = writer->config->szPage,
-          .bufArr = writer->config->bufArr,
+          .buffers = writer->buffers,
       }};
 
       for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
@@ -721,7 +767,10 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   if (!writer->config->skmTb) writer->config->skmTb = writer->skmTb;
   if (!writer->config->skmRow) writer->config->skmRow = writer->skmRow;
-  if (!writer->config->bufArr) writer->config->bufArr = writer->bufArr;
+  writer->buffers = writer->config->buffers;
+  if (writer->buffers == NULL) {
+    writer->buffers = writer->local;
+  }
 
   // open reader
   code = tsdbDataFileWriterDoOpenReader(writer);

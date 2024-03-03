@@ -29,7 +29,6 @@ struct SBufferWriter {
 };
 
 struct SBufferReader {
-  bool     forward;
   uint32_t offset;
   SBuffer *buffer;
 };
@@ -73,7 +72,7 @@ static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capa
   return 0;
 }
 
-static FORCE_INLINE int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size) {
+static FORCE_INLINE int32_t tBufferPut(SBuffer *buffer, const void *data, uint32_t size) {
   int32_t code = tBufferEnsureCapacity(buffer, buffer->size + size);
   if (code) return code;
   memcpy((char *)buffer->data + buffer->size, data, size);
@@ -81,184 +80,132 @@ static FORCE_INLINE int32_t tBufferAppend(SBuffer *buffer, const void *data, uin
   return 0;
 }
 
-static FORCE_INLINE int32_t tBufferGet(SBuffer *buffer, int32_t index, uint32_t size, void *data) {
-  if (index < 0 || (index + 1) * size > buffer->size) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-  memcpy(data, (char *)buffer->data + index * size, size);
-  return 0;
+static FORCE_INLINE int32_t tBufferPutI8(SBuffer *buffer, int8_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-// SBufferWriter
-static int32_t tBufferWriterInit(SBufferWriter *writer, bool forward, uint32_t offset, SBuffer *buffer) {
-  writer->forward = forward;
-  writer->offset = offset;
-  writer->buffer = buffer;
-  return 0;
+static FORCE_INLINE int32_t tBufferPutI16(SBuffer *buffer, int16_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutFixed(SBufferWriter *writer, const void *data, uint32_t size) {
-  if (!writer->forward && writer->offset < size) {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-
-  int32_t code = tBufferEnsureCapacity(writer->buffer, writer->forward ? writer->offset + size : writer->offset);
-  if (code) return code;
-
-  if (writer->forward) {
-    memcpy((char *)writer->buffer->data + writer->offset, data, size);
-    writer->offset += size;
-  } else {
-    writer->offset -= size;
-    memcpy((char *)writer->buffer->data + writer->offset, data, size);
-  }
-  return 0;
+static FORCE_INLINE int32_t tBufferPutI32(SBuffer *buffer, int32_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI8(SBufferWriter *writer, int8_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
+static FORCE_INLINE int32_t tBufferPutI64(SBuffer *buffer, int64_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI16(SBufferWriter *writer, int16_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
+static FORCE_INLINE int32_t tBufferPutU8(SBuffer *buffer, uint8_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI32(SBufferWriter *writer, int32_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
+static FORCE_INLINE int32_t tBufferPutU16(SBuffer *buffer, uint16_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI64(SBufferWriter *writer, int64_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
+static FORCE_INLINE int32_t tBufferPutU32(SBuffer *buffer, uint32_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutU8(SBufferWriter *writer, uint8_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
+static FORCE_INLINE int32_t tBufferPutU64(SBuffer *buffer, uint64_t value) {
+  return tBufferPut(buffer, &value, sizeof(value));
 }
 
-static FORCE_INLINE int32_t tBufferPutU16(SBufferWriter *writer, uint16_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
-}
+static FORCE_INLINE int32_t tBufferPutU16v(SBuffer *buffer, uint16_t value) { return tBufferPutU64v(buffer, value); }
 
-static FORCE_INLINE int32_t tBufferPutU32(SBufferWriter *writer, uint32_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
-}
+static FORCE_INLINE int32_t tBufferPutU32v(SBuffer *buffer, uint32_t value) { return tBufferPutU64v(buffer, value); }
 
-static FORCE_INLINE int32_t tBufferPutU64(SBufferWriter *writer, uint64_t value) {
-  return tBufferPutFixed(writer, &value, sizeof(value));
-}
-
-static FORCE_INLINE int32_t tBufferPutU64v(SBufferWriter *writer, uint64_t value) {
+static FORCE_INLINE int32_t tBufferPutU64v(SBuffer *buffer, uint64_t value) {
   int32_t code;
   while (value >= 0x80) {
-    code = tBufferPutU8(writer, (value & 0x7F) | 0x80);
+    code = tBufferPutU8(buffer, (value & 0x7F) | 0x80);
     if (code) return code;
     value >>= 7;
   }
-  return tBufferPutU8(writer, value);
+  return tBufferPutU8(buffer, value);
 }
 
-static FORCE_INLINE int32_t tBufferPutU16v(SBufferWriter *writer, uint16_t value) {
-  return tBufferPutU64v(writer, value);
+static FORCE_INLINE int32_t tBufferPutI16v(SBuffer *buffer, int16_t value) {
+  return tBufferPutU64v(buffer, ZIGZAGE(int16_t, value));
 }
 
-static FORCE_INLINE int32_t tBufferPutU32v(SBufferWriter *writer, uint32_t value) {
-  return tBufferPutU64v(writer, value);
+static FORCE_INLINE int32_t tBufferPutI32v(SBuffer *buffer, int32_t value) {
+  return tBufferPutU64v(buffer, ZIGZAGE(int32_t, value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI16v(SBufferWriter *writer, int16_t value) {
-  return tBufferPutU16v(writer, ZIGZAGE(int16_t, value));
+static FORCE_INLINE int32_t tBufferPutI64v(SBuffer *buffer, int64_t value) {
+  return tBufferPutU64v(buffer, ZIGZAGE(int64_t, value));
 }
 
-static FORCE_INLINE int32_t tBufferPutI32v(SBufferWriter *writer, int32_t value) {
-  return tBufferPutU32v(writer, ZIGZAGE(int32_t, value));
-}
-
-static FORCE_INLINE int32_t tBufferPutI64v(SBufferWriter *writer, int64_t value) {
-  return tBufferPutU64v(writer, ZIGZAGE(int64_t, value));
-}
-
-static FORCE_INLINE int32_t tBufferPutBinary(SBufferWriter *writer, const void *data, uint32_t size) {
-  int32_t code = tBufferPutU32(writer, size);
+static FORCE_INLINE int32_t tBufferPutBinary(SBuffer *buffer, const void *data, uint32_t size) {
+  int32_t code = tBufferPutU32v(buffer, size);
   if (code) return code;
-  return tBufferPutFixed(writer, data, size);
+  return tBufferPut(buffer, data, size);
 }
 
-static FORCE_INLINE int32_t tBufferPutCStr(SBufferWriter *writer, const char *str) {
-  return tBufferPutBinary(writer, str, strlen(str) + 1);
+static FORCE_INLINE int32_t tBufferPutCStr(SBuffer *buffer, const char *str) {
+  return tBufferPutBinary(buffer, str, str ? 0 : strlen(str) + 1);
 }
 
-static FORCE_INLINE int32_t tBufferPutF32(SBufferWriter *writer, float value) {
+static FORCE_INLINE int32_t tBufferPutF32(SBuffer *buffer, float value) {
   union {
     float    f;
     uint32_t u;
   } u = {.f = value};
-  return tBufferPutU32(writer, u.u);
+  return tBufferPutU32(buffer, u.u);
 }
 
-static FORCE_INLINE int32_t tBufferPutF64(SBufferWriter *writer, double value) {
+static FORCE_INLINE int32_t tBufferPutF64(SBuffer *buffer, double value) {
   union {
     double   f;
     uint64_t u;
   } u = {.f = value};
-  return tBufferPutU64(writer, u.u);
+  return tBufferPutU64(buffer, u.u);
 }
 
+// reader
 // SBufferReader
-static int32_t tBufferReaderInit(SBufferReader *reader, bool forward, uint32_t offset, SBuffer *buffer) {
-  reader->forward = forward;
-  reader->offset = offset;
-  reader->buffer = buffer;
+static int32_t tBufferReaderInit(SBufferReader *reader, uint32_t offset, SBuffer *buffer) {
+  (*reader) = BUFFER_READER_INITIALIZER(offset, buffer);
   return 0;
 }
 
-static int32_t tBufferGetFixed(SBufferReader *reader, void *data, uint32_t size) {
-  if ((reader->forward && reader->offset + size > reader->buffer->capacity) ||
-      (!reader->forward && reader->offset < size)) {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
+static FORCE_INLINE int32_t tBufferGet(SBufferReader *reader, uint32_t size, void *data) {
+  if (reader->offset < 0 || reader->offset + size > reader->buffer->size) {
+    return TSDB_CODE_OUT_OF_RANGE;
   }
-
-  if (data) {
-    if (reader->forward) {
-      memcpy(data, (char *)reader->buffer->data + reader->offset, size);
-      reader->offset += size;
-    } else {
-      reader->offset -= size;
-      memcpy(data, (char *)reader->buffer->data + reader->offset, size);
-    }
-  }
+  memcpy(data, (char *)reader->buffer->data + reader->offset, size);
+  reader->offset += size;
   return 0;
 }
 
-static int32_t tBufferGetI8(SBufferReader *reader, int8_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
-}
+static int32_t tBufferGetI8(SBufferReader *reader, int8_t *value) { return tBufferGet(reader, sizeof(*value), value); }
 
 static int32_t tBufferGetI16(SBufferReader *reader, int16_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetI32(SBufferReader *reader, int32_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetI64(SBufferReader *reader, int64_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
-static int32_t tBufferGetU8(SBufferReader *reader, uint8_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
-}
+static int32_t tBufferGetU8(SBufferReader *reader, uint8_t *value) { return tBufferGet(reader, sizeof(*value), value); }
 
 static int32_t tBufferGetU16(SBufferReader *reader, uint16_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetU32(SBufferReader *reader, uint32_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetU64(SBufferReader *reader, uint64_t *value) {
-  return tBufferGetFixed(reader, value, sizeof(*value));
+  return tBufferGet(reader, sizeof(*value), value);
 }
 
 static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
@@ -274,7 +221,7 @@ static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
     if (code) return code;
 
     if (value) {
-      *value |= ((uint64_t)(byte & 0x7F)) << (i * 7);
+      *value |= (((uint64_t)(byte & 0x7F)) << (i * 7));
     }
 
     if (byte < 0x80) {
@@ -340,29 +287,25 @@ static int32_t tBufferGetBinary(SBufferReader *reader, const void **data, uint32
   int32_t  code;
 
   // size
-  code = tBufferGetU32(reader, &tmpSize);
+  code = tBufferGetU32v(reader, &tmpSize);
   if (code) return code;
   if (size) {
     *size = tmpSize;
   }
+
   // data
-  if (reader->forward) {
-    if (reader->offset + tmpSize > reader->buffer->capacity) {
-      return TSDB_CODE_OPS_NOT_SUPPORT;
+  if (tmpSize > 0) {
+    if (reader->offset + tmpSize > reader->buffer->size) {
+      return TSDB_CODE_OUT_OF_RANGE;
     }
     if (data) {
       *data = (char *)reader->buffer->data + reader->offset;
     }
     reader->offset += tmpSize;
   } else {
-    if (reader->offset < tmpSize) {
-      return TSDB_CODE_OPS_NOT_SUPPORT;
-    }
-    reader->offset -= tmpSize;
-    if (data) {
-      *data = (char *)reader->buffer->data + reader->offset;
-    }
+    *data = NULL;
   }
+
   return 0;
 }
 

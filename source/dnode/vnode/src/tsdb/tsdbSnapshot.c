@@ -29,17 +29,17 @@ struct STsdbSnapReader {
   int64_t ever;
   int8_t  type;
 
-  uint8_t* aBuf[5];
+  SBuffer  buffers[5];
   SSkmInfo skmTb[1];
 
   TFileSetRangeArray* fsrArr;
 
   // context
   struct {
-    int32_t      fsrArrIdx;
+    int32_t         fsrArrIdx;
     STFileSetRange* fsr;
-    bool         isDataDone;
-    bool         isTombDone;
+    bool            isDataDone;
+    bool            isTombDone;
   } ctx[1];
 
   // reader
@@ -68,7 +68,7 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
   SDataFileReaderConfig config = {
       .tsdb = reader->tsdb,
       .szPage = reader->tsdb->pVnode->config.tsdbPageSize,
-      .bufArr = reader->aBuf,
+      .buffers = reader->buffers,
   };
   bool hasDataFile = false;
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
@@ -1061,7 +1061,8 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRang
   writer[0]->compactVersion = INT64_MAX;
   writer[0]->now = taosGetTimestampMs();
 
-  code = tsdbFSCreateCopyRangedSnapshot(pTsdb->pFS, (TFileSetRangeArray*)pRanges, &writer[0]->fsetArr, writer[0]->fopArr);
+  code =
+      tsdbFSCreateCopyRangedSnapshot(pTsdb->pFS, (TFileSetRangeArray*)pRanges, &writer[0]->fsetArr, writer[0]->fopArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

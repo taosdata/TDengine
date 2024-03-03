@@ -32,45 +32,38 @@ static int32_t tBufferInit(SBuffer *buffer);
 static int32_t tBufferDestroy(SBuffer *buffer);
 static int32_t tBufferClear(SBuffer *buffer);
 static int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity);
-static int32_t tBufferAppend(SBuffer *buffer, const void *data, uint32_t size);
-static int32_t tBufferGet(SBuffer *buffer, int32_t index, uint32_t size, void *data);
+static int32_t tBufferPut(SBuffer *buffer, const void *data, uint32_t size);
+static int32_t tBufferPutI8(SBuffer *buffer, int8_t value);
+static int32_t tBufferPutI16(SBuffer *buffer, int16_t value);
+static int32_t tBufferPutI32(SBuffer *buffer, int32_t value);
+static int32_t tBufferPutI64(SBuffer *buffer, int64_t value);
+static int32_t tBufferPutU8(SBuffer *buffer, uint8_t value);
+static int32_t tBufferPutU16(SBuffer *buffer, uint16_t value);
+static int32_t tBufferPutU32(SBuffer *buffer, uint32_t value);
+static int32_t tBufferPutU64(SBuffer *buffer, uint64_t value);
+static int32_t tBufferPutI16v(SBuffer *buffer, int16_t value);
+static int32_t tBufferPutI32v(SBuffer *buffer, int32_t value);
+static int32_t tBufferPutI64v(SBuffer *buffer, int64_t value);
+static int32_t tBufferPutU16v(SBuffer *buffer, uint16_t value);
+static int32_t tBufferPutU32v(SBuffer *buffer, uint32_t value);
+static int32_t tBufferPutU64v(SBuffer *buffer, uint64_t value);
+static int32_t tBufferPutBinary(SBuffer *buffer, const void *data, uint32_t size);
+static int32_t tBufferPutCStr(SBuffer *buffer, const char *str);
+static int32_t tBufferPutF32(SBuffer *buffer, float value);
+static int32_t tBufferPutF64(SBuffer *buffer, double value);
+
 #define tBufferGetSize(buffer)        ((buffer)->size)
 #define tBufferGetCapacity(buffer)    ((buffer)->capacity)
 #define tBufferGetData(buffer)        ((buffer)->data)
 #define tBufferGetDataAt(buffer, idx) ((char *)(buffer)->data + (idx))
 #define tBufferGetDataEnd(buffer)     ((char *)(buffer)->data + (buffer)->size)
 
-// SBufferWriter
-#define BUFFER_WRITER_INITIALIZER(forward, offset, buffer) ((SBufferWriter){forward, offset, buffer})
-#define tBufferWriterDestroy(writer)                       ((void)0)
-#define tBufferWriterGetOffset(writer)                     ((writer)->offset)
-static int32_t tBufferWriterInit(SBufferWriter *writer, bool forward, uint32_t offset, SBuffer *buffer);
-static int32_t tBufferPutFixed(SBufferWriter *writer, const void *data, uint32_t size);
-static int32_t tBufferPutI8(SBufferWriter *writer, int8_t value);
-static int32_t tBufferPutI16(SBufferWriter *writer, int16_t value);
-static int32_t tBufferPutI32(SBufferWriter *writer, int32_t value);
-static int32_t tBufferPutI64(SBufferWriter *writer, int64_t value);
-static int32_t tBufferPutU8(SBufferWriter *writer, uint8_t value);
-static int32_t tBufferPutU16(SBufferWriter *writer, uint16_t value);
-static int32_t tBufferPutU32(SBufferWriter *writer, uint32_t value);
-static int32_t tBufferPutU64(SBufferWriter *writer, uint64_t value);
-static int32_t tBufferPutI16v(SBufferWriter *writer, int16_t value);
-static int32_t tBufferPutI32v(SBufferWriter *writer, int32_t value);
-static int32_t tBufferPutI64v(SBufferWriter *writer, int64_t value);
-static int32_t tBufferPutU16v(SBufferWriter *writer, uint16_t value);
-static int32_t tBufferPutU32v(SBufferWriter *writer, uint32_t value);
-static int32_t tBufferPutU64v(SBufferWriter *writer, uint64_t value);
-static int32_t tBufferPutBinary(SBufferWriter *writer, const void *data, uint32_t size);
-static int32_t tBufferPutCStr(SBufferWriter *writer, const char *str);
-static int32_t tBufferPutF32(SBufferWriter *writer, float value);
-static int32_t tBufferPutF64(SBufferWriter *writer, double value);
-
 // SBufferReader
-#define BUFFER_READER_INITIALIZER(forward, offset, buffer) ((SBufferReader){forward, offset, buffer})
-#define tBufferReaderDestroy(reader)                       ((void)0)
-#define tBufferReaderGetOffset(reader)                     ((reader)->offset)
-static int32_t tBufferReaderInit(SBufferReader *reader, bool forward, uint32_t offset, SBuffer *buffer);
-static int32_t tBufferGetFixed(SBufferReader *reader, void *data, uint32_t size);
+#define BUFFER_READER_INITIALIZER(offset, buffer) ((SBufferReader){offset, buffer})
+#define tBufferReaderDestroy(reader)              ((void)0)
+#define tBufferReaderGetOffset(reader)            ((reader)->offset)
+static int32_t tBufferGet(SBufferReader *reader, uint32_t size, void *data);
+static int32_t tBufferReaderInit(SBufferReader *reader, uint32_t offset, SBuffer *buffer);
 static int32_t tBufferGetI8(SBufferReader *reader, int8_t *value);
 static int32_t tBufferGetI16(SBufferReader *reader, int16_t *value);
 static int32_t tBufferGetI32(SBufferReader *reader, int32_t *value);

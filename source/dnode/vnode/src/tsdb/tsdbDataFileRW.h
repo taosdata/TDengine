@@ -29,12 +29,12 @@ typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 
 typedef struct {
   SFDataPtr brinBlkPtr[1];
-  SFDataPtr rsrvd[2];
+  char      rsrvd[32];
 } SHeadFooter;
 
 typedef struct {
   SFDataPtr tombBlkPtr[1];
-  SFDataPtr rsrvd[2];
+  char      rsrvd[32];
 } STombFooter;
 
 // SDataFileReader =============================================
@@ -46,7 +46,7 @@ typedef struct SDataFileReaderConfig {
     bool   exist;
     STFile file;
   } files[TSDB_FTYPE_MAX];
-  uint8_t **bufArr;
+  SBuffer *buffers;
 } SDataFileReaderConfig;
 
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
@@ -83,7 +83,7 @@ typedef struct SDataFileWriterConfig {
   } files[TSDB_FTYPE_MAX];
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **bufArr;
+  SBuffer  *buffers;
 } SDataFileWriterConfig;
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
