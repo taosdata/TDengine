@@ -172,6 +172,23 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
     goto _err;
   }
 
+  // open tsdb snapshot raw reader
+  if (!pReader->tsdbRAWDone) {
+    ASSERT(pReader->sver == 0);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+    if (code) goto _err;
+  }
+
+  // check snapshot ever
+  SSnapshot snapshot = {0};
+  vnodeGetSnapshot(pVnode, &snapshot);
+  if (ever != snapshot.lastApplyIndex) {
+    vError("vgId:%d, abort reader open due to vnode snapshot changed. ever:%" PRId64 ", commit ver:%" PRId64,
+           TD_VID(pVnode), ever, snapshot.lastApplyIndex);
+    code = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _err;
+  }
+
   vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
   return code;

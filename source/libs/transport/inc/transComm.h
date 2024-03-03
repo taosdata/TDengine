@@ -256,21 +256,21 @@ void        transAsyncPoolDestroy(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
 bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
-#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
-  do {                                                        \
-    for (int i = 0; i < pool->nAsync; i++) {                  \
-      uv_async_t* async = &(pool->asyncs[i]);                 \
-      SAsyncItem* item = async->data;                         \
-      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
-        tTrace("destroy msg in async pool ");                 \
-        queue* h = QUEUE_HEAD(&item->qmsg);                   \
-        QUEUE_REMOVE(h);                                      \
-        msgType* msg = QUEUE_DATA(h, msgType, q);             \
-        if (msg != NULL) {                                    \
-          freeFunc(msg);                                      \
-        }                                                     \
-      }                                                       \
-    }                                                         \
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
+  do {                                                               \
+    for (int i = 0; i < pool->nAsync; i++) {                         \
+      uv_async_t* async = &(pool->asyncs[i]);                        \
+      SAsyncItem* item = async->data;                                \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                         \
+        tTrace("destroy msg in async pool ");                        \
+        queue* h = QUEUE_HEAD(&item->qmsg);                          \
+        QUEUE_REMOVE(h);                                             \
+        msgType* msg = QUEUE_DATA(h, msgType, q);                    \
+        if (msg != NULL) {                                           \
+          freeFunc(msg, param);                                      \
+        }                                                            \
+      }                                                              \
+    }                                                                \
   } while (0)
 
 #define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \
@@ -427,6 +427,8 @@ SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg,
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */

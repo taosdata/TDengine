@@ -1008,11 +1008,11 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
       }
       tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
     }
-
+    /*
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, suid, NULL);
     }
-
+    */
     metaDebug("batch drop table:%" PRId64, uid);
   }
   metaULock(pMeta);

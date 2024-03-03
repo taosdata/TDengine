@@ -103,6 +103,7 @@ char* tjsonToUnformattedString(const SJson* pJson);
 SJson*      tjsonParse(const char* pStr);
 bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
+void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
 #ifdef __cplusplus
 }

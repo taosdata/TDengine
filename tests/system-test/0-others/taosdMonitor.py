@@ -267,6 +267,7 @@ class TDTestCase:
     updatecfgDict["monitorInterval"]        = "5"
     updatecfgDict["monitorMaxLogs"]        = "10"
     updatecfgDict["monitorComp"]        = "1"
+    updatecfgDict["monitorForceV2"]        = "0"
 
     updatecfgDict["audit"]            = '0'
 

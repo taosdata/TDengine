@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "osSleep.h"
 #include "query.h"
 #include "qworker.h"
 #include "scheduler.h"
@@ -105,7 +106,15 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
-    }
+    } 
+  }
+
+  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
+  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
+  } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
   }
 
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
@@ -114,6 +123,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
+      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
     }
   }
 
@@ -224,6 +234,7 @@ void destroyAppInst(SAppInstInfo *pAppInfo) {
 
   taosThreadMutexLock(&appInfo.mutex);
 
+  clientMonitorClose(pAppInfo->instKey);
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
   taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
