@@ -110,12 +110,16 @@ class TDTestCase:
         os.system(f"rm -rf {dataPath}/*  && nohup  /usr/bin/taosd -c {cPath} & " )
         os.system(f"killall taosadapter" )
         os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml  " )
-        taosadapter_cfg=f"{cPath}/taosadapter.toml"
-        taosadapter_log_path=f"{cPath}/../log/"
+        taosadapter_cfg = cPath + "/taosadapter.toml"
+        taosadapter_log_path = cPath + "/../log/"
+        print(f"taosadapter_cfg:{taosadapter_cfg},taosadapter_log_path:{taosadapter_log_path} ")
         self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
         self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
+        print("/usr/bin/taosadapter --version")
+        os.system(f"  /usr/bin/taosadapter --version" )
+        print(f" LD_LIBRARY_PATH=/usr/lib -c  {taosadapter_cfg} >> {taosadapter_log_path}/testa.log  2>&1 & ")
+        os.system(f" LD_LIBRARY_PATH=/usr/lib  /usr/bin/taosadapter -c  {taosadapter_cfg} >> {taosadapter_log_path}/testa.log  2>&1 & " )
 
-        os.system(f"  /usr/bin/taosadapter --version && nohup  LD_LIBRARY_PATH=/usr/lib  /usr/bin/taosadapter -c  {taosadapter_cfg} & " )
 
         sleep(5)
 
@@ -159,7 +163,7 @@ class TDTestCase:
         dbname = "test"
         stb = f"{dbname}.meters"
         self.installTaosd(bPath,cPath)
-        os.system(f"echo 'debugFlag 145' >> {cPath}/taos.cfg ")
+        # os.system(f"echo 'debugFlag 145' >> {cPath}/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
@@ -202,176 +206,176 @@ class TDTestCase:
             "td.connect.pass": "taosdata",
             "auto.offset.reset": "earliest",
         }
-        # time.sleep(36000)
 
         consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
         try:
             consumer.subscribe(["tmq_test_topic"])
         except TmqError:
             tdLog.exit(f"subscribe error")
-        time.sleep(36000)
-        # while True:
-        #     message = consumer.poll(timeout=1.0)
-        #     if message:
-        #         print("message")
-        #         id = message.vgroup()
-        #         topic = message.topic()
-        #         database = message.database()
 
-        #         for block in message:
-        #             nrows = block.nrows()
-        #             ncols = block.ncols()
-        #             for row in block:
-        #                 print(row)
-        #             values = block.fetchall()
-        #             print(nrows, ncols)
+        while True:
+            message = consumer.poll(timeout=1.0)
+            if message:
+                print("message")
+                id = message.vgroup()
+                topic = message.topic()
+                database = message.database()
 
-        #         consumer.commit(message)
-        #     else:
-        #         print("break")
-        #         break
+                for block in message:
+                    nrows = block.nrows()
+                    ncols = block.ncols()
+                    for row in block:
+                        print(row)
+                    values = block.fetchall()
+                    print(nrows, ncols)
 
-        # consumer.close()
-        # tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+                consumer.commit(message)
+            else:
+                print("break")
+                break
 
-        # # add deleted  data
-        # os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{self.deletedDataSql}" ')
+        consumer.close()
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+
+        # add deleted  data
+        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{self.deletedDataSql}" ')
 
 
-        # # cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
-        # # tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
-        # # if os.system(cmd) == 0:
-        # #     raise Exception("failed to execute system command. cmd: %s" % cmd)
+        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
                 
-        # os.system("pkill  taosd")   # make sure all the data are saved in disk.
-        # self.checkProcessPid("taosd")
+        os.system("pkill  taosd")   # make sure all the data are saved in disk.
+        self.checkProcessPid("taosd")
+        os.system("pkill  taosadapter")   # make sure all the data are saved in disk.
+        self.checkProcessPid("taosadapter")
 
-
-        # tdLog.printNoPrefix("==========step2:update new version ")
-        # self.buildTaosd(bPath)
-        # tdDnodes.start(1)
-        # sleep(1)
-        # tdsql=tdCom.newTdSql()
-        # print(tdsql)
-        # cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
-        # print(os.system(cmd))
-        # if os.system(cmd) == 0:
-        #     raise Exception("failed to execute system command. cmd: %s" % cmd)
+        tdLog.printNoPrefix("==========step2:update new version ")
+        self.buildTaosd(bPath)
+        tdDnodes.start(1)
+        sleep(1)
+        tdsql=tdCom.newTdSql()
+        print(tdsql)
+        cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+        print(os.system(cmd))
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-        # tdsql.query(f"SELECT SERVER_VERSION();")
-        # nowServerVersion=tdsql.queryResult[0][0]
-        # tdLog.info(f"New server version is {nowServerVersion}")
-        # tdsql.query(f"SELECT CLIENT_VERSION();")
-        # nowClientVersion=tdsql.queryResult[0][0]
-        # tdLog.info(f"New client version is {nowClientVersion}")
+        tdsql.query(f"SELECT SERVER_VERSION();")
+        nowServerVersion=tdsql.queryResult[0][0]
+        tdLog.info(f"New server version is {nowServerVersion}")
+        tdsql.query(f"SELECT CLIENT_VERSION();")
+        nowClientVersion=tdsql.queryResult[0][0]
+        tdLog.info(f"New client version is {nowClientVersion}")
 
-        # tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
-        # tdsql.query(f"select count(*) from {stb}")
-        # tdsql.checkData(0,0,tableNumbers*recordNumbers1)
-        # # tdsql.query("show streams;")
-        # # os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
-        # # tdsql.query("show streams;")
-        # # tdsql.query(f"select count(*) from {stb}")
-        # # tdsql.checkData(0,0,tableNumbers*recordNumbers2)
-        
-        # # checkout db4096
-        # tdsql.query("select count(*) from db4096.stb0")
-        # tdsql.checkData(0,0,50000)
-        
-        # # checkout deleted data
-        # tdsql.execute("insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );")
-        # tdsql.execute("flush database deldata;")
-        # tdsql.query("select avg(c1) from deldata.ct1;")
-
-
-        # tdsql=tdCom.newTdSql()
-        # tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
-        # tdsql.execute("drop database if exists db")
-        # tdsql.execute("create database db")
-        # tdsql.execute("use db")
-        # tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
-        # tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
-        # tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
-        # tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
-        # tdsql.execute("insert into `db`.ct3 using db.stb1 TAGS(3) values(now(),13);")
-        # tdsql.query("select * from db.ct3")
-        # tdsql.checkData(0,1,13)
-        # tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
-        # tdsql.query("select * from db.ct4")
-        # tdsql.checkData(0,1,14)
-
-        # #check retentions
-        # tdsql=tdCom.newTdSql()
-        # tdsql.query("describe  information_schema.ins_databases;")
-        # qRows=tdsql.queryRows   
-        # comFlag=True
-        # j=0
-        # while comFlag:
-        #     for i in  range(qRows) :
-        #         if tdsql.queryResult[i][0] == "retentions" :
-        #             print("parameters include retentions")
-        #             comFlag=False
-        #             break
-        #         else :
-        #             comFlag=True
-        #             j=j+1
-        #     if j == qRows:
-        #         print("parameters don't include retentions")
-        #         caller = inspect.getframeinfo(inspect.stack()[0][0])
-        #         args = (caller.filename, caller.lineno)
-        #         tdLog.exit("%s(%d) failed" % args)
-
-        # # check stream
+        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
+        tdsql.query(f"select count(*) from {stb}")
+        tdsql.checkData(0,0,tableNumbers*recordNumbers1)
         # tdsql.query("show streams;")
-        # tdsql.checkRows(0)
-
-        # #check TS-3131
-        # tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
-        # tdsql.checkRows(6)
-        # expectList = [0,3003,20031,20032,20033,30031]
-        # resultList = []
-        # for i in range(6):
-        #     resultList.append(tdsql.queryResult[i][3])
-        # print(resultList)
-        # if self.is_list_same_as_ordered_list(resultList,expectList):
-        #     print("The unordered list is the same as the ordered list.")
-        # else:
-        #     tdLog.exit("The unordered list is not the same as the ordered list.")
-        # tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
-        # tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
+        # os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+        # tdsql.query("show streams;")
+        # tdsql.query(f"select count(*) from {stb}")
+        # tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+        
+        # checkout db4096
+        tdsql.query("select count(*) from db4096.stb0")
+        tdsql.checkData(0,0,50000)
+        
+        # checkout deleted data
+        tdsql.execute("insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );")
+        tdsql.execute("flush database deldata;")
+        tdsql.query("select avg(c1) from deldata.ct1;")
 
 
-        # # check tmq
-        # conn = taos.connect()
+        tdsql=tdCom.newTdSql()
+        tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
+        tdsql.execute("drop database if exists db")
+        tdsql.execute("create database db")
+        tdsql.execute("use db")
+        tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
+        tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
+        tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.execute("insert into `db`.ct3 using db.stb1 TAGS(3) values(now(),13);")
+        tdsql.query("select * from db.ct3")
+        tdsql.checkData(0,1,13)
+        tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
+        tdsql.query("select * from db.ct4")
+        tdsql.checkData(0,1,14)
 
-        # consumer = Consumer(
-        #     {
-        #         "group.id": "tg75",
-        #         "client.id": "124",
-        #         "td.connect.user": "root",
-        #         "td.connect.pass": "taosdata",
-        #         "enable.auto.commit": "true",
-        #         "experimental.snapshot.enable":  "true",
-        #     }
-        # )
-        # consumer.subscribe(["tmq_test_topic"])
+        #check retentions
+        tdsql=tdCom.newTdSql()
+        tdsql.query("describe  information_schema.ins_databases;")
+        qRows=tdsql.queryRows   
+        comFlag=True
+        j=0
+        while comFlag:
+            for i in  range(qRows) :
+                if tdsql.queryResult[i][0] == "retentions" :
+                    print("parameters include retentions")
+                    comFlag=False
+                    break
+                else :
+                    comFlag=True
+                    j=j+1
+            if j == qRows:
+                print("parameters don't include retentions")
+                caller = inspect.getframeinfo(inspect.stack()[0][0])
+                args = (caller.filename, caller.lineno)
+                tdLog.exit("%s(%d) failed" % args)
 
-        # while True:
-        #     res = consumer.poll(10)
-        #     if not res:
-        #         break
-        #     err = res.error()
-        #     if err is not None:
-        #         raise err
-        #     val = res.value()
+        # check stream
+        tdsql.query("show streams;")
+        tdsql.checkRows(0)
 
-        #     for block in val:
-        #         print(block.fetchall())
-        # tdsql.query("show topics;")
-        # tdsql.checkRows(1)
+        #check TS-3131
+        tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
+        tdsql.checkRows(6)
+        expectList = [0,3003,20031,20032,20033,30031]
+        resultList = []
+        for i in range(6):
+            resultList.append(tdsql.queryResult[i][3])
+        print(resultList)
+        if self.is_list_same_as_ordered_list(resultList,expectList):
+            print("The unordered list is the same as the ordered list.")
+        else:
+            tdLog.exit("The unordered list is not the same as the ordered list.")
+        tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
+        tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
+
+
+        # check tmq
+        conn = taos.connect()
+
+        consumer = Consumer(
+            {
+                "group.id": "tg75",
+                "client.id": "124",
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "enable.auto.commit": "true",
+                "experimental.snapshot.enable":  "true",
+            }
+        )
+        consumer.subscribe(["tmq_test_topic"])
+
+        while True:
+            res = consumer.poll(10)
+            if not res:
+                break
+            err = res.error()
+            if err is not None:
+                raise err
+            val = res.value()
+
+            for block in val:
+                print(block.fetchall())
+        tdsql.query("show topics;")
+        tdsql.checkRows(1)
 
 
     def stop(self):
