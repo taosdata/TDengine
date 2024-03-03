@@ -740,6 +740,8 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
 
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  ASSERT(dataStrLen > 0);
+
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
 
