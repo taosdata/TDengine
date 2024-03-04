@@ -31,7 +31,7 @@ bytes = "1.4.0"
 sysinfo = "0.30.5"
 
 [workspace.package]
-version = "1.5.0"
+version = "1.6.0-alpha"
 rust-version = "1.75.0"
 
 [package]
@@ -191,7 +191,7 @@ shadow-rs = { workspace = true }
 tower = "0.4"
 
 [features]
-default = ["optin", "native-tls"]
+default = ["optin", "native-tls", "mimalloc"]
 optin = ["taos/optin", "taosx-core/optin"]
 sys = ["taos/native", "taosx-core/sys"]
 jemallocator = ["tikv-jemallocator"]
