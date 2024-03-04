@@ -6,7 +6,7 @@ sql connect
 print ======================== dnode1 start
 $db = testdb
 sql drop database if exists $db
-sql create database $db cachemodel 'both' minrows 10 stt_trigger 1 
+sql create database $db cachemodel 'none' minrows 10 stt_trigger 1
 sql use $db
 
 sql create stable st2 (ts timestamp, f1 int, f2 double, f3 binary(10), f4 timestamp) tags (id int)
