@@ -26,21 +26,21 @@ extern "C" {
 typedef int32_t (*__state_trans_fn)(SStreamTask*);
 typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
-typedef struct SAttachedEventInfo {
+typedef struct SFutureHandleEventInfo {
   ETaskStatus      status;  // required status that this event can be handled
   EStreamTaskEvent event;   // the delayed handled event
   void*            pParam;
-  void*            pFn;
-} SAttachedEventInfo;
+  __state_trans_user_fn callBackFn;
+} SFutureHandleEventInfo;
 
 typedef struct STaskStateTrans {
-  bool                  autoInvokeEndFn;
-  SStreamTaskState      state;
-  EStreamTaskEvent      event;
-  SStreamTaskState      next;
-  __state_trans_fn      pAction;
-  __state_trans_succ_fn pSuccAction;
-  SAttachedEventInfo    attachEvent;
+  bool                   autoInvokeEndFn;
+  SStreamTaskState       state;
+  EStreamTaskEvent       event;
+  SStreamTaskState       next;
+  __state_trans_fn       pAction;
+  __state_trans_succ_fn  pSuccAction;
+  SFutureHandleEventInfo attachEvent;
 } STaskStateTrans;
 
 struct SStreamTaskSM {
