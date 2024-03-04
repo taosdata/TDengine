@@ -191,6 +191,15 @@ static void httpDestroyMsg(SHttpMsg* msg) {
   taosMemoryFree(msg->cont);
   taosMemoryFree(msg);
 }
+static void httpDestroyMsgWrapper(void* cont, void* param) {
+  httpDestroyMsg((SHttpMsg*)cont);
+  // if (msg == NULL) return;
+
+  // taosMemoryFree(msg->server);
+  // taosMemoryFree(msg->uri);
+  // taosMemoryFree(msg->cont);
+  // taosMemoryFree(msg);
+}
 
 static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
   SHttpMsg *msg = NULL, *quitMsg = NULL;
@@ -554,7 +563,7 @@ void transHttpEnvDestroy() {
   httpSendQuit();
   taosThreadJoin(load->thread, NULL);
 
-  TRANS_DESTROY_ASYNC_POOL_MSG(load->asyncPool, SHttpMsg, httpDestroyMsg);
+  TRANS_DESTROY_ASYNC_POOL_MSG(load->asyncPool, SHttpMsg, httpDestroyMsgWrapper, NULL);
   transAsyncPoolDestroy(load->asyncPool);
   uv_loop_close(load->loop);
   taosMemoryFree(load->loop);

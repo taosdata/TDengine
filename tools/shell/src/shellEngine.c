@@ -75,7 +75,7 @@ bool shellIsEmptyCommand(const char *cmd) {
 
 int32_t shellRunSingleCommand(char *command) {
   shellCmdkilled = false;
-  
+
   if (shellIsEmptyCommand(command)) {
     return 0;
   }
@@ -1019,7 +1019,7 @@ void shellReadHistory() {
 
   char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
+  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = taosStrdup(line);
@@ -1315,7 +1315,7 @@ int32_t shellExecute() {
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();
 
- if(shell.args.is_bi_mode) { 
+ if(shell.args.is_bi_mode) {
   // need set bi mode
   printf("Set BI mode is true.\n");
 #ifndef WEBSOCKET
