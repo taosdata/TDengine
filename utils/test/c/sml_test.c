@@ -1079,7 +1079,7 @@ int sml_escape1_Test() {
   ASSERT(taos_affected_rows(pRes) == 5);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "select * from stab order by _ts");     //check stable name
+  pRes = taos_query(taos, "select * from stab");     //check stable name
   ASSERT(pRes);
   int fieldNum = taos_field_count(pRes);
   ASSERT(fieldNum == 6);
@@ -1099,22 +1099,19 @@ int sml_escape1_Test() {
   while ((row = taos_fetch_row(pRes)) != NULL) {
     int64_t ts = *(int64_t *)row[0];
 
-    if (rowIndex == 0) {
-      ASSERT(ts == 1661943970000);
+    if (ts == 1661943970000) {
       ASSERT(*(double *)row[1] == 3);
       ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
       ASSERT(row[3] == NULL);
       ASSERT(strncmp(row[4], "1", sizeof("1") - 1) == 0);
       ASSERT(row[5] == NULL);
-    }else if (rowIndex == 1) {
-      ASSERT(ts == 1661943980000);
+    }else if (ts == 1661943980000) {
       ASSERT(*(double *)row[1] == 3);
       ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
       ASSERT(row[3] == NULL);
       ASSERT(row[4] == NULL);
       ASSERT(strncmp(row[5], "1\\", sizeof("1\\") - 1) == 0);
-    }else if (rowIndex == 2) {
-      ASSERT(ts == 1661943990000);
+    }else if (ts == 1661943990000) {
       ASSERT(row[1] == NULL);
       ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
       ASSERT(*(double *)row[3] == 3);

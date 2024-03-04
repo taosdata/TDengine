@@ -485,8 +485,8 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     if (unlikely(IS_SPACE(tmp,escapeChar))) {
       break;
     }
-    if(unlikely(IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql))){
-      escapeChar = sql;
+    if(unlikely(IS_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp))){
+      escapeChar = tmp;
     }
     tmp++;
   }
