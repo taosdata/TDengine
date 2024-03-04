@@ -35,7 +35,7 @@ description: 如何使用 Power BI 和 TDengine 进行时序数据分析
 
 &emsp;&emsp;【密码】：&emsp;&emsp;&emsp;&emsp;输入用户密码，如果不填，默认为 taosdata
 
-4. 点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到 taos://root:taosdata@u2-13:6041”。
+4. 点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到 taos://root:taosdata@localhost:6041”。
 
 ### 导入 TDengine 数据到 Power BI
 1. 打开 Power BI 并登录后，通过如下步骤添加数据源，“主页” -> “获取数据” -> “其他” -> “ODBC” -> “连接”。
