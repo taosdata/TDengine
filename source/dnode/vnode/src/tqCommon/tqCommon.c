@@ -865,7 +865,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
     if (pHistoryTask == NULL) {
       tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
-                  ", it may have been dropped already",
+              ", it may have been dropped already",
               pMeta->vgId, pTask->hTaskInfo.id.taskId);
       streamMetaReleaseTask(pMeta, pTask);
 

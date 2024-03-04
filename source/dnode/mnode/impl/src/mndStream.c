@@ -721,6 +721,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  // add into buffer firstly
+  // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
   taosThreadMutexLock(&execInfo.lock);
   mDebug("stream stream:%s tasks register into node list", createReq.name);
   saveStreamTasksInfo(&streamObj, &execInfo);
