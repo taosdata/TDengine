@@ -69,13 +69,13 @@ sql drop table tbf;
 sql alter table st2 add column c1 int;
 sql alter table st2 drop column c1;
 
-run tsim/parser/last_cache_query.sim
+run tsim/parser/last_both_query.sim
 
 sql flush database $db
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
-run tsim/parser/last_cache_query.sim
+run tsim/parser/last_both_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
@@ -145,6 +145,6 @@ sql alter database $db cachemodel 'both'
 sql alter database $db cachesize 2
 sleep 11000
 
-run tsim/parser/last_cache_query.sim
+run tsim/parser/last_both_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
