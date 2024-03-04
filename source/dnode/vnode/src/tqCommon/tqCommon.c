@@ -142,8 +142,10 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     ppHTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));
     if (ppHTask == NULL || *ppHTask == NULL) {
-      tqError("vgId:%d failed to acquire fill-history task:0x%x when handling update, it may have been dropped already",
-              vgId, req.taskId);
+      tqError(
+          "vgId:%d failed to acquire fill-history task:0x%x when handling update, may have been dropped already, rel "
+          "stream task:0x%x",
+          vgId, (uint32_t)pTask->hTaskInfo.id.taskId, req.taskId);
       CLEAR_RELATED_FILLHISTORY_TASK(pTask);
     } else {
       tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
@@ -612,23 +614,35 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
 
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
+  int32_t              vgId = pMeta->vgId;
+  STaskId              hTaskId = {0};
 
-  int32_t vgId = pMeta->vgId;
   tqDebug("vgId:%d receive msg to drop s-task:0x%x", vgId, pReq->taskId);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask != NULL) {
-    // drop the related fill-history task firstly
+  streamMetaWLock(pMeta);
+
+  STaskId       id = {.streamId = pReq->streamId, .taskId = pReq->taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+  if ((ppTask != NULL) && ((*ppTask) != NULL)) {
+    streamMetaAcquireOneTask(*ppTask);
+    SStreamTask* pTask = *ppTask;
+
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-      STaskId* pHTaskId = &pTask->hTaskInfo.id;
-      streamMetaUnregisterTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-      tqDebug("s-task:0x%x vgId:%d drop fill-history task:0x%x firstly", pReq->taskId, vgId,
-              (int32_t)pHTaskId->taskId);
+      hTaskId.streamId = pTask->hTaskInfo.id.streamId;
+      hTaskId.taskId = pTask->hTaskInfo.id.taskId;
+      streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
     }
+
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, true);
+  streamMetaWUnLock(pMeta);
+
+  // drop the related fill-history task firstly
+  if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
+    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
+    tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
+  }
 
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
