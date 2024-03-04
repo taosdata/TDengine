@@ -444,7 +444,6 @@ export default {
         const [key, value] = scheduleStr.split(':');
         const scheduleObj = { [key]: value };
         let base_url = localStorage.getItem("base_url")
-        const password = localStorage.getItem("pwd")
         let splitArr = base_url.split('//')
         let dsn = splitArr[0] + "//" + this.username + ':' + this.decryptPwd + '@'+ splitArr[1]
         let params = {
