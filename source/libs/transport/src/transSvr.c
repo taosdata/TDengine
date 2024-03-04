@@ -362,6 +362,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
+          if (conn->regArg.init) {
+            transFreeMsg(conn->regArg.msg.pCont);
+            conn->regArg.init = 0;
+          }
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
           conn->regArg.msg = msg->msg;
