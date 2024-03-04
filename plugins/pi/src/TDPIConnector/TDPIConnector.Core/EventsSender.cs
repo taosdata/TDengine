@@ -70,13 +70,17 @@ namespace TDPIConnector.Core
                 var attributeName = dpEvent.Value.Attribute.Name;
                 if (string.IsNullOrEmpty(dpEvent.Value.Attribute.DataReference))
                 {
-                    // static attribute:tag event
                     if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update)
                     {
                         var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
-                        log.Info($"element tag chage {elementName}:{attributeName}:{valueString}");
+                        log.Info($"element tag change {elementName}:{attributeName}:{valueString}");
                         this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, valueString).Wait();
                     }
+                    continue;
+                }
+                if (dpEvent.Value.Attribute.IsTDengineTag())
+                {
+                    log.Debug($"element tag changed {elementName}:{attributeName}");
                     continue;
                 }
                 if (!columnNames.Contains(attributeName))

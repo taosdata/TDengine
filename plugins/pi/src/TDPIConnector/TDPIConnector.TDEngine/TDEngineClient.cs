@@ -1,5 +1,7 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
+#define NONLY_PI_TEST
+
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -48,6 +50,9 @@ namespace TDPIConnector.TDEngine
 
         public override void Connect()
         {
+#if ONLY_PI_TEST
+            return;
+#endif
             try
             {
                 TDEngineResponse resp = this.GetServerVersion().Result;
@@ -86,6 +91,9 @@ namespace TDPIConnector.TDEngine
         }
         public override void VerifyLicenseCompability()
         {
+#if ONLY_PI_TEST
+            return;
+#endif
             if (!baseUrl.Contains("cloud.tdengine.com"))
             {
 
@@ -97,6 +105,9 @@ namespace TDPIConnector.TDEngine
 
         public override async Task<TDEngineResponse> CreateDatabase(string dbName)
         {
+#if ONLY_PI_TEST
+            return null;
+#endif
             if (!baseUrl.Contains("cloud.tdengine.com"))
             {
                 string sqlCommand = $"CREATE DATABASE IF NOT EXISTS {dbName.ToTDEngineNamingRawPattern()};";
@@ -124,6 +135,9 @@ namespace TDPIConnector.TDEngine
 
             foreach (var STableName in STableNames)
             {
+#if ONLY_PI_TEST
+                break;
+#endif
                 string sqlCommand = $"SELECT tbname, LAST_ROW(*) FROM {database}.{STableName} PARTITION BY TBNAME;";
                 TDEngineResponse resp = await MakeHttpRequest(sqlCommand);
                 foreach (var dataItem in resp.Data)
@@ -168,7 +182,7 @@ namespace TDPIConnector.TDEngine
             string tags = string.Empty;
             foreach (TDColumn column in sTable.Columns)
             {
-                if (column.IsTag())
+                if (column.IsTDengineTag())
                 {
                     tags += $", {column.Name} NCHAR(100)";
                 }
@@ -200,7 +214,7 @@ namespace TDPIConnector.TDEngine
                 Dictionary<string, string> tags = new Dictionary<string, string>();
                 foreach (TDColumn column in element.Columns)
                 {
-                    if (column.IsTag())
+                    if (column.IsTDengineTag())
                     {
                         tags.Add($"{column.Name}", column.TagValue);
                     }

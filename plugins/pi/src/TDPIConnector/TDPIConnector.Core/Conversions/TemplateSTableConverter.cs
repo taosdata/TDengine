@@ -31,7 +31,7 @@ namespace TDPIConnector.Core.Conversions
 
             foreach (var attr in element.Attributes)
             {
-                if (string.IsNullOrEmpty(attr.DataReference))
+                if (attr.IsTDengineTag())
                 {
                     var value = attr.ToStringWithUOM();
                     tags.Add(attr.Name.ToTDEngineNamingPattern(), value);

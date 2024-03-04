@@ -143,7 +143,7 @@ namespace TDPIConnector.TDEngine
                     tags.Add(new KeyValuePair<string, string>($"element_id", "NCHAR(100)"));
                     foreach (var column in sTable.Columns)
                     {
-                        if (column.IsTag())
+                        if (column.IsTDengineTag())
                         {
                             tags.Add(new KeyValuePair<string, string>($"{column.Name}", $"{column.Type}"));
                         }
@@ -170,7 +170,7 @@ namespace TDPIConnector.TDEngine
                 tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
                 foreach (TDColumn column in element.Columns)
                 {
-                    if (column.IsTag())
+                    if (column.IsTDengineTag())
                     {
                         // verify tagname and value
                         // tags.Add($"{column.Name}", column.TagValue);
@@ -211,7 +211,7 @@ namespace TDPIConnector.TDEngine
                 tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
                 foreach (TDColumn column in element.Columns)
                 {
-                    if (column.IsTag())
+                    if (column.IsTDengineTag())
                     {
                         tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
                     }

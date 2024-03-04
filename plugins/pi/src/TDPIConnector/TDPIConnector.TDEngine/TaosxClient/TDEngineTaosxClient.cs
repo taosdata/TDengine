@@ -1,4 +1,6 @@
-﻿using log4net;
+﻿#define NONLY_PI_TEST
+
+using log4net;
 using System;
 using Apache.Arrow;
 using Apache.Arrow.Ipc;
@@ -103,6 +105,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         log.Error($"Send data to taosx failed! {e.ToString()}");
                         Task.Delay(1000).Wait();
                     }
+                    Task.Delay(100).Wait();
                 }
                 else
                 {
@@ -286,7 +289,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         private void writeRecordBatch(RecordBatch recordBatch) {
-            try {
+#if ONLY_PI_TEST
+            return;
+#endif
+            try
+            {
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {
