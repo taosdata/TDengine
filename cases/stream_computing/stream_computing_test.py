@@ -154,7 +154,6 @@ class StreamComputingTest(TDCase):
         self.batch_query_row = 0
         self.stream_query_row = 0
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
-        self.tdSql.execute('alter local "disableCount" "0"')
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
