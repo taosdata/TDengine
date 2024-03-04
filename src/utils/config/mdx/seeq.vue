@@ -158,6 +158,7 @@
 </template>
 
 <script>
+import { decrypt } from '@/utils';
 export default {
   props: {
     token: {
@@ -173,8 +174,11 @@ export default {
     return {};
   },
   computed: {
+    decryptPwd() {
+      return decrypt(localStorage.getItem("pwd")) || '';
+    },
     jdbcURL() {
-      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
+      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${this.decryptPwd}`;
       // return `jdbc:TAOS-RS://localhost:6041?useSSL=false&user=root&password=taosdata`
     }
   }
