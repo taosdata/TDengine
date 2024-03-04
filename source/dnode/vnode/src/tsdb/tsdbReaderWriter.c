@@ -414,6 +414,18 @@ _exit:
   return code;
 }
 
+int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, SBuffer *buffer, int64_t szHint) {
+  int32_t code;
+
+  code = tBufferEnsureCapacity(buffer, buffer->size + size);
+  if (code) return code;
+  code = tsdbReadFile(pFD, offset, (uint8_t *)tBufferGetDataEnd(buffer), size, szHint);
+  if (code) return code;
+  buffer->size += size;
+
+  return code;
+}
+
 int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 

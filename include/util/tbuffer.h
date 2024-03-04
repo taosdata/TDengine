@@ -60,6 +60,7 @@ static int32_t tBufferPutF64(SBuffer *buffer, double value);
 
 // SBufferReader
 #define BUFFER_READER_INITIALIZER(offset, buffer) ((SBufferReader){offset, buffer})
+#define BR_PTR(br)                                tBufferGetDataAt((br)->buffer, (br)->offset)
 #define tBufferReaderDestroy(reader)              ((void)0)
 #define tBufferReaderGetOffset(reader)            ((reader)->offset)
 static int32_t tBufferGet(SBufferReader *reader, uint32_t size, void *data);

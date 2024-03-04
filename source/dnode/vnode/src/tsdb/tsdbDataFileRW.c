@@ -191,18 +191,16 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   // load data
   tBufferClear(&reader->buffers[0]);
-  code = tBufferEnsureCapacity(&reader->buffers[0], brinBlk->dp->size);
+  code =
+      tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, &reader->buffers[0], 0);
   TSDB_CHECK_CODE(code, lino, _exit);
-  code = tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, reader->buffers[0].data, brinBlk->dp->size, 0);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  reader->buffers[0].size = brinBlk->dp->size;
 
   // decode brin block
   SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
   tBrinBlockClear(brinBlock);
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
-  for (int32_t i = 0; i < 10; i++) {
+  for (int32_t i = 0; i < 10; i++) {  // int64_t
     SCompressInfo cinfo = {
         .cmprAlg = brinBlk->cmprAlg,
         .dataType = TSDB_DATA_TYPE_BIGINT,
@@ -215,7 +213,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
     br.offset += brinBlk->size[i];
   }
 
-  for (int32_t i = 10; i < 15; i++) {
+  for (int32_t i = 10; i < 15; i++) {  // int32_t
     SCompressInfo cinfo = {
         .cmprAlg = brinBlk->cmprAlg,
         .dataType = TSDB_DATA_TYPE_INT,
@@ -272,20 +270,21 @@ _exit:
   return code;
 }
 
+extern int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist);
+
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
 
   // load data
   tBufferClear(&reader->buffers[0]);
-  code = tBufferEnsureCapacity(&reader->buffers[0], record->blockSize);
+  code =
+      tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockSize, &reader->buffers[0], 0);
   TSDB_CHECK_CODE(code, lino, _exit);
-  code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, reader->buffers[0].data, record->blockSize, 0);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  reader->buffers[0].size = record->blockSize;
 
   // decompress
-  code = tDecmprBlockData(reader->config->bufArr[0], record->blockSize, bData, &reader->config->bufArr[1]);
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+  code = tBlockDataDecompress(&br, bData, reader->buffers + 1);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -308,237 +307,87 @@ int32_t tBlockColAndColumnCmpr(const void *p1, const void *p2) {
   }
 }
 
+extern int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
+                                           SBuffer *assist);
+extern int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
+                                           SBlockData *blockData, SBuffer *assist);
+
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid) {
   int32_t      code = 0;
   int32_t      lino = 0;
-  int32_t      n = 0;
   SDiskDataHdr hdr;
-  SBlockCol    primaryKeyBlockCols[TD_MAX_PK_COLS];
 
-  // read key part
-  code = tRealloc(&reader->config->bufArr[0], record->blockKeySize);
+  // load key part
+  tBufferClear(&reader->buffers[0]);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize,
+                              &reader->buffers[0], 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, reader->config->bufArr[0], record->blockKeySize,
-                      0);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // decode header
-  n += tGetDiskDataHdr(reader->config->bufArr[0] + n, &hdr);
+  // SDiskDataHdr
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+  br.offset += tGetDiskDataHdr((uint8_t *)BR_PTR(&br), &hdr);
 
   tBlockDataReset(bData);
   bData->suid = hdr.suid;
   bData->uid = hdr.uid;
   bData->nRow = hdr.nRow;
 
-  // decode key part
-  for (int32_t i = 0; i < hdr.numOfPKs; i++) {
-    n += tGetBlockCol(reader->config->bufArr[0] + n, &primaryKeyBlockCols[i]);
-  }
-
-  // uid
-  if (hdr.uid == 0) {
-    ASSERT(0);
-  }
-
-  // version
-  code = tsdbDecmprData(reader->config->bufArr[0] + n, hdr.szVer, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg,
-                        (uint8_t **)&bData->aVersion, sizeof(int64_t) * hdr.nRow, &reader->config->bufArr[1]);
+  // Key part
+  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, reader->buffers + 1);
   TSDB_CHECK_CODE(code, lino, _exit);
-  n += hdr.szVer;
 
-  // ts
-  code = tsdbDecmprData(reader->config->bufArr[0] + n, hdr.szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr.cmprAlg,
-                        (uint8_t **)&bData->aTSKEY, sizeof(TSKEY) * hdr.nRow, &reader->config->bufArr[1]);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  n += hdr.szKey;
+  ASSERT(br.offset == reader->buffers[0].size);
 
-  // primary key columns
-  for (int32_t i = 0; i < hdr.numOfPKs; i++) {
-    SColData *pColData;
-
-    code = tBlockDataAddColData(bData, primaryKeyBlockCols[i].cid, primaryKeyBlockCols[i].type,
-                                primaryKeyBlockCols[i].cflag, &pColData);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbDecmprColData(reader->config->bufArr[0] + n, &primaryKeyBlockCols[i], hdr.cmprAlg, hdr.nRow, pColData,
-                             &reader->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    n += (primaryKeyBlockCols[i].szBitmap + primaryKeyBlockCols[i].szOffset + primaryKeyBlockCols[i].szValue);
+  if (ncid == 0) {
+    goto _exit;
   }
 
-  ASSERT(n == record->blockKeySize);
+  // load SBlockCol part
+  tBufferClear(&reader->buffers[0]);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize, hdr.szBlkCol,
+                              &reader->buffers[0], 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  // regular columns load
-  bool      blockColLoaded = false;
-  int32_t   decodedBufferSize = 0;
-  SBlockCol blockCol = {.cid = 0};
+  // load each column
+  SBlockCol blockCol = {
+      .cid = 0,
+  };
+  br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
   for (int32_t i = 0; i < ncid; i++) {
-    SColData *pColData = tBlockDataGetColData(bData, cids[i]);
-    if (pColData != NULL) continue;
+    int16_t cid = cids[i];
 
-    // load the column index if not loaded yet
-    if (!blockColLoaded) {
-      if (hdr.szBlkCol > 0) {
-        code = tRealloc(&reader->config->bufArr[0], hdr.szBlkCol);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
-        code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize,
-                            reader->config->bufArr[0], hdr.szBlkCol, 0);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-      blockColLoaded = true;
+    if (tBlockDataGetColData(bData, cid)) {
+      // this column has been loaded
+      continue;
     }
 
-    // search the column index
-    for (;;) {
-      if (blockCol.cid >= cids[i]) {
-        break;
-      }
-
-      if (decodedBufferSize >= hdr.szBlkCol) {
+    while (cid > blockCol.cid) {
+      if (br.offset >= reader->buffers[0].size) {
         blockCol.cid = INT16_MAX;
         break;
       }
 
-      decodedBufferSize += tGetBlockCol(reader->config->bufArr[0] + decodedBufferSize, &blockCol);
+      br.offset += tGetBlockCol((uint8_t *)BR_PTR(&br), &blockCol);
     }
 
-    STColumn *pTColumn =
-        taosbsearch(&blockCol, pTSchema->columns, pTSchema->numOfCols, sizeof(STSchema), tBlockColAndColumnCmpr, TD_EQ);
-    ASSERT(pTColumn != NULL);
-
-    code = tBlockDataAddColData(bData, cids[i], pTColumn->type, pTColumn->flags, &pColData);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    // fill the column data
-    if (blockCol.cid > cids[i]) {
-      // set as all NONE
-      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {  // all NONE
-        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    } else if (blockCol.flag == HAS_NULL) {  // all NULL
-      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
-        code = tColDataAppendValue(pColData, &COL_VAL_NULL(blockCol.cid, blockCol.type));
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    } else {
-      int32_t size1 = blockCol.szBitmap + blockCol.szOffset + blockCol.szValue;
-
-      code = tRealloc(&reader->config->bufArr[1], size1);
+    if (cid < blockCol.cid) {
+      // this column as NONE
+      continue;
+    } else if (cid == blockCol.cid) {
+      // load from file
+      tBufferClear(&reader->buffers[1]);
+      code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA],
+                                  record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
+                                  blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, &reader->buffers[1], 0);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA],
-                          record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
-                          reader->config->bufArr[1], size1, 0);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = tsdbDecmprColData(reader->config->bufArr[1], &blockCol, hdr.cmprAlg, hdr.nRow, pColData,
-                               &reader->config->bufArr[2]);
+      // decode the buffer
+      SBufferReader br1 = BUFFER_READER_INITIALIZER(0, &reader->buffers[1]);
+      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, reader->buffers + 2);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
-
-#if 0
-  // other columns
-  if (bData->nColData > 0) {
-    if (hdr->szBlkCol > 0) {
-      code = tRealloc(&reader->config->bufArr[0], hdr->szBlkCol);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize,
-                          reader->config->bufArr[0], hdr->szBlkCol, 0);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    int64_t szHint = 0;
-    if (bData->nColData > 3) {
-      int64_t    offset = 0;
-      SBlockCol  bc = {.cid = 0};
-      SBlockCol *blockCol = &bc;
-
-      size = 0;
-      SColData *colData = tBlockDataGetColDataByIdx(bData, 0);
-      while (blockCol && blockCol->cid < colData->cid) {
-        if (size < hdr->szBlkCol) {
-          size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
-        } else {
-          ASSERT(size == hdr->szBlkCol);
-          blockCol = NULL;
-        }
-      }
-
-      if (blockCol && blockCol->flag == HAS_VALUE) {
-        offset = blockCol->offset;
-
-        SColData *colDataEnd = tBlockDataGetColDataByIdx(bData, bData->nColData - 1);
-        while (blockCol && blockCol->cid < colDataEnd->cid) {
-          if (size < hdr->szBlkCol) {
-            size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
-          } else {
-            ASSERT(size == hdr->szBlkCol);
-            blockCol = NULL;
-          }
-        }
-
-        if (blockCol && blockCol->flag == HAS_VALUE) {
-          szHint = blockCol->offset + blockCol->szBitmap + blockCol->szOffset + blockCol->szValue - offset;
-        }
-      }
-    }
-
-    SBlockCol  bc[1] = {{.cid = 0}};
-    SBlockCol *blockCol = bc;
-
-    size = 0;
-    for (int32_t i = 0; i < bData->nColData; i++) {
-      SColData *colData = tBlockDataGetColDataByIdx(bData, i);
-
-      while (blockCol && blockCol->cid < colData->cid) {
-        if (size < hdr->szBlkCol) {
-          size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
-        } else {
-          ASSERT(size == hdr->szBlkCol);
-          blockCol = NULL;
-        }
-      }
-
-      if (blockCol == NULL || blockCol->cid > colData->cid) {
-        for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
-          code = tColDataAppendValue(colData, &COL_VAL_NONE(colData->cid, colData->type));
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      } else {
-        ASSERT(blockCol->type == colData->type);
-        ASSERT(blockCol->flag && blockCol->flag != HAS_NONE);
-
-        if (blockCol->flag == HAS_NULL) {
-          for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
-            code = tColDataAppendValue(colData, &COL_VAL_NULL(blockCol->cid, blockCol->type));
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-        } else {
-          int32_t size1 = blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
-
-          code = tRealloc(&reader->config->bufArr[1], size1);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA],
-                              record->blockOffset + record->blockKeySize + hdr->szBlkCol + blockCol->offset,
-                              reader->config->bufArr[1], size1, i > 0 ? 0 : szHint);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          code = tsdbDecmprColData(reader->config->bufArr[1], blockCol, hdr->cmprAlg, hdr->nRow, colData,
-                                   &reader->config->bufArr[2]);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-    }
-  }
-#endif
 
 _exit:
   if (code) {
@@ -554,23 +403,21 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
 
   TARRAY2_CLEAR(columnDataAggArray, NULL);
   if (record->smaSize > 0) {
-    code = tRealloc(&reader->config->bufArr[0], record->smaSize);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbReadFile(reader->fd[TSDB_FTYPE_SMA], record->smaOffset, reader->config->bufArr[0], record->smaSize, 0);
+    tBufferClear(&reader->buffers[0]);
+    code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_SMA], record->smaOffset, record->smaSize, &reader->buffers[0], 0);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     // decode sma data
-    int32_t size = 0;
-    while (size < record->smaSize) {
+    SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+    while (br.offset < record->smaSize) {
       SColumnDataAgg sma[1];
 
-      size += tGetColumnDataAgg(reader->config->bufArr[0] + size, sma);
+      br.offset += tGetColumnDataAgg((uint8_t *)BR_PTR(&br), sma);
 
       code = TARRAY2_APPEND_PTR(columnDataAggArray, sma);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    ASSERT(size == record->smaSize);
+    ASSERT(br.offset == record->smaSize);
   }
 
 _exit:
@@ -623,26 +470,26 @@ int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombB
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], tombBlk->dp->size);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
+  tBufferClear(&reader->buffers[0]);
   code =
-      tsdbReadFile(reader->fd[TSDB_FTYPE_TOMB], tombBlk->dp->offset, reader->config->bufArr[0], tombBlk->dp->size, 0);
+      tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_TOMB], tombBlk->dp->offset, tombBlk->dp->size, &reader->buffers[0], 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  int32_t size = 0;
+  int32_t       size = 0;
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
   tTombBlockClear(tData);
-  for (int32_t i = 0; i < ARRAY_SIZE(tData->dataArr); ++i) {
-    code = tsdbDecmprData(reader->config->bufArr[0] + size, tombBlk->size[i], TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg,
-                          &reader->config->bufArr[1], sizeof(int64_t) * tombBlk->numRec, &reader->config->bufArr[2]);
+  tData->numOfRecords = tombBlk->numRec;
+  for (int32_t i = 0; i < ARRAY_SIZE(tData->buffers); ++i) {
+    SCompressInfo cinfo = {
+        .cmprAlg = tombBlk->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .originalSize = tombBlk->numRec * sizeof(int64_t),
+        .compressedSize = tombBlk->size[i],
+    };
+    code = tDecompressDataToBuffer(BR_PTR(&br), cinfo.compressedSize, &cinfo, tData->buffers + i, reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND_BATCH(&tData->dataArr[i], reader->config->bufArr[1], tombBlk->numRec);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    size += tombBlk->size[i];
+    br.offset += tombBlk->size[i];
   }
-  ASSERT(size == tombBlk->dp->size);
 
 _exit:
   if (code) {

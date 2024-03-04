@@ -1591,18 +1591,167 @@ _exit:
   return code;
 }
 
-typedef struct SBlockDataCmprInfo {
-  // TODO
-} SBlockDataCmprInfo;
+int32_t tBlockDataCompress(SBlockData *bData, SBuffer *buffer, SBuffer *assist) {
+  int32_t      code = 0;
+  SDiskDataHdr hdr = {0};
 
-int32_t tBlockDataCompress(SBlockData *blockData, SBlockDataCmprInfo *info, SBuffer *buffer, SBuffer *assist) {
-  // TODO
-  return 0;
+  // SDiskDataHdr
+  // br->offset += tGetDiskDataHdr((uint8_t *)tBufferGetDataAt(br->buffer, br->offset), &hdr);
+
+  tBlockDataReset(bData);
+
+_exit:
+  return code;
 }
 
-int32_t tBlockDataDecompress(SBufferReader *reader, const SBlockDataCmprInfo *info, SBlockData *blockData) {
-  // TODO
-  return 0;
+int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
+                                    SBlockData *blockData, SBuffer *assist) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SColData *colData;
+
+  code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  ASSERT(blockCol->flag != HAS_NONE);
+
+  SColDataCompressInfo info = {
+      .cmprAlg = hdr->cmprAlg,
+      .columnFlag = blockCol->cflag,
+      .flag = blockCol->flag,
+      .dataType = blockCol->type,
+      .columnId = blockCol->cid,
+      .numOfData = hdr->nRow,
+      .bitmapOriginalSize = 0,
+      .bitmapCompressedSize = blockCol->szBitmap,
+      .offsetOriginalSize = sizeof(int32_t) * hdr->nRow,
+      .offsetCompressedSize = blockCol->szOffset,
+      .dataOriginalSize = blockCol->szOrigin,
+      .dataCompressedSize = blockCol->szValue,
+  };
+
+  switch (blockCol->flag) {
+    case (HAS_NONE | HAS_NULL | HAS_VALUE):
+      info.bitmapOriginalSize = BIT2_SIZE(hdr->nRow);
+      break;
+    case (HAS_NONE | HAS_NULL):
+    case (HAS_NONE | HAS_VALUE):
+    case (HAS_NULL | HAS_VALUE):
+      info.bitmapOriginalSize = BIT1_SIZE(hdr->nRow);
+      break;
+  }
+
+  int32_t totalCompressedSize = blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
+  code = tColDataDecompress(BR_PTR(br), totalCompressedSize, &info, colData, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += totalCompressedSize;
+
+_exit:
+  return code;
+}
+
+int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
+                                    SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SCompressInfo cinfo;
+
+  // uid
+  if (hdr->szUid > 0) {
+    cinfo = (SCompressInfo){
+        .cmprAlg = hdr->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .compressedSize = hdr->szUid,
+        .originalSize = sizeof(int64_t) * hdr->nRow,
+    };
+
+    code = tRealloc((uint8_t **)&blockData->aUid, cinfo.originalSize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aUid, cinfo.originalSize, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    br->offset += cinfo.compressedSize;
+  }
+
+  // version
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_BIGINT,
+      .compressedSize = hdr->szVer,
+      .originalSize = sizeof(int64_t) * hdr->nRow,
+  };
+  code = tRealloc((uint8_t **)&blockData->aVersion, cinfo.originalSize);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aVersion, cinfo.originalSize, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += cinfo.compressedSize;
+
+  // ts
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_TIMESTAMP,
+      .compressedSize = hdr->szKey,
+      .originalSize = sizeof(TSKEY) * hdr->nRow,
+  };
+  code = tRealloc((uint8_t **)&blockData->aTSKEY, cinfo.originalSize);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aTSKEY, cinfo.originalSize, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += cinfo.compressedSize;
+
+  // primary keys
+  if (hdr->numOfPKs > 0) {
+    SBlockCol blockCol;
+
+    for (int i = 0; i < hdr->numOfPKs; i++) {
+      br->offset += tGetBlockCol((uint8_t *)BR_PTR(br), &blockCol);
+
+      ASSERT(blockCol.flag == HAS_VALUE);
+      ASSERT(blockCol.cflag & COL_IS_KEY);
+
+      code = tBlockDataDecompressColData(hdr, &blockCol, br, blockData, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SDiskDataHdr  hdr = {0};
+  SCompressInfo cinfo;
+
+  // SDiskDataHdr
+  br->offset += tGetDiskDataHdr((uint8_t *)BR_PTR(br), &hdr);
+
+  tBlockDataReset(blockData);
+  blockData->suid = hdr.suid;
+  blockData->uid = hdr.uid;
+  blockData->nRow = hdr.nRow;
+
+  // Key part
+  code = tBlockDataDecompressKeyPart(&hdr, br, blockData, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Column part
+  uint8_t *decodePtr = (uint8_t *)BR_PTR(br);
+  int32_t  totalSize = 0;
+  br->offset += hdr.szBlkCol;
+  while (totalSize < hdr.szBlkCol) {
+    SBlockCol blockCol;
+    int32_t   size = tGetBlockCol(decodePtr, &blockCol);
+    decodePtr += size;
+    totalSize += size;
+
+    code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  return code;
 }
 
 // SDiskDataHdr ==============================

@@ -35,14 +35,17 @@ typedef union {
   };
 } STombRecord;
 
-typedef union {
-  TARRAY2(int64_t) dataArr[TOMB_RECORD_ELEM_NUM];
-  struct {
-    TARRAY2(int64_t) suid[1];
-    TARRAY2(int64_t) uid[1];
-    TARRAY2(int64_t) version[1];
-    TARRAY2(int64_t) skey[1];
-    TARRAY2(int64_t) ekey[1];
+typedef struct {
+  int32_t numOfRecords;
+  union {
+    SBuffer buffers[TOMB_RECORD_ELEM_NUM];
+    struct {
+      SBuffer suids;
+      SBuffer uids;
+      SBuffer versions;
+      SBuffer skeys;
+      SBuffer ekeys;
+    };
   };
 } STombBlock;
 
@@ -60,7 +63,7 @@ typedef struct {
 
 typedef TARRAY2(STombBlk) TTombBlkArray;
 
-#define TOMB_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
+#define TOMB_BLOCK_SIZE(db) ((db)->numOfRecords)
 
 int32_t tTombBlockInit(STombBlock *tombBlock);
 int32_t tTombBlockDestroy(STombBlock *tombBlock);
@@ -137,21 +140,21 @@ typedef struct {
   union {
     SBuffer buffers[15];
     struct {
-      SBuffer suids;
-      SBuffer uids;
-      SBuffer firstKeyTimestamps;
-      SBuffer firstKeyVersions;
-      SBuffer lastKeyTimestamps;
-      SBuffer lastKeyVersions;
-      SBuffer minVers;
-      SBuffer maxVers;
-      SBuffer blockOffsets;
-      SBuffer smaOffsets;
-      SBuffer blockSizes;
-      SBuffer blockKeySizes;
-      SBuffer smaSizes;
-      SBuffer numRows;
-      SBuffer counts;
+      SBuffer suids;               // int64_t
+      SBuffer uids;                // int64_t
+      SBuffer firstKeyTimestamps;  // int64_t
+      SBuffer firstKeyVersions;    // int64_t
+      SBuffer lastKeyTimestamps;   // int64_t
+      SBuffer lastKeyVersions;     // int64_t
+      SBuffer minVers;             // int64_t
+      SBuffer maxVers;             // int64_t
+      SBuffer blockOffsets;        // int64_t
+      SBuffer smaOffsets;          // int64_t
+      SBuffer blockSizes;          // int32_t
+      SBuffer blockKeySizes;       // int32_t
+      SBuffer smaSizes;            // int32_t
+      SBuffer numRows;             // int32_t
+      SBuffer counts;              // int32_t
     };
   };
   SValueColumn firstKeyPKs[TD_MAX_PK_COLS];

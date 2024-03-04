@@ -17,39 +17,46 @@
 
 // SDelBlock ----------
 int32_t tTombBlockInit(STombBlock *tombBlock) {
+  tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TARRAY2_INIT(&tombBlock->dataArr[i]);
+    tBufferInit(&tombBlock->buffers[i]);
   }
   return 0;
 }
 
 int32_t tTombBlockDestroy(STombBlock *tombBlock) {
+  tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TARRAY2_DESTROY(&tombBlock->dataArr[i], NULL);
+    tBufferDestroy(&tombBlock->buffers[i]);
   }
   return 0;
 }
 
 int32_t tTombBlockClear(STombBlock *tombBlock) {
+  tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TARRAY2_CLEAR(&tombBlock->dataArr[i], NULL);
+    tBufferClear(&tombBlock->buffers[i]);
   }
   return 0;
 }
 
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
-  int32_t code;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    code = TARRAY2_APPEND(&tombBlock->dataArr[i], record->dataArr[i]);
+    int32_t code = tBufferPutI64(&tombBlock->buffers[i], record->dataArr[i]);
     if (code) return code;
   }
+  tombBlock->numOfRecords++;
   return 0;
 }
 
 int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record) {
-  if (idx >= TOMB_BLOCK_SIZE(tombBlock)) return TSDB_CODE_OUT_OF_RANGE;
+  if (idx < 0 || idx >= tombBlock->numOfRecords) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    record->dataArr[i] = TARRAY2_GET(&tombBlock->dataArr[i], idx);
+    SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * idx, &tombBlock->buffers[i]);
+    tBufferGetI64(&br, &record->dataArr[i]);
   }
   return 0;
 }
@@ -225,11 +232,13 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
 
   ASSERT(record->firstKey.key.numOfPKs == record->lastKey.key.numOfPKs);
 
-  if (brinBlock->numOfRecords == 0) {
+  if (brinBlock->numOfRecords == 0) {  // the first row
     brinBlock->numOfPKs = record->firstKey.key.numOfPKs;
+  } else if (brinBlock->numOfPKs != record->firstKey.key.numOfPKs) {
+    // if the number of primary keys are not the same,
+    // return an error code and the caller should handle it
+    return TSDB_CODE_INVALID_PARA;
   }
-
-  ASSERT(brinBlock->numOfPKs == record->firstKey.key.numOfPKs);
 
   code = tBufferPutI64(&brinBlock->suids, record->suid);
   if (code) return code;
@@ -243,21 +252,11 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
   code = tBufferPutI64(&brinBlock->firstKeyVersions, record->firstKey.version);
   if (code) return code;
 
-  for (int32_t i = 0; i < record->firstKey.key.numOfPKs; ++i) {
-    code = tValueColumnAppend(&brinBlock->firstKeyPKs[i], &record->firstKey.key.pks[i]);
-    if (code) return code;
-  }
-
   code = tBufferPutI64(&brinBlock->lastKeyTimestamps, record->lastKey.key.ts);
   if (code) return code;
 
   code = tBufferPutI64(&brinBlock->lastKeyVersions, record->lastKey.version);
   if (code) return code;
-
-  for (int32_t i = 0; i < record->lastKey.key.numOfPKs; ++i) {
-    code = tValueColumnAppend(&brinBlock->lastKeyPKs[i], &record->lastKey.key.pks[i]);
-    if (code) return code;
-  }
 
   code = tBufferPutI64(&brinBlock->minVers, record->minVer);
   if (code) return code;
@@ -285,6 +284,18 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
 
   code = tBufferPutI32(&brinBlock->counts, record->count);
   if (code) return code;
+
+  if (brinBlock->numOfPKs > 0) {
+    for (int32_t i = 0; i < brinBlock->numOfPKs; ++i) {
+      code = tValueColumnAppend(&brinBlock->firstKeyPKs[i], &record->firstKey.key.pks[i]);
+      if (code) return code;
+    }
+
+    for (int32_t i = 0; i < brinBlock->numOfPKs; ++i) {
+      code = tValueColumnAppend(&brinBlock->lastKeyPKs[i], &record->lastKey.key.pks[i]);
+      if (code) return code;
+    }
+  }
 
   brinBlock->numOfRecords++;
 
