@@ -279,6 +279,7 @@ void taos_close_internal(void *taos) {
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  // clientMonitorClose(pTscObj->pAppInfo->instKey);
 
   taosRemoveRef(clientConnRefPool, pTscObj->id);
 }
@@ -1253,54 +1254,34 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
-  int32_t      reqIdx = 0;
-  SRequestObj *pReqList[16] = {NULL};
-  SRequestObj *pUserReq = NULL;
-  pReqList[0] = pRequest;
-  uint64_t     tmpRefId = 0;
-  SRequestObj *pTmp = pRequest;
-  while (pTmp->relation.prevRefId) {
-    tmpRefId = pTmp->relation.prevRefId;
-    pTmp = acquireRequest(tmpRefId);
-    if (pTmp) {
-      pReqList[++reqIdx] = pTmp;
-      releaseRequest(tmpRefId);
-    } else {
-      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
+  tscInfo("restart request: %s p: %p", pRequest->sqlstr, pRequest);
+  SRequestObj* pUserReq = pRequest;
+  acquireRequest(pRequest->self);
+  while (pUserReq) {
+    if (pUserReq->self == pUserReq->relation.userRefId || pUserReq->relation.userRefId == 0) {
       break;
-    }
-  }
-
-  tmpRefId = pRequest->relation.nextRefId;
-  while (tmpRefId) {
-    pTmp = acquireRequest(tmpRefId);
-    if (pTmp) {
-      tmpRefId = pTmp->relation.nextRefId;
-      removeRequest(pTmp->self);
-      releaseRequest(pTmp->self);
     } else {
-      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
-      break;
+      int64_t nextRefId = pUserReq->relation.nextRefId;
+      releaseRequest(pUserReq->self);
+      if (nextRefId) {
+        pUserReq = acquireRequest(nextRefId);
+      }
     }
   }
-
-  for (int32_t i = reqIdx; i >= 0; i--) {
-    destroyCtxInRequest(pReqList[i]);
-    if (pReqList[i]->relation.userRefId == pReqList[i]->self || 0 == pReqList[i]->relation.userRefId) {
-      pUserReq = pReqList[i];
-    } else {
-      removeRequest(pReqList[i]->self);
-    }
-  }
-
+  bool hasSubRequest = pUserReq != pRequest || pRequest->relation.prevRefId != 0;
   if (pUserReq) {
+    destroyCtxInRequest(pUserReq);
     pUserReq->prevCode = code;
     memset(&pUserReq->relation, 0, sizeof(pUserReq->relation));
   } else {
-    tscError("user req is missing");
+    tscError("User req is missing");
+    removeFromMostPrevReq(pRequest);
     return;
   }
-
+  if (hasSubRequest)
+    removeFromMostPrevReq(pRequest);
+  else
+    releaseRequest(pUserReq->self);
   doAsyncQuery(pUserReq, true);
 }
 

@@ -485,6 +485,10 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   return code;
 }
 
+typedef struct SMStreamCheckpointReadyRspMsg {
+  SMsgHead head;
+}SMStreamCheckpointReadyRspMsg;
+
 int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   int32_t vgId = pMeta->vgId;
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -513,6 +517,18 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
 
   streamProcessCheckpointReadyMsg(pTask);
   streamMetaReleaseTask(pMeta, pTask);
+
+  {  // send checkpoint ready rsp
+    SRpcMsg rsp = {.code = 0, .info = pMsg->info, .contLen = sizeof(SMStreamCheckpointReadyRspMsg)};
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    SMsgHead* pHead = rsp.pCont;
+    pHead->vgId = htonl(req.downstreamNodeId);
+
+    tmsgSendRsp(&rsp);
+
+    pMsg->info.handle = NULL;  // disable auto rsp
+  }
+
   return code;
 }
 
@@ -849,7 +865,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
     if (pHistoryTask == NULL) {
       tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
-                  ", it may have been dropped already",
+              ", it may have been dropped already",
               pMeta->vgId, pTask->hTaskInfo.id.taskId);
       streamMetaReleaseTask(pMeta, pTask);
 
@@ -938,9 +954,17 @@ int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
   return taosArrayGetSize(pMeta->pTaskList);
 }
 
-int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
+
+int32_t tqStreamProcessReqCheckpointRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
+
+int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  return doProcessDummyRspMsg(pMeta, pMsg);
 }

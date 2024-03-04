@@ -786,8 +786,11 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt, bool metaLock);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
-int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event);
-void    streamTaskRestoreStatus(SStreamTask* pTask);
+
+typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
+int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
+int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
+int32_t streamTaskRestoreStatus(SStreamTask* pTask);
 
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
                            SRpcHandleInfo* pRpcInfo, int32_t taskId);

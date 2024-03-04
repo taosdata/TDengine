@@ -46,7 +46,9 @@ class TDTestCase(TBase):
         # clusterDnodes.starttaosd(1)
         # time.sleep(5)
         autoGen.insert_data(5000, True)
-        tdSql.execute(f"flush database {self.db}")
+        self.flushDb(True)
+        # wait flush operation over
+        time.sleep(5)
 
         # sql = 'show vnodes;'
         # while True:
@@ -67,7 +69,6 @@ class TDTestCase(TBase):
             dirs = glob.glob(dnodesRootDir)
             for dir in dirs:
                 if os.path.isdir(dir):
-                    tdLog.debug("delete dir: %s " % (dnodesRootDir))
                     self.remove_directory(os.path.join(dir, "wal"))
 
         sc.dnodeStart(1)
@@ -88,7 +89,7 @@ class TDTestCase(TBase):
             if bFinish:
                 break
 
-        self.timestamp_step = 1
+        self.timestamp_step = 1000
         self.insert_rows = 6000
         self.checkInsertCorrect()
         self.checkAggCorrect()

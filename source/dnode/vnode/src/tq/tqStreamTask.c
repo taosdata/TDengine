@@ -28,8 +28,8 @@ static int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDurat
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
 int32_t tqScanWal(STQ* pTq) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
   int64_t      st = taosGetTimestampMs();
 
   tqDebug("vgId:%d continue to check if data in wal are available, scanCounter:%d", vgId, pMeta->scanInfo.scanCounter);

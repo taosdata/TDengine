@@ -452,20 +452,21 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    int32_t newLen = pSource->varmeta.length;
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
-    if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, pSource->varmeta.length);
+    if (pColumnInfoData->varmeta.allocLen < newLen) {
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = pSource->varmeta.length;
+      pColumnInfoData->varmeta.allocLen = newLen;
     }
 
-    pColumnInfoData->varmeta.length = pSource->varmeta.length;
+    pColumnInfoData->varmeta.length = newLen;
     if (pColumnInfoData->pData != NULL && pSource->pData != NULL) {
-      memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+      memcpy(pColumnInfoData->pData, pSource->pData, newLen);
     }
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
@@ -1687,7 +1688,29 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 }
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
+  if (n >= total || n == 0) return;
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    if (pColInfoData->varmeta.length != 0) {
+      int32_t newLen = pColInfoData->varmeta.offset[n];
+      if (-1 == newLen) {
+        for (int i = n - 1; i >= 0; --i) {
+          newLen = pColInfoData->varmeta.offset[i];
+          if (newLen != -1) {
+            if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+              newLen += getJsonValueLen(pColInfoData->pData + newLen);
+            } else {
+              newLen += varDataTLen(pColInfoData->pData + newLen);
+            }
+            break;
+          }
+        }
+      }
+      if (newLen <= -1) {
+        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
+      } else {
+        pColInfoData->varmeta.length = newLen;
+      }
+    }
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
@@ -2118,28 +2141,28 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
-void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId){
+void  buildCtbNameAddGroupId(char* ctbName, uint64_t groupId){
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
   snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
   strcat(ctbName, tmp);
 }
 
-bool  isAutoTableName(char* ctbName){
-  return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_');
-}
+// auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
+// the total length is fixed to be 34 bytes.
+bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_'); }
 
-bool  alreadyAddGroupId(char* ctbName){
+bool alreadyAddGroupId(char* ctbName) {
   size_t len = strlen(ctbName);
   size_t _location = len - 1;
-  while(_location > 0){
-    if(ctbName[_location] < '0' || ctbName[_location] > '9'){
+  while (_location > 0) {
+    if (ctbName[_location] < '0' || ctbName[_location] > '9') {
       break;
     }
     _location--;
   }
 
-  return ctbName[_location] == '_' &&  len - 1 - _location > 15;  //15 means the min length of groupid
+  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {

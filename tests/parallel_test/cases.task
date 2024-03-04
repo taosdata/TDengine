@@ -15,10 +15,11 @@
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+,,n,army,python3 ./test.py -f community/query/show.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
 
 #
@@ -237,7 +238,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
@@ -1084,6 +1086,7 @@
 ,,y,script,./test.sh -f tsim/parser/join_multivnode.sim
 ,,y,script,./test.sh -f tsim/parser/join.sim
 ,,y,script,./test.sh -f tsim/parser/last_cache.sim
+,,y,script,./test.sh -f tsim/parser/last_both.sim
 ,,y,script,./test.sh -f tsim/parser/last_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim
@@ -1210,6 +1213,7 @@
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+,,y,script,./test.sh -f tsim/stream/distributeMultiLevelInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/event0.sim

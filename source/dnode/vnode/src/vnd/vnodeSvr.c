@@ -16,6 +16,7 @@
 #include "audit.h"
 #include "cos.h"
 #include "tencode.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tstrbuild.h"
 #include "vnd.h"
@@ -30,13 +31,15 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginRpc);
-static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
+                                    SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
+                                      SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -542,10 +545,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
-      if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
+      if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
       break;
     case TDMT_VND_DELETE:
-      if (vnodeProcessDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessDeleteReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) goto _err;
       break;
     case TDMT_VND_BATCH_DEL:
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
@@ -798,6 +801,10 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
       return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
+    case TDMT_MND_STREAM_REQ_CHKPT_RSP:
+      return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
+      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -1482,7 +1489,8 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   return code;
 }
 
-static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
+                                    SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   terrno = 0;
 
@@ -1700,10 +1708,35 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
   atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+
+  if(tsEnableMonitor && pSubmitRsp->affectedRows > 0 && strlen(pOriginalMsg->info.conn.user) > 0){
+    const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS, pVnode->monitor.strClusterId, 
+                                    pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                    pOriginalMsg->info.conn.user, "Success"};
+    taos_counter_add(pVnode->monitor.insertCounter, pSubmitRsp->affectedRows, sample_labels);
+  }
+
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
     code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
+  /*
+  if (code == 0) {
+    atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
+
+    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT, pVnode->monitor.strClusterId, 
+                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                          pOriginalMsg->info.conn.user, "Success"};
+    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
+  }
+  else{
+    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT, pVnode->monitor.strClusterId, 
+                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                        pOriginalMsg->info.conn.user, "Failed"};
+    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
+  }
+  */
 
   // clear
   taosArrayDestroy(newTbUids);
@@ -1959,7 +1992,8 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   return 0;
 }
 
-static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
+                                    SRpcMsg *pOriginalMsg) {
   int32_t     code = 0;
   SDecoder   *pCoder = &(SDecoder){0};
   SDeleteRes *pRes = &(SDeleteRes){0};
@@ -2002,6 +2036,21 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   return code;
 
 _err:
+  /*
+  if(code == TSDB_CODE_SUCCESS){
+    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_DELETE, pVnode->monitor.strClusterId, 
+                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                        pOriginalMsg->info.conn.user, "Success"};
+    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
+  }
+  else{
+    const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_DELETE, pVnode->monitor.strClusterId, 
+                                        pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId, 
+                                        pOriginalMsg->info.conn.user, "Failed"};
+    taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
+  }
+  */
+
   return code;
 }
 static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
