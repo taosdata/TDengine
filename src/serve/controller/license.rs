@@ -254,10 +254,8 @@ async fn validate_connector_license(
         "opentsdb" => "opentsdb",
         "pi" => "pi",
         "pibackfill" => "pi",
-        taosx_core::runners::kafka::KAFKA_ID => taosx_core::runners::kafka::KAFKA_ID,
-        taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-            taosx_core::runners::historian::AVEVA_HISTORIAN_ID
-        }
+        taosx_core::runners::kafka::KAFKA_ID => "kafka",
+        taosx_core::runners::historian::AVEVA_HISTORIAN_ID => "avevahistorian",
         "mqtt" => "mqtt",
         "tmq" => "td3.0",
         "taos" => "td2.6",
