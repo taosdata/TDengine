@@ -60,6 +60,7 @@ class TSMAQueryContext:
         self.sql = ''
         self.used_tsmas: List[UsedTsma] = []
         self.ignore_tsma_check_ = False
+        self.ignore_res_order_ = False
 
     def __eq__(self, __value) -> bool:
         if isinstance(__value, self.__class__):
@@ -115,6 +116,10 @@ class TSMAQCBuilder:
     
     def ignore_query_table(self):
         self.qc_.ignore_tsma_check_ = True
+        return self
+    
+    def ignore_res_order(self, ignore: bool):
+        self.qc_.ignore_res_order_ = ignore
         return self
 
     def should_query_with_tsma(self, tsma_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX, child_tb: bool = False) -> 'TSMAQCBuilder':
@@ -186,9 +191,14 @@ class TSMATester:
             tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
         elif expect.has_tsma():
             tdLog.debug('check explain succeed for sql: %s \ntsma: %s' % (sql, str(expect.used_tsmas)))
+        has_tsma = False
+        for tsma in query_ctx.used_tsmas:
+            has_tsma = has_tsma or tsma.is_tsma_
+        if not has_tsma and len(query_ctx.used_tsmas) > 1:
+            tdLog.exit(f'explain err for sql: {sql}, has multi non tsmas, {query_ctx.used_tsmas}')
         return query_ctx
 
-    def check_result(self, sql: str):
+    def check_result(self, sql: str, skip_order: bool = False):
         tdSql.execute("alter local 'querySmaOptimize' '1'")
         tsma_res = tdSql.getResult(sql)
 
@@ -203,15 +213,21 @@ class TSMATester:
 
         if len(no_tsma_res) != len(tsma_res):
             tdLog.exit("comparing tsma res for: %s got different rows of result: \nwithout tsma: %s\nwith    tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
+        if skip_order:
+            no_tsma_res.sort()
+            tsma_res.sort()
+
         for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
             if row_no_tsma != row_tsma:
                 tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n  tsma res: %s" % (sql, str(row_no_tsma), str(row_tsma), str(no_tsma_res), str(tsma_res)))
         tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' % (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
+        tdLog.debug(f"start to check sql: {sql}")
         actual_ctx = self.check_explain(sql, expect=expect)
+        tdLog.debug(f"ctx: {actual_ctx}")
         if actual_ctx.has_tsma():
-            self.check_result(sql)
+            self.check_result(sql, expect.ignore_res_order_)
 
     def check_sqls(self, sqls: list[str], expects: list[TSMAQueryContext]):
         for sql, query_ctx in zip(sqls, expects):
@@ -229,11 +245,28 @@ class TSMATesterSQLGeneratorOptions:
         self.tag_num: int = 6  ### t1 - t6
         self.child_table_name_prefix: str = 't'
         self.child_table_num: int = 10  #### t0 - t9
-        self.where_ts_range: bool = False
+        self.interval: bool = False
+        self.partition_by: bool = False ## 70% generating a partition by, 30% no partition by, same as group by
+        self.group_by: bool = False
+        self.where_ts_range: bool = False ## generating no ts range condition is also possible
         self.where_tbname_func: bool = False
         self.where_tag_func: bool = False
         self.where_col_func: bool = False
-        self.where_type = None
+        self.slimit_max = 10
+        self.limit_max = 10
+
+class TSMATesterSQLGeneratorRes:
+    def __init__(self):
+        self.has_where_ts_range: bool = False
+        self.has_interval: bool = False
+        self.partition_by: bool = False
+        self.group_by: bool = False
+        self.has_slimit: bool = False
+        self.has_limit: bool = False
+        self.has_user_order_by: bool = False
+    
+    def can_ignore_res_order(self):
+        return not (self.has_limit and self.has_slimit)
 
 class TSMATestSQLGenerator:
     def __init__(self, opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()):
@@ -243,6 +276,7 @@ class TSMATestSQLGenerator:
         self.agg_funcs_: List[str] = []
         self.tsmas_: List[TSMA] = [] ## currently created tsmas
         self.opts_: TSMATesterSQLGeneratorOptions = opts
+        self.res_: TSMATesterSQLGeneratorRes = TSMATesterSQLGeneratorRes()
 
         self.select_list_: List[str] = []
         self.where_list_: List[str] = []
@@ -278,21 +312,62 @@ class TSMATestSQLGenerator:
         rand: int = randrange(1, len(funcs))
         return funcs[rand-1]()
 
-    def generate_one(self) -> str:
-        pass
+    def generate_select_list(self, user_select_list: str, partition_by_list: str):
+        res = user_select_list
+        if self.res_.has_interval:
+            res = res + ',_wstart, _wend'
+        if self.res_.partition_by or self.res_.group_by:
+            res = res + f',{partition_by_list}'
+        return res
+
+    def generate_order_by(self, user_order_by: str, partition_by_list: str):
+        auto_order_by = 'ORDER BY'
+        has_limit = self.res_.has_limit or self.res_.has_slimit
+        if has_limit and (self.res_.group_by or self.res_.partition_by):
+            auto_order_by = f'{auto_order_by} {partition_by_list},'
+        if has_limit and self.res_.has_interval:
+            auto_order_by = f'{auto_order_by} _wstart, _wend,'
+        if len(user_order_by) > 0:
+            self.res_.has_user_order_by = True
+            auto_order_by = f'{auto_order_by} {user_order_by},'
+        if auto_order_by == 'ORDER BY':
+            return ''
+        else:
+            return auto_order_by[:-1]
+
+    def generate_one(self, select_list: str, tb: str, order_by_list: str, interval_list: List[str] = []) -> str:
+        where = self.generate_ts_where_range()
+        interval = self.generate_interval(interval_list)
+        (partition_by, partition_by_list) = self.generate_partition_by()
+        limit = self.generate_limit()
+        auto_select_list = self.generate_select_list(select_list, partition_by_list)
+        order_by = self.generate_order_by(order_by_list, partition_by_list)
+        sql = f"SELECT {auto_select_list} FROM {tb} {where} {partition_by} {partition_by_list} {interval} {order_by} {limit}"
+        return sql
+    
+    def can_ignore_res_order(self):
+        return self.res_.can_ignore_res_order()
 
     def generate_where(self, type: int) -> str:
         pass
 
     def generate_timestamp(self, min: float = -1, max: float = 0) -> int:
-        milliseconds_aligned = random.randint(int(min), int(max))
+        milliseconds_aligned: float = random.randint(int(min), int(max))
         seconds_aligned = int( milliseconds_aligned/ 1000) * 1000
+        if seconds_aligned < min:
+            seconds_aligned = min
         minutes_aligned = int(milliseconds_aligned / 1000 / 60) * 1000 * 60
+        if minutes_aligned < min:
+            minutes_aligned = min
         hour_aligned = int(milliseconds_aligned / 1000 / 60 / 60) * 1000 * 60 * 60
+        if hour_aligned < min:
+            hour_aligned = min
 
         return random.choice([milliseconds_aligned, seconds_aligned, seconds_aligned, minutes_aligned, minutes_aligned, hour_aligned, hour_aligned])
 
     def generate_ts_where_range(self):
+        if not self.opts_.where_ts_range:
+            return ''
         left_operators = ['>', '>=', '']
         right_operators = ['<', '<=', '']
         left_operator = left_operators[random.randrange(0, 3)]
@@ -311,14 +386,76 @@ class TSMATestSQLGenerator:
             if left_operator:
                 a += ' AND '
             a += f'{self.opts_.pk_col} {right_operator} {right_value}'
-        tdLog.debug(f'{self.opts_.pk_col} range with: {a}')
+        #tdLog.debug(f'{self.opts_.pk_col} range with: {a}')
         if len(a) > 0:
-            return f' {a}'
+            self.res_.has_where_ts_range = True
+            return f'WHERE {a}'
         return a
 
+    def generate_limit(self) -> str:
+        ret = ''
+        can_have_slimit = self.res_.partition_by or self.res_.group_by
+        if can_have_slimit:
+            if random.random() < 0.4:
+                ret = f'SLIMIT {random.randint(0, self.opts_.slimit_max)}'
+                self.res_.has_slimit = True
+        if random.random() < 0.4:
+            self.res_.has_limit = True
+            ret = ret + f' LIMIT {random.randint(0, self.opts_.limit_max)}'
+        return ret
+
     def generate_interval(self, intervals: List[str]) -> str:
+        if not self.opts_.interval:
+            return ''
+        if random.random() < 0.4: ## no interval
+            return ''
         value = random.choice(intervals)
+        self.res_.has_interval = True
         return f'INTERVAL({value})'
+    
+    def generate_tag_list(self):
+        used_tag_num = random.randrange(1, self.opts_.tag_num)
+        ret = ''
+        for i in range(used_tag_num):
+            tag_idx = random.randint(1,self.opts_.tag_num)
+            ret = ret + self.opts_.tags_prefix + f'{tag_idx},'
+        return ret[:-1]
+    
+    def generate_tbname_tag_list(self):
+        tag_num = random.randrange(1, self.opts_.tag_num)
+        ret = ''
+        tbname_idx = random.randint(0, tag_num + 1)
+        for i in range(tag_num + 1):
+            if i == tbname_idx:
+                ret = ret + 'tbname,'
+            else:
+                tag_idx = random.randint(1,self.opts_.tag_num)
+                ret = ret + self.opts_.tags_prefix + f'{tag_idx},'
+        return ret[:-1]
+            
+
+    def generate_partition_by(self) -> tuple[str, str]:
+        if not self.opts_.partition_by and not self.opts_.group_by:
+            return ('','')
+        ## no partition or group
+        if random.random() < 0.3:
+            return ('','')
+        ret = ''
+        rand = random.random()
+        if rand < 0.4:
+            ret = 'tbname'
+        elif rand < 0.8:
+            ret = self.generate_tag_list()
+        else:
+            ## tbname and tag
+            ret = self.generate_tbname_tag_list()
+        tdLog.debug(f'partition by: {ret}')
+        if self.res_.has_interval or random.random() < 0.5:
+            self.res_.partition_by = True
+            return (str('PARTITION BY'), f'{ret}')
+        else:
+            self.res_.group_by = True
+            return (str('GROUP BY'),  f'{ret}')
     
     def generate_where_tbname(self) -> str:
         return self.generate_str_func('tbname')
@@ -576,18 +713,15 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009','2018-09-17 09:29:59.999') \
                         .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
                             .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.664').get_qc())
-        
-        for i in range(1, 1000):
-            where = self.tsma_sql_generator.generate_ts_where_range()
-            if len(where) > 0:
-                where = f'WHERE {where}'
-            interval = self.tsma_sql_generator.generate_interval(['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200'])
-            if len(interval) > 0:
-                pseudo_cols = "_wstart, _wend,"
-            else:
-                pseudo_cols = ''
-            sql = f"select {pseudo_cols} avg(c1), avg(c2) from meters {where} {interval}"
-            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().get_qc())
+        interval_list = ['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
+        opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
+        opts.partition_by = True
+        opts.interval = True
+        opts.where_ts_range = True
+        for i in range(1, 10000):
+            sql_generator = TSMATestSQLGenerator(opts)
+            sql = sql_generator.generate_one('avg(c1), avg(c2)', 'meters', '', interval_list)
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
     def test_query_with_tsma_interval_partition_by_tbname(self):
