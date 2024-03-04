@@ -630,9 +630,9 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       hTaskId.streamId = pTask->hTaskInfo.id.streamId;
       hTaskId.taskId = pTask->hTaskInfo.id.taskId;
-      streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
     }
 
+    streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
     streamMetaReleaseTask(pMeta, pTask);
   }
 
