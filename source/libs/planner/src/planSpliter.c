@@ -963,7 +963,7 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
-      (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
+      (!pInfo->pSubplan->pChildren || LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
@@ -1224,7 +1224,8 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
 }
 
 static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode)) {
+  if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode) &&
+      (!pInfo->pSubplan->pChildren || LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
     return stbSplSplitAggNodeForPartTable(pCxt, pInfo);
   }
   if (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) > 0) {
