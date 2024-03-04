@@ -4618,7 +4618,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   // the main tsma
   if (endOfSkeyFirstWin < startOfEkeyFirstWin) {
     scanRange.ekey =
-        TMIN(pScanRange->ekey, endOfSkeyFirstWin == startOfEkeyFirstWin ? pScanRange->ekey : startOfEkeyFirstWin - 1);
+        TMIN(pScanRange->ekey, isEkeyAlignedWithTsma ? pScanRange->ekey : startOfEkeyFirstWin - 1);
     if (!isSkeyAlignedWithTsma) {
       scanRange.skey = endOfSkeyFirstWin;
     }
@@ -5143,6 +5143,17 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   return code;
 }
 
+static bool tsmaOptIsUsingTsmas(STSMAOptCtx* pCtx) {
+  if (pCtx->pUsedTsmas->size == 0) {
+    return false;
+  }
+  for (int32_t i = 0; i < pCtx->pUsedTsmas->size; ++i) {
+    const STSMAOptUsefulTsma*pTsma = taosArrayGet(pCtx->pUsedTsmas, i);
+    if (pTsma->pTsma) return true;
+  }
+  return false;
+}
+
 static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   int32_t         code = 0;
   STSMAOptCtx     tsmaOptCtx = {0};
@@ -5159,15 +5170,17 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
       taosArraySort(tsmaOptCtx.pUsefulTsmas, tsmaInfoCompWithIntervalDesc);
       // 3. split windows
       tsmaOptSplitWindows(&tsmaOptCtx, tsmaOptCtx.pTimeRange, 0);
-      // 4. create logic plan
-      code = tsmaOptGeneratePlan(&tsmaOptCtx);
+      if (tsmaOptIsUsingTsmas(&tsmaOptCtx)) {
+        // 4. create logic plan
+        code = tsmaOptGeneratePlan(&tsmaOptCtx);
 
-      if (TSDB_CODE_SUCCESS == code) {
-        for (int32_t i = 0; i < 2; i++) {
-          SLogicSubplan* pSubplan = tsmaOptCtx.generatedSubPlans[i];
-          if (!pSubplan) continue;
-          pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-          nodesListMakeAppend(&pLogicSubplan->pChildren, (SNode*)pSubplan);
+        if (TSDB_CODE_SUCCESS == code) {
+          for (int32_t i = 0; i < 2; i++) {
+            SLogicSubplan* pSubplan = tsmaOptCtx.generatedSubPlans[i];
+            if (!pSubplan) continue;
+            pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+            nodesListMakeAppend(&pLogicSubplan->pChildren, (SNode*)pSubplan);
+          }
         }
       }
     }
