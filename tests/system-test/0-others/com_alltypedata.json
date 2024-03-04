@@ -22,7 +22,7 @@
                 "vgroups": 2,
                 "replica": 1,
                 "precision": "ms",
-                "stt_trigger": 8,
+                "stt_trigger": 1,
                 "minRows": 100,
                 "maxRows": 4096
             },
