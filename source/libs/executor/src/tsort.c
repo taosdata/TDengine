@@ -1184,6 +1184,18 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   return code;
 }
 
+static void freeSSortSource(SSortSource* source) {
+  if (NULL == source) return;
+  if (source->param && !source->onlyRef) {
+    taosMemoryFree(source->param);
+  }
+  if (!source->onlyRef && source->src.pBlock) {
+    blockDataDestroy(source->src.pBlock);
+    source->src.pBlock = NULL;
+  }
+  taosMemoryFree(source);
+}
+
 static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
   int32_t code = 0;
   size_t  sortBufSize = pHandle->numOfPages * pHandle->pageSize;
@@ -1216,14 +1228,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
 
     code = blockDataMerge(pHandle->pDataBlock, pBlock);
     if (code != TSDB_CODE_SUCCESS) {
-      if (source->param && !source->onlyRef) {
-        taosMemoryFree(source->param);
-      }
-      if (!source->onlyRef && source->src.pBlock) {
-        blockDataDestroy(source->src.pBlock);
-        source->src.pBlock = NULL;
-      }
-      taosMemoryFree(source);
+      freeSSortSource(source);
       return code;
     }
 
@@ -1233,15 +1238,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       int64_t p = taosGetTimestampUs();
       code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
       if (code != 0) {
-        if (source->param && !source->onlyRef) {
-          taosMemoryFree(source->param);
-        }
-        if (!source->onlyRef && source->src.pBlock) {
-          blockDataDestroy(source->src.pBlock);
-          source->src.pBlock = NULL;
-        }
-
-        taosMemoryFree(source);
+        freeSSortSource(source);
         return code;
       }
 
@@ -1250,16 +1247,13 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       if (pHandle->pqMaxRows > 0) blockDataKeepFirstNRows(pHandle->pDataBlock, pHandle->pqMaxRows);
       code = doAddToBuf(pHandle->pDataBlock, pHandle);
       if (code != TSDB_CODE_SUCCESS) {
+        freeSSortSource(source);
         return code;
       }
     }
   }
 
-  if (source->param && !source->onlyRef) {
-    taosMemoryFree(source->param);
-  }
-
-  taosMemoryFree(source);
+  freeSSortSource(source);
 
   if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
     size_t size = blockDataGetSize(pHandle->pDataBlock);
