@@ -4603,7 +4603,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   }
 
   // add head tsma if possible
-  if (!isSkeyAlignedWithTsma) {
+  if (!isSkeyAlignedWithTsma && scanRange.ekey >= endOfSkeyFirstWin - 1) {
     scanRange.ekey = TMIN(
         scanRange.ekey,
         taosTimeAdd(startOfSkeyFirstWin, pInterval->interval * 1, pInterval->intervalUnit, pTsmaOptCtx->precision) - 1);
