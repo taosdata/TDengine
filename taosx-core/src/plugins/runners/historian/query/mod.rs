@@ -1,4 +1,5 @@
 use chrono::{DateTime, Local, Utc};
+use futures_util::TryStreamExt;
 use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryStream};
 use tokio::net::TcpStream;
@@ -46,15 +47,6 @@ impl HistorianQuery {
         Ok(client)
     }
 
-    pub async fn select_from_tag(
-        &mut self,
-        tag_conditions: Vec<String>,
-    ) -> anyhow::Result<QueryStream> {
-        let sql = select_from_tag_sql(tag_conditions);
-
-        Ok(self.client.query(sql.as_str(), &[]).await?)
-    }
-
     pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
 
@@ -82,13 +74,13 @@ impl HistorianQuery {
         let end: DateTime<Local> = DateTime::from(end);
 
         sql = format!(
-                "select * from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
-                tags.iter().map(|t| {
-                    format!("'{}'", t)
-                }).join(","),
-                begin.to_rfc3339(),
-                end.to_rfc3339()
-            );
+            "select * from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
+            tags.iter().map(|t| {
+                format!("'{}'", t)
+            }).join(","),
+            begin.to_rfc3339(),
+            end.to_rfc3339()
+        );
 
         tracing::debug!("sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
@@ -103,23 +95,55 @@ impl HistorianQuery {
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
+    pub async fn get_tags_with_condition(
+        &mut self,
+        top_n: Option<usize>,
+        condition: Vec<String>,
+    ) -> anyhow::Result<QueryStream> {
+        let sql = get_tags_with_condition_sql(top_n, condition);
+
+        Ok(self.client.query(sql.as_str(), &[]).await?)
+    }
+
     pub async fn top_n(
         &mut self,
         top_n: usize,
         table: HistorianTable,
+        tags_condition: Vec<String>,
         begin_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
     ) -> anyhow::Result<QueryStream> {
-        let sql = top_n_sql(top_n, table, begin_time, end_time);
+        let mut rows = self
+            .get_tags_with_condition(Some(top_n), tags_condition)
+            .await?
+            .into_row_stream();
+
+        let mut tags = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            let tag_name = row
+                .try_get::<&str, _>("TagName")?
+                .ok_or(anyhow::anyhow!("TagName cannot be None"))?
+                .to_string();
+            tags.push(tag_name);
+        }
+        drop(rows);
+
+        let sql = top_n_sql(top_n, table, tags, begin_time, end_time);
+
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 }
 
 /// parameter: tag_conditions like: ["tag1", "tag2", "HD*", "ABC*"]
 /// return: select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1', 'tag2') or TagName like 'HD%' or TagName like 'ABC%')
-fn select_from_tag_sql(tag_conditions: Vec<String>) -> String {
-    let mut tags_query =
-        String::from("select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'");
+fn get_tags_with_condition_sql(top: Option<usize>, tag_conditions: Vec<String>) -> String {
+    let mut tags_query = match top {
+        Some(n) => format!(
+            "select top {} * from Runtime.dbo.Tag where TagName NOT like 'Sys%'",
+            n
+        ),
+        None => String::from("select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'"),
+    };
 
     let conditions = tag_conditions
         .iter()
@@ -155,14 +179,27 @@ fn select_from_tag_sql(tag_conditions: Vec<String>) -> String {
 fn top_n_sql(
     top_n: usize,
     table: HistorianTable,
+    tags: Vec<String>,
     begin_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
 ) -> String {
     let mut sql = format!(
-        "select top {} * from {} where TagName not like 'Sys%' and wwRetrievalMode = 'full'",
+        "select top {} * from {} where wwRetrievalMode = 'full'",
         top_n,
         table.to_string(),
     );
+
+    if tags.is_empty() {
+        sql.push_str(" and TagName not like 'Sys%'");
+    } else {
+        sql.push_str(
+            format!(
+                " and TagName in ({})",
+                tags.iter().map(|t| { format!("'{}'", t) }).join(",")
+            )
+            .as_str(),
+        );
+    }
 
     if let Some(begin_time) = begin_time {
         let begin_time: DateTime<Local> = DateTime::from(begin_time);
@@ -191,21 +228,21 @@ mod tests {
             "HD*".to_string(),
             "ABC*".to_string(),
         ];
-        let sql = select_from_tag_sql(tag_conditions);
+        let sql = get_tags_with_condition_sql(None, tag_conditions);
         assert_eq!(
             sql,
             "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1','tag2') or TagName like 'HD%' or TagName like 'ABC%')"
         );
 
         let tag_conditions = vec!["*".to_string()];
-        let sql = select_from_tag_sql(tag_conditions);
+        let sql = get_tags_with_condition_sql(None, tag_conditions);
         assert_eq!(
             sql,
             "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like '%')"
         );
 
         let tag_conditions = vec!["HD*".to_string()];
-        let sql = select_from_tag_sql(tag_conditions);
+        let sql = get_tags_with_condition_sql(None, tag_conditions);
         assert_eq!(
             sql,
             "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%')"
@@ -217,7 +254,7 @@ mod tests {
             "02040111320002_018".to_string(),
             "02040111320005_015".to_string(),
         ];
-        let sql = select_from_tag_sql(tag_conditions);
+        let sql = get_tags_with_condition_sql(None, tag_conditions);
         assert_eq!(
             sql,
             "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%' or TagName like '020401021%' or TagName in ('02040111320002_018','02040111320005_015'))"
@@ -226,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_top_n_sql() {
-        let sql = top_n_sql(1, HistorianTable::Live, None, None);
+        let sql = top_n_sql(1, HistorianTable::Live, Vec::new(), None, None);
         assert_eq!(
             sql,
             "select top 1 * from Runtime.dbo.Live where TagName not like 'Sys%' and wwRetrievalMode = 'full'"
@@ -238,7 +275,13 @@ mod tests {
         let end: DateTime<Utc> = DateTime::parse_from_rfc3339("2024-01-01T22:22:22.222+08:00")
             .unwrap()
             .into();
-        let sql = top_n_sql(10, HistorianTable::History, Some(begin), Some(end));
+        let sql = top_n_sql(
+            10,
+            HistorianTable::History,
+            Vec::new(),
+            Some(begin),
+            Some(end),
+        );
         assert_eq!(sql, "select top 10 * from Runtime.dbo.History where TagName not like 'Sys%' and wwRetrievalMode = 'full' and DateTime >= '2024-01-01T11:11:11.111+08:00' and DateTime < '2024-01-01T22:22:22.222+08:00'");
     }
 
