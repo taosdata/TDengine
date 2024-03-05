@@ -811,6 +811,11 @@ bool vnodeIsLeader(SVnode *pVnode) {
   return true;
 }
 
+int32_t vnodeNodeId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].nodeId;
+}
+
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
   int code = 0;
   pSnap->lastApplyIndex = pVnode->state.committed;
