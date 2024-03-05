@@ -336,7 +336,7 @@ class TSMATestSQLGenerator:
             return auto_order_by[:-1]
 
     def generate_one(self, select_list: str, tb: str, order_by_list: str, interval_list: List[str] = []) -> str:
-        where = self.generate_ts_where_range()
+        where = self.generate_where()
         interval = self.generate_interval(interval_list)
         (partition_by, partition_by_list) = self.generate_partition_by()
         limit = self.generate_limit()
@@ -346,22 +346,23 @@ class TSMATestSQLGenerator:
         return sql
 
     def can_ignore_res_order(self):
+        self.generate_str_func('tbname', 1)
         return self.res_.can_ignore_res_order()
 
-    def generate_where(self, type: int) -> str:
-        pass
+    def generate_where(self) -> str:
+        return self.generate_ts_where_range()
 
     def generate_timestamp(self, min: float = -1, max: float = 0) -> int:
         milliseconds_aligned: float = random.randint(int(min), int(max))
         seconds_aligned = int( milliseconds_aligned/ 1000) * 1000
         if seconds_aligned < min:
-            seconds_aligned = min
+            seconds_aligned = int(min)
         minutes_aligned = int(milliseconds_aligned / 1000 / 60) * 1000 * 60
         if minutes_aligned < min:
-            minutes_aligned = min
+            minutes_aligned = int(min)
         hour_aligned = int(milliseconds_aligned / 1000 / 60 / 60) * 1000 * 60 * 60
         if hour_aligned < min:
-            hour_aligned = min
+            hour_aligned = int(min)
 
         return random.choice([milliseconds_aligned, seconds_aligned, seconds_aligned, minutes_aligned, minutes_aligned, hour_aligned, hour_aligned])
 
@@ -404,6 +405,7 @@ class TSMATestSQLGenerator:
             ret = ret + f' LIMIT {random.randint(0, self.opts_.limit_max)}'
         return ret
 
+    ## add sliding offset
     def generate_interval(self, intervals: List[str]) -> str:
         if not self.opts_.interval:
             return ''
@@ -434,6 +436,7 @@ class TSMATestSQLGenerator:
         return ret[:-1]
             
 
+    ## TODO add tbname, tag functions
     def generate_partition_by(self):
         if not self.opts_.partition_by and not self.opts_.group_by:
             return ('','')
@@ -471,18 +474,6 @@ class TSMATestSQLGenerator:
 
     ## generate func in tsmas(select list)
     def _generate_agg_func_for_select(self) -> str:
-        pass
-
-    ## generate group by tbname, or exprs containing tbnames
-    def _generate_tbname_for_group_partition_by(self) -> str:
-        pass
-
-    ## generate group by tags, or exprs containing tags
-    def _generate_tag_for_group_partition_by(self) -> str:
-        pass
-
-    ## interval, sliding, offset
-    def _generate_interval(self) -> str:
         pass
 
     ## order by, limit, having, subquery...
@@ -649,7 +640,6 @@ class TDTestCase:
         self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
         self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
 
-        #time.sleep(99999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
@@ -687,13 +677,10 @@ class TDTestCase:
         self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
 
     def test_query_with_tsma_interval(self):
-        self.check(self.test_query_with_tsma_interval_no_partition)
+        self.check(self.test_query_with_tsma_interval_possibly_partition)
         self.check(self.test_query_with_tsma_interval_partition_by_col)
-        self.check(self.test_query_with_tsma_interval_partition_by_tbname)
-        self.check(self.test_query_with_tsma_interval_partition_by_tag)
-        self.check(self.test_query_with_tsma_interval_partition_by_hybrid)
     
-    def test_query_with_tsma_interval_no_partition(self) -> List[TSMAQueryContext]:
+    def test_query_with_tsma_interval_possibly_partition(self) -> List[TSMAQueryContext]:
         ctxs: List[TSMAQueryContext] = []
         sql = 'select avg(c1), avg(c2) from meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql) \
@@ -714,6 +701,12 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009','2018-09-17 09:29:59.999') \
                         .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
                             .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.664').get_qc())
+
+        sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
+        ctxs.append(TSMAQCBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333' ).get_qc())
+
+
         interval_list = ['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
         opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
         opts.partition_by = True
@@ -725,23 +718,12 @@ class TDTestCase:
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
-    def test_query_with_tsma_interval_partition_by_tbname(self):
-        return []
-
-    def test_query_with_tsma_interval_partition_by_tag(self):
-        return []
-
     def test_query_with_tsma_interval_partition_by_col(self):
-        return []
-
-    def test_query_with_tsma_interval_partition_by_hybrid(self):
         return []
 
     def test_query_with_tsma_agg(self):
         self.check(self.test_query_with_tsma_agg_no_group_by)
-        self.check(self.test_query_with_tsma_agg_group_by_hybrid)
         self.check(self.test_query_with_tsma_agg_group_by_tbname)
-        self.check(self.test_query_with_tsma_agg_group_by_tag)
         self.check(self.test_query_with_tsma_with_having)
 
     def test_query_with_tsma_agg_no_group_by(self):
@@ -777,7 +759,12 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 9:30:00.118', '2018-09-17 9:59:59.999') \
                         .should_query_with_tsma('tsma2', '2018-09-17 10:00:00', '2018-09-17 10:29:59.999') \
                             .should_query_with_tsma('tsma1', '2018-09-17 10:30:00.000', '2018-09-17 10:49:59.999').get_qc())
-
+        
+        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 9:00:00' and ts < '2018-09-17 9:45:00' limit 2"
+        ctxs.append(TSMAQCBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma2', '2018-09-17 9:00:00', '2018-09-17 9:29:59.999') \
+                        .should_query_with_tsma('tsma1', '2018-09-17 9:30:00', '2018-09-17 9:44:59.999').get_qc())
+        
         sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
 
@@ -840,12 +827,6 @@ class TDTestCase:
     def test_query_with_tsma_with_having(self):
         return []
 
-    def test_query_with_tsma_agg_group_by_tag(self):
-        return []
-
-    def test_query_with_tsma_agg_group_by_hybrid(self):
-        return []
-    
     def test_ddl(self):
         self.test_create_tsma()
         self.test_drop_tsma()
