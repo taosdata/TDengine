@@ -10707,7 +10707,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   tNameExtractFullName(useTbName, pReq->stb);
   pReq->igExists = pStmt->ignoreExists;
   pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
-  pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
+  pReq->intervalUnit = TIME_UNIT_MILLISECOND;
 
 #define TSMA_MIN_INTERVAL_MS 1 // 1ms
 #define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000) // 1h
