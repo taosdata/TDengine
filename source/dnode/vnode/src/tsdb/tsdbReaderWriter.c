@@ -15,6 +15,7 @@
 
 #include "cos.h"
 #include "tsdb.h"
+#include "sm4.h"
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
@@ -154,6 +155,19 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
 
     taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
 
+    unsigned char		PacketData[128];
+	  int		NewLen;
+    unsigned char Key[17]="0000100001000010";
+    unsigned char IV[17]="0000100001000010";
+
+    int32_t count = 0;
+    while (count < pFD->szPage) {
+      SM4_CBC_Encrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
+      memcpy(pFD->pBuf + count, PacketData, NewLen);
+      count += NewLen;
+      tsdbInfo("SM4_CBC_Encrypt count:%d, NewLen:%d", count, NewLen);
+    }
+
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
@@ -219,7 +233,22 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
     }
+
+    unsigned char		PacketData[128];
+	  int		NewLen;
+    unsigned char Key[17]="0000100001000010";
+    unsigned char IV[17]="0000100001000010";
+
+    int32_t count = 0;
+    while(count < pFD->szPage)
+    {
+      SM4_CBC_Decrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
+      memcpy(pFD->pBuf + count, PacketData, NewLen);
+      count += NewLen;
+      tsdbInfo("SM4_CBC_Decrypt count:%d, NewLen:%d", count, NewLen);
+    }
   }
+  
 
   // check
   if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
