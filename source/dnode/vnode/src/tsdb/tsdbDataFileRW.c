@@ -329,6 +329,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   code = tGetDiskDataHdr(&br, &hdr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+
   tBlockDataReset(bData);
   bData->suid = hdr.suid;
   bData->uid = hdr.uid;
@@ -337,7 +339,6 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   // Key part
   code = tBlockDataDecompressKeyPart(&hdr, &br, bData, reader->buffers + 1);
   TSDB_CHECK_CODE(code, lino, _exit);
-
   ASSERT(br.offset == reader->buffers[0].size);
 
   if (ncid == 0) {
@@ -1208,29 +1209,6 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
 
   if (TOMB_BLOCK_SIZE(tombBlock) == 0) return 0;
 
-#if 0
-  STombBlk tombBlk[1] = {{
-      .dp[0] =
-          {
-              .offset = *fileSize,
-              .size = 0,
-          },
-      .minTbid =
-          {
-              .suid = TARRAY2_FIRST(tombBlock->suid),
-              .uid = TARRAY2_FIRST(tombBlock->uid),
-          },
-      .maxTbid =
-          {
-              .suid = TARRAY2_LAST(tombBlock->suid),
-              .uid = TARRAY2_LAST(tombBlock->uid),
-          },
-      .minVer = TARRAY2_FIRST(tombBlock->version),
-      .maxVer = TARRAY2_FIRST(tombBlock->version),
-      .numRec = TOMB_BLOCK_SIZE(tombBlock),
-      .cmprAlg = cmprAlg,
-  }};
-#endif
   STombBlk tombBlk = {
       .dp[0] =
           {
