@@ -78,6 +78,7 @@ typedef struct SSchedulerReq {
   void*              chkKillParam;
   SExecResult*       pExecRes;
   void**             pFetchRes;
+  int8_t             source;
 } SSchedulerReq;
 
 int32_t schedulerInit(void);
