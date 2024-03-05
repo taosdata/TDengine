@@ -21,7 +21,7 @@ struct SFSetWriter {
 
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
-  uint8_t *bufArr[10];
+  SBuffer  buffers[10];
 
   struct {
     TABLEID tbid[1];
@@ -148,7 +148,7 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
         .compactVersion = config->compactVersion,
         .skmTb = writer[0]->skmTb,
         .skmRow = writer[0]->skmRow,
-        .bufArr = writer[0]->bufArr,
+        .buffers = writer[0]->buffers,
     };
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
       dataWriterConfig.files[ftype].exist = config->files[ftype].exist;
@@ -172,7 +172,8 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
       .level = config->level,
       .skmTb = writer[0]->skmTb,
       .skmRow = writer[0]->skmRow,
-      .bufArr = writer[0]->bufArr,
+      .buffers = writer[0]->buffers,
+
   };
   code = tsdbSttFileWriterOpen(&sttWriterConfig, &writer[0]->sttWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -208,8 +209,8 @@ int32_t tsdbFSetWriterClose(SFSetWriter **writer, bool abort, TFileOpArray *fopA
   for (int32_t i = 0; i < ARRAY_SIZE(writer[0]->blockData); i++) {
     tBlockDataDestroy(&writer[0]->blockData[i]);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(writer[0]->bufArr); i++) {
-    tFree(writer[0]->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer[0]->buffers); i++) {
+    tBufferDestroy(&writer[0]->buffers[i]);
   }
   tDestroyTSchema(writer[0]->skmRow->pTSchema);
   tDestroyTSchema(writer[0]->skmTb->pTSchema);

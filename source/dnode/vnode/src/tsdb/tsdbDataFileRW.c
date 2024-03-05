@@ -770,42 +770,37 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
 
   // write primary keys to file
   if (brinBlock->numOfPKs > 0) {
-#if 0
-    SBufferWriter            writer;
-    SValueColumnCompressInfo vcinfo = {.cmprAlg = cmprAlg};
-
-    tBufferClear(NULL);
-    tBufferWriterInit(&writer, true, 0, NULL /* TODO */);
-
-    for (int32_t i = 0; i < brinBlk.numOfPKs; i++) {
-      code = tValueColumnCompress(&brinBlock->firstKeyPKs[i], &vcinfo, NULL /* TODO */, NULL /* TODO */);
-      if (code) return code;
-
-      code = tValueColumnCompressInfoEncode(&vcinfo, &writer);
-      if (code) return code;
+    for (int i = 0; i < 2; i++) {
+      tBufferClear(&buffers[i]);
     }
 
-    for (int32_t i = 0; i < brinBlk.numOfPKs; i++) {
-      code = tValueColumnCompress(&brinBlock->lastKeyPKs[i], &vcinfo, NULL /* TODO */, NULL /* TODO */);
+    // encode
+    for (int i = 0; i < brinBlock->numOfPKs; i++) {
+      SValueColumnCompressInfo info = {
+          .cmprAlg = cmprAlg,
+      };
+      code = tValueColumnCompress(&brinBlock->firstKeyPKs[i], &info, &buffers[1], &buffers[2]);
       if (code) return code;
-
-      code = tValueColumnCompressInfoEncode(&vcinfo, &writer);
+      code = tValueColumnCompressInfoEncode(&info, &buffers[0]);
+      if (code) return code;
+    }
+    for (int i = 0; i < brinBlock->numOfPKs; i++) {
+      SValueColumnCompressInfo info = {
+          .cmprAlg = cmprAlg,
+      };
+      code = tValueColumnCompress(&brinBlock->lastKeyPKs[i], &info, &buffers[1], &buffers[2]);
+      if (code) return code;
+      code = tValueColumnCompressInfoEncode(&info, &buffers[0]);
       if (code) return code;
     }
 
     // write to file
-    // TODO
-    ASSERT(0);
-    // code = tsdbWriteFile(fd, *fileSize, NULL /* TODO */, tBufferGetSize(NULL));
-    // if (code) return code;
-    // *fileSize += tBufferGetSize(NULL);
-    // brinBlk->dp->size += tBufferGetSize(NULL);
-
-    // code = tsdbWriteFile(fd, *fileSize, NULL /* TODO */, tBufferGetSize(NULL));
-    // if (code) return code;
-    // *fileSize += tBufferGetSize(NULL);
-    // brinBlk->dp->size += tBufferGetSize(NULL);
-#endif
+    for (int i = 0; i < 2; i++) {
+      code = tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size);
+      if (code) return code;
+      brinBlk.dp->size += buffers[i].size;
+      *fileSize += buffers[i].size;
+    }
   }
 
   // append to brinBlkArray

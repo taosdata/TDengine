@@ -86,7 +86,7 @@ struct SSttFileWriterConfig {
   int32_t   level;
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **bufArr;
+  SBuffer  *buffers;
 };
 
 #ifdef __cplusplus
