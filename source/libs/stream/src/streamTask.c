@@ -412,9 +412,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->msgInfo.pData != NULL) {
-    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-    pTask->msgInfo.pData = NULL;
-    pTask->msgInfo.dispatchMsgType = 0;
+    clearBufferedDispatchMsg(pTask);
   }
 
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
@@ -764,19 +762,11 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool metaLock) {
-  if (pTask == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
     return TSDB_CODE_SUCCESS;
-  }
-
-  if (metaLock) {
-    streamMetaWLock(pMeta);
   }
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
@@ -794,10 +784,6 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
 
     streamMetaSaveTask(pMeta, *ppStreamTask);
     taosThreadMutexUnlock(&(*ppStreamTask)->lock);
-  }
-
-  if (metaLock) {
-    streamMetaWUnLock(pMeta);
   }
 
   return TSDB_CODE_SUCCESS;
