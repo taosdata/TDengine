@@ -1261,12 +1261,13 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
 
       void*    data = NULL;
       uint32_t size = 0;
-      bool     isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      uint32_t vlen = strlen(pVal->literal);
+      bool     isHexChar = isHex(pVal->literal, vlen);
       if (isHexChar) {
-        if (!isValidateHex(pVal->literal, strlen(pVal->literal))) {
+        if (!isValidateHex(pVal->literal, vlen)) {
           return TSDB_CODE_PAR_INVALID_VARBINARY;
         }
-        if (taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0) {
+        if (taosHex2Ascii(pVal->literal, vlen, &data, &size) < 0) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
       } else {

@@ -710,7 +710,6 @@ static FORCE_INLINE int32_t tGetDouble(uint8_t* p, double* d) {
 // =====================
 static FORCE_INLINE int32_t tPutBinary(uint8_t* p, uint8_t* pData, uint32_t nData) {
   int n = 0;
-
   n += tPutU32v(p ? p + n : p, nData);
   if (p) memcpy(p + n, pData, nData);
   n += nData;

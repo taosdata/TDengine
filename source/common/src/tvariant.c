@@ -98,8 +98,8 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
   if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
+    errno = EINVAL;
+    return TSDB_CODE_FAILED;
   }
 
   errno = 0;
@@ -144,8 +144,8 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   }
 
   if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
+    errno = EINVAL;
+    return TSDB_CODE_FAILED;
   }
 
   // 1. try to parse as integer
