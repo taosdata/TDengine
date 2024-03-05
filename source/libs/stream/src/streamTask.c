@@ -412,9 +412,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->msgInfo.pData != NULL) {
-    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-    pTask->msgInfo.pData = NULL;
-    pTask->msgInfo.dispatchMsgType = 0;
+    clearBufferedDispatchMsg(pTask);
   }
 
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
@@ -494,6 +492,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
       pRange->range.maxVer = ver;
       pRange->range.minVer = ver;
     } else {
+      // the initial value of processedVer/nextProcessVer/checkpointVer for stream task with related fill-history task
+      // is set at the mnode.
       if (pTask->info.fillHistory == 1) {
         pChkInfo->checkpointVer = pRange->range.maxVer;
         pChkInfo->processedVer = pRange->range.maxVer;
@@ -502,6 +502,15 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
         pChkInfo->checkpointVer = pRange->range.minVer - 1;
         pChkInfo->processedVer = pRange->range.minVer - 1;
         pChkInfo->nextProcessVer = pRange->range.minVer;
+
+        { // for compatible purpose, remove it later
+          if (pRange->range.minVer == 0) {
+            pChkInfo->checkpointVer = 0;
+            pChkInfo->processedVer = 0;
+            pChkInfo->nextProcessVer = 1;
+            stDebug("s-task:%s update the processedVer to 0 from -1 due to compatible purpose", pTask->id.idStr);
+          }
+        }
       }
     }
   }
@@ -636,8 +645,6 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
       stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpSet:%s", pTask->id.taskId,
               pDispatcher->taskId, nodeId, buf);
     }
-  } else {
-    // do nothing
   }
 }
 
@@ -755,19 +762,11 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool metaLock) {
-  if (pTask == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
     return TSDB_CODE_SUCCESS;
-  }
-
-  if (metaLock) {
-    streamMetaWLock(pMeta);
   }
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
@@ -785,10 +784,6 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
 
     streamMetaSaveTask(pMeta, *ppStreamTask);
     taosThreadMutexUnlock(&(*ppStreamTask)->lock);
-  }
-
-  if (metaLock) {
-    streamMetaWUnLock(pMeta);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -858,8 +853,8 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->chkpointTransId = pSrc->chkpointTransId;
 }
 
-void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
-  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_PAUSE);
+static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
+  SStreamMeta* pMeta = pTask->pMeta;
 
   int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
   stInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
@@ -871,24 +866,24 @@ void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
+  streamTaskHandleEventAsync(pTask->status.pSM, TASK_EVENT_PAUSE, taskPauseCallback, NULL);
 }
 
 void streamTaskResume(SStreamTask* pTask) {
   SStreamTaskState prevState = *streamTaskGetStatus(pTask);
-  SStreamMeta*     pMeta = pTask->pMeta;
 
-  if (prevState.state == TASK_STATUS__PAUSE || prevState.state == TASK_STATUS__HALT) {
-    streamTaskRestoreStatus(pTask);
-
-    char* pNew = streamTaskGetStatus(pTask)->name;
-    if (prevState.state == TASK_STATUS__PAUSE) {
-      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
-    } else {
-      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, prevState.name);
-    }
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      code = streamTaskRestoreStatus(pTask);
+  if (code == TSDB_CODE_SUCCESS) {
+    char*   pNew = streamTaskGetStatus(pTask)->name;
+    int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
+    stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
   } else {
-    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, prevState.name);
+    stInfo("s-task:%s status:%s no need to resume, paused task(s):%d", pTask->id.idStr, prevState.name, pMeta->numOfPausedTasks);
   }
 }
 
@@ -923,9 +918,8 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   }
   tEncoderClear(&encoder);
 
-  SRpcMsg msg = {.info.noResp = 1};
+  SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CHKPT, buf, tlen);
-
   stDebug("s-task:%s vgId:%d build and send task checkpoint req", id, vgId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);

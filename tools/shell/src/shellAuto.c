@@ -105,7 +105,8 @@ SWords shellCommands[] = {
     {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
-#ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE    
+    {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
 #endif
     {"describe <all_table>", 0, 0, NULL},
@@ -162,13 +163,20 @@ SWords shellCommands[] = {
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE    
+    {"show create view <all_table> \\G;", 0, 0, NULL},
+#endif
     {"show connections;", 0, 0, NULL},
+    {"show compact", 0, 0, NULL},
+    {"show compacts;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
     {"show cluster alive;", 0, 0, NULL},
+    {"show cluster machines;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
     {"show functions;", 0, 0, NULL},
+    {"show licences;", 0, 0, NULL},
     {"show mnodes;", 0, 0, NULL},
     {"show queries;", 0, 0, NULL},
     // 80
@@ -185,6 +193,7 @@ SWords shellCommands[] = {
     {"show table distributed <all_table>", 0, 0, NULL},
     {"show tags from <tb_name>", 0, 0, NULL},
     {"show tags from <db_name>", 0, 0, NULL},
+    {"show table tags from <all_table>", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
@@ -194,7 +203,10 @@ SWords shellCommands[] = {
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
+    {"show grants full;", 0, 0, NULL},
+    {"show grants logs;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
+    {"show views;", 0, 0, NULL},
     {"split vgroup <vgroup_id>", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
@@ -302,6 +314,20 @@ char* key_systable[] = {
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
 
+// global keys can tips on anywhere
+char* global_keys[] = {
+    "tbname",         
+    "now",     
+    "_wstart",      
+    "_wend",
+    "_wduration",
+    "_qstart",          
+    "_qend",
+    "_qduration",
+    "_qtag",
+    "_isfilled"
+  };
+
 //
 //  ------- global variant define ---------
 //
@@ -341,8 +367,9 @@ bool    waitAutoFill = false;
 #define WT_VAR_KEYSELECT      20
 #define WT_VAR_SYSTABLE       21
 #define WT_VAR_LANGUAGE       22
+#define WT_VAR_GLOBALKEYS     23
 
-#define WT_VAR_CNT 23
+#define WT_VAR_CNT 24
 
 
 #define WT_TEXT 0xFF
@@ -494,10 +521,12 @@ void showHelp() {
     show connections;\n\
     show cluster;\n\
     show cluster alive;\n\
+    show cluster machines;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
     show functions;\n\
+    show licences;\n\
     show mnodes;\n\
     show queries;\n\
     show query <query_id> ;\n\
@@ -513,6 +542,7 @@ void showHelp() {
     show table distributed <all_table>;\n\
     show tags from <tb_name>\n\
     show tags from <db_name>\n\
+    show table tags from <all_table>\n\
     show topics;\n\
     show transactions;\n\
     show users;\n\
@@ -522,6 +552,8 @@ void showHelp() {
     show vgroups;\n\
     show consumers;\n\
     show grants;\n\
+    show grants full;\n\
+    show grants logs;\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
@@ -534,8 +566,13 @@ void showHelp() {
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
+    crate view <view_name> as select ...\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
-    split vgroup <vgroup_id>;");
+    split vgroup <vgroup_id>;\n\
+    show compacts;\n\
+    show compact \n\
+    show views;\n\
+    show create view <all_table>;");
 #endif
 
   printf("\n\n");
@@ -699,6 +736,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
   GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
+  GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
 
   return true;
 }
@@ -1799,6 +1837,13 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
     ret = true;
     goto _return;
   }
+
+  // global keys
+  if (fillWithType(con, cmd, last, WT_VAR_GLOBALKEYS)) {
+    ret = true;
+    goto _return;
+  }
+
 
 _return:
   taosMemoryFree(ps);

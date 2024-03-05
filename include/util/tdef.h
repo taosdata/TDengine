@@ -187,6 +187,8 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
 
+#define TSDB_INT32_ID_LEN 11
+
 #define TSDB_NAME_DELIMITER_LEN 1
 
 #define TSDB_UNI_LEN  24
@@ -196,6 +198,8 @@ typedef enum ELogicConditionType {
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
+#define TSDB_NODE_ID_LEN 11
+#define TSDB_VGROUP_ID_LEN 11
 
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
@@ -547,6 +551,10 @@ enum {
 #define VNODE_TIMEOUT_SEC 60
 #define MNODE_TIMEOUT_SEC 60
 
+#define MONITOR_TABLENAME_LEN     200
+#define MONITOR_TAG_NAME_LEN      100
+#define MONITOR_TAG_VALUE_LEN     300
+#define MONITOR_METRIC_NAME_LEN   100
 #ifdef __cplusplus
 }
 #endif

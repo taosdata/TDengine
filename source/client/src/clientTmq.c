@@ -876,12 +876,13 @@ int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
   STaosQall* qall = taosAllocateQall();
   taosReadAllQitems(pTmq->delayedTask, qall);
 
-  if (qall->numOfItems == 0) {
+  int32_t numOfItems = taosQallItemSize(qall);
+  if (numOfItems == 0) {
     taosFreeQall(qall);
     return TSDB_CODE_SUCCESS;
   }
 
-  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, numOfItems);
   int8_t* pTaskType = NULL;
   taosGetQitem(qall, (void**)&pTaskType);
 
@@ -1009,19 +1010,8 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   }
   taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
-  int32_t     rsp;
-  int32_t     retryCnt = 0;
   tmq_list_t* lst = tmq_list_new();
-  while (1) {
-    rsp = tmq_subscribe(tmq, lst);
-    if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-      break;
-    } else {
-      retryCnt++;
-      taosMsleep(500);
-    }
-  }
-
+  int32_t rsp = tmq_subscribe(tmq, lst);
   tmq_list_destroy(lst);
   return rsp;
 }
@@ -1271,10 +1261,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while (syncAskEp(tmq) != 0) {
-    if (retryCnt++ > MAX_RETRY_COUNT) {
+  while ((code = syncAskEp(tmq)) != 0) {
+    if (retryCnt++ > MAX_RETRY_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes", tmq->consumerId);
-      code = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto FAIL;
     }
 
@@ -1611,17 +1600,39 @@ SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   return pRspObj;
 }
 
-SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
-  SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
-  pRspObj->resType = RES_TYPE__TMQ;
 
+void changeByteEndian(char* pData){
+  char* p = pData;
+
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  // version:
+  int32_t blockVersion = *(int32_t*)p;
+  ASSERT(blockVersion == BLOCK_VERSION_1);
+  *(int32_t*)p = BLOCK_VERSION_2;
+
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  int32_t cols = *(int32_t*)p;
+  p += sizeof(int32_t);
+  p += sizeof(int32_t);
+  p += sizeof(uint64_t);
+  // check fields
+  p += cols * (sizeof(int8_t) + sizeof(int32_t));
+
+  int32_t* colLength = (int32_t*)p;
+  for (int32_t i = 0; i < cols; ++i) {
+    colLength[i] = htonl(colLength[i]);
+  }
+}
+
+static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows, SMqRspObj* pRspObj) {
   (*numOfRows) = 0;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
 
   pRspObj->vgId = pWrapper->vgHandle->vgId;
   pRspObj->resIter = -1;
-  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqDataRsp));
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
@@ -1633,41 +1644,44 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg,
   }
   // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
-    int64_t                  rows = htobe64(pRetrieve->numOfRows);
+    void* pRetrieve = taosArrayGetP(pRspObj->rsp.blockData, i);
+    void* rawData = NULL;
+    int64_t rows = 0;
+    // deal with compatibility
+    if(*(int64_t*)pRetrieve == 0){
+      rawData = ((SRetrieveTableRsp*)pRetrieve)->data;
+      rows = htobe64(((SRetrieveTableRsp*)pRetrieve)->numOfRows);
+    }else if(*(int64_t*)pRetrieve == 1){
+      rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
+      rows = htobe64(((SRetrieveTableRspForTmq*)pRetrieve)->numOfRows);
+    }
+
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
-
-    if (needTransformSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
-      SSchemaWrapper* schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
-      if (schema) {
+    changeByteEndian(rawData);
+    if (needTransformSchema) { //withSchema is false if subscribe subquery, true if subscribe db or stable
+      SSchemaWrapper *schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
+      if(schema){
         taosArrayPush(pRspObj->rsp.blockSchema, &schema);
       }
     }
   }
+}
 
+SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
+  SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
+  pRspObj->resType = RES_TYPE__TMQ;
+  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqDataRsp));
+  tmqBuildRspFromWrapperInner(pWrapper, pVg, numOfRows, pRspObj);
   return pRspObj;
 }
 
 SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
   SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
   pRspObj->resType = RES_TYPE__TMQ_METADATA;
-  tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
-  tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
-  pRspObj->vgId = pWrapper->vgHandle->vgId;
-  pRspObj->resIter = -1;
   memcpy(&pRspObj->rsp, &pWrapper->taosxRsp, sizeof(STaosxRsp));
 
-  pRspObj->resInfo.totalRows = 0;
-  pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-
-  // extract the rows in this data packet
-  for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
-    int64_t                  rows = htobe64(pRetrieve->numOfRows);
-    pVg->numOfRows += rows;
-    (*numOfRows) += rows;
-  }
+  tmqBuildRspFromWrapperInner(pWrapper, pVg, numOfRows, (SMqRspObj*)pRspObj);
   return pRspObj;
 }
 
@@ -1814,7 +1828,7 @@ static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal
 }
 
 static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
-  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, tmq->qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQallItemSize(tmq->qall));
 
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
@@ -2122,26 +2136,19 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
     // if auto commit is set, commit before close consumer. Otherwise, do nothing.
     if (tmq->autoCommit) {
-      int32_t rsp = tmq_commit_sync(tmq, NULL);
-      if (rsp != 0) {
-        return rsp;
+      int32_t code = tmq_commit_sync(tmq, NULL);
+      if (code != 0) {
+        return code;
       }
     }
     taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
-    int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
-    while (1) {
-      int32_t rsp = tmq_subscribe(tmq, lst);
-      if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-        break;
-      } else {
-        retryCnt++;
-        taosMsleep(500);
-      }
-    }
-
+    int32_t code = tmq_subscribe(tmq, lst);
     tmq_list_destroy(lst);
+    if (code != 0) {
+      return code;
+    }
   } else {
     tscInfo("consumer:0x%" PRIx64 " not in ready state, close it directly", tmq->consumerId);
   }

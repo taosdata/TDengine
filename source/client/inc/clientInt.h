@@ -355,6 +355,7 @@ SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
 void         doDestroyRequest(void* p);
+int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -397,6 +398,8 @@ void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
+SAppInstInfo* getAppInstInfo(const char* clusterKey);
+
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
@@ -432,6 +435,21 @@ void    freeQueryParam(SSyncQueryParam* param);
 #ifdef TD_ENTERPRISE
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
+
+void clientSlowQueryMonitorInit(const char* clusterKey);
+void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
+
+void clientSQLReqMonitorInit(const char* clusterKey);
+
+enum {
+  MONITORSQLTYPESELECT = 0,
+  MONITORSQLTYPEINSERT = 1,
+  MONITORSQLTYPEDELETE = 2
+};
+
+void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
+
+void clientMonitorClose(const char* clusterKey);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "systable.h"
-#include "tgrant.h"
 
 extern SConfig *tsCfg;
 
@@ -118,11 +117,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.memTotal = tsTotalMemoryKB * 1024;
   req.memAvail = req.memTotal - tsRpcQueueMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
-  char *machine = tGetMachineId();
-  if (machine) {
-    tstrncpy(req.machineId, machine, TSDB_MACHINE_ID_LEN + 1);
-    taosMemoryFreeClear(machine);
-  }
+  tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -365,12 +360,12 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
+#if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
   }
-
+#endif
   if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;

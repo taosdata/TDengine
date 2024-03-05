@@ -289,7 +289,7 @@ int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValT
  */
 
 static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
-  pBuilder->rowType = TD_ROW_TP;  // default STpRow
+  pBuilder->rowType = pBuilder->rowType;
   pBuilder->sver = sver;
 }
 int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
@@ -331,7 +331,7 @@ void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
 bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
 bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
 
-int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t rowType);
 bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
 

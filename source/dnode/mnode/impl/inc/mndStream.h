@@ -86,6 +86,10 @@ typedef struct SOrphanTask {
   int32_t nodeId;
 } SOrphanTask;
 
+typedef struct {
+  SMsgHead head;
+} SMStreamHbRspMsg, SMStreamReqCheckpointRspMsg;
+
 int32_t     mndInitStream(SMnode *pMnode);
 void        mndCleanupStream(SMnode *pMnode);
 SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
@@ -119,6 +123,7 @@ int32_t     mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
 int32_t     mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 int32_t     mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);
 void             destroyStreamTaskIter(SStreamTaskIter *pIter);

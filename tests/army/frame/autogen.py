@@ -14,15 +14,18 @@ import time
 # Auto Gen class
 #
 class AutoGen:
-    def __init__(self, fillOne=False):
-        self.ts = 1600000000000
-        self.batch_size = 100
+    def __init__(self, startTs = 1600000000000, step = 1000, batch = 100, fillOne=False):
+        self.startTs    = startTs
+        self.ts         = startTs
+        self.step       = step
+        self.batch_size = batch
+        self.fillOne    = fillOne
         seed = time.time() % 10000
         random.seed(seed)
-        self.fillOne = fillOne
 
     # set start ts
     def set_start_ts(self, ts):
+        self.startTs = ts
         self.ts = ts
 
     # set batch size
@@ -111,9 +114,9 @@ class AutoGen:
         return ''.join(random.choice(letters) for i in range(count))
 
     # create db
-    def create_db(self, dbname, vgroups = 2, replica = 1):
+    def create_db(self, dbname, vgroups = 2, replica = 1, others=""):
         self.dbname  = dbname
-        tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
+        tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica} {others}')
         
     # create table or stable
     def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
@@ -167,12 +170,12 @@ class AutoGen:
 
     def insert_data(self, cnt, bContinue=False):
         if not bContinue:
-            self.ts = 1600000000000
+            self.ts = self.startTs
 
-        currTs = 1600000000000
+        currTs = self.startTs
         for i in range(self.child_cnt):
             name = f"{self.child_name}{i}"
-            currTs = self.insert_data_child(name, cnt, self.batch_size, 1)
+            currTs = self.insert_data_child(name, cnt, self.batch_size, self.step)
 
         self.ts = currTs
         tdLog.info(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")

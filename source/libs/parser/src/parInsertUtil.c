@@ -720,7 +720,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         goto end;
       }
       fields += sizeof(int8_t) + sizeof(int32_t);
-      if (needChangeLength && version == 1) {
+      if (needChangeLength && version == BLOCK_VERSION_1) {
         pStart += htonl(colLength[j]);
       } else {
         pStart += colLength[j];
@@ -751,7 +751,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             goto end;
           }
           fields += sizeof(int8_t) + sizeof(int32_t);
-          if (needChangeLength && version == 1) {
+          if (needChangeLength && version == BLOCK_VERSION_1) {
             pStart += htonl(colLength[i]);
           } else {
             pStart += colLength[i];
