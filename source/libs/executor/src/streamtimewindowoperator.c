@@ -2590,6 +2590,7 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   if (!pInfo) {
     return buf;
   }
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
   // 5.checksum
   if (isParent) {
@@ -2608,6 +2609,8 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
     SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
     buf = decodeSSessionKey(buf, &key);
+    pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &winfo.sessionWin, pAggSup->gap,
+                                                        (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
@@ -3537,6 +3540,7 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
   if (!pInfo) {
     return buf;
   }
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
   // 5.checksum
   if (isParent) {
@@ -3555,6 +3559,9 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
     SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
     buf = decodeSSessionKey(buf, &key);
+    pAggSup->stateStore.streamStateStateAddIfNotExist(pAggSup->pState, &winfo.sessionWin, NULL,
+                                                      pAggSup->stateKeySize, compareStateKey,
+                                                      (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }

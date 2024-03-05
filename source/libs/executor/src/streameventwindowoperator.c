@@ -406,6 +406,7 @@ void* doStreamEventDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
   if (!pInfo) {
     return buf;
   }
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
   // 4.checksum
   int32_t dataLen = len - sizeof(uint32_t);
@@ -423,6 +424,8 @@ void* doStreamEventDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
     SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
     buf = decodeSSessionKey(buf, &key);
+    pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &winfo.sessionWin, pAggSup->gap,
+                                                        (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
