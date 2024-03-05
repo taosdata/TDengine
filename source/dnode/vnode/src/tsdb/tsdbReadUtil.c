@@ -14,7 +14,6 @@
  */
 
 #include "tsdbReadUtil.h"
-#include "osDef.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
@@ -529,7 +528,7 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
     pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
   }
 
-  for (int32_t k = 0; k < TARRAY2_SIZE(pBlock->suid); ++k) {
+  for (int32_t k = 0; k < pBlock->numOfRecords; ++k) {
     code = tTombBlockGet(pBlock, k, &record);
     if (code != TSDB_CODE_SUCCESS) {
       *pRet = BLK_CHECK_QUIT;

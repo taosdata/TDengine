@@ -2175,7 +2175,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
 
     STombRecord record = {0};
     bool        finished = false;
-    for (int32_t k = 0; k < TARRAY2_SIZE(block.suid); ++k) {
+    for (int32_t k = 0; k < TOMB_BLOCK_SIZE(&block); ++k) {
       code = tTombBlockGet(&block, k, &record);
       if (code != TSDB_CODE_SUCCESS) {
         finished = true;

@@ -238,6 +238,12 @@ int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
     // if the number of primary keys are not the same,
     // return an error code and the caller should handle it
     return TSDB_CODE_INVALID_PARA;
+  } else {
+    for (int i = 0; i < brinBlock->numOfPKs; i++) {
+      if (record->firstKey.key.pks[i].type != brinBlock->firstKeyPKs[i].type) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
   }
 
   code = tBufferPutI64(&brinBlock->suids, record->suid);
@@ -386,89 +392,6 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
 
   return 0;
 }
-
-// int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buffer) {
-//   int32_t  code;
-//   SBuffer *helperBuffer = NULL;  // TODO
-
-//   brinBlk->dp[0].size = 0;
-//   brinBlk->numRec = brinBlock->numOfRecords;
-//   brinBlk->numOfPKs = brinBlock->numOfPKs;
-
-//   // minTbid
-//   code = tBufferGet(&brinBlock->suids, 0, sizeof(brinBlk->minTbid.suid), &brinBlk->minTbid.suid);
-//   if (code) return code;
-//   code = tBufferGet(&brinBlock->uids, 0, sizeof(brinBlk->minTbid.uid), &brinBlk->minTbid.uid);
-//   if (code) return code;
-//   // maxTbid
-//   code =
-//       tBufferGet(&brinBlock->suids, brinBlock->numOfRecords - 1, sizeof(brinBlk->maxTbid.suid),
-//       &brinBlk->maxTbid.suid);
-//   if (code) return code;
-//   code = tBufferGet(&brinBlock->uids, brinBlock->numOfRecords - 1, sizeof(brinBlk->maxTbid.uid),
-//   &brinBlk->maxTbid.uid); if (code) return code;
-//   // minVer and maxVer
-//   const int64_t *minVers = (int64_t *)tBufferGetData(&brinBlock->minVers);
-//   const int64_t *maxVers = (int64_t *)tBufferGetData(&brinBlock->maxVers);
-//   brinBlk->minVer = minVers[0];
-//   brinBlk->maxVer = maxVers[0];
-//   for (int32_t i = 1; i < brinBlock->numOfRecords; ++i) {
-//     if (minVers[i] < brinBlk->minVer) brinBlk->minVer = minVers[i];
-//     if (maxVers[i] > brinBlk->maxVer) brinBlk->maxVer = maxVers[i];
-//   }
-
-//   // compress data
-//   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-//     SBuffer      *bf = &brinBlock->buffers[i];
-//     SCompressInfo info = {
-//         .cmprAlg = brinBlk->cmprAlg,
-//     };
-
-//     if (tBufferGetSize(bf) == 8 * brinBlock->numOfRecords) {
-//       info.dataType = TSDB_DATA_TYPE_BIGINT;
-//     } else if (tBufferGetSize(bf) == 4 * brinBlock->numOfRecords) {
-//       info.dataType = TSDB_DATA_TYPE_INT;
-//     } else {
-//       ASSERT(0);
-//     }
-
-//     code = tCompressDataToBuffer(tBufferGetData(bf), tBufferGetSize(bf), &info, buffer, helperBuffer);
-//     if (code) return code;
-//     brinBlk->size[i] = info.compressedSize;
-//     brinBlk->dp[0].size += info.compressedSize;
-//   }
-
-//   // encode primary keys
-//   SValueColumnCompressInfo firstKeyPKsInfos[TD_MAX_PK_COLS];
-//   SValueColumnCompressInfo lastKeyPKsInfos[TD_MAX_PK_COLS];
-
-//   for (int32_t i = 0; i < brinBlk->numOfPKs; ++i) {
-//     SValueColumn *vc = &brinBlock->firstKeyPKs[i];
-//     firstKeyPKsInfos[i].cmprAlg = brinBlk->cmprAlg;
-//     code = tValueColumnCompress(vc, &firstKeyPKsInfos[i], buffer, helperBuffer);
-//     if (code) return code;
-//   }
-
-//   for (int32_t i = 0; i < brinBlk->numOfPKs; ++i) {
-//     SValueColumn *vc = &brinBlock->lastKeyPKs[i];
-//     lastKeyPKsInfos[i].cmprAlg = brinBlk->cmprAlg;
-//     code = tValueColumnCompress(vc, &lastKeyPKsInfos[i], buffer, helperBuffer);
-//     if (code) return code;
-//   }
-
-//   return 0;
-// }
-
-// int32_t tBrinBlockDecode(const SBuffer *buffer, SBrinBlk *brinBlk, SBrinBlock *brinBlock) {
-// if (brinBlk->fmtVersion == 0) {
-//   return tBrinBlockDecodeVersion0(buffer, brinBlk, brinBlock);
-// } else if (brinBlk->fmtVersion == 1) {
-//   return tBrinBlockDecodeVersion1(buffer, brinBlk, brinBlock);
-// } else {
-//   ASSERT(0);
-// }
-//   return 0;
-// }
 
 // other apis ----------
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb) {

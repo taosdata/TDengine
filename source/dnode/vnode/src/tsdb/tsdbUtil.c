@@ -380,47 +380,44 @@ int32_t tGetSttBlk(uint8_t *p, void *ph) {
 }
 
 // SBlockCol ======================================================
-int32_t tPutBlockCol(uint8_t *p, void *ph) {
-  int32_t    n = 0;
-  SBlockCol *pBlockCol = (SBlockCol *)ph;
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol) {
+  int32_t code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
-  n += tPutI16v(p ? p + n : p, pBlockCol->cid);
-  n += tPutI8(p ? p + n : p, pBlockCol->type);
-  n += tPutI8(p ? p + n : p, pBlockCol->cflag);
-  n += tPutI8(p ? p + n : p, pBlockCol->flag);
-  n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
+  if ((code = tBufferPutI16v(buffer, pBlockCol->cid))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->type))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->cflag))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->flag))) return code;
+  if ((code = tBufferPutI32v(buffer, pBlockCol->szOrigin))) return code;
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szBitmap))) return code;
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szOffset);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szOffset))) return code;
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szValue);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szValue))) return code;
     }
 
-    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
+    if ((code = tBufferPutI32v(buffer, pBlockCol->offset))) return code;
   }
 
-_exit:
-  return n;
+  return 0;
 }
 
-int32_t tGetBlockCol(uint8_t *p, void *ph) {
-  int32_t    n = 0;
-  SBlockCol *pBlockCol = (SBlockCol *)ph;
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol) {
+  int32_t code;
 
-  n += tGetI16v(p + n, &pBlockCol->cid);
-  n += tGetI8(p + n, &pBlockCol->type);
-  n += tGetI8(p + n, &pBlockCol->cflag);
-  n += tGetI8(p + n, &pBlockCol->flag);
-  n += tGetI32v(p + n, &pBlockCol->szOrigin);
+  if ((code = tBufferGetI16v(br, &pBlockCol->cid))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->type))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->cflag))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->flag))) return code;
+  if ((code = tBufferGetI32v(br, &pBlockCol->szOrigin))) return code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
@@ -431,21 +428,21 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tGetI32v(p + n, &pBlockCol->szBitmap);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szBitmap))) return code;
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tGetI32v(p + n, &pBlockCol->szOffset);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szOffset))) return code;
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tGetI32v(p + n, &pBlockCol->szValue);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szValue))) return code;
     }
 
-    n += tGetI32v(p + n, &pBlockCol->offset);
+    if ((code = tBufferGetI32v(br, &pBlockCol->offset))) return code;
   }
 
-  return n;
+  return 0;
 }
 
 #ifdef BUILD_NO_CALL
@@ -1381,6 +1378,7 @@ SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
   return NULL;
 }
 
+#if 0
 int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
                        int32_t aBufSize[]) {
   int32_t      code = 0;
@@ -1590,15 +1588,148 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
 _exit:
   return code;
 }
+#endif
 
-int32_t tBlockDataCompress(SBlockData *bData, SBuffer *buffer, SBuffer *assist) {
-  int32_t      code = 0;
-  SDiskDataHdr hdr = {0};
+static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SCompressInfo cinfo;
 
-  // SDiskDataHdr
-  // br->offset += tGetDiskDataHdr((uint8_t *)tBufferGetDataAt(br->buffer, br->offset), &hdr);
+  // uid
+  if (bData->uid == 0) {
+    cinfo = (SCompressInfo){
+        .cmprAlg = hdr->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .originalSize = sizeof(int64_t) * bData->nRow,
+    };
+    code = tCompressDataToBuffer(bData->aUid, cinfo.originalSize, &cinfo, buffer, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    hdr->szUid = cinfo.compressedSize;
+  }
 
-  tBlockDataReset(bData);
+  // version
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_BIGINT,
+      .originalSize = sizeof(int64_t) * bData->nRow,
+  };
+  code = tCompressDataToBuffer((uint8_t *)bData->aVersion, cinfo.originalSize, &cinfo, buffer, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  hdr->szVer = cinfo.compressedSize;
+
+  // ts
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_TIMESTAMP,
+      .originalSize = sizeof(TSKEY) * bData->nRow,
+  };
+  code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, cinfo.originalSize, &cinfo, buffer, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  hdr->szKey = cinfo.compressedSize;
+
+  // primary keys
+  for (hdr->numOfPKs = 0; hdr->numOfPKs < bData->nColData; hdr->numOfPKs++) {
+    ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
+
+    SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
+    SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
+
+    if ((colData->cflag & COL_IS_KEY) == 0) {
+      break;
+    }
+
+    SColDataCompressInfo info = {
+        .cmprAlg = hdr->cmprAlg,
+    };
+    code = tColDataCompress(colData, &info, buffer, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    *blockCol = (SBlockCol){
+        .cid = info.columnId,
+        .type = info.dataType,
+        .cflag = info.columnFlag,
+        .flag = info.flag,
+        .szOrigin = info.dataOriginalSize,
+        .szBitmap = info.bitmapCompressedSize,
+        .szOffset = info.offsetCompressedSize,
+        .szValue = info.dataCompressedSize,
+        .offset = 0,
+    };
+  }
+
+_exit:
+  return code;
+}
+
+/* buffers[0]: SDiskDataHdr
+ * buffers[1]: key part: uid + version + ts + primary keys
+ * buffers[2]: SBlockCol part
+ * buffers[3]: regular column part
+ */
+int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, SBuffer *assist) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SDiskDataHdr hdr = {
+      .delimiter = TSDB_FILE_DLMT,
+      .fmtVer = 1,
+      .suid = bData->suid,
+      .uid = bData->uid,
+      .szUid = 0,     // filled by compress key
+      .szVer = 0,     // filled by compress key
+      .szKey = 0,     // filled by compress key
+      .szBlkCol = 0,  // filled by this func
+      .nRow = bData->nRow,
+      .cmprAlg = cmprAlg,
+      .numOfPKs = 0,  // filled by compress key
+  };
+
+  // Key part
+  tBufferClear(&buffers[1]);
+  code = tBlockDataCompressKeyPart(bData, &hdr, &buffers[1], assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Regulart column part
+  tBufferClear(&buffers[2]);
+  tBufferClear(&buffers[3]);
+  for (int i = 0; i < bData->nColData; i++) {
+    SColData *colData = tBlockDataGetColDataByIdx(bData, i);
+
+    if (colData->cflag & COL_IS_KEY) {
+      continue;
+    }
+    if (colData->flag == HAS_NONE) {
+      continue;
+    }
+
+    SColDataCompressInfo cinfo = {
+        .cmprAlg = cmprAlg,
+    };
+    int32_t offset = buffers[3].size;
+    code = tColDataCompress(colData, &cinfo, &buffers[3], assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    SBlockCol blockCol = (SBlockCol){
+        .cid = cinfo.columnId,
+        .type = cinfo.dataType,
+        .cflag = cinfo.columnFlag,
+        .flag = cinfo.flag,
+        .szOrigin = cinfo.dataOriginalSize,
+        .szBitmap = cinfo.bitmapCompressedSize,
+        .szOffset = cinfo.offsetCompressedSize,
+        .szValue = cinfo.dataCompressedSize,
+        .offset = offset,
+    };
+
+    code = tPutBlockCol(&buffers[2], &blockCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  hdr.szBlkCol = buffers[2].size;
+
+  // SDiskDataHdr part
+  tBufferClear(&buffers[0]);
+  code = tPutDiskDataHdr(&buffers[0], &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   return code;
@@ -1700,18 +1831,14 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
   br->offset += cinfo.compressedSize;
 
   // primary keys
-  if (hdr->numOfPKs > 0) {
-    SBlockCol blockCol;
+  for (int i = 0; i < hdr->numOfPKs; i++) {
+    const SBlockCol *blockCol = &hdr->primaryBlockCols[i];
 
-    for (int i = 0; i < hdr->numOfPKs; i++) {
-      br->offset += tGetBlockCol((uint8_t *)BR_PTR(br), &blockCol);
+    ASSERT(blockCol->flag == HAS_VALUE);
+    ASSERT(blockCol->cflag & COL_IS_KEY);
 
-      ASSERT(blockCol.flag == HAS_VALUE);
-      ASSERT(blockCol.cflag & COL_IS_KEY);
-
-      code = tBlockDataDecompressColData(hdr, &blockCol, br, blockData, assist);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    code = tBlockDataDecompressColData(hdr, blockCol, br, blockData, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -1725,7 +1852,8 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
   SCompressInfo cinfo;
 
   // SDiskDataHdr
-  br->offset += tGetDiskDataHdr((uint8_t *)BR_PTR(br), &hdr);
+  code = tGetDiskDataHdr(br, &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   tBlockDataReset(blockData);
   blockData->suid = hdr.suid;
@@ -1737,15 +1865,13 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // Column part
-  uint8_t *decodePtr = (uint8_t *)BR_PTR(br);
-  int32_t  totalSize = 0;
+  SBufferReader br2 = *br;
   br->offset += hdr.szBlkCol;
-  while (totalSize < hdr.szBlkCol) {
+  for (uint32_t startOffset = br2.offset; br2.offset - startOffset < hdr.szBlkCol;) {
     SBlockCol blockCol;
-    int32_t   size = tGetBlockCol(decodePtr, &blockCol);
-    decodePtr += size;
-    totalSize += size;
 
+    code = tGetBlockCol(&br2, &blockCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
     code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1755,72 +1881,77 @@ _exit:
 }
 
 // SDiskDataHdr ==============================
-int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
-  int32_t n = 0;
+int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr) {
+  int32_t code;
 
-  n += tPutU32(p ? p + n : p, pHdr->delimiter);
-  n += tPutU32v(p ? p + n : p, pHdr->fmtVer);
-  n += tPutI64(p ? p + n : p, pHdr->suid);
-  n += tPutI64(p ? p + n : p, pHdr->uid);
-  n += tPutI32v(p ? p + n : p, pHdr->szUid);
-  n += tPutI32v(p ? p + n : p, pHdr->szVer);
-  n += tPutI32v(p ? p + n : p, pHdr->szKey);
-  n += tPutI32v(p ? p + n : p, pHdr->szBlkCol);
-  n += tPutI32v(p ? p + n : p, pHdr->nRow);
-  n += tPutI8(p ? p + n : p, pHdr->cmprAlg);
+  if ((code = tBufferPutU32(buffer, pHdr->delimiter))) return code;
+  if ((code = tBufferPutU32v(buffer, pHdr->fmtVer))) return code;
+  if ((code = tBufferPutI64(buffer, pHdr->suid))) return code;
+  if ((code = tBufferPutI64(buffer, pHdr->uid))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szUid))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szVer))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szKey))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szBlkCol))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->nRow))) return code;
+  if ((code = tBufferPutI8(buffer, pHdr->cmprAlg))) return code;
   if (pHdr->fmtVer == 1) {
-    n += tPutI8(p ? p + n : p, pHdr->numOfPKs);
+    if ((code = tBufferPutI8(buffer, pHdr->numOfPKs))) return code;
+    for (int i = 0; i < pHdr->numOfPKs; i++) {
+      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i]))) return code;
+    }
   }
 
-  return n;
+  return 0;
 }
 
-int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
-  int32_t       n = 0;
-  SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
+int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
+  int32_t code;
 
-  n += tGetU32(p + n, &pHdr->delimiter);
-  n += tGetU32v(p + n, &pHdr->fmtVer);
-  n += tGetI64(p + n, &pHdr->suid);
-  n += tGetI64(p + n, &pHdr->uid);
-  n += tGetI32v(p + n, &pHdr->szUid);
-  n += tGetI32v(p + n, &pHdr->szVer);
-  n += tGetI32v(p + n, &pHdr->szKey);
-  n += tGetI32v(p + n, &pHdr->szBlkCol);
-  n += tGetI32v(p + n, &pHdr->nRow);
-  n += tGetI8(p + n, &pHdr->cmprAlg);
+  if ((code = tBufferGetU32(br, &pHdr->delimiter))) return code;
+  if ((code = tBufferGetU32v(br, &pHdr->fmtVer))) return code;
+  if ((code = tBufferGetI64(br, &pHdr->suid))) return code;
+  if ((code = tBufferGetI64(br, &pHdr->uid))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szUid))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szVer))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szKey))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szBlkCol))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->nRow))) return code;
+  if ((code = tBufferGetI8(br, &pHdr->cmprAlg))) return code;
   if (pHdr->fmtVer == 1) {
-    n += tGetI8(p + n, &pHdr->numOfPKs);
+    if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
+    for (int i = 0; i < pHdr->numOfPKs; i++) {
+      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i]))) return code;
+    }
   } else {
     pHdr->numOfPKs = 0;
   }
 
-  return n;
+  return 0;
 }
 
 // ALGORITHM ==============================
-int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
-  int32_t n = 0;
+int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
+  int32_t code;
 
-  n += tPutI16v(p ? p + n : p, pColAgg->colId);
-  n += tPutI16v(p ? p + n : p, pColAgg->numOfNull);
-  n += tPutI64(p ? p + n : p, pColAgg->sum);
-  n += tPutI64(p ? p + n : p, pColAgg->max);
-  n += tPutI64(p ? p + n : p, pColAgg->min);
+  if ((code = tBufferPutI16v(buffer, pColAgg->colId))) return code;
+  if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
 
-  return n;
+  return 0;
 }
 
-int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
-  int32_t n = 0;
+int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
+  int32_t code;
 
-  n += tGetI16v(p + n, &pColAgg->colId);
-  n += tGetI16v(p + n, &pColAgg->numOfNull);
-  n += tGetI64(p + n, &pColAgg->sum);
-  n += tGetI64(p + n, &pColAgg->max);
-  n += tGetI64(p + n, &pColAgg->min);
+  if ((code = tBufferGetI16v(br, &pColAgg->colId))) return code;
+  if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
 
-  return n;
+  return 0;
 }
 
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,

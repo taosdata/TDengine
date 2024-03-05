@@ -449,12 +449,12 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
 
   struct {
     // context
-    bool     toStt;
-    int8_t   cmprAlg;
-    int32_t  maxRow;
-    int64_t  minKey;
-    int64_t  maxKey;
-    uint8_t *bufArr[8];
+    bool    toStt;
+    int8_t  cmprAlg;
+    int32_t maxRow;
+    int64_t minKey;
+    int64_t maxKey;
+    SBuffer buffers[8];
     // reader
     SArray *aDelData;
     // writer
@@ -503,7 +503,7 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
         }
         SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
         code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                      ctx->bufArr, &tombRange);
+                                      ctx->buffers, &tombRange);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -516,7 +516,7 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
     }
     SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
     code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                  ctx->bufArr, &tombRange);
+                                  ctx->buffers, &tombRange);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -545,8 +545,8 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(ctx->bufArr); i++) {
-    tFree(ctx->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
+    tBufferDestroy(ctx->buffers + i);
   }
   TARRAY2_DESTROY(ctx->tombBlkArray, NULL);
   tTombBlockDestroy(ctx->tombBlock);

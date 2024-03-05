@@ -183,8 +183,6 @@ int32_t tBrinBlockDestroy(SBrinBlock *brinBlock);
 int32_t tBrinBlockClear(SBrinBlock *brinBlock);
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record);
 int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record);
-// int32_t tBrinBlockEncode(SBrinBlock *brinBlock, SBrinBlk *brinBlk, SBuffer *buffer);
-// int32_t tBrinBlockDecode(const SBuffer *buffer, SBrinBlk *brinBlk, SBrinBlock *brinBlock);
 
 // other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);

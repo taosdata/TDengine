@@ -326,7 +326,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
   // SDiskDataHdr
   SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
-  br.offset += tGetDiskDataHdr((uint8_t *)BR_PTR(&br), &hdr);
+  code = tGetDiskDataHdr(&br, &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   tBlockDataReset(bData);
   bData->suid = hdr.suid;
@@ -368,7 +369,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
         break;
       }
 
-      br.offset += tGetBlockCol((uint8_t *)BR_PTR(&br), &blockCol);
+      code = tGetBlockCol(&br, &blockCol);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (cid < blockCol.cid) {
@@ -412,7 +414,8 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
     while (br.offset < record->smaSize) {
       SColumnDataAgg sma[1];
 
-      br.offset += tGetColumnDataAgg((uint8_t *)BR_PTR(&br), sma);
+      code = tGetColumnDataAgg(&br, sma);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND_PTR(columnDataAggArray, sma);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -705,32 +708,35 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
   int32_t code;
 
   SBrinBlk brinBlk = {
+      .dp[0] =
+          {
+              .offset = *fileSize,
+              .size = 0,
+          },
       .numRec = brinBlock->numOfRecords,
       .numOfPKs = brinBlock->numOfPKs,
       .cmprAlg = cmprAlg,
   };
+  for (int i = 0; i < brinBlock->numOfRecords; i++) {
+    SBrinRecord record;
 
-  brinBlk.dp->offset = *fileSize;
-  brinBlk.dp->size = 0;
-
-  // minTbid
-  code = tBufferGet(&brinBlock->suids, 0, sizeof(int64_t), &brinBlk.minTbid.suid);
-  if (code) return code;
-  code = tBufferGet(&brinBlock->uids, 0, sizeof(int64_t), &brinBlk.minTbid.uid);
-  if (code) return code;
-  // maxTbid
-  code = tBufferGet(&brinBlock->suids, brinBlock->numOfRecords - 1, sizeof(int64_t), &brinBlk.maxTbid.suid);
-  if (code) return code;
-  code = tBufferGet(&brinBlock->uids, brinBlock->numOfRecords - 1, sizeof(int64_t), &brinBlk.maxTbid.uid);
-  if (code) return code;
-  // minVer and maxVer
-  const int64_t *minVers = (int64_t *)tBufferGetData(&brinBlock->minVers);
-  const int64_t *maxVers = (int64_t *)tBufferGetData(&brinBlock->maxVers);
-  brinBlk.minVer = minVers[0];
-  brinBlk.maxVer = maxVers[0];
-  for (int32_t i = 1; i < brinBlock->numOfRecords; i++) {
-    brinBlk.minVer = TMIN(brinBlk.minVer, minVers[i]);
-    brinBlk.maxVer = TMAX(brinBlk.maxVer, maxVers[i]);
+    tBrinBlockGet(brinBlock, i, &record);
+    if (i == 0) {
+      brinBlk.minTbid.suid = record.suid;
+      brinBlk.minTbid.uid = record.uid;
+      brinBlk.minVer = record.minVer;
+      brinBlk.maxVer = record.maxVer;
+    }
+    if (i == brinBlock->numOfRecords - 1) {
+      brinBlk.maxTbid.suid = record.suid;
+      brinBlk.maxTbid.uid = record.uid;
+    }
+    if (record.minVer < brinBlk.minVer) {
+      brinBlk.minVer = record.minVer;
+    }
+    if (record.maxVer > brinBlk.maxVer) {
+      brinBlk.maxVer = record.maxVer;
+    }
   }
 
   tsdbWriterUpdVerRange(range, brinBlk.minVer, brinBlk.maxVer);
@@ -764,6 +770,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
 
   // write primary keys to file
   if (brinBlock->numOfPKs > 0) {
+#if 0
     SBufferWriter            writer;
     SValueColumnCompressInfo vcinfo = {.cmprAlg = cmprAlg};
 
@@ -798,7 +805,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     // if (code) return code;
     // *fileSize += tBufferGetSize(NULL);
     // brinBlk->dp->size += tBufferGetSize(NULL);
-    tBufferWriterDestroy(writer);
+#endif
   }
 
   // append to brinBlkArray
@@ -832,8 +839,18 @@ static int32_t tsdbDataFileWriteBrinRecord(SDataFileWriter *writer, const SBrinR
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tBrinBlockPut(writer->brinBlock, record);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  for (;;) {
+    code = tBrinBlockPut(writer->brinBlock, record);
+    if (code == TSDB_CODE_INVALID_PARA) {
+      // different records with different primary keys
+      code = tsdbDataFileWriteBrinBlock(writer);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      continue;
+    } else {
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    break;
+  }
 
   if ((writer->brinBlock->numOfRecords) >= writer->config->maxRow) {
     code = tsdbDataFileWriteBrinBlock(writer);
@@ -873,7 +890,7 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   tsdbRowGetKey(&tsdbRowFromBlockData(bData, bData->nRow - 1), &record->lastKey);
 
   for (int32_t i = 1; i < bData->nRow; ++i) {
-    if (bData->aTSKEY[i] != bData->aTSKEY[i - 1]) {
+    if (tsdbRowCmprFn(&tsdbRowFromBlockData(bData, i - 1), &tsdbRowFromBlockData(bData, i)) != 0) {
       record->count++;
     }
     if (bData->aVersion[i] < record->minVer) {
@@ -887,24 +904,21 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   tsdbWriterUpdVerRange(&writer->ctx->range, record->minVer, record->maxVer);
 
   // to .data file
-  int32_t sizeArr[5] = {0};
-
-  code = tCmprBlockData(bData, writer->config->cmprAlg, NULL, NULL, writer->config->bufArr, sizeArr);
+  code = tBlockDataCompress(bData, writer->config->cmprAlg, writer->buffers, &writer->buffers[4]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  record->blockKeySize = sizeArr[3] + sizeArr[2];
-  record->blockSize = sizeArr[0] + sizeArr[1] + record->blockKeySize;
+  record->blockKeySize = writer->buffers[0].size + writer->buffers[1].size;
+  record->blockSize = record->blockKeySize + writer->buffers[2].size + writer->buffers[3].size;
 
-  for (int32_t i = 3; i >= 0; --i) {
-    if (sizeArr[i]) {
-      code = tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, writer->config->bufArr[i],
-                           sizeArr[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
-      writer->files[TSDB_FTYPE_DATA].size += sizeArr[i];
-    }
+  for (int i = 0; i < 4; i++) {
+    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, writer->buffers[i].data,
+                         tBufferGetSize(&writer->buffers[i]));
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->files[TSDB_FTYPE_DATA].size += tBufferGetSize(&writer->buffers[i]);
   }
 
   // to .sma file
+  tBufferClear(&writer->buffers[0]);
   for (int32_t i = 0; i < bData->nColData; ++i) {
     SColData *colData = bData->aColData + i;
     if ((colData->cflag & COL_SMA_ON) == 0 || ((colData->flag & HAS_VALUE) == 0)) continue;
@@ -912,17 +926,13 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
     SColumnDataAgg sma[1] = {{.colId = colData->cid}};
     tColDataCalcSMA[colData->type](colData, &sma->sum, &sma->max, &sma->min, &sma->numOfNull);
 
-    int32_t size = tPutColumnDataAgg(NULL, sma);
-
-    code = tRealloc(&writer->config->bufArr[0], record->smaSize + size);
+    code = tPutColumnDataAgg(&writer->buffers[0], sma);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    tPutColumnDataAgg(writer->config->bufArr[0] + record->smaSize, sma);
-    record->smaSize += size;
   }
+  record->smaSize = tBufferGetSize(&writer->buffers[0]);
 
   if (record->smaSize > 0) {
-    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, writer->config->bufArr[0], record->smaSize);
+    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, writer->buffers[0].data, record->smaSize);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[TSDB_FTYPE_SMA].size += record->smaSize;
   }
@@ -973,7 +983,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbRowKeyCmprNullAsLargest(const STsdbRowKey *key1, const STsdbRowKey *key2) {
+static FORCE_INLINE int32_t tsdbRowKeyCmprNullAsLargest(const STsdbRowKey *key1, const STsdbRowKey *key2) {
   if (key1 == NULL) {
     return 1;
   } else if (key2 == NULL) {
@@ -1100,7 +1110,7 @@ static int32_t tsdbDataFileWriteTableDataEnd(SDataFileWriter *writer) {
   int32_t lino = 0;
 
   if (writer->ctx->tbHasOldData) {
-    code = tsdbDataFileDoWriteTableOldData(writer, NULL /* as largest key */);
+    code = tsdbDataFileDoWriteTableOldData(writer, NULL /* as the largest key */);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     ASSERT(writer->ctx->tbHasOldData == false);
@@ -1198,11 +1208,12 @@ int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFoote
 }
 
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range) {
+                               TTombBlkArray *tombBlkArray, SBuffer *buffers, SVersionRange *range) {
   int32_t code;
 
   if (TOMB_BLOCK_SIZE(tombBlock) == 0) return 0;
 
+#if 0
   STombBlk tombBlk[1] = {{
       .dp[0] =
           {
@@ -1224,31 +1235,60 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
       .numRec = TOMB_BLOCK_SIZE(tombBlock),
       .cmprAlg = cmprAlg,
   }};
+#endif
+  STombBlk tombBlk = {
+      .dp[0] =
+          {
+              .offset = *fileSize,
+              .size = 0,
+          },
+      .numRec = TOMB_BLOCK_SIZE(tombBlock),
+      .cmprAlg = cmprAlg,
+  };
+  for (int i = 0; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
+    STombRecord record;
+    tTombBlockGet(tombBlock, i, &record);
 
-  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
-    if (tombBlk->minVer > TARRAY2_GET(tombBlock->version, i)) {
-      tombBlk->minVer = TARRAY2_GET(tombBlock->version, i);
+    if (i == 0) {
+      tombBlk.minTbid.suid = record.suid;
+      tombBlk.minTbid.uid = record.uid;
+      tombBlk.minVer = record.version;
+      tombBlk.maxVer = record.version;
     }
-    if (tombBlk->maxVer < TARRAY2_GET(tombBlock->version, i)) {
-      tombBlk->maxVer = TARRAY2_GET(tombBlock->version, i);
+    if (i == TOMB_BLOCK_SIZE(tombBlock) - 1) {
+      tombBlk.maxTbid.suid = record.suid;
+      tombBlk.maxTbid.uid = record.uid;
+    }
+    if (record.version < tombBlk.minVer) {
+      tombBlk.minVer = record.version;
+    }
+    if (record.version > tombBlk.maxVer) {
+      tombBlk.maxVer = record.version;
     }
   }
 
-  tsdbWriterUpdVerRange(range, tombBlk->minVer, tombBlk->maxVer);
+  tsdbWriterUpdVerRange(range, tombBlk.minVer, tombBlk.maxVer);
 
-  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->dataArr); i++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&tombBlock->dataArr[i]), TARRAY2_DATA_LEN(&tombBlock->dataArr[i]),
-                        TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg, &bufArr[0], 0, &tombBlk->size[i], &bufArr[1]);
+  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->buffers); i++) {
+    tBufferClear(&buffers[0]);
+
+    SCompressInfo cinfo = {
+        .cmprAlg = cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .originalSize = tombBlock->buffers[i].size,
+    };
+    code = tCompressDataToBuffer(tombBlock->buffers[i].data, cinfo.originalSize, &cinfo, &buffers[0], &buffers[1]);
     if (code) return code;
 
-    code = tsdbWriteFile(fd, *fileSize, bufArr[0], tombBlk->size[i]);
+    code = tsdbWriteFile(fd, *fileSize, buffers[0].data, buffers[0].size);
     if (code) return code;
 
-    tombBlk->dp->size += tombBlk->size[i];
-    *fileSize += tombBlk->size[i];
+    tombBlk.size[i] = cinfo.compressedSize;
+    tombBlk.dp->size += tombBlk.size[i];
+    *fileSize += tombBlk.size[i];
   }
 
-  code = TARRAY2_APPEND_PTR(tombBlkArray, tombBlk);
+  code = TARRAY2_APPEND_PTR(tombBlkArray, &tombBlk);
   if (code) return code;
 
   tTombBlockClear(tombBlock);
@@ -1276,7 +1316,7 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
   int32_t lino = 0;
 
   code = tsdbFileWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
-                                &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr,
+                                &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->buffers,
                                 &writer->ctx->tombRange);
   TSDB_CHECK_CODE(code, lino, _exit);
 

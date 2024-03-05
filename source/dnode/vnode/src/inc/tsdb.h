@@ -142,8 +142,8 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 #define MIN_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) < 0) ? (KEY1) : (KEY2))
 #define MAX_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) > 0) ? (KEY1) : (KEY2))
 // SBlockCol
-int32_t tPutBlockCol(uint8_t *p, void *ph);
-int32_t tGetBlockCol(uint8_t *p, void *ph);
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol);
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
 // SDataBlk
 void    tDataBlkReset(SDataBlk *pBlock);
@@ -175,15 +175,14 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid);
 int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
 void    tBlockDataClear(SBlockData *pBlockData);
-int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
-                       int32_t aBufN[]);
-int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
+int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, SBuffer *assist);
+int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist);
 
 SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid);
 int32_t   tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData);
 // SDiskDataHdr
-int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr);
-int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
+int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr);
+int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -209,8 +208,8 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
-int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
-int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
+int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg);
+int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg);
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
                      int32_t *szOut, uint8_t **ppBuf);
 int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t szOut,
@@ -269,11 +268,6 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk);
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
-int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
-int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);
-int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData);
-int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
-int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
@@ -561,7 +555,10 @@ struct SDiskDataHdr {
   int32_t  szBlkCol;
   int32_t  nRow;
   int8_t   cmprAlg;
-  int8_t   numOfPKs;
+
+  // fmtVer == 1
+  int8_t    numOfPKs;
+  SBlockCol primaryBlockCols[TD_MAX_PK_COLS];
 };
 
 struct SDelFile {
