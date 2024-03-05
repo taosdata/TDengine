@@ -1086,7 +1086,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.sqlLen = strlen(pJob->sql);
       req.sql = (char *)pJob->sql;
       req.msg = pTask->msg;
-      req.source = deleteFromTaosx;
+      req.source = pJob->source;
       msgSize = tSerializeSVDeleteReq(NULL, 0, &req);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {

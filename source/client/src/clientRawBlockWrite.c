@@ -1256,9 +1256,7 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
            req.tsColName, req.skey, req.tsColName, req.ekey);
 
-  deleteFromTaosx = TD_REQ_FROM_TAOX;
-  TAOS_RES*    res = taos_query(taos, sql);
-  deleteFromTaosx = TD_REQ_FROM_APP;
+  TAOS_RES*    res = taosQueryImpl(taos, sql, false, TD_REQ_FROM_TAOX);
   SRequestObj* pRequest = (SRequestObj*)res;
   code = pRequest->code;
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_PAR_GET_META_ERROR) {

@@ -7148,7 +7148,6 @@ int32_t tDecodeSVDropTSmaReq(SDecoder *pCoder, SVDropTSmaReq *pReq) {
   return 0;
 }
 
-int8_t deleteFromTaosx = TD_REQ_FROM_APP;
 int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   if (buf != NULL) {

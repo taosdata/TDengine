@@ -401,7 +401,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false); }
+TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP); }
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
   return taosQueryImplWithReqid(taos, sql, false, reqid);
 }
@@ -827,7 +827,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) {
-  TAOS_RES *pObj = taosQueryImpl(taos, sql, true);
+  TAOS_RES *pObj = taosQueryImpl(taos, sql, true, TD_REQ_FROM_APP);
 
   int code = taos_errno(pObj);
 
@@ -1125,7 +1125,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
   tscDebug("taos_query_a start with sql:%s", sql);
-  taosAsyncQueryImpl(connId, sql, fp, param, false);
+  taosAsyncQueryImpl(connId, sql, fp, param, false, TD_REQ_FROM_APP);
   tscDebug("taos_query_a end with sql:%s", sql);
 }
 

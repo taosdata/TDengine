@@ -3816,7 +3816,6 @@ typedef struct {
   int8_t   source;
 } SVDeleteReq;
 
-extern int8_t deleteFromTaosx;
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
 int32_t tDeserializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
 
