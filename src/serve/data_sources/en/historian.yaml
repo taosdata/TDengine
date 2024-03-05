@@ -4,8 +4,8 @@ name: AVEVA Historian
 type: uri
 description: |
   AVEVA Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.
-
-  TDengine efficiently reads data from the AVEVA Historian and writes it to TDengine for historical data migration or real-time data flow into the library.
+  
+  TDengine efficiently reads data from the AVEVA Historian and writes it to TDengine for historical data migration or real-time data synchronization.
 strict: false
 
 options:
