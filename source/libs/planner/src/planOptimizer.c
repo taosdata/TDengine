@@ -4812,9 +4812,8 @@ static int32_t tsmaOptRewriteNodeList(SNodeList* pNodes, STSMAOptCtx* pCtx, cons
   FOREACH(pNode, pNodes) {
     SNode* pOut = pNode;
     code = tsmaOptRewriteNode(&pOut, pCtx, pTsma, rewriteTbName, rewriteTag);
-    if (TSDB_CODE_SUCCESS == code) {
-      REPLACE_NODE(pOut);
-    }
+    if (TSDB_CODE_SUCCESS != code) break;
+    REPLACE_NODE(pOut);
   }
   return code;
 }

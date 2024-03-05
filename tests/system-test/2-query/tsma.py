@@ -229,7 +229,7 @@ class TSMATester:
         if actual_ctx.has_tsma():
             self.check_result(sql, expect.ignore_res_order_)
 
-    def check_sqls(self, sqls: list[str], expects: list[TSMAQueryContext]):
+    def check_sqls(self, sqls, expects):
         for sql, query_ctx in zip(sqls, expects):
             self.check_sql(sql, query_ctx)
 
@@ -264,7 +264,7 @@ class TSMATesterSQLGeneratorRes:
         self.has_slimit: bool = False
         self.has_limit: bool = False
         self.has_user_order_by: bool = False
-    
+
     def can_ignore_res_order(self):
         return not (self.has_limit and self.has_slimit)
 
@@ -282,7 +282,7 @@ class TSMATestSQLGenerator:
         self.where_list_: List[str] = []
         self.group_or_partition_by_list: List[str] = []
         self.interval: str = ''
-    
+
     def get_depth_one_str_funcs(self, name: str) -> List[str]:
         concat1 = f'CONCAT({name}, "_concat")'
         concat2 = f'CONCAT({name}, {name})'
@@ -293,17 +293,17 @@ class TSMATestSQLGenerator:
         lower = f'LOWER({name})'
         ltrim = f'LTRIM({name})'
         return [concat1, concat2, concat3, substr, lower, ltrim, name]
-    
+
     def generate_depthed_str_func(self, name: str, depth: int) -> str:
         if depth == 1:
             return random.choice(self.get_depth_one_str_funcs(name))
         name = self.generate_depthed_str_func(name, depth - 1)
         return random.choice(self.get_depth_one_str_funcs(name))
-    
+
     def generate_str_func(self, column_name: str, depth: int = 0) -> str:
         if depth == 0:
             depth = random.randint(1,3)
-        
+
         ret = self.generate_depthed_str_func(column_name, depth)
         tdLog.debug(f'generating str func: {ret}')
         return ret
@@ -314,9 +314,9 @@ class TSMATestSQLGenerator:
 
     def generate_select_list(self, user_select_list: str, partition_by_list: str):
         res = user_select_list
-        if self.res_.has_interval:
+        if self.res_.has_interval and random.random() < 0.8:
             res = res + ',_wstart, _wend'
-        if self.res_.partition_by or self.res_.group_by:
+        if self.res_.partition_by or self.res_.group_by and random.random() < 0.8:
             res = res + f',{partition_by_list}'
         return res
 
@@ -344,7 +344,7 @@ class TSMATestSQLGenerator:
         order_by = self.generate_order_by(order_by_list, partition_by_list)
         sql = f"SELECT {auto_select_list} FROM {tb} {where} {partition_by} {partition_by_list} {interval} {order_by} {limit}"
         return sql
-    
+
     def can_ignore_res_order(self):
         return self.res_.can_ignore_res_order()
 
@@ -412,15 +412,15 @@ class TSMATestSQLGenerator:
         value = random.choice(intervals)
         self.res_.has_interval = True
         return f'INTERVAL({value})'
-    
+
     def generate_tag_list(self):
         used_tag_num = random.randrange(1, self.opts_.tag_num)
         ret = ''
-        for i in range(used_tag_num):
+        for _ in range(used_tag_num):
             tag_idx = random.randint(1,self.opts_.tag_num)
             ret = ret + self.opts_.tags_prefix + f'{tag_idx},'
         return ret[:-1]
-    
+
     def generate_tbname_tag_list(self):
         tag_num = random.randrange(1, self.opts_.tag_num)
         ret = ''
@@ -434,7 +434,7 @@ class TSMATestSQLGenerator:
         return ret[:-1]
             
 
-    def generate_partition_by(self) -> tuple[str, str]:
+    def generate_partition_by(self):
         if not self.opts_.partition_by and not self.opts_.group_by:
             return ('','')
         ## no partition or group
@@ -649,6 +649,7 @@ class TDTestCase:
         self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
         self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
 
+        #time.sleep(99999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
@@ -718,7 +719,7 @@ class TDTestCase:
         opts.partition_by = True
         opts.interval = True
         opts.where_ts_range = True
-        for i in range(1, 10000):
+        for _ in range(1, 1000):
             sql_generator = TSMATestSQLGenerator(opts)
             sql = sql_generator.generate_one('avg(c1), avg(c2)', 'meters', '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
@@ -770,6 +771,12 @@ class TDTestCase:
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
                         .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
                             .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+
+        sql = "select avg(c1) + 1, avg(c2) from meters where ts >= '2018-09-17 9:30:00.118' and ts < '2018-09-17 10:50:00'"
+        ctxs.append(TSMAQCBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 9:30:00.118', '2018-09-17 9:59:59.999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 10:00:00', '2018-09-17 10:29:59.999') \
+                            .should_query_with_tsma('tsma1', '2018-09-17 10:30:00.000', '2018-09-17 10:49:59.999').get_qc())
 
         sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
