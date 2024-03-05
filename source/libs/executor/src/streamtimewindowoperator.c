@@ -2533,7 +2533,6 @@ int32_t encodeSResultWindowInfo(void** buf, SResultWindowInfo* key, int32_t outL
 
 void* decodeSResultWindowInfo(void* buf, SResultWindowInfo* key, int32_t outLen) {
   buf = taosDecodeFixedBool(buf, &key->isOutput);
-  key->pStatePos->pRowBuff = NULL;
   buf = decodeSSessionKey(buf, &key->sessionWin);
   return buf;
 }
