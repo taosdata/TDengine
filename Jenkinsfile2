@@ -355,7 +355,7 @@ pipeline {
             }
             parallel {
                 stage('check docs') {
-                    agent{label "Mac_catalina "}
+                    agent{label " slave1_59 || slave1_63  "}
                     steps {
                         check_docs()
                     }
