@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 1.5F;
+float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -586,7 +586,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsNumOfSupportVnodes = tsNumOfCores * 2;
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
-  if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)

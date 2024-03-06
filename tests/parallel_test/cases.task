@@ -238,7 +238,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
@@ -1085,6 +1086,7 @@
 ,,y,script,./test.sh -f tsim/parser/join_multivnode.sim
 ,,y,script,./test.sh -f tsim/parser/join.sim
 ,,y,script,./test.sh -f tsim/parser/last_cache.sim
+,,y,script,./test.sh -f tsim/parser/last_both.sim
 ,,y,script,./test.sh -f tsim/parser/last_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim

@@ -458,20 +458,21 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    int32_t newLen = pSource->varmeta.length;
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
-    if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, pSource->varmeta.length);
+    if (pColumnInfoData->varmeta.allocLen < newLen) {
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = pSource->varmeta.length;
+      pColumnInfoData->varmeta.allocLen = newLen;
     }
 
-    pColumnInfoData->varmeta.length = pSource->varmeta.length;
+    pColumnInfoData->varmeta.length = newLen;
     if (pColumnInfoData->pData != NULL && pSource->pData != NULL) {
-      memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+      memcpy(pColumnInfoData->pData, pSource->pData, newLen);
     }
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
@@ -1857,7 +1858,29 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 }
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
+  if (n >= total || n == 0) return;
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    if (pColInfoData->varmeta.length != 0) {
+      int32_t newLen = pColInfoData->varmeta.offset[n];
+      if (-1 == newLen) {
+        for (int i = n - 1; i >= 0; --i) {
+          newLen = pColInfoData->varmeta.offset[i];
+          if (newLen != -1) {
+            if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+              newLen += getJsonValueLen(pColInfoData->pData + newLen);
+            } else {
+              newLen += varDataTLen(pColInfoData->pData + newLen);
+            }
+            break;
+          }
+        }
+      }
+      if (newLen <= -1) {
+        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
+      } else {
+        pColInfoData->varmeta.length = newLen;
+      }
+    }
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }

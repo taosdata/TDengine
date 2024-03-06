@@ -462,14 +462,22 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetUpdateTaskAction(STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
+static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
   void   *pBuf = NULL;
   int32_t len = 0;
   streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
 
   doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
 
-  int32_t code = setTransAction(pTrans, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet, 0);
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {
+    terrno = code;
+    return code;
+  }
+
+  code = setTransAction(pTrans, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &epset, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
   }
@@ -478,14 +486,14 @@ static int32_t doSetUpdateTaskAction(STrans *pTrans, SStreamTask *pTask, SVgroup
 }
 
 // build trans to update the epset
-int32_t mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
+int32_t mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
   mDebug("stream:0x%" PRIx64 " set tasks epset update action", pStream->uid);
   taosWLockLatch(&pStream->lock);
 
   SStreamTaskIter *pIter = createStreamTaskIter(pStream);
   while (streamTaskIterNextTask(pIter)) {
     SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
-    int32_t      code = doSetUpdateTaskAction(pTrans, pTask, pInfo);
+    int32_t      code = doSetUpdateTaskAction(pMnode, pTrans, pTask, pInfo);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
