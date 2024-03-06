@@ -186,7 +186,8 @@ typedef enum {
   CONN_TYPE_TDENGINE_3_0,
   CONN_TYPE_MAX = 10,  // max connType before importing dynamic DataIns
   // add future data ins here
-  CONN_TYPE_DYN_MAX
+  // CONN_TYPE_FUTURE_DATA_IN = 10,
+  CONN_TYPE_DYN_MAX = 10,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
@@ -255,9 +256,9 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  // GRANT_OPT_FUTURE_EXPIRE,
-  // GRANT_OPT_FUTURE_EXPIRE_NUM,
-  GRANT_OPT_DYN_MAX,
+  // GRANT_OPT_FUTURE_EXPIRE = 9,
+  // GRANT_OPT_FUTURE_EXPIRE_NUM = 10,
+  GRANT_OPT_DYN_MAX = 9,
 } SGrantOpt;
 
 typedef struct {
@@ -408,8 +409,8 @@ typedef struct {
   int32_t limitViews;
   int32_t curViews;
   int64_t revokedExpireSec;
-  // fixed dataIns
-  SGrantDataIn dataIns[CONN_TYPE_MAX];
+  // known dataIns
+  SGrantDataIn dataIns[CONN_TYPE_DYN_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
