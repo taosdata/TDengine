@@ -2717,7 +2717,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pBitMap, cinfo.originalSize, assist);
+    code = tDecompressData(inputStart, &cinfo, colData->pBitMap, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2745,7 +2745,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->aOffset, cinfo.originalSize, assist);
+    code = tDecompressData(inputStart, &cinfo, colData->aOffset, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2771,7 +2771,7 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, colData->pData, cinfo.originalSize, assist);
+    code = tDecompressData(inputStart, &cinfo, colData->pData, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -4105,7 +4105,7 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
       return code;
     }
 
-    code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, valCol->offsets.data, cinfo.originalSize, buffer);
+    code = tDecompressData(inputStart, &cinfo, valCol->offsets.data, cinfo.originalSize, buffer);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -4130,7 +4130,7 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
     return code;
   }
 
-  code = tDecompressData(inputStart, cinfo.compressedSize, &cinfo, valCol->data.data, cinfo.originalSize, buffer);
+  code = tDecompressData(inputStart, &cinfo, valCol->data.data, cinfo.originalSize, buffer);
   if (code) {
     tBufferDestroy(&local);
     return code;
@@ -4236,7 +4236,6 @@ int32_t tCompressData(void          *input,       // input
 }
 
 int32_t tDecompressData(void                *input,       // input
-                        int32_t              inputSize,   // input size
                         const SCompressInfo *info,        // compress info
                         void                *output,      // output
                         int32_t              outputSize,  // output size
@@ -4247,8 +4246,8 @@ int32_t tDecompressData(void                *input,       // input
   ASSERT(outputSize >= info->originalSize);
 
   if (info->cmprAlg == NO_COMPRESSION) {
-    ASSERT(inputSize == info->originalSize);
-    memcpy(output, input, inputSize);
+    ASSERT(info->compressedSize == info->originalSize);
+    memcpy(output, input, info->compressedSize);
   } else {
     SBuffer local;
 
@@ -4267,7 +4266,7 @@ int32_t tDecompressData(void                *input,       // input
 
     int32_t decompressedSize = tDataTypes[info->dataType].decompFunc(
         input,                                                  // input
-        inputSize,                                              // inputSize
+        info->compressedSize,                                   // inputSize
         info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements
         output,                                                 // output
         outputSize,                                             // output size
@@ -4306,8 +4305,7 @@ int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *outpu
   code = tBufferEnsureCapacity(output, output->size + info->originalSize);
   if (code) return code;
 
-  code = tDecompressData(input, info->compressedSize, info, tBufferGetDataEnd(output), output->capacity - output->size,
-                         assist);
+  code = tDecompressData(input, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);
   if (code) return code;
 
   output->size += info->originalSize;

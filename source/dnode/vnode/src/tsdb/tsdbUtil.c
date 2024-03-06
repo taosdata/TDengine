@@ -1587,7 +1587,7 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
 
     code = tRealloc((uint8_t **)&blockData->aUid, cinfo.originalSize);
     TSDB_CHECK_CODE(code, lino, _exit);
-    code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aUid, cinfo.originalSize, assist);
+    code = tDecompressData(BR_PTR(br), &cinfo, blockData->aUid, cinfo.originalSize, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
     br->offset += cinfo.compressedSize;
   }
@@ -1601,7 +1601,7 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
   };
   code = tRealloc((uint8_t **)&blockData->aVersion, cinfo.originalSize);
   TSDB_CHECK_CODE(code, lino, _exit);
-  code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aVersion, cinfo.originalSize, assist);
+  code = tDecompressData(BR_PTR(br), &cinfo, blockData->aVersion, cinfo.originalSize, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
   br->offset += cinfo.compressedSize;
 
@@ -1614,7 +1614,7 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
   };
   code = tRealloc((uint8_t **)&blockData->aTSKEY, cinfo.originalSize);
   TSDB_CHECK_CODE(code, lino, _exit);
-  code = tDecompressData(BR_PTR(br), cinfo.compressedSize, &cinfo, blockData->aTSKEY, cinfo.originalSize, assist);
+  code = tDecompressData(BR_PTR(br), &cinfo, blockData->aTSKEY, cinfo.originalSize, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
   br->offset += cinfo.compressedSize;
 

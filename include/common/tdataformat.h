@@ -349,7 +349,6 @@ int32_t tCompressData(void          *input,       // input
                       SBuffer       *buffer       // assistant buffer provided by caller, can be NULL
 );
 int32_t tDecompressData(void                *input,       // input
-                        int32_t              inputSize,   // input size
                         const SCompressInfo *info,        // compress info
                         void                *output,      // output
                         int32_t              outputSize,  // output size
