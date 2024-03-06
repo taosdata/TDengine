@@ -43,7 +43,7 @@ static bool isNullStr(SToken* pToken) { return ((pToken->type == TK_NK_STRING) &
 
 static FORCE_INLINE bool isNullValue(int8_t dataType, SToken* pToken) {
   return TK_NULL == pToken->type ||
-         (TK_NK_STRING == pToken->type && !IS_STR_DATA_TYPE(dataType) && IS_NULL_STR(pToken->z));
+         (TK_NK_STRING == pToken->type && !IS_STR_DATA_TYPE(dataType) && IS_NULL_STR(pToken->z, pToken->n));
 }
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
@@ -235,10 +235,10 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, ts)) {
-        if (IS_NOW_STR(pToken->z)) {
+        if (IS_NOW_STR(pToken->z, pToken->n)) {
           *isTs = true;
           *ts = taosGetTimestamp(timePrec);
-        } else if (IS_TODAY_STR(pToken->z)) {
+        } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
           *isTs = true;
           *ts = taosGetTimestampToday(timePrec);
         } else {
@@ -446,9 +446,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
-        if (IS_TRUE_STR(pToken->z)) {
+        if (IS_TRUE_STR(pToken->z, pToken->n)) {
           *(int8_t*)(&val->i64) = TRUE_VALUE;
-        } else if (IS_FALSE_STR(pToken->z)) {
+        } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           *(int8_t*)(&val->i64) = FALSE_VALUE;
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
@@ -1372,9 +1372,9 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
-        if (IS_TRUE_STR(pToken->z)) {
+        if (IS_TRUE_STR(pToken->z, pToken->n)) {
           pVal->value.val = TRUE_VALUE;
-        } else if (IS_FALSE_STR(pToken->z)) {
+        } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           pVal->value.val = FALSE_VALUE;
         } else {
           return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
