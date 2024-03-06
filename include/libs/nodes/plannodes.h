@@ -126,6 +126,7 @@ typedef struct SScanLogicNode {
   SArray*       pFuncTypes; // for last, last_row
   bool          paraTablesSort; // for table merge scan
   bool          smallDataTsSort; // disable row id sort for table merge scan
+  bool          needSplit;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {

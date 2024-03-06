@@ -39,6 +39,11 @@ typedef struct SSplitRule {
   FSplit splitFunc;
 } SSplitRule;
 
+typedef struct SFindSplitNodeCtx {
+  const SSplitContext* pSplitCtx;
+  const SLogicSubplan* pSubplan;
+} SFindSplitNodeCtx;
+
 typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, void* pInfo);
 
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput);
@@ -232,7 +237,7 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
 }
 
 static bool stbSplIsMultiTbScan(bool streamQuery, SScanLogicNode* pScan) {
-  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1);
+  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) || pScan->needSplit;
 }
 
 static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
@@ -248,6 +253,13 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild)) {
     return true;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) || (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
+                                                         ((SWindowLogicNode*)pNode)->winType == WINDOW_TYPE_INTERVAL)) {
+      return ((SScanLogicNode*)pChild)->needSplit;
+    }
   }
   return false;
 }
@@ -312,7 +324,8 @@ static bool stbSplIsTableCountQuery(SLogicNode* pNode) {
   return QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && SCAN_TYPE_TABLE_COUNT == ((SScanLogicNode*)pChild)->scanType;
 }
 
-static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
+static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
+  bool streamQuery = pCtx->pSplitCtx->pPlanCxt->streamQuery;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return streamQuery ? false : stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
@@ -336,7 +349,8 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
 
 static bool stbSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SStableSplitInfo* pInfo) {
-  if (stbSplNeedSplit(pCxt->pPlanCxt->streamQuery, pNode)) {
+  SFindSplitNodeCtx ctx = {.pSplitCtx = pCxt, .pSubplan = pSubplan};
+  if (stbSplNeedSplit(&ctx, pNode)) {
     pInfo->pSplitNode = pNode;
     pInfo->pSubplan = pSubplan;
     return true;
