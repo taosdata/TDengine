@@ -210,14 +210,6 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg);
-int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
-                     int32_t *szOut, uint8_t **ppBuf);
-int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t szOut,
-                       uint8_t **ppBuf);
-int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int32_t nOut,
-                        uint8_t **ppBuf);
-int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
-                          uint8_t **ppBuf);
 int32_t tRowInfoCmprFn(const void *p1, const void *p2);
 // tsdbMemTable ==============================================================================================
 // SMemTable
