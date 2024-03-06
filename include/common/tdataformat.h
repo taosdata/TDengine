@@ -110,8 +110,8 @@ int32_t tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
 int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *info, SBuffer *output, SBuffer *assist);
-int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColumnCompressInfo *compressInfo,
-                               SValueColumn *valCol, SBuffer *buffer);
+int32_t tValueColumnDecompress(void *input, const SValueColumnCompressInfo *compressInfo, SValueColumn *valCol,
+                               SBuffer *buffer);
 int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBuffer *buffer);
 int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo);
 int32_t tValueCompare(const SValue *tv1, const SValue *tv2);

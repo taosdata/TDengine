@@ -4072,21 +4072,11 @@ int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *inf
   return 0;
 }
 
-int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColumnCompressInfo *info,
-                               SValueColumn *valCol, SBuffer *buffer) {
+int32_t tValueColumnDecompress(void *input, const SValueColumnCompressInfo *info, SValueColumn *valCol,
+                               SBuffer *assist) {
   int32_t code;
-  SBuffer local;
-  char   *inputStart = input;
-
-  ASSERT(inputSize == info->offsetCompressedSize + info->dataCompressedSize);
 
   tValueColumnClear(valCol);
-  tBufferInit(&local);
-
-  if (buffer == NULL) {
-    buffer = &local;
-  }
-
   valCol->type = info->type;
   // offset
   if (IS_VAR_DATA_TYPE(valCol->type)) {
@@ -4099,19 +4089,10 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
         .compressedSize = info->offsetCompressedSize,
     };
 
-    code = tBufferEnsureCapacity(&valCol->offsets, cinfo.originalSize);
+    code = tDecompressDataToBuffer(input, &cinfo, &valCol->offsets, assist);
     if (code) {
-      tBufferDestroy(&local);
       return code;
     }
-
-    code = tDecompressData(inputStart, &cinfo, valCol->offsets.data, cinfo.originalSize, buffer);
-    if (code) {
-      tBufferDestroy(&local);
-      return code;
-    }
-    valCol->offsets.size = cinfo.originalSize;
-    inputStart += cinfo.compressedSize;
   } else {
     valCol->numOfValues = info->dataOriginalSize / tDataTypes[valCol->type].bytes;
   }
@@ -4124,21 +4105,11 @@ int32_t tValueColumnDecompress(void *input, int32_t inputSize, const SValueColum
       .compressedSize = info->dataCompressedSize,
   };
 
-  code = tBufferEnsureCapacity(&valCol->data, cinfo.originalSize);
+  code = tDecompressDataToBuffer((char *)input + info->offsetCompressedSize, &cinfo, &valCol->data, assist);
   if (code) {
-    tBufferDestroy(&local);
     return code;
   }
 
-  code = tDecompressData(inputStart, &cinfo, valCol->data.data, cinfo.originalSize, buffer);
-  if (code) {
-    tBufferDestroy(&local);
-    return code;
-  }
-  valCol->data.size = cinfo.originalSize;
-  inputStart += cinfo.compressedSize;
-
-  tBufferDestroy(&local);
   return 0;
 }
 

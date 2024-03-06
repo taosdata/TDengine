@@ -244,8 +244,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
       SValueColumnCompressInfo *info = firstInfos + i;
       int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
 
-      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), totalCompressedSize, info,
-                                    brinBlock->firstKeyPKs + i, reader->buffers + 1);
+      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), info, brinBlock->firstKeyPKs + i,
+                                    reader->buffers + 1);
       TSDB_CHECK_CODE(code, lino, _exit);
       br.offset += totalCompressedSize;
     }
@@ -254,8 +254,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
       SValueColumnCompressInfo *info = lastInfos + i;
       int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
 
-      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), totalCompressedSize, info,
-                                    brinBlock->lastKeyPKs + i, reader->buffers + 1);
+      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), info, brinBlock->lastKeyPKs + i,
+                                    reader->buffers + 1);
       TSDB_CHECK_CODE(code, lino, _exit);
       br.offset += totalCompressedSize;
     }
