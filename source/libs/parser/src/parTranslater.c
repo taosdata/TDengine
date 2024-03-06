@@ -2742,6 +2742,38 @@ static bool isWindowJoinProbeTablePrimCol(SSelectStmt*         pSelect, SNode* p
   return false;
 }
 
+typedef struct SCheckColContaisCtx {
+  SNode* pTarget;
+  bool   contains;
+} SCheckColContaisCtx;
+
+static EDealRes checkColContains(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SCheckColContaisCtx* pCtx = (SCheckColContaisCtx*)pContext;
+  if (nodesEqualNode(pCtx->pTarget, pNode)) {
+    pCtx->contains = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static bool isWindowJoinGroupCol(SSelectStmt* pSelect, SNode* pNode) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+
+  SCheckColContaisCtx ctx = {.pTarget = pNode, .contains = false};
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+
+  nodesWalkExpr(pJoinTable->pOnCond, checkColContains, &ctx);
+
+  return ctx.contains;
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -2770,7 +2802,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
   }
   if (isWindowJoinStmt(pSelect)) {
-    if (isWindowJoinProbeTablePrimCol(pSelect, *pNode)) {
+    if (isWindowJoinProbeTablePrimCol(pSelect, *pNode) || isWindowJoinGroupCol(pSelect, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
@@ -3363,6 +3395,12 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
     if (TSDB_CODE_SUCCESS == code) {
       SValueNode* pStart = (SValueNode*)((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pStartOffset;
       SValueNode* pEnd = (SValueNode*)((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pEndOffset;
+      if (TIME_UNIT_MONTH == pStart->unit || TIME_UNIT_YEAR == pStart->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pStart->unit);
+      }
+      if (TIME_UNIT_MONTH == pEnd->unit || TIME_UNIT_YEAR == pEnd->unit) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pEnd->unit);
+      }
       if (pStart->datum.i > pEnd->datum.i) {
         TSWAP(((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pStartOffset, ((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pEndOffset);
       }
@@ -3371,8 +3409,14 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
   
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit && *pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
-    return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join", getFullJoinTypeString(type, *pSType));
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit) {
+    if (*pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
+      return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join", getFullJoinTypeString(type, *pSType));
+    }
+    SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
+    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE) {
+      return buildInvalidOperationMsg(&pCxt->msgBuf, "JLIMIT value is out of valid range [0, 1024]");
+    }
   }
 
   return code;

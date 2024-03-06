@@ -105,3 +105,33 @@ if $data11 != 4 then
   return -1
 endi
 
+sql select a.ts, a.col1, b.ts,b.col1 from sta a join sta b on a.ts = b.ts and a.t1=b.t1 order by a.t1, a.ts;
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data03 != 1 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data12 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data13 != 3 then
+  return -1
+endi
+
+

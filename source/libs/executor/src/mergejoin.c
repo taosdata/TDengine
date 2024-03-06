@@ -2598,19 +2598,7 @@ void mAsofJoinGroupReset(SMJoinOperatorInfo* pJoin) {
   pWin->eqPostDone = false;
   pWin->lastTs = INT64_MIN;
 
-  pCache->outRowIdx = 0;
-  pCache->rowNum = 0;
-  pCache->grpIdx = 0;
-
-  if (pCache->grpsQueue) {
-    TSWAP(pCache->grps, pCache->grpsQueue);
-  }
-  
-  taosArrayClear(pCache->grps);
-  
-  if (pCache->outBlk) {
-    blockDataCleanup(pCache->outBlk);
-  }
+  mWinJoinResetWindowCache(pCache);
 
   mJoinResetGroupTableCtx(pJoin->probe);
   mJoinResetGroupTableCtx(pJoin->build);    
@@ -3004,20 +2992,8 @@ void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin) {
   pWin->eqPostDone = false;
   pWin->lastTs = INT64_MIN;
 
-  pCache->outRowIdx = 0;
-  pCache->rowNum = 0;
-  pCache->grpIdx = 0;
-
-  if (pCache->grpsQueue) {
-    TSWAP(pCache->grps, pCache->grpsQueue);
-  }
+  mWinJoinResetWindowCache(pCache);
   
-  taosArrayClear(pCache->grps);
-  
-  if (pCache->outBlk) {
-    blockDataCleanup(pCache->outBlk);
-  }
-
   mJoinResetGroupTableCtx(pJoin->probe);
   mJoinResetGroupTableCtx(pJoin->build);  
 }

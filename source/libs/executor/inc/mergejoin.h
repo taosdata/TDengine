@@ -270,6 +270,7 @@ typedef struct SMJoinFlowFlags {
 
 typedef struct SMJoinCtx {
   SMJoinFlowFlags* pFlags;
+  bool             mergeCtxInUse;
   union {
     SMJoinMergeCtx  mergeCtx;
     SMJoinWindowCtx windowCtx;
@@ -424,6 +425,7 @@ void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin);
 void mJoinDestroyWindowCtx(SMJoinOperatorInfo* pJoin);
 int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
+void mWinJoinResetWindowCache(SMJoinWinCache* pCache);
 SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);

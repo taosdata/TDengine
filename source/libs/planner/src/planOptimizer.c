@@ -1157,7 +1157,7 @@ static int32_t pdcJoinAddPreFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogi
 }
 
 static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
-  if (NULL == pJoin->node.pConditions) {
+  if (NULL == pJoin->node.pConditions && (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) || NULL == pJoin->pFullOnCond)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1165,9 +1165,14 @@ static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLo
   SNodeList* pCondCols = nodesMakeList();
   SNodeList* pTargets = NULL;
   if (NULL == pCondCols) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL != pJoin->node.pConditions) {
     code = nodesCollectColumnsFromNode(pJoin->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  }
+  if (TSDB_CODE_SUCCESS == code && IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond) {
+    code = nodesCollectColumnsFromNode(pJoin->pFullOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pCondCols, &pTargets);
@@ -4365,11 +4370,15 @@ static void stbJoinOptRemoveTagEqCond(SJoinLogicNode* pJoin) {
       } else if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pTagEqCond)) {
         SLogicConditionNode* pTags = (SLogicConditionNode*)pJoin->pTagEqCond;
         SNode* pTag = NULL;
+        bool found = false;
         FOREACH(pTag, pTags->pParameterList) {
           if (nodesEqualNode(pTag, pNode)) {
-            ERASE_NODE(pLogic->pParameterList);
+            found = true;
             break;
           }
+        }
+        if (found) {
+          ERASE_NODE(pLogic->pParameterList);
         }
       }
     }

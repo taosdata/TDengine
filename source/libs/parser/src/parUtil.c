@@ -196,6 +196,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Operator not supported multi result: %s";
     case TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR:
       return "Not supported window join having expr";
+    case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
+      return "Invalid WINDOW_OFFSET unit \"%s\"";
     default:
       return "Unknown error";
   }

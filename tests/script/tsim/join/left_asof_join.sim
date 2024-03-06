@@ -987,4 +987,4 @@ sql_error select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and
 sql_error select a.t1, a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;
 sql_error select count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000' slimit 1;
 sql_error select a.ts, b.ts from (select * from sta) a left asof join sta b where a.ts = b.ts;
-
+sql_error select a.ts, b.ts from tba1 a left asof join tba2 b jlimit 1025;

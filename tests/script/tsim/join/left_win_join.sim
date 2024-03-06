@@ -572,6 +572,58 @@ if $data71 != NULL then
   return -1
 endi
 
+sql SELECT a.ts, count(b.*) FROM tba1 a LEFT WINDOW JOIN tba2 b ON a.col1 = b.col1 WINDOW_OFFSET(-1s, 1s) where a.col1 > 1 order by a.ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+
+sql SELECT a.ts, count(b.*) FROM tba1 a LEFT WINDOW JOIN tba2 b ON a.col1 = b.col1 WINDOW_OFFSET(-1s, 1s) order by a.col1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data21 != 0 then
+  return -1
+endi
+if $data30 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+
 sql_error select a.col1, count(*) from sta a left window join sta b window_offset(-1s, 1s);
 sql_error select b.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s);
 sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(b.ts > 0);
@@ -585,3 +637,4 @@ sql_error select a.ts, b.ts from sta a left window join sta b on a.ts > 1 window
 sql_error select a.ts, b.ts from sta a left window join sta b on a.ts =b.ts window_offset(-1s, 1s) where a.ts = b.ts;
 sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1, 1) where a.ts = b.ts;
 sql_error select a.ts, b.ts from (select * from sta) a left window join sta b window_offset(-1s, 1s) where a.ts = b.ts;
+sql_error select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-10a, 1a) jlimit 1025;

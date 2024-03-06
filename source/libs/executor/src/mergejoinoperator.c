@@ -674,11 +674,11 @@ SOperatorInfo** mJoinBuildDownstreams(SMJoinOperatorInfo* pInfo, SOperatorInfo**
   return p;
 }
 
-int32_t mJoinInitDownstreamInfo(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t *numOfDownstream, bool *newDownstreams) {
+int32_t mJoinInitDownstreamInfo(SMJoinOperatorInfo* pInfo, SOperatorInfo*** pDownstream, int32_t *numOfDownstream, bool *newDownstreams) {
   if (1 == *numOfDownstream) {
     *newDownstreams = true;
-    pDownstream = mJoinBuildDownstreams(pInfo, pDownstream);
-    if (NULL == pDownstream) {
+    *pDownstream = mJoinBuildDownstreams(pInfo, *pDownstream);
+    if (NULL == *pDownstream) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     *numOfDownstream = 2;
@@ -807,10 +807,10 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat) {
+static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat, bool sameDs) {
   SMJoinTableCtx* pTable = &pJoin->tbs[idx];
   pTable->downStream = pDownstream[idx];
-  pTable->blkId = pDownstream[idx]->resultDataBlockId;
+  pTable->blkId = getOperatorResultBlockId(pDownstream[idx], sameDs ? idx : 0);
   MJ_ERR_RET(mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
 
   MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight, JOIN_TYPE_FULL == pJoin->joinType));
@@ -1011,9 +1011,11 @@ static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* 
   
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
        || (JOIN_STYPE_WIN == pJoin->subType)) {
+    pJoin->ctx.mergeCtxInUse = false;
     return mJoinInitWindowCtx(pJoin, pJoinNode);
   }
-  
+
+  pJoin->ctx.mergeCtxInUse = true;  
   return mJoinInitMergeCtx(pJoin, pJoinNode);
 }
 
@@ -1423,8 +1425,38 @@ void mJoinResetMergeCtx(SMJoinMergeCtx* pCtx) {
   pCtx->hashJoin = false;
 }
 
+void mWinJoinResetWindowCache(SMJoinWinCache* pCache) {
+  pCache->outRowIdx = 0;
+  pCache->rowNum = 0;
+  pCache->grpIdx = 0;
+
+  if (pCache->grpsQueue) {
+    TSWAP(pCache->grps, pCache->grpsQueue);
+  }
+  
+  taosArrayClear(pCache->grps);
+  
+  if (pCache->outBlk) {
+    blockDataCleanup(pCache->outBlk);
+  }
+}
+
+void mJoinResetWindowCtx(SMJoinWindowCtx* pCtx) {
+  pCtx->grpRemains = false;
+  pCtx->lastEqGrp = false;
+  pCtx->lastProbeGrp = false;
+  pCtx->eqPostDone = false;
+  pCtx->lastTs = INT64_MIN;
+  
+  mWinJoinResetWindowCache(&pCtx->cache);
+}
+
 void mJoinResetCtx(SMJoinOperatorInfo* pJoin) {
-  mJoinResetMergeCtx(&pJoin->ctx.mergeCtx);
+  if (pJoin->ctx.mergeCtxInUse) {
+    mJoinResetMergeCtx(&pJoin->ctx.mergeCtx);
+  } else {
+    mJoinResetWindowCtx(&pJoin->ctx.windowCtx);
+  }
 }
 
 void mJoinResetOperator(struct SOperatorInfo* pOperator) {
@@ -1612,7 +1644,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   pInfo->pOperator = pOperator;
-  MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, pDownstream, &numOfDownstream, &newDownstreams));
+  MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams));
 
   setOperatorInfo(pOperator, "MergeJoinOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
@@ -1620,8 +1652,8 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   MJ_ERR_JRET(mJoinHandleConds(pInfo, pJoinNode));
 
-  mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]);
-  mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]);
+  mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams);
+  mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams);
 
   MJ_ERR_JRET(mJoinInitCtx(pInfo, pJoinNode));
   MJ_ERR_JRET(mJoinSetImplFp(pInfo));
