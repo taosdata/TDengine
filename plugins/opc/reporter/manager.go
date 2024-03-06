@@ -5,6 +5,7 @@ import (
 	"collector/log"
 	"collector/types"
 	"context"
+	"fmt"
 	"hash/fnv"
 	"sync"
 	"time"
@@ -37,6 +38,10 @@ func NewManager(ctx context.Context, conf config.ReportConfig) *Manager {
 }
 
 func (m *Manager) GetReporter(tag string, vt types.ValueType) (*ArrowReporter, error) {
+	_, exists := types.ReporterTypeMap[vt]
+	if !exists {
+		return nil, fmt.Errorf("unsupported type %d", vt)
+	}
 	v, exist := m.tagReporterMap.Load(tag)
 	if exist {
 		return v.(*ArrowReporter), nil
