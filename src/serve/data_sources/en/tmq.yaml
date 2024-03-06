@@ -43,6 +43,24 @@ groups:
           choices:
             - earliest
             - latest
+      - name: group.id
+        display: Group ID
+        description: |
+          Subscription group ID is used to identify a subscription group, and subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.        
+        hint:
+          type: str
+      - name: client.id
+        display: Client ID
+        description: |
+          Client ID is used to identify a client.
+        hint:
+          type: str
+      - name: experimental.snapshot.enable
+        display: Enable Snapshot
+        description: |
+          Enable experimental snapshot feature to subscribe data from scratch.
+        hint:
+          type: bool
       - name: timeout
         display: Timeout
         hint:
