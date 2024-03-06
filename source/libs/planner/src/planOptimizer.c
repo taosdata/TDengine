@@ -4871,7 +4871,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     if (code == TSDB_CODE_SUCCESS) {
       code = tsmaOptRewriteNodeList(pNewScan->pGroupTags, pTsmaOptCtx, pTsma, true, true);
     }
-    if (pNewScan->pTsmaTargetCTbVgInfo) {
+    if (pNewScan->pTsmaTargetCTbVgInfo && pNewScan->pTsmaTargetCTbVgInfo->size > 0) {
       for (int32_t i = 0; i < taosArrayGetSize(pNewScan->pTsmas); ++i) {
         STableTSMAInfo* pTsmaInfo = taosArrayGetP(pNewScan->pTsmas, i);
         if (pTsmaInfo == pTsma->pTsma) {
@@ -5089,6 +5089,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   int32_t                   code = 0;
   const STSMAOptUsefulTsma* pTsma = NULL;
   SNodeList*                pAggFuncs = NULL;
+  bool                      hasSubPlan = false;
 
   // TODO if no used tsmas skip generating plans
   for (int32_t i = 0; i < pTsmaOptCtx->pUsedTsmas->size; ++i) {
@@ -5118,6 +5119,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
     }
     pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
     pTsmaOptCtx->generatedSubPlans[i - 1] = pSubplan;
+    hasSubPlan = true;
     SLogicNode* pParent = (SLogicNode*)nodesCloneNode((SNode*)pTsmaOptCtx->pParent);
     if (!pParent) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -5135,6 +5137,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
 
   if (code == TSDB_CODE_SUCCESS) {
     pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, 0);
+    pTsmaOptCtx->pScan->needSplit = hasSubPlan;
     code = tsmaOptRewriteScan(pTsmaOptCtx, pTsmaOptCtx->pScan, pTsma);
     if (code == TSDB_CODE_SUCCESS && pTsma->pTsma) {
       code = tsmaOptRevisePlan2(pTsmaOptCtx, pTsmaOptCtx->pParent, pTsmaOptCtx->pScan, pTsma);
