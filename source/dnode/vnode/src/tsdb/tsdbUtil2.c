@@ -42,7 +42,7 @@ int32_t tTombBlockClear(STombBlock *tombBlock) {
 
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    int32_t code = tBufferPutI64(&tombBlock->buffers[i], record->dataArr[i]);
+    int32_t code = tBufferPutI64(&tombBlock->buffers[i], record->data[i]);
     if (code) return code;
   }
   tombBlock->numOfRecords++;
@@ -56,7 +56,7 @@ int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record) {
 
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * idx, &tombBlock->buffers[i]);
-    tBufferGetI64(&br, &record->dataArr[i]);
+    tBufferGetI64(&br, &record->data[i]);
   }
   return 0;
 }
@@ -114,8 +114,18 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record) {
   int32_t code;
 
+  ASSERT(record->firstKey.numOfPKs == record->lastKey.numOfPKs);
+
   if (statisBlock->numOfRecords == 0) {
     statisBlock->numOfPKs = record->firstKey.numOfPKs;
+  } else if (statisBlock->numOfPKs != record->firstKey.numOfPKs) {
+    return TSDB_CODE_INVALID_PARA;
+  } else {
+    for (int i = 0; i < statisBlock->numOfPKs; i++) {
+      if (record->firstKey.pks[i].type != statisBlock->firstKeyPKs[i].type) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
   }
 
   ASSERT(statisBlock->numOfPKs == record->firstKey.numOfPKs);
@@ -175,12 +185,16 @@ int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecor
   code = tBufferGetI64(&reader, &record->count);
   if (code) return code;
 
-  record->firstKey.numOfPKs = statisBlock->numOfPKs;
-  record->lastKey.numOfPKs = statisBlock->numOfPKs;
-  for (int32_t i = 0; i < statisBlock->numOfPKs; ++i) {
-    code = tValueColumnGet(&statisBlock->firstKeyPKs[i], idx, &record->firstKey.pks[i]);
+  // primary keys
+  for (record->firstKey.numOfPKs = 0; record->firstKey.numOfPKs < statisBlock->numOfPKs; record->firstKey.numOfPKs++) {
+    code = tValueColumnGet(&statisBlock->firstKeyPKs[record->firstKey.numOfPKs], idx,
+                           &record->firstKey.pks[record->firstKey.numOfPKs]);
     if (code) return code;
-    code = tValueColumnGet(&statisBlock->lastKeyPKs[i], idx, &record->lastKey.pks[i]);
+  }
+
+  for (record->lastKey.numOfPKs = 0; record->lastKey.numOfPKs < statisBlock->numOfPKs; record->lastKey.numOfPKs++) {
+    code = tValueColumnGet(&statisBlock->lastKeyPKs[record->lastKey.numOfPKs], idx,
+                           &record->lastKey.pks[record->lastKey.numOfPKs]);
     if (code) return code;
   }
 
@@ -332,13 +346,6 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
   code = tBufferGetI64(&reader, &record->firstKey.version);
   if (code) return code;
 
-  for (record->firstKey.key.numOfPKs = 0; record->firstKey.key.numOfPKs < brinBlock->numOfPKs;
-       record->firstKey.key.numOfPKs++) {
-    code = tValueColumnGet(&brinBlock->firstKeyPKs[record->firstKey.key.numOfPKs], idx,
-                           &record->firstKey.key.pks[record->firstKey.key.numOfPKs]);
-    if (code) return code;
-  }
-
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->lastKeyTimestamps);
   code = tBufferGetI64(&reader, &record->lastKey.key.ts);
   if (code) return code;
@@ -346,13 +353,6 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->lastKeyVersions);
   code = tBufferGetI64(&reader, &record->lastKey.version);
   if (code) return code;
-
-  for (record->lastKey.key.numOfPKs = 0; record->lastKey.key.numOfPKs < brinBlock->numOfPKs;
-       record->lastKey.key.numOfPKs++) {
-    code = tValueColumnGet(&brinBlock->lastKeyPKs[record->lastKey.key.numOfPKs], idx,
-                           &record->lastKey.key.pks[record->lastKey.key.numOfPKs]);
-    if (code) return code;
-  }
 
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int64_t), &brinBlock->minVers);
   code = tBufferGetI64(&reader, &record->minVer);
@@ -389,6 +389,21 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(int32_t), &brinBlock->counts);
   code = tBufferGetI32(&reader, &record->count);
   if (code) return code;
+
+  // primary keys
+  for (record->firstKey.key.numOfPKs = 0; record->firstKey.key.numOfPKs < brinBlock->numOfPKs;
+       record->firstKey.key.numOfPKs++) {
+    code = tValueColumnGet(&brinBlock->firstKeyPKs[record->firstKey.key.numOfPKs], idx,
+                           &record->firstKey.key.pks[record->firstKey.key.numOfPKs]);
+    if (code) return code;
+  }
+
+  for (record->lastKey.key.numOfPKs = 0; record->lastKey.key.numOfPKs < brinBlock->numOfPKs;
+       record->lastKey.key.numOfPKs++) {
+    code = tValueColumnGet(&brinBlock->lastKeyPKs[record->lastKey.key.numOfPKs], idx,
+                           &record->lastKey.key.pks[record->lastKey.key.numOfPKs]);
+    if (code) return code;
+  }
 
   return 0;
 }

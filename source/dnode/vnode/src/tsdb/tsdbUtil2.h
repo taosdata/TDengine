@@ -25,7 +25,7 @@ extern "C" {
 // STombRecord ----------
 #define TOMB_RECORD_ELEM_NUM 5
 typedef union {
-  int64_t dataArr[TOMB_RECORD_ELEM_NUM];
+  int64_t data[TOMB_RECORD_ELEM_NUM];
   struct {
     int64_t suid;
     int64_t uid;
