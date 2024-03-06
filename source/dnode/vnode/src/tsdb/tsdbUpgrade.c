@@ -33,11 +33,10 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
   // init
   struct {
     // config
-    int32_t  maxRow;
-    int8_t   cmprAlg;
-    int32_t  szPage;
-    uint8_t *bufArr[8];
-    SBuffer *buffers;
+    int32_t maxRow;
+    int8_t  cmprAlg;
+    int32_t szPage;
+    SBuffer buffers[10];
     // reader
     SArray    *aBlockIdx;
     SMapData   mDataBlk[1];
@@ -172,8 +171,8 @@ _exit:
   tBlockDataDestroy(ctx->blockData);
   tMapDataClear(ctx->mDataBlk);
   taosArrayDestroy(ctx->aBlockIdx);
-  for (int32_t i = 0; i < ARRAY_SIZE(ctx->bufArr); ++i) {
-    tFree(ctx->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(ctx->buffers); ++i) {
+    tBufferDestroy(ctx->buffers + i);
   }
   return code;
 }
@@ -454,7 +453,7 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
     int32_t maxRow;
     int64_t minKey;
     int64_t maxKey;
-    SBuffer buffers[8];
+    SBuffer buffers[10];
     // reader
     SArray *aDelData;
     // writer
