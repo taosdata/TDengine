@@ -209,7 +209,7 @@ import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { validDir } from '@/utils/validate';
-import { parsinginZone } from '@/utils'
+import { parsinginZone, decrypt } from '@/utils';
 export default {
   data() {
     return {
@@ -286,6 +286,12 @@ export default {
 
       return false;
     },
+    username() {
+      return localStorage.getItem("username") || ''
+    },
+    decryptPwd() {
+      return decrypt(localStorage.getItem("pwd")) || '';
+    }
   },
   methods: {
     handlePageChange() {},
@@ -437,7 +443,9 @@ export default {
         const scheduleStr = this.ruleForm.cycle;
         const [key, value] = scheduleStr.split(':');
         const scheduleObj = { [key]: value };
-
+        let base_url = localStorage.getItem("base_url")
+        let splitArr = base_url.split('//')
+        let dsn = splitArr[0] + "//" + this.username + ':' + this.decryptPwd + '@'+ splitArr[1]
         let params = {
           // name: "bakcup",
           labels: [
@@ -446,7 +454,7 @@ export default {
           ],
           trigger: scheduleObj,
           to: `local:${this.ruleForm.directory}`,
-          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
+          from: `tmq+${dsn}/${this.ruleForm.db}`,
         };
         await addBackupData(this.clusterid, params).then((res) => {
           if (res && Object.hasOwnProperty.call(res, "id")) {
