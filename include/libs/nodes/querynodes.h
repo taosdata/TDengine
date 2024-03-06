@@ -177,9 +177,9 @@ typedef struct STableNode {
 struct STableMeta;
 
 typedef struct STsmaTargetCTbInfo {
-  char     ctableName[TSDB_TABLE_NAME_LEN];
+  char     tableName[TSDB_TABLE_NAME_LEN]; // child table or normal table name
   uint64_t uid;
-} STsmaTargetCTbInfo;
+} STsmaTargetTbInfo;
 
 typedef struct SRealTableNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
@@ -190,8 +190,8 @@ typedef struct SRealTableNode {
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
   SArray*            pTsmas;
-  SArray*            tsmaTargetCTbVgInfo; // SArray<SVgroupsInfo*>
-  SArray*            tsmaTargetCTbInfo; // SArray<STsmaTargetCTbInfo>
+  SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
+  SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only
 } SRealTableNode;
 
 typedef struct STempTableNode {

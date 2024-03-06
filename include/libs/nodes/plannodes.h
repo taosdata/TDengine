@@ -109,8 +109,8 @@ typedef struct SScanLogicNode {
   int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
   SArray*       pTsmas;
-  SArray*       pTsmaTargetCTbVgInfo;
-  SArray*       pTsmaTargetCTbInfo;
+  SArray*       pTsmaTargetTbVgInfo;
+  SArray*       pTsmaTargetTbInfo;
   SNodeList*    pGroupTags;
   bool          groupSort;
   SNodeList*    pTags;      // for create stream

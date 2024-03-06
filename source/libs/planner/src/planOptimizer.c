@@ -4848,7 +4848,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       pNewScan->pScanCols = tsmaOptCreateTsmaScanCols(pTsma, pTsmaOptCtx->pAggFuncs);
       if (!pNewScan->pScanCols) code = TSDB_CODE_OUT_OF_MEMORY;
     }
-    if (pNewScan->tableType == TSDB_CHILD_TABLE) {
+    if (pNewScan->tableType == TSDB_CHILD_TABLE) { // TODO remvoe it
     }
     if (code == TSDB_CODE_SUCCESS && pPkTsCol) {
       tstrncpy(pPkTsCol->tableName, pTsma->targetTbName, TSDB_TABLE_NAME_LEN);
@@ -4871,11 +4871,11 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     if (code == TSDB_CODE_SUCCESS) {
       code = tsmaOptRewriteNodeList(pNewScan->pGroupTags, pTsmaOptCtx, pTsma, true, true);
     }
-    if (pNewScan->pTsmaTargetCTbVgInfo && pNewScan->pTsmaTargetCTbVgInfo->size > 0) {
-      for (int32_t i = 0; i < taosArrayGetSize(pNewScan->pTsmas); ++i) {
-        STableTSMAInfo* pTsmaInfo = taosArrayGetP(pNewScan->pTsmas, i);
+    if (pTsmaOptCtx->pScan->pTsmaTargetTbVgInfo && pTsmaOptCtx->pScan->pTsmaTargetTbVgInfo->size > 0) {
+      for (int32_t i = 0; i < taosArrayGetSize(pTsmaOptCtx->pScan->pTsmas); ++i) {
+        STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, i);
         if (pTsmaInfo == pTsma->pTsma) {
-          SVgroupsInfo* pVgpsInfo = taosArrayGetP(pNewScan->pTsmaTargetCTbVgInfo, i);
+          const SVgroupsInfo* pVgpsInfo = taosArrayGetP(pTsmaOptCtx->pScan->pTsmaTargetTbVgInfo, i);
           taosMemoryFreeClear(pNewScan->pVgroupList);
           int32_t len = sizeof(int32_t) + sizeof(SVgroupInfo) * pVgpsInfo->numOfVgroups;
           pNewScan->pVgroupList = taosMemoryCalloc(1, len);
@@ -5094,19 +5094,19 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   // TODO if no used tsmas skip generating plans
   for (int32_t i = 0; i < pTsmaOptCtx->pUsedTsmas->size; ++i) {
     STSMAOptUsefulTsma* pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, i);
-    if (pTsma->pTsma) {
-      if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE) {
-        for (int32_t j = 0; j < pTsmaOptCtx->pScan->pTsmas->size; ++j) {
-          if (taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, j) == pTsma->pTsma) {
-            const STsmaTargetCTbInfo* pCtbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetCTbInfo, j);
-            strcpy(pTsma->targetTbName, pCtbInfo->ctableName);
-            pTsma->targetTbUid = pCtbInfo->uid;
-          }
+    if (!pTsma->pTsma) continue;
+    if (pTsmaOptCtx->pScan->tableType == TSDB_CHILD_TABLE || pTsmaOptCtx->pScan->tableType == TSDB_NORMAL_TABLE) {
+      for (int32_t j = 0; j < pTsmaOptCtx->pScan->pTsmas->size; ++j) {
+        if (taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, j) == pTsma->pTsma) {
+          const STsmaTargetTbInfo* ptbInfo = taosArrayGet(pTsmaOptCtx->pScan->pTsmaTargetTbInfo, j);
+          ASSERT(ptbInfo->uid != 0);
+          strcpy(pTsma->targetTbName, ptbInfo->tableName);
+          pTsma->targetTbUid = ptbInfo->uid;
         }
-      } else {
-        strcpy(pTsma->targetTbName, pTsma->pTsma->targetTb);
-        pTsma->targetTbUid = pTsma->pTsma->destTbUid;
       }
+    } else {
+      strcpy(pTsma->targetTbName, pTsma->pTsma->targetTb);
+      pTsma->targetTbUid = pTsma->pTsma->destTbUid;
     }
   }
 

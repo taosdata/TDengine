@@ -339,7 +339,8 @@ class TSMATestSQLGenerator:
         else:
             return auto_order_by[:-1]
 
-    def generate_one(self, select_list: str, tb: str, order_by_list: str, interval_list: List[str] = []) -> str:
+    def generate_one(self, select_list: str, possible_tbs: List, order_by_list: str, interval_list: List[str] = []) -> str:
+        tb = random.choice(possible_tbs)
         where = self.generate_where()
         interval = self.generate_interval(interval_list)
         (partition_by, partition_by_list) = self.generate_partition_by()
@@ -492,7 +493,7 @@ class TSMATestSQLGenerator:
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
     def __init__(self):
-        self.vgroups    = 1
+        self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
@@ -610,6 +611,8 @@ class TDTestCase:
             if ctx.has_tsma():
                 if ctx.used_tsmas[0].name == tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX:
                     break
+                elif ctx.used_tsmas[0].name.find('_') == 32 and ctx.used_tsmas[0].name[33:] == tb:
+                    break
                 else:
                     time.sleep(1)
             else:
@@ -720,12 +723,17 @@ class TDTestCase:
 
         interval_list = ['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
         opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
-        opts.partition_by = True
         opts.interval = True
         opts.where_ts_range = True
         for _ in range(1, 100):
+            opts.partition_by = True
             sql_generator = TSMATestSQLGenerator(opts)
-            sql = sql_generator.generate_one('avg(c1), avg(c2)', 'meters', '', interval_list)
+            sql = sql_generator.generate_one('avg(c1), avg(c2)', ['meters', 't1', 't9'], '', interval_list)
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
+
+            opts.partition_by = False
+            sql_generator = TSMATestSQLGenerator(opts)
+            sql = sql_generator.generate_one('avg(c1), avg(c2)', ['norm_tb', 't5'], '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 

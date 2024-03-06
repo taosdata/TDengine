@@ -3259,7 +3259,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
     // get tb cache
     pName = taosArrayGet(pList, i);
     pTbCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
-    if (!pTbCache) {
+    if (!pTbCache || !pTbCache->pMeta) {
       ctgDebug("tb: %s.%s not in cache", dbFName, pName->tname);
       ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL);
       taosArrayPush(pCtx->pResList, &(SMetaRes){0});
