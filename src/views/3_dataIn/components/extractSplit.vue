@@ -331,24 +331,21 @@ export default {
             "app/SET_TRANSFORMER_MAPCOLUMNS",
             transformerColumns
           );
-          
-          let newFields = this.tableColumns.concat(result[0].fields.filter(item => !this.tableColumns.find(x => x.name === item.name))) 
-          let newColumns = []
-          let len = this.tableColumns.length
-          newColumns = result[0].columns.map(col => {
-            return col.slice(-len).concat(col.slice(0,col.length-len))
-          })
-          tbdata = newColumns.map((data) => {
-            return Object.fromEntries(
-              newFields.map((item, index) => {
-                return [item.name, data[index] ? data[index].toString() : null];
-              })
-            );
+          // 将当前提取或拆分的数据放在 table 的最前面 
+          let resultData = []
+          tbdata.map((item,index) => {
+            this.tableData.map(addItem => {
+              Object.keys(addItem).forEach(key => {
+                delete item[key];
+              });
+            });
+            let addObj = this.tableData[index];
+            let newItem = {...addObj, ...item};
+            resultData.push(newItem)
           });
-
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
-          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
           
           return;
         }
