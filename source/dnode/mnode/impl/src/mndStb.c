@@ -286,6 +286,11 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   if (sver < STB_VER_NUMBER) {
     // compatible with old data, setup default compress value
     // impl later
+    for (int i = 0; i < pStb->numOfColumns; i++) {
+      SCmprObj *pCmpr = &pStb->pCmpr[i];
+      pCmpr->colId = 0;
+      pCmpr->cmprAlg = 0;
+    }
   } else {
     for (int i = 0; i < pStb->numOfColumns; i++) {
       SCmprObj *pCmpr = &pStb->pCmpr[i];
@@ -488,6 +493,15 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.schemaTag.nCols = pStb->numOfTags;
   req.schemaTag.version = pStb->tagVer;
   req.schemaTag.pSchema = pStb->pTags;
+
+  SColCmprWrapper *pCmpr = &req.colCmpr;
+  pCmpr->version = pStb->colVer;
+  pCmpr->nCols = pStb->numOfColumns;
+  for (int i = 0; pStb->numOfColumns; i++) {
+    SColCmpr *p = &pCmpr->pColCmpr[i];
+    p->alg = pStb->pCmpr[i].cmprAlg;
+    p->id = pStb->pCmpr[i].colId;
+  }
 
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
@@ -870,10 +884,9 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     pDst->nextColId++;
   }
 
-  
-  pDst->pCmpr = taosMemoryCalloc(1, sizeof(SCmprObj));
+  pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
   for (int32_t i = 0; i < pDst->numOfColumns; i++) {
-    SCmprObj *p = &pDst->pCmpr[i]; 
+    SCmprObj *p = &pDst->pCmpr[i];
   }
   return 0;
 }
@@ -1255,13 +1268,16 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
 int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   pNew->pTags = taosMemoryCalloc(pNew->numOfTags, sizeof(SSchema));
   pNew->pColumns = taosMemoryCalloc(pNew->numOfColumns, sizeof(SSchema));
-  if (pNew->pTags == NULL || pNew->pColumns == NULL) {
+  pNew->pCmpr = taosMemoryCalloc(pNew->numOfColumns, sizeof(SColCmpr));
+  if (pNew->pTags == NULL || pNew->pColumns == NULL || pNew->pCmpr) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   memcpy(pNew->pColumns, pOld->pColumns, sizeof(SSchema) * pOld->numOfColumns);
   memcpy(pNew->pTags, pOld->pTags, sizeof(SSchema) * pOld->numOfTags);
+  memcpy(pNew->pCmpr, pOld->pCmpr, sizeof(SColCmpr) * pOld->numOfColumns);
+
   return 0;
 }
 
@@ -1629,6 +1645,44 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
   return 0;
 }
 
+static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *pOld, SStbObj *pNew, char *colName,
+                                                 SColCmpr *pColCmpr) {
+  if (pColCmpr == NULL || colName == NULL) return -1;
+  int32_t code = 0;
+  int32_t idx = mndFindSuperTableColumnIndex(pOld, colName);
+  if (idx == -1) {
+    terrno = TSDB_CODE_MND_COLUMN_NOT_EXIST;
+    return -1;
+  }
+  col_id_t colId = pOld->pColumns[idx].colId;
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
+    return -1;
+  }
+
+  if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+  SSchema *pCols = pNew->pColumns + idx;
+
+  int8_t updated = 0;
+  for (int i = 0; i < pNew->numOfColumns; i++) {
+    SCmprObj *p = &pNew->pCmpr[i];
+    if (p->colId == colId) {
+      if (p->cmprAlg != pColCmpr->alg) {
+        p->cmprAlg = pColCmpr->alg;
+      }
+      break;
+    }
+  }
+
+  if (updated == 0) {
+    terrno = TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST;
+    return -1;
+  }
+
+  pNew->colVer++;
+  return 0;
+}
 static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
@@ -2294,6 +2348,9 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
       code = mndUpdateStbCommentAndTTL(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, 0, NULL);
       break;
     default:
       needRsp = false;

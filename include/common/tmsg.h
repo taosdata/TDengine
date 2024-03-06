@@ -153,18 +153,19 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG             1
-#define TSDB_ALTER_TABLE_DROP_TAG            2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME     3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL      4
-#define TSDB_ALTER_TABLE_ADD_COLUMN          5
-#define TSDB_ALTER_TABLE_DROP_COLUMN         6
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
-#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES    8
-#define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
-#define TSDB_ALTER_TABLE_ADD_TAG_INDEX       11
-#define TSDB_ALTER_TABLE_DROP_TAG_INDEX      12
+#define TSDB_ALTER_TABLE_ADD_TAG                1
+#define TSDB_ALTER_TABLE_DROP_TAG               2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME        3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL         4
+#define TSDB_ALTER_TABLE_ADD_COLUMN             5
+#define TSDB_ALTER_TABLE_DROP_COLUMN            6
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES    7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES       8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS         9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME     10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -551,7 +552,7 @@ struct SSchema {
 #define COMPRESS_L2_TYPE_U8(type)       (((type) >> 3) & 0x07)
 #define COMPRESS_L2_TYPE_LEVEL_U8(type) (((type) >> 6) & 0x03)
 
-// 
+//
 
 struct SSchema2 {
   int8_t   type;
@@ -640,6 +641,46 @@ typedef struct {
   SSchema* pSchema;
 } SSchemaWrapper;
 
+typedef struct {
+  col_id_t id;
+  uint32_t alg;
+} SColCmpr;
+
+typedef struct {
+  int32_t   nCols;
+  int32_t   version;
+  SColCmpr* pColCmpr;
+} SColCmprWrapper;
+
+static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper* pSrcWrapper) {
+  if (pSrcWrapper->pColCmpr == NULL || pSrcWrapper->nCols == 0) return NULL;
+
+  SColCmprWrapper* pDstWrapper = taosMemoryMalloc(pSrcWrapper->nCols * sizeof(SColCmpr));
+  pDstWrapper->nCols = pSrcWrapper->nCols;
+  pDstWrapper->version = pSrcWrapper->version;
+
+  int32_t size = sizeof(SColCmpr) * pDstWrapper->nCols;
+  pDstWrapper->pColCmpr = taosMemoryCalloc(1, size);
+  memcpy(pDstWrapper->pColCmpr, pSrcWrapper->pColCmpr, size);
+
+  return pDstWrapper;
+}
+
+static FORCE_INLINE void tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, SSchemaWrapper* pSchema) {
+  pCmpr->nCols = pSchema->nCols;
+  for (int32_t i = 0; i < pCmpr->nCols; i++) {
+    SColCmpr* pColCmpr = &pCmpr->pColCmpr[i];
+    SSchema*  pColSchema = &pSchema->pSchema[i];
+    pColCmpr->id = pColSchema->colId;
+    pColCmpr->alg = 0;
+  }
+}
+static FORCE_INLINE void tDeleteSColCmprWrapper(SColCmprWrapper* pWrapper) {
+  if (pWrapper == NULL) return;
+
+  taosMemoryFreeClear(pWrapper->pColCmpr);
+  taosMemoryFreeClear(pWrapper);
+}
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper->pSchema == NULL) return NULL;
 
@@ -2676,15 +2717,17 @@ int32_t tDecodeSRSmaParam(SDecoder* pCoder, SRSmaParam* pRSmaParam);
 
 // TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
-  char*          name;
-  tb_uid_t       suid;
-  int8_t         rollup;
-  SSchemaWrapper schemaRow;
-  SSchemaWrapper schemaTag;
-  SRSmaParam     rsmaParam;
-  int32_t        alterOriDataLen;
-  void*          alterOriData;
-  int8_t         source;
+  char*           name;
+  tb_uid_t        suid;
+  int8_t          rollup;
+  SSchemaWrapper  schemaRow;
+  SSchemaWrapper  schemaTag;
+  SRSmaParam      rsmaParam;
+  int32_t         alterOriDataLen;
+  void*           alterOriData;
+  int8_t          source;
+  int8_t          colCmpred;
+  SColCmprWrapper colCmpr;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -2722,8 +2765,9 @@ typedef struct SVCreateTbReq {
       SSchemaWrapper schemaRow;
     } ntb;
   };
-  int32_t sqlLen;
-  char*   sql;
+  int32_t         sqlLen;
+  char*           sql;
+  SColCmprWrapper colCmpr;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);

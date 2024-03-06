@@ -241,9 +241,19 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.name = pReq->name;
   me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
+  // me.stbEntry.colCmpr = pReq->colCmpr;
+  //  me.stbEntry.colCmpr = pReq->
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(me.flags);
     me.stbEntry.rsmaParam = pReq->rsmaParam;
+  }
+  if (pReq->colCmpred) {
+    TABLE_SET_COL_COMPRESSED(me.flags);
+    me.colCmpr = pReq->colCmpr;
+  } else {
+    TABLE_SET_COL_COMPRESSED(me.flags);
+    // TODO(yihao)
+    // SETUP default compress algr
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -432,6 +442,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.name = pReq->name;
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+  nStbEntry.colCmpr = pReq->colCmpr;
+  TABLE_SET_COL_COMPRESSED(nStbEntry.flags);
 
   int     nCols = pReq->schemaRow.nCols;
   int     onCols = oStbEntry.stbEntry.schemaRow.nCols;
@@ -636,6 +648,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.name = pReq->name;
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+  nStbEntry.colCmpr = pReq->colCmpr;
 
   metaWLock(pMeta);
   // update table.db
@@ -769,12 +782,16 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   nStbEntry.uid = oStbEntry.uid;
   nStbEntry.name = oStbEntry.name;
 
-  SSchemaWrapper *row = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaRow);
-  SSchemaWrapper *tag = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaTag);
+  SSchemaWrapper  *row = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaRow);
+  SSchemaWrapper  *tag = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaTag);
+  SColCmprWrapper *cmpr = tCloneSColCmprWrapper(&oStbEntry.colCmpr);
 
   nStbEntry.stbEntry.schemaRow = *row;
   nStbEntry.stbEntry.schemaTag = *tag;
   nStbEntry.stbEntry.rsmaParam = oStbEntry.stbEntry.rsmaParam;
+  nStbEntry.colCmpr = *cmpr;
+
+  nStbEntry.colCmpr = oStbEntry.colCmpr;
 
   metaWLock(pMeta);
   // update table.db
@@ -785,6 +802,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
 
   tDeleteSchemaWrapper(tag);
   tDeleteSchemaWrapper(row);
+  tDeleteSColCmprWrapper(cmpr);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
@@ -899,6 +917,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     me.ntbEntry.comment = pReq->comment;
     me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
+    me.colCmpr = pReq->colCmpr;
+    TABLE_SET_COL_COMPRESSED(me.flags);
 
     ++pStats->numOfNTables;
     pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
@@ -2455,6 +2475,9 @@ int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_SUPER_TABLE) {
     code = metaUpdateTtl(pMeta, pME);
     VND_CHECK_CODE(code, line, _err);
+  }
+
+  if (pME->type == TSDB_SUPER_TABLE || pME->type == TSDB_NORMAL_TABLE) {
   }
 
   metaULock(pMeta);

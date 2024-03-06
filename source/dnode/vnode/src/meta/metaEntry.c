@@ -15,6 +15,36 @@
 
 #include "meta.h"
 
+int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColCmprWrapper *pw = &pME->colCmpr;
+  for (int32_t i = 0; i < pw->nCols; i++) {
+    SColCmpr *p = &pw->pColCmpr[i];
+    if (tEncodeI16v(pCoder, p->id) < 0) return -1;
+    if (tEncodeU32(pCoder, p->alg) < 0) return -1;
+  }
+  return 0;
+}
+int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
+  SColCmprWrapper *pWrapper = &pME->colCmpr;
+  if (tDecodeI32v(pDecoder, &pWrapper->nCols) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pWrapper->version) < 0) return -1;
+
+  pWrapper->pColCmpr = (SColCmpr *)taosMemoryCalloc(1, pWrapper->nCols * sizeof(SColCmpr));
+  if (pWrapper->pColCmpr == NULL) return -1;
+
+  for (int i = 0; i < pWrapper->nCols; i++) {
+    SColCmpr *p = &pWrapper->pColCmpr[i];
+    if (tDecodeI16v(pDecoder, &p->id) < 0) goto END;
+    if (tDecodeU32(pDecoder, &p->alg) < 0) goto END;
+  }
+  return 0;
+END:
+  taosMemoryFree(pWrapper->pColCmpr);
+  return -1;
+}
+
+
+
 int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -54,6 +84,10 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
 
     return -1;
+  }
+
+  if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
+    if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
   }
 
   tEndEncode(pCoder);
@@ -102,8 +136,17 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeTSma(pCoder, pME->smaEntry.tsma, true) < 0) return -1;
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
-
     return -1;
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
+    TABLE_SET_COL_COMPRESSED(pME->flags);
+  } else {
+    if (pME->type == TSDB_SUPER_TABLE) {
+      tInitDefaultSColCmprWrapper(&pME->colCmpr, &pME->stbEntry.schemaRow);
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      tInitDefaultSColCmprWrapper(&pME->colCmpr, &pME->ntbEntry.schemaRow);
+    }
   }
 
   tEndDecode(pCoder);
