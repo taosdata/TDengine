@@ -145,7 +145,7 @@ static FORCE_INLINE int32_t tBufferPutBinary(SBuffer *buffer, const void *data, 
 }
 
 static FORCE_INLINE int32_t tBufferPutCStr(SBuffer *buffer, const char *str) {
-  return tBufferPutBinary(buffer, str, str ? 0 : strlen(str) + 1);
+  return tBufferPutBinary(buffer, str, str ? strlen(str) + 1 : 0);
 }
 
 static FORCE_INLINE int32_t tBufferPutF32(SBuffer *buffer, float value) {
