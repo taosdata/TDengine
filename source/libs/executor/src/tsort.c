@@ -1068,7 +1068,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   pMemFile->currRegionId = -1;
   pMemFile->currRegionOffset = -1;
 
-  pMemFile->writeBufSize = 64 * 1024 * 1024;
+  pMemFile->writeBufSize = 4 * 1024 * 1024;
   pMemFile->writeBuf = taosMemoryMalloc(pMemFile->writeBufSize);
   pMemFile->writeFileOffset = -1;
   pMemFile->bRegionDirty = false;
@@ -1130,10 +1130,7 @@ static int32_t tsortCloseRegion(SSortHandle* pHandle) {
   pRegion->regionSize = pMemFile->currRegionOffset;
   int32_t writeBytes = pRegion->regionSize - (pMemFile->writeFileOffset - pRegion->fileOffset);
   if (writeBytes > 0) {
-    int ret = tsortSeekFile(pMemFile->pTdFile, pMemFile->writeFileOffset, SEEK_SET);
-    if (ret == 0) {
-      ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
-    }
+    int ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
@@ -1165,11 +1162,8 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
   SSortMemFileRegion* pRegion = taosArrayGet(pMemFile->aFileRegions, pMemFile->currRegionId);
   {
     if (pMemFile->currRegionOffset + pHandle->extRowBytes >= pMemFile->writeBufSize) {
-      int ret = tsortSeekFile(pMemFile->pTdFile, pMemFile->writeFileOffset, SEEK_SET);
       int32_t writeBytes = pMemFile->currRegionOffset - (pMemFile->writeFileOffset - pRegion->fileOffset);
-      if (ret == 0) {
-        ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
-      }
+      int ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
       if (ret !=  1) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return terrno;
