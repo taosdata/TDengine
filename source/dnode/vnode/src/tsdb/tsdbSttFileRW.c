@@ -876,8 +876,17 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
         .lastKey = key.key,
         .count = 1,
     };
-    code = tStatisBlockPut(writer->staticBlock, &record);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    for (;;) {
+      code = tStatisBlockPut(writer->staticBlock, &record);
+      if (code == TSDB_CODE_INVALID_PARA) {
+        code = tsdbSttFileDoWriteStatisBlock(writer);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      } else {
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      break;
+    }
   } else {
     // update last key and count
     STbStatisRecord record;
