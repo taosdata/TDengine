@@ -59,33 +59,35 @@ impl<'a> LicenseValidator<'a> {
 
     /// Validate the connector license and the enterprise license.
     pub async fn validate_connector(&self) -> Result<LicenseKind> {
-        let edition = validate_enterprise_license(self.from, self.to).await?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        {
+            let edition = validate_enterprise_license(self.from, self.to).await?;
 
-        if edition.is_err() {
-            return Ok(edition);
-        }
-
-        if self.to.driver == "taos" {
-            match self.from.driver.as_str() {
-                "opc"
-                | "opcua"
-                | "opcda"
-                | "pi"
-                | "pibackfill"
-                | "mqtt"
-                | "influxdb"
-                | "opentsdb"
-                | "tmq"
-                | "taos"
-                | taosx_core::runners::kafka::KAFKA_ID
-                | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
-                    validate_connector_license(self.from, self.to, self.pool).await
-                }
-                _ => Ok(LicenseKind::Good),
+            if edition.is_err() {
+                return Ok(edition);
             }
-        } else {
-            Ok(LicenseKind::Good)
+
+            if self.to.driver == "taos" {
+                return match self.from.driver.as_str() {
+                    "opc"
+                    | "opcua"
+                    | "opcda"
+                    | "pi"
+                    | "pibackfill"
+                    | "mqtt"
+                    | "influxdb"
+                    | "opentsdb"
+                    | "tmq"
+                    | "taos"
+                    | taosx_core::runners::kafka::KAFKA_ID
+                    | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
+                        validate_connector_license(self.from, self.to, self.pool).await
+                    }
+                    _ => Ok(LicenseKind::Good),
+                };
+            }
         }
+        Ok(LicenseKind::Good)
     }
 }
 
