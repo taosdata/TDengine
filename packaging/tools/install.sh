@@ -232,8 +232,8 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
   [ -x ${install_main_dir}/bin/${keeperName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${keeperName2} ${bin_link_dir}/${keeperName2} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
-  if [ "$clientName2" == "${clientName}" ]; then
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
+  if [ "$clientName2" == "${clientName}" ]; then    
+    [ -x ${install_main_dir}/bin/remove.sh ] && mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh && ${csudo}ln -s ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
   fi
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
@@ -244,8 +244,8 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
     [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
-  fi
+    [ -x ${install_main_dir}/bin/remove.sh ] && mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh && ${csudo}ln -s ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript2} || :
+  fi  
 }
 
 function install_lib() {
