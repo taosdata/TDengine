@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -935,6 +936,9 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 				}
 			}
 		}
+		sort.Slice(bfsList, func(i, j int) bool {
+			return bfsList[i].ID.String() < bfsList[j].ID.String()
+		})
 	}
 	return result, nil
 }

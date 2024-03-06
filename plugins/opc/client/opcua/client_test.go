@@ -385,3 +385,49 @@ func TestTryGetCapabilities(t *testing.T) {
 	assert.NotEmpty(t, data)
 	assert.True(t, gotMessage)
 }
+
+func TestGetPointsInorder(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:50000",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+
+	client, err := NewUAClient(ctx, connectConfig, config.CollectConfig{}, 1, logrus.New().WithField("test", "test"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		t.Log("close client")
+		client.Close()
+		t.Log("close client finish")
+	}()
+
+	pointsConf := config.PointsConfig{
+		Limit: 500,
+		Regex: ".*",
+		Ua: config.UaPointsConfig{
+			Root: "i=85",
+		},
+	}
+	points, err := client.GetAllPoints(pointsConf)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, len(points))
+
+	nodes := make([]config.NodeConfig, len(points))
+	for i := 0; i < len(points); i++ {
+		nodes[i] = config.NodeConfig{ID: points[i].ID}
+	}
+	nextPoints, err := client.GetAllPoints(pointsConf)
+	assert.NoError(t, err)
+	assert.Equal(t, points, nextPoints)
+}
