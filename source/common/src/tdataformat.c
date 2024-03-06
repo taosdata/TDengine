@@ -2678,13 +2678,10 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
   return 0;
 }
 
-int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo *info, SColData *colData,
-                           SBuffer *assist) {
-  int32_t code;
-  SBuffer local;
-  char   *inputStart = input;
-
-  ASSERT(inputSize == info->bitmapCompressedSize + info->offsetCompressedSize + info->dataCompressedSize);
+int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist) {
+  int32_t  code;
+  SBuffer  local;
+  uint8_t *data = (uint8_t *)input;
 
   tBufferInit(&local);
   if (assist == NULL) {
@@ -2717,13 +2714,13 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, &cinfo, colData->pBitMap, cinfo.originalSize, assist);
+    code = tDecompressData(data, &cinfo, colData->pBitMap, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
-    inputStart += cinfo.compressedSize;
+    data += cinfo.compressedSize;
   }
 
   if (info->flag == (HAS_NONE | HAS_NULL)) {
@@ -2745,13 +2742,13 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, &cinfo, colData->aOffset, cinfo.originalSize, assist);
+    code = tDecompressData(data, &cinfo, colData->aOffset, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
-    inputStart += cinfo.compressedSize;
+    data += cinfo.compressedSize;
   }
 
   // data
@@ -2771,13 +2768,13 @@ int32_t tColDataDecompress(void *input, int32_t inputSize, SColDataCompressInfo 
       return code;
     }
 
-    code = tDecompressData(inputStart, &cinfo, colData->pData, cinfo.originalSize, assist);
+    code = tDecompressData(data, &cinfo, colData->pData, cinfo.originalSize, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
     }
 
-    inputStart += cinfo.compressedSize;
+    data += cinfo.compressedSize;
   }
 
 _exit:

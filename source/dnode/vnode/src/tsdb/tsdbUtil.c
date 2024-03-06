@@ -1561,10 +1561,9 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
       break;
   }
 
-  int32_t totalCompressedSize = blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
-  code = tColDataDecompress(BR_PTR(br), totalCompressedSize, &info, colData, assist);
+  code = tColDataDecompress(BR_PTR(br), &info, colData, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
-  br->offset += totalCompressedSize;
+  br->offset += blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
 
 _exit:
   return code;
