@@ -29,6 +29,16 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
+typedef enum {
+  DND_CA_SM4 = 1,
+} ECryptAlgor;
+
+typedef enum {
+  DND_CS_TSDB = 1,
+  DND_CS_WAL = 2,
+  DND_CS_SDB = 4,
+} ECryptScope;
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -39,6 +49,10 @@ extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfSupportVnodes;
+extern char     tsCryptAlgorithm[];
+extern char     tsCryptScope[];
+extern ECryptAlgor  tsiCryptAlgorithm;
+extern ECryptScope  tsiCryptScope;
 
 // common
 extern int32_t tsMaxShellConns;

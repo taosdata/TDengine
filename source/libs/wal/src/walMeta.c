@@ -153,7 +153,10 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // validate body
-      int32_t newBodyLen = (logContent->head.bodyLen/16) * 16 + (logContent->head.bodyLen%16?1:0) * 16;
+      int32_t newBodyLen = logContent->head.bodyLen;
+      if(pWal->cfg.cryptAlgorithm == 1){
+        newBodyLen = (logContent->head.bodyLen/16) * 16 + (logContent->head.bodyLen%16?1:0) * 16;
+      }
       recordLen = walCkHeadSz + newBodyLen;
       if (len < recordLen) {
         int64_t extraSize = recordLen - len;
@@ -182,7 +185,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       logContent = (SWalCkHead*)(buf + pos);
-      if (walValidBodyCksum(logContent) != 0) {
+      if (walValidBodyCksum(logContent, pWal->cfg.cryptAlgorithm) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
               offset + pos, fnameStr);

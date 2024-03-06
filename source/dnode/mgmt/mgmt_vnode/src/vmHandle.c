@@ -148,6 +148,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.retentionSize = pCreate->walRetentionSize;
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
+  pCfg->walCfg.cryptAlgorithm = tsiCryptAlgorithm;
 
   pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;

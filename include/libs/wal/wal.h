@@ -57,6 +57,7 @@ typedef struct {
   int64_t  retentionSize;
   int64_t  segSize;
   EWalType level;  // wal level
+  int32_t  cryptAlgorithm;
 } SWalCfg;
 
 typedef struct {

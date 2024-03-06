@@ -110,6 +110,8 @@ typedef struct {
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
+  ECryptAlgor    cryptAlgorigthm;
+  ECryptScope    cryptScope;
 } SDnodeData;
 
 typedef struct {

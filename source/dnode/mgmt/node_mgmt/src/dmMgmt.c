@@ -161,6 +161,9 @@ int32_t dmInitVars(SDnode *pDnode) {
     return -1;
   }
 
+  tsiCryptAlgorithm = pData->cryptAlgorigthm;
+  tsiCryptScope = pData->cryptScope;
+
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");
     return -1;

@@ -63,6 +63,10 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
   if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "cryptAlgor", pData->cryptAlgorigthm, code);
+  if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "cryptScope", pData->cryptScope, code);
+  if (code < 0) return -1;
 
   SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
   if (dnodes == NULL) return 0;
@@ -88,6 +92,25 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   return 0;
 }
 
+int dmOccurrences(char *str, char *toSearch) {
+    int count = 0;
+    char *ptr = str;
+    while ((ptr = strstr(ptr, toSearch)) != NULL) {
+        count++;
+        ptr++;
+    }
+    return count;
+}
+
+void dmSplitStr(char** arr, char* str, const char* del) {
+  char *lasts;
+  char* s = strsep(&str, del);
+  while (s != NULL) {
+    *arr++ = s;
+    s = strsep(&str, del);
+  }
+}
+
 int32_t dmReadEps(SDnodeData *pData) {
   int32_t   code = -1;
   TdFilePtr pFile = NULL;
@@ -105,6 +128,34 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
+    if(strcmp(tsCryptAlgorithm, "sm4") == 0) {
+      pData->cryptAlgorigthm = DND_CA_SM4;
+    }
+
+    int32_t count = dmOccurrences(tsCryptScope, ",");
+
+    char** array = taosMemoryMalloc(sizeof(char*) * (count + 1));
+    memset(array, 0, sizeof(char*) * (count + 1));
+    dmSplitStr(array, tsCryptScope, ",");
+
+    for(int32_t i = 0; i < count + 1; i++){
+      char* str = *(array + i);
+
+      if(strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0){
+        pData->cryptScope |= DND_CS_TSDB;
+      }
+      if(strcasecmp(str, "wal") == 0 || strcasecmp(str, "all") == 0){
+        pData->cryptScope |= DND_CS_WAL;
+      }
+      if(strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0){
+        pData->cryptScope |= DND_CS_SDB;
+      }
+    }
+
+    taosMemoryFree(array);
+
+    dInfo("set tsCryptAlgorithm:%s, tsCryptScope:%s from cfg", tsCryptAlgorithm, tsCryptScope);
+
     code = 0;
     goto _OVER;
   }
@@ -190,6 +241,8 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "cryptAlgor", pData->cryptAlgorigthm) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "cryptScope", pData->cryptScope) < 0) return -1;
 
   SJson *dnodes = tjsonCreateArray();
   if (dnodes == NULL) return -1;

@@ -524,53 +524,62 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   int32_t len = bodyLen;
   char* buf = (char*)body;
+  char* newBody = NULL;
+  char* newBodyEncrypted = NULL;
 
-  int32_t newBodyLen = (bodyLen/16) * 16 + (bodyLen%16?1:0) * 16;
-  char* newBody = taosMemoryMalloc(newBodyLen);
-  if(newBody == NULL){
-    wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-           strerror(errno));
-    code = -1;
-    goto END;
+  if(pWal->cfg.cryptAlgorithm == 1){
+    int32_t newBodyLen = (bodyLen/16) * 16 + (bodyLen%16?1:0) * 16;
+    char* newBody = taosMemoryMalloc(newBodyLen);
+    if(newBody == NULL){
+      wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+            strerror(errno));
+      code = -1;
+      goto END;
+    }
+    memset(newBody, 0, newBodyLen);
+    memcpy(newBody, body, bodyLen);
+
+    char* newBodyEncrypted = taosMemoryMalloc(newBodyLen);
+    if(newBodyEncrypted == NULL){
+      wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+            strerror(errno));
+      code = -1;
+      goto END;
+    }
+
+    int		NewLen;
+    unsigned char Key[17]="0000100001000010";
+    unsigned char IV[17]="0000100001000010";
+
+    int32_t count = 0;
+    while (count < newBodyLen) {
+      SM4_CBC_Encrypt(Key, 16, IV, 16, (char*)newBody + count, 16, (char*)newBodyEncrypted + count, &NewLen);
+      count += NewLen;
+    }
+    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", SM4_CBC_Encrypt newBodyLen:%d, bodyLen:%d, %s", 
+          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, newBodyLen, bodyLen, __FUNCTION__);
+
+    len = newBodyLen;
+    buf = newBodyEncrypted;
   }
-  memset(newBody, 0, newBodyLen);
-  memcpy(newBody, body, bodyLen);
-
-  char* newBodyEncrypted = taosMemoryMalloc(newBodyLen);
-  if(newBodyEncrypted == NULL){
-    wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-           strerror(errno));
-    code = -1;
-    goto END;
-  }
-
-  int		NewLen;
-  unsigned char Key[17]="0000100001000010";
-  unsigned char IV[17]="0000100001000010";
-
-  int32_t count = 0;
-  while (count < newBodyLen) {
-    SM4_CBC_Encrypt(Key, 16, IV, 16, (char*)newBody + count, 16, (char*)newBodyEncrypted + count, &NewLen);
-    count += NewLen;
-  }
-  wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", SM4_CBC_Encrypt newBodyLen:%d, bodyLen:%d, %s", 
-        pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, newBodyLen, bodyLen, __FUNCTION__);
-
-  len = newBodyLen;
-  buf = newBodyEncrypted;
+  
 
   if (taosWriteFile(pWal->pLogFile, (char *)buf, len) != len) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
     code = -1;
-    taosMemoryFree(newBody);
-    taosMemoryFree(newBodyEncrypted);
+    if(pWal->cfg.cryptAlgorithm == 1){
+      taosMemoryFree(newBody);
+      taosMemoryFree(newBodyEncrypted);
+    }
     goto END;
   }
 
-  taosMemoryFree(newBody);
-  taosMemoryFree(newBodyEncrypted);
+  if(pWal->cfg.cryptAlgorithm == 1){
+    taosMemoryFree(newBody);
+    taosMemoryFree(newBodyEncrypted);    
+  }
 
   // set status
   if (pWal->vers.firstVer == -1) {

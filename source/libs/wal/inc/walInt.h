@@ -117,30 +117,36 @@ static inline int walValidHeadCksum(SWalCkHead* pHead) {
   return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalCont), pHead->cksumHead);
 }
 
-static inline int walValidBodyCksum(SWalCkHead* pHead) {
+static inline int walValidBodyCksum(SWalCkHead* pHead, int cryptAlgorithm) {
   char* newBody = pHead->head.body;
 
-  int32_t newBodyLen = (pHead->head.bodyLen/16) * 16 + (pHead->head.bodyLen%16?1:0) * 16;
-  newBody = taosMemoryMalloc(newBodyLen);
+  if(cryptAlgorithm == 1){
+    int32_t newBodyLen = (pHead->head.bodyLen/16) * 16 + (pHead->head.bodyLen%16?1:0) * 16;
+    newBody = taosMemoryMalloc(newBodyLen);
 
-  int		NewLen;
-  unsigned char Key[17]="0000100001000010";
-  unsigned char IV[17]="0000100001000010";
+    int		NewLen;
+    unsigned char Key[17]="0000100001000010";
+    unsigned char IV[17]="0000100001000010";
 
-  int32_t count = 0;
-  while (count < newBodyLen) {
-    SM4_CBC_Decrypt(Key, 16, IV, 16, pHead->head.body + count, 16, newBody + count, &NewLen);
-    count += NewLen;
+    int32_t count = 0;
+    while (count < newBodyLen) {
+      SM4_CBC_Decrypt(Key, 16, IV, 16, pHead->head.body + count, 16, newBody + count, &NewLen);
+      count += NewLen;
+    }
+    wInfo("SM4_CBC_Decrypt newBodyLen:%d, bodyLen:%d, %s", newBodyLen, pHead->head.bodyLen, __FUNCTION__);
   }
-  wInfo("SM4_CBC_Decrypt newBodyLen:%d, bodyLen:%d, %s", newBodyLen, pHead->head.bodyLen, __FUNCTION__);
 
   int32_t code = taosCheckChecksum((uint8_t*)newBody, pHead->head.bodyLen, pHead->cksumBody);
-  taosMemoryFree(newBody);
+
+  if(cryptAlgorithm == 1){
+    taosMemoryFree(newBody);
+  }
+  
   return code;
 }
 
-static inline int walValidCksum(SWalCkHead* pHead, void* body, int64_t bodyLen) {
-  return walValidHeadCksum(pHead) && walValidBodyCksum(pHead);
+static inline int walValidCksum(SWalCkHead* pHead, void* body, int64_t bodyLen, int cryptAlgorithm) {
+  return walValidHeadCksum(pHead) && walValidBodyCksum(pHead, cryptAlgorithm);
 }
 
 static inline uint32_t walCalcHeadCksum(SWalCkHead* pHead) {
