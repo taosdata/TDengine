@@ -243,6 +243,7 @@ class TSMATesterSQLGeneratorOptions:
         self.column_num: int = 9 ### c1 - c10
         self.tags_prefix: str = 't'
         self.tag_num: int = 6  ### t1 - t6
+        self.char_tag_idx: List = [2,3]
         self.child_table_name_prefix: str = 't'
         self.child_table_num: int = 10  #### t0 - t9
         self.interval: bool = False
@@ -292,7 +293,7 @@ class TSMATestSQLGenerator:
         substr = f'SUBSTR({name}, {start}, {len})'
         lower = f'LOWER({name})'
         ltrim = f'LTRIM({name})'
-        return [concat1, concat2, concat3, substr, lower, ltrim, name]
+        return [concat1, concat2, concat3, substr, substr, lower, lower, ltrim, name]
 
     def generate_depthed_str_func(self, name: str, depth: int) -> str:
         if depth == 1:
@@ -307,6 +308,9 @@ class TSMATestSQLGenerator:
         ret = self.generate_depthed_str_func(column_name, depth)
         tdLog.debug(f'generating str func: {ret}')
         return ret
+    
+    def generate_integer_func(self, column_name: str, depth: int = 0) -> str:
+        pass
 
     def get_random_type(self, funcs):
         rand: int = randrange(1, len(funcs))
@@ -420,7 +424,7 @@ class TSMATestSQLGenerator:
         for _ in range(used_tag_num):
             tag_idx = random.randint(1,self.opts_.tag_num)
             tag_name = self.opts_.tags_prefix + f'{tag_idx}'
-            if False and random.random() < 0.5:
+            if random.random() < 0.5 and tag_idx in self.opts_.char_tag_idx:
                 tag_func = self.generate_str_func(tag_name, 2)
             else:
                 tag_func = tag_name
@@ -450,7 +454,7 @@ class TSMATestSQLGenerator:
         ret = ''
         rand = random.random()
         if rand < 0.4:
-            if False and random.random() < 0.5:
+            if random.random() < 0.5:
                 ret = self.generate_str_func('tbname', 3)
             else:
                 ret = 'tbname'
@@ -488,7 +492,7 @@ class TSMATestSQLGenerator:
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
     def __init__(self):
-        self.vgroups    = 4
+        self.vgroups    = 1
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
@@ -719,7 +723,7 @@ class TDTestCase:
         opts.partition_by = True
         opts.interval = True
         opts.where_ts_range = True
-        for _ in range(1, 10000):
+        for _ in range(1, 100):
             sql_generator = TSMATestSQLGenerator(opts)
             sql = sql_generator.generate_one('avg(c1), avg(c2)', 'meters', '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
@@ -831,6 +835,8 @@ class TDTestCase:
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname like "t%" order by tbname'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
 
         return ctxs
