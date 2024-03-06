@@ -35,6 +35,24 @@ groups:
           choices:
             - earliest
             - latest
+      - name: group.id
+        display: 订阅组 ID
+        description: |
+          订阅组 ID 用于标识一个订阅组，同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。
+        hint:
+          type: str
+      - name: client.id
+        display: 客户端 ID
+        description: |
+          客户端 ID 用于标识一个订阅的客户端。
+        hint:
+          type: str
+      - name: experimental.snapshot.enable
+        display: 启用快照
+        description: |
+          启用实验性的快照以支持订阅更早的数据。
+        hint: 
+          type: bool
       - name: timeout
         display: 超时
         hint:
