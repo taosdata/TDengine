@@ -248,7 +248,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
       tsdbInfo("SM4_CBC_Decrypt count:%d, NewLen:%d", count, NewLen);
     }
   }
-  
 
   // check
   if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
