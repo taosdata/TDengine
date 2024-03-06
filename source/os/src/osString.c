@@ -477,7 +477,7 @@ bool isHex(const char* z, uint32_t n){
 }
 
 bool isValidateHex(const char* z, uint32_t n){
-  if (n & 1 != 0) return false;
+  if ((n & 1) != 0) return false;
   for(size_t i = HEX_PREFIX_LEN; i < n; i++){
     if(isxdigit(z[i]) == 0){
       return false;
