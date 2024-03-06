@@ -133,6 +133,7 @@ int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
+int64_t vnodeClusterId(SVnode* pVnode);
 int32_t vnodeNodeId(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path, int32_t vnodeVersion);
 int32_t vnodeSyncStart(SVnode* pVnode);

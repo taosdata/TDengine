@@ -811,6 +811,11 @@ bool vnodeIsLeader(SVnode *pVnode) {
   return true;
 }
 
+int64_t vnodeClusterId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].clusterId;
+}
+
 int32_t vnodeNodeId(SVnode *pVnode) {
   SSyncCfg *syncCfg = &pVnode->config.syncCfg;
   return syncCfg->nodeInfo[syncCfg->myIndex].nodeId;
