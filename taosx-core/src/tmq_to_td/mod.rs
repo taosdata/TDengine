@@ -72,7 +72,7 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
     Ok(())
 }
 
-#[instrument(skip_all, fields(table, rows))]
+#[instrument(skip_all, fields(consumer.id=id, table, rows))]
 async fn write_data(
     id: usize,
     rows: &mut usize,
@@ -426,7 +426,7 @@ async fn write_meta(
                             }
                         }
                     }
-                    0x032C | 0x0115 | 0x0603 | 0x03C7 => {
+                    0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
@@ -457,6 +457,7 @@ async fn write_meta(
             metrics.add_write_raw_fails(1);
             let errstr = err.to_string();
             if errstr.contains("[0x032C]")
+                || errstr.contains("[0x03D3]")
                 || errstr.contains("[0x0115]")
                 || errstr.contains("[0x0603]")
                 || errstr.contains("[0x03C7]")
@@ -471,7 +472,7 @@ async fn write_meta(
     Ok(())
 }
 
-#[instrument(skip_all, fields(task.id = id, table))]
+#[instrument(skip_all, fields(consumer.id = id, table))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
