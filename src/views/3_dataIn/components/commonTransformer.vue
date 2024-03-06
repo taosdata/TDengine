@@ -1998,7 +1998,8 @@ export default {
         }
       ).then(() => {
         if (this.$store.state.app.transresultname == name) {
-          this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+          // 删除提取拆分列时 transresultname 更改为当前删除name,预览表格才能展示正确
+          this.$store.commit("app/SET_TRANS_RESULT_NAME", name);
         }
         let oldextract = this.$store.state.app.transformExtractParseData;
 
@@ -2022,6 +2023,7 @@ export default {
           if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
             this.$refs.filter[0].submit();
           } else {
+            this.$refs.extract[0].submitExtract();
             this.$refs.extract[0].submitExtract(true);
           }
         } else {
