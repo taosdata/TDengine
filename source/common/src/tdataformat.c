@@ -101,9 +101,13 @@ typedef struct {
   int32_t          kvRowSize;
 } SRowBuildScanInfo;
 
-static FORCE_INLINE void tRowBuildScanAddNone(SRowBuildScanInfo *sinfo) { sinfo->numOfNone++; }
+static FORCE_INLINE void tRowBuildScanAddNone(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
+  ASSERT((pTColumn->flags & COL_IS_KEY) == 0);
+  sinfo->numOfNone++;
+}
 
 static FORCE_INLINE void tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
+  ASSERT((pTColumn->flags & COL_IS_KEY) == 0);
   sinfo->numOfNull++;
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   sinfo->kvPayloadSize += tPutI16v(NULL, -pTColumn->colId);
@@ -152,12 +156,9 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
 
   // loop scan
   for (int32_t i = 1; i < schema->numOfCols; i++) {
-    bool isPK = ((schema->columns[i].flags & COL_IS_KEY) != 0);
-
     for (;;) {
       if (colValIndex >= numOfColVals) {
-        ASSERTS(!isPK, "Primary key should not be NONE or NULL");
-        tRowBuildScanAddNone(sinfo);
+        tRowBuildScanAddNone(sinfo, schema->columns + i);
         break;
       }
 
@@ -167,18 +168,15 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {
           tRowBuildScanAddValue(sinfo, &colValArray[colValIndex], schema->columns + i);
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {
-          ASSERTS(!isPK, "Primary key should not be NULL or NONE");
           tRowBuildScanAddNull(sinfo, schema->columns + i);
         } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {
-          ASSERTS(!isPK, "Primary key should not be NULL or NONE");
-          tRowBuildScanAddNone(sinfo);
+          tRowBuildScanAddNone(sinfo, schema->columns + i);
         }
 
         colValIndex++;
         break;
       } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {
-        ASSERTS(!isPK, "Primary key should not be NONE or NULL");
-        tRowBuildScanAddNone(sinfo);
+        tRowBuildScanAddNone(sinfo, schema->columns + i);
         break;
       } else {  // skip useless value
         colValIndex++;
@@ -259,7 +257,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   uint8_t *primaryKeys = (*ppRow)->data;
   uint8_t *bitmap = primaryKeys + sinfo->tuplePKSize;
   uint8_t *fixed = bitmap + sinfo->tupleBitmapSize;
-  uint8_t *varlen = fixed + schema->flen;
+  uint8_t *varlen = fixed + sinfo->tupleFixedSize;
 
   // primary keys
   for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
@@ -1139,10 +1137,9 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
   ASSERT(pRow->sver == pTSchema->version);
   ASSERT(nColData > 0);
 
-  uint8_t tflag = pRow->flag & (HAS_VALUE | HAS_NULL | HAS_NONE);
-  if (tflag == HAS_NONE) {
+  if (pRow->flag == HAS_NONE) {
     return tRowNoneUpsertColData(aColData, nColData, flag);
-  } else if (tflag == HAS_NULL) {
+  } else if (pRow->flag == HAS_NULL) {
     return tRowNullUpsertColData(aColData, nColData, pTSchema, flag);
   } else if (pRow->flag >> 4) {  // KV row
     return tRowKVUpsertColData(pRow, pTSchema, aColData, nColData, flag);
@@ -2622,9 +2619,10 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
     SCompressInfo cinfo = {
         .dataType = TSDB_DATA_TYPE_TINYINT,
         .cmprAlg = info->cmprAlg,
+        .originalSize = info->bitmapOriginalSize,
     };
 
-    code = tCompressDataToBuffer(colData->pBitMap, info->bitmapOriginalSize, &cinfo, output, assist);
+    code = tCompressDataToBuffer(colData->pBitMap, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2645,9 +2643,10 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
     SCompressInfo cinfo = {
         .dataType = TSDB_DATA_TYPE_INT,
         .cmprAlg = info->cmprAlg,
+        .originalSize = info->offsetOriginalSize,
     };
 
-    code = tCompressDataToBuffer(colData->aOffset, info->offsetOriginalSize, &cinfo, output, assist);
+    code = tCompressDataToBuffer(colData->aOffset, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -2663,9 +2662,10 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
     SCompressInfo cinfo = {
         .dataType = colData->type,
         .cmprAlg = info->cmprAlg,
+        .originalSize = info->dataOriginalSize,
     };
 
-    code = tCompressDataToBuffer(colData->pData, info->dataOriginalSize, &cinfo, output, assist);
+    code = tCompressDataToBuffer(colData->pData, &cinfo, output, assist);
     if (code) {
       tBufferDestroy(&local);
       return code;
@@ -4046,9 +4046,10 @@ int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *inf
     SCompressInfo cinfo = {
         .cmprAlg = info->cmprAlg,
         .dataType = TSDB_DATA_TYPE_INT,
+        .originalSize = valCol->offsets.size,
     };
 
-    code = tCompressDataToBuffer(valCol->offsets.data, valCol->offsets.size, &cinfo, output, assist);
+    code = tCompressDataToBuffer(valCol->offsets.data, &cinfo, output, assist);
     if (code) return code;
 
     info->offsetOriginalSize = cinfo.originalSize;
@@ -4059,9 +4060,10 @@ int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *inf
   SCompressInfo cinfo = {
       .cmprAlg = info->cmprAlg,
       .dataType = valCol->type,
+      .originalSize = valCol->data.size,
   };
 
-  code = tCompressDataToBuffer(valCol->data.data, valCol->data.size, &cinfo, output, assist);
+  code = tCompressDataToBuffer(valCol->data.data, &cinfo, output, assist);
   if (code) return code;
 
   info->dataOriginalSize = cinfo.originalSize;
@@ -4182,7 +4184,6 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 }
 
 int32_t tCompressData(void          *input,       // input
-                      int32_t        inputSize,   // input size
                       SCompressInfo *info,        // compress info
                       void          *output,      // output
                       int32_t        outputSize,  // output size
@@ -4191,13 +4192,12 @@ int32_t tCompressData(void          *input,       // input
   int32_t extraSizeNeeded;
   int32_t code;
 
-  extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? inputSize : inputSize + COMP_OVERFLOW_BYTES;
+  extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= extraSizeNeeded);
 
-  info->originalSize = inputSize;
   if (info->cmprAlg == NO_COMPRESSION) {
-    memcpy(output, input, inputSize);
-    info->compressedSize = inputSize;
+    memcpy(output, input, info->originalSize);
+    info->compressedSize = info->originalSize;
   } else {
     SBuffer local;
 
@@ -4216,8 +4216,8 @@ int32_t tCompressData(void          *input,       // input
 
     info->compressedSize = tDataTypes[info->dataType].compFunc(  //
         input,                                                   // input
-        inputSize,                                               // input size
-        inputSize / tDataTypes[info->dataType].bytes,            // number of elements
+        info->originalSize,                                      // input size
+        info->originalSize / tDataTypes[info->dataType].bytes,   // number of elements
         output,                                                  // output
         outputSize,                                              // output size
         info->cmprAlg,                                           // compression algorithm
@@ -4287,26 +4287,27 @@ int32_t tDecompressData(void                *input,       // input
   return 0;
 }
 
-int32_t tCompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
+int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
-  code = tBufferEnsureCapacity(output, output->size + inputSize + COMP_OVERFLOW_BYTES);
+  code = tBufferEnsureCapacity(output, output->size + info->originalSize + COMP_OVERFLOW_BYTES);
   if (code) return code;
 
-  code = tCompressData(input, inputSize, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);
+  code = tCompressData(input, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);
   if (code) return code;
 
   output->size += info->compressedSize;
   return 0;
 }
 
-int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
+int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
   code = tBufferEnsureCapacity(output, output->size + info->originalSize);
   if (code) return code;
 
-  code = tDecompressData(input, inputSize, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);
+  code = tDecompressData(input, info->compressedSize, info, tBufferGetDataEnd(output), output->capacity - output->size,
+                         assist);
   if (code) return code;
 
   output->size += info->originalSize;

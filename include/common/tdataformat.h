@@ -163,15 +163,16 @@ typedef struct {
 
 typedef void *(*xMallocFn)(void *, int32_t);
 
-void        tColDataDestroy(void *ph);
-void        tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
-void        tColDataClear(SColData *pColData);
-void        tColDataDeepClear(SColData *pColData);
-int32_t     tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-int32_t     tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void        tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t     tColDataGetBitValue(const SColData *pColData, int32_t iVal);
-int32_t     tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+void    tColDataDestroy(void *ph);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
+void    tColDataClear(SColData *pColData);
+void    tColDataDeepClear(SColData *pColData);
+int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
+void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist);
@@ -335,14 +336,13 @@ struct SValueColumn {
 };
 
 typedef struct {
-  int8_t  dataType;  // fill by caller
-  int8_t  cmprAlg;   // fill by caller
-  int32_t originalSize;
+  int8_t  dataType;      // filled by caller
+  int8_t  cmprAlg;       // filled by caller
+  int32_t originalSize;  // filled by caller
   int32_t compressedSize;
 } SCompressInfo;
 
 int32_t tCompressData(void          *input,       // input
-                      int32_t        inputSize,   // input size
                       SCompressInfo *info,        // compress info
                       void          *output,      // output
                       int32_t        outputSize,  // output size
@@ -355,8 +355,8 @@ int32_t tDecompressData(void                *input,       // input
                         int32_t              outputSize,  // output size
                         SBuffer             *buffer       // assistant buffer provided by caller, can be NULL
 );
-int32_t tCompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist);
-int32_t tDecompressDataToBuffer(void *input, int32_t inputSize, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 
 #endif
 

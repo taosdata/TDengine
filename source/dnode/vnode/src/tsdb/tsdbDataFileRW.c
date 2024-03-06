@@ -207,8 +207,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int64_t),
     };
-    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), brinBlk->size[i], &cinfo,
-                                   brinBlock->buffers + i, reader->buffers + 1);
+    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), &cinfo, brinBlock->buffers + i,
+                                   reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
     br.offset += brinBlk->size[i];
   }
@@ -220,8 +220,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int32_t),
     };
-    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), brinBlk->size[i], &cinfo,
-                                   brinBlock->buffers + i, reader->buffers + 1);
+    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), &cinfo, brinBlock->buffers + i,
+                                   reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
     br.offset += brinBlk->size[i];
   }
@@ -490,7 +490,7 @@ int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombB
         .originalSize = tombBlk->numRec * sizeof(int64_t),
         .compressedSize = tombBlk->size[i],
     };
-    code = tDecompressDataToBuffer(BR_PTR(&br), cinfo.compressedSize, &cinfo, tData->buffers + i, reader->buffers + 1);
+    code = tDecompressDataToBuffer(BR_PTR(&br), &cinfo, tData->buffers + i, reader->buffers + 1);
     TSDB_CHECK_CODE(code, lino, _exit);
     br.offset += tombBlk->size[i];
   }
@@ -747,6 +747,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     SBuffer      *bf = &brinBlock->buffers[i];
     SCompressInfo info = {
         .cmprAlg = cmprAlg,
+        .originalSize = bf->size,
     };
 
     if (tBufferGetSize(bf) == 8 * brinBlock->numOfRecords) {
@@ -758,7 +759,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     }
 
     tBufferClear(&buffers[0]);
-    code = tCompressDataToBuffer(tBufferGetData(bf), tBufferGetSize(bf), &info, buffers[0].data, &buffers[1]);
+    code = tCompressDataToBuffer(tBufferGetData(bf), &info, buffers[0].data, &buffers[1]);
     if (code) return code;
 
     code = tsdbWriteFile(fd, *fileSize, buffers[0].data, buffers[0].size);
@@ -1250,7 +1251,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .originalSize = tombBlock->buffers[i].size,
     };
-    code = tCompressDataToBuffer(tombBlock->buffers[i].data, cinfo.originalSize, &cinfo, &buffers[0], &buffers[1]);
+    code = tCompressDataToBuffer(tombBlock->buffers[i].data, &cinfo, &buffers[0], &buffers[1]);
     if (code) return code;
 
     code = tsdbWriteFile(fd, *fileSize, buffers[0].data, buffers[0].size);

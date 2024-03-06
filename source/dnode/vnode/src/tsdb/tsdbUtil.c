@@ -1390,7 +1390,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .originalSize = sizeof(int64_t) * bData->nRow,
     };
-    code = tCompressDataToBuffer(bData->aUid, cinfo.originalSize, &cinfo, buffer, assist);
+    code = tCompressDataToBuffer(bData->aUid, &cinfo, buffer, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
     hdr->szUid = cinfo.compressedSize;
   }
@@ -1401,7 +1401,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
       .dataType = TSDB_DATA_TYPE_BIGINT,
       .originalSize = sizeof(int64_t) * bData->nRow,
   };
-  code = tCompressDataToBuffer((uint8_t *)bData->aVersion, cinfo.originalSize, &cinfo, buffer, assist);
+  code = tCompressDataToBuffer((uint8_t *)bData->aVersion, &cinfo, buffer, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
   hdr->szVer = cinfo.compressedSize;
 
@@ -1411,7 +1411,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
       .dataType = TSDB_DATA_TYPE_TIMESTAMP,
       .originalSize = sizeof(TSKEY) * bData->nRow,
   };
-  code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, cinfo.originalSize, &cinfo, buffer, assist);
+  code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, &cinfo, buffer, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
   hdr->szKey = cinfo.compressedSize;
 
