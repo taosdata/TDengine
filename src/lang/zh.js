@@ -1372,7 +1372,12 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
       java: {
         step1: "增加依赖包",
         step2: "配置",
-        step3: "建立连接",
+        step3: "代码示例",
+        step3depdesc: '在 “pom.xml” 文件中添加 Spring Boot 和 TDengine Java connector 的依赖：',
+        step3confdesc: '在 “application.yml” 文件中添加以下配置：',
+        step3mybatisdesc1: '定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 TDengine 数据库的超级表和 Java 对象之间进行映射：',
+        step3mybatisdesc2: '在 “src/main/resources/mapper” 文件夹中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射：',
+        step3href: '使用 Spring 进行更多查询和插入 TDengine 实例的示例代码，请参考',
         step3desc:
           "下面的代码首先从环境变量获取 JDBC URL，然后创建标准的 JDBC Connection 对象。",
       },

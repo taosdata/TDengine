@@ -1564,7 +1564,12 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
       java: {
         step1: "Add Dependency",
         step2: "Config",
-        step3: "Connect",
+        step3: "Example",
+        step3depdesc: 'In the "pom.xml" file, please add the Spring Boot and TDengine Java connector dependencies:',
+        step3confdesc: 'In the "application.yml" file, please add the following configurations:',
+        step3mybatisdesc1: 'Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object',
+        step3mybatisdesc2: 'Create a meterMapper.xml file under src/main/resources/mapper, and add the following SQL mapping',
+        step3href: 'For more details about how to write or query data from TDngine instance through Spring, please refer to',
         step3desc:
           "Code bellow get JDBC URL from environment variables first and then create a Connection object, witch is a standard JDBC Connection object.",
       },
