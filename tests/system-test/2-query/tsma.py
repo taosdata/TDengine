@@ -346,7 +346,6 @@ class TSMATestSQLGenerator:
         return sql
 
     def can_ignore_res_order(self):
-        self.generate_str_func('tbname', 1)
         return self.res_.can_ignore_res_order()
 
     def generate_where(self) -> str:
@@ -420,7 +419,12 @@ class TSMATestSQLGenerator:
         ret = ''
         for _ in range(used_tag_num):
             tag_idx = random.randint(1,self.opts_.tag_num)
-            ret = ret + self.opts_.tags_prefix + f'{tag_idx},'
+            tag_name = self.opts_.tags_prefix + f'{tag_idx}'
+            if False and random.random() < 0.5:
+                tag_func = self.generate_str_func(tag_name, 2)
+            else:
+                tag_func = tag_name
+            ret = ret + f'{tag_func},'
         return ret[:-1]
 
     def generate_tbname_tag_list(self):
@@ -446,7 +450,10 @@ class TSMATestSQLGenerator:
         ret = ''
         rand = random.random()
         if rand < 0.4:
-            ret = 'tbname'
+            if False and random.random() < 0.5:
+                ret = self.generate_str_func('tbname', 3)
+            else:
+                ret = 'tbname'
         elif rand < 0.8:
             ret = self.generate_tag_list()
         else:
@@ -712,7 +719,7 @@ class TDTestCase:
         opts.partition_by = True
         opts.interval = True
         opts.where_ts_range = True
-        for _ in range(1, 1000):
+        for _ in range(1, 10000):
             sql_generator = TSMATestSQLGenerator(opts)
             sql = sql_generator.generate_one('avg(c1), avg(c2)', 'meters', '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
@@ -785,6 +792,10 @@ class TDTestCase:
         
         sql = 'select avg(c1+c2) from meters'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+
+        sql = 'select avg(c1), avg(c2) from meters where ts >= "2018-09-17 9:25:00" and ts < "2018-09-17 10:00:00" limit 6'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1', '2018-09-17 9:25:00', '2018-09-17 9:29:59.999') \
+                    .should_query_with_tsma('tsma2', '2018-09-17 9:30:00', '2018-09-17 9:59:59.999').get_qc())
 
         return ctxs
 

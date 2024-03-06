@@ -4537,12 +4537,13 @@ static int32_t tsmaInfoCompWithIntervalDesc(const void* pLeft, const void* pRigh
 }
 
 static const STSMAOptUsefulTsma* tsmaOptFindUsefulTsma(const SArray* pUsefulTsmas, int32_t startIdx,
-                                                       int64_t alignInterval, int8_t precision) {
+                                                       int64_t alignInterval, int64_t alignInterval2,
+                                                       int8_t precision) {
   int64_t tsmaInterval;
   for (int32_t i = startIdx; i < pUsefulTsmas->size; ++i) {
     const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pUsefulTsmas, i);
     getDuration(pUsefulTsma->pTsma->interval, pUsefulTsma->pTsma->unit, &tsmaInterval, precision);
-    if (alignInterval % tsmaInterval == 0) {
+    if (alignInterval % tsmaInterval == 0 && alignInterval2 % tsmaInterval == 0) {
       return pUsefulTsma;
     }
   }
@@ -4595,20 +4596,21 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
     startOfEkeyFirstWin = taosTimeTruncate(pScanRange->ekey, pInterval);
     endOfEkeyFirstWin =
         taosTimeAdd(startOfEkeyFirstWin, pInterval->interval, pInterval->intervalUnit, pTsmaOptCtx->precision);
+    isEkeyAlignedWithTsma = ((pScanRange->ekey + 1 - startOfEkeyFirstWin) % tsmaInterval == 0);
     if (startOfEkeyFirstWin > startOfSkeyFirstWin) {
       needTailWindow = true;
       // TODO add some notes
-      isEkeyAlignedWithTsma = ((pScanRange->ekey + 1 - startOfEkeyFirstWin) % tsmaInterval == 0);
     }
   }
 
   // add head tsma if possible
-  if (!isSkeyAlignedWithTsma && scanRange.ekey >= endOfSkeyFirstWin - 1) {
+  if (!isSkeyAlignedWithTsma) {
     scanRange.ekey = TMIN(
         scanRange.ekey,
         taosTimeAdd(startOfSkeyFirstWin, pInterval->interval * 1, pInterval->intervalUnit, pTsmaOptCtx->precision) - 1);
-    const STSMAOptUsefulTsma* pTsmaFound = tsmaOptFindUsefulTsma(
-        pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, pScanRange->skey - startOfSkeyFirstWin, pTsmaOptCtx->precision);
+    const STSMAOptUsefulTsma* pTsmaFound =
+        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, scanRange.skey - startOfSkeyFirstWin,
+                              (scanRange.ekey + 1 - startOfSkeyFirstWin), pTsmaOptCtx->precision);
     STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsmaFound ? pTsmaFound->pTsma : NULL,
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
@@ -4616,7 +4618,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   }
 
   // the main tsma
-  if (endOfSkeyFirstWin < startOfEkeyFirstWin || (endOfSkeyFirstWin == startOfEkeyFirstWin && isSkeyAlignedWithTsma)) {
+  if (endOfSkeyFirstWin < startOfEkeyFirstWin || (endOfSkeyFirstWin == startOfEkeyFirstWin && (isSkeyAlignedWithTsma || isEkeyAlignedWithTsma))) {
     scanRange.ekey =
         TMIN(pScanRange->ekey, isEkeyAlignedWithTsma ? pScanRange->ekey : startOfEkeyFirstWin - 1);
     if (!isSkeyAlignedWithTsma) {
@@ -4632,8 +4634,8 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
     scanRange.skey = startOfEkeyFirstWin;
     scanRange.ekey = pScanRange->ekey;
     const STSMAOptUsefulTsma* pTsmaFound =
-        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, pScanRange->ekey + 1 - startOfEkeyFirstWin,
-                              pTsmaOptCtx->precision);
+        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, scanRange.skey - startOfEkeyFirstWin,
+                              scanRange.ekey + 1 - startOfEkeyFirstWin, pTsmaOptCtx->precision);
     STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsmaFound ? pTsmaFound->pTsma : NULL,
                                      .scanRange = scanRange,
                                      .pTsmaScanCols = pTsmaFound ? pTsmaFound->pTsmaScanCols : NULL};
