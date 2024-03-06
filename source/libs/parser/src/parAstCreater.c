@@ -348,11 +348,27 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
-SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
+SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
+  SRawExprNode* pRawExpr = NULL;
+  if (pNode) {
+    pRawExpr = (SRawExprNode*)pNode;
+    if (!nodesIsExprNode(pRawExpr->pNode)) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pRawExpr->p);
+      return NULL;
+    }
+  }
+
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
+  if (pLiteral) {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+  } else if (pRawExpr) {
+    val->literal = strndup(pRawExpr->p, pRawExpr->n);
+  } else {
+    pCxt->errCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    return NULL;
+  }
 
   CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
