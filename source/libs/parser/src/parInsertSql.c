@@ -865,13 +865,19 @@ static int32_t checkSubtablePrivilege(SArray* pTagVals, SArray* pTagName, SNode*
 static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t  code = TSDB_CODE_SUCCESS;
   SSchema* pSchema = getTableTagSchema(pStmt->pTableMeta);
-  SArray*  pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal));
-  SArray*  pTagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  SArray*  pTagVals = NULL;
+  SArray*  pTagName = NULL;
   uint8_t  precision = pStmt->pTableMeta->tableInfo.precision;
   SToken   token;
   bool     isParseBindParam = false;
   bool     isJson = false;
   STag*    pTag = NULL;
+
+  if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
+      !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   for (int i = 0; TSDB_CODE_SUCCESS == code && i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pStmt->pSql, token);
 
@@ -893,7 +899,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     SSchema* pTagSchema = &pSchema[pCxt->tags.pColIndex[i]];
     isJson = pTagSchema->type == TSDB_DATA_TYPE_JSON;
     code = checkAndTrimValue(&token, pCxt->tmpTokenBuf, &pCxt->msg, pTagSchema->type);
-    if (TK_NK_VARIABLE == token.type) {
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
       code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values", token.z);
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -914,8 +920,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pTag = NULL;
   }
 
-  for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
-    STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+  for (int32_t i = 0; i < TARRAY_SIZE(pTagVals); ++i) {
+    STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFreeClear(p->pData);
     }

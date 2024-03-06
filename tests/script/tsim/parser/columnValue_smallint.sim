@@ -364,7 +364,7 @@ sql_error create table st_smallint_e0 using mt_smallint tags ("123abc")
 sql_error create table st_smallint_e0 using mt_smallint tags (abc)
 sql_error create table st_smallint_e0 using mt_smallint tags ("abc")
 sql_error create table st_smallint_e0 using mt_smallint tags (" ")
-sql create table st_smallint_e0_1 using mt_smallint tags ('')
+sql_error create table st_smallint_e0_1 using mt_smallint tags ('')
 sql create table st_smallint_e0_2 using mt_smallint tags ('123')
 
 sql create table st_smallint_e0  using mt_smallint tags (123)
@@ -418,7 +418,7 @@ sql_error insert into st_smallint_e20 using mt_smallint tags ("123abc") values (
 sql_error insert into st_smallint_e22 using mt_smallint tags (abc)      values (now, -033)
 sql_error insert into st_smallint_e23 using mt_smallint tags ("abc")    values (now, -033)
 sql_error insert into st_smallint_e24 using mt_smallint tags (" ")      values (now, -033)
-sql insert into st_smallint_e25 using mt_smallint tags ('')       values (now, -033)
+sql_error insert into st_smallint_e25 using mt_smallint tags ('')       values (now, -033)
 sql insert into st_smallint_e26 using mt_smallint tags ('123')    values (now, -033)
 
 sql insert into st_smallint_e13 using mt_smallint tags (033) values (now, 00062)
@@ -444,7 +444,7 @@ sql_error alter table st_smallint_e20 set tag tagname="123abc"
 sql_error alter table st_smallint_e22 set tag tagname=abc
 sql_error alter table st_smallint_e23 set tag tagname="abc"
 sql_error alter table st_smallint_e24 set tag tagname=" "
-sql alter table st_smallint_e25 set tag tagname=''
+sql_error alter table st_smallint_e25 set tag tagname=''
 sql alter table st_smallint_e26 set tag tagname='123'
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

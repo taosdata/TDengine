@@ -397,7 +397,7 @@ sql_error create table st_tinyint_e0 using mt_tinyint tags ("123abc")
 sql_error create table st_tinyint_e0 using mt_tinyint tags (abc)
 sql_error create table st_tinyint_e0 using mt_tinyint tags ("abc")
 sql_error create table st_tinyint_e0 using mt_tinyint tags (" ")
-sql create table st_tinyint_e0_2 using mt_tinyint tags ('')
+sql_error create table st_tinyint_e0_2 using mt_tinyint tags ('')
 
 sql create table st_tinyint_e0  using mt_tinyint tags (123)
 sql create table st_tinyint_e1  using mt_tinyint tags (123)
@@ -450,7 +450,7 @@ sql_error insert into st_tinyint_e20 using mt_tinyint tags ("123abc") values (no
 sql_error insert into st_tinyint_e22 using mt_tinyint tags (abc)      values (now, -033)
 sql_error insert into st_tinyint_e23 using mt_tinyint tags ("abc")    values (now, -033)
 sql_error insert into st_tinyint_e24 using mt_tinyint tags (" ")      values (now, -033)
-sql insert into st_tinyint_e25 using mt_tinyint tags ('')       values (now, -033)
+sql_error insert into st_tinyint_e25 using mt_tinyint tags ('')       values (now, -033)
 
 sql insert into st_tinyint_e13 using mt_tinyint tags (033) values (now, 00062)
 sql insert into st_tinyint_e14 using mt_tinyint tags (033) values (now, 00062)
@@ -475,6 +475,6 @@ sql_error alter table st_tinyint_e20 set tag tagname="123abc"
 sql_error alter table st_tinyint_e22 set tag tagname=abc
 sql_error alter table st_tinyint_e23 set tag tagname="abc"
 sql_error alter table st_tinyint_e24 set tag tagname=" "
-sql alter table st_tinyint_e25 set tag tagname=''
+sql_error alter table st_tinyint_e25 set tag tagname=''
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

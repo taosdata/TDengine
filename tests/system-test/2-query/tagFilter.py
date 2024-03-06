@@ -65,7 +65,7 @@ class TDTestCase:
         TAG_RESULT_INT       = [True,False,False,True,True,False,True,True,True,True,False,False,True,True,False,True,True,True]
         TAG_RESULT_STR       = [False,False,False,False,False,False,False,True,True,False,True,True,False,True,True,False,True,True,False,False,False,False,False,False,False,True,True,False,True,True,False,True,True,False,True,True]
         TAG_RESULT_BOOL      = ["True","True","False","False"]
-        TAG_RESULT_TIMESTAMP = [True, True, False, False, True, True, False, False, True, True, True, True, False, False, False]        
+        TAG_RESULT_TIMESTAMP = [True, True, True, True, True, True, True, True, True, True, True, True, False, False, False]        
 
         # check int for vartype(one tag)
         nTagCtb = 0
@@ -236,7 +236,7 @@ class TDTestCase:
                     bindStr = ""
                 if TAG_RESULT_TIMESTAMP[nTagCtb] == False:
                     tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
-                    tdSql.error(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))                
+                    tdSql.error(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))    
                 else:
                     tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
                     tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')

@@ -481,7 +481,7 @@ sql_error create table st_float_e0_1 using mt_float tags ("123abc")
 sql_error create table st_float_e0 using mt_float tags (abc)
 sql_error create table st_float_e0_2 using mt_float tags ("abc")
 sql_error create table st_float_e0_3 using mt_float tags (" ")
-sql create table st_float_e0_4 using mt_float tags ('')
+sql_error create table st_float_e0_4 using mt_float tags ('')
 
 sql create table st_float_e0  using mt_float tags (123)
 sql create table st_float_e1  using mt_float tags (123)
@@ -534,7 +534,7 @@ sql_error insert into st_float_e20 using mt_float tags ("123abc") values (now, -
 sql_error insert into st_float_e22 using mt_float tags (abc)      values (now, -033)
 sql_error insert into st_float_e23 using mt_float tags ("abc")    values (now, -033)
 sql_error insert into st_float_e24 using mt_float tags (" ")      values (now, -033)
-sql insert into st_float_e25_3 using mt_float tags ('')       values (now, -033)
+sql_error insert into st_float_e25_3 using mt_float tags ('')       values (now, -033)
 
 sql insert into st_float_e13 using mt_float tags (033) values (now, 00062)
 sql insert into st_float_e14 using mt_float tags (033) values (now, 00062)
@@ -559,6 +559,6 @@ sql_error alter table st_float_e20 set tag tagname="123abc"
 sql_error alter table st_float_e22 set tag tagname=abc
 sql_error alter table st_float_e23 set tag tagname="abc"
 sql_error alter table st_float_e24 set tag tagname=" "
-sql alter table st_float_e25 set tag tagname=''
+sql_error alter table st_float_e25 set tag tagname=''
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

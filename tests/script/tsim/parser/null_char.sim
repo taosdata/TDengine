@@ -307,7 +307,7 @@ if $data02 != NULL then
   return -1
 endi
 sql alter table st41 set tag tag_int = 'NULL'
-sql alter table st41 set tag tag_int = ''
+sql_error alter table st41 set tag tag_int = ''
 sql_error alter table st41 set tag tag_int = abc379
 
 ################### bool
@@ -396,7 +396,7 @@ if $data04 != -54.12346 then
   print ==19== expect: -54.12346, actually : $data04
   return -1
 endi
-sql alter table st41 set tag tag_float = ''
+sql_error alter table st41 set tag tag_float = ''
 
 sql_error alter table st41 set tag tag_float = 'abc'
 sql_error alter table st41 set tag tag_float = '123abc'
@@ -433,7 +433,7 @@ if $data05 != NULL then
   return -1
 endi
 
-sql alter table st41 set tag tag_double = ''
+sql_error alter table st41 set tag tag_double = ''
 sql alter table st41 set tag tag_double = '123'
 sql_error alter table st41 set tag tag_double = 'abc'
 sql_error alter table st41 set tag tag_double = '123abc'
@@ -461,7 +461,7 @@ endi
 sql alter table st51 set tag tag_bigint = -9223372036854775808
 
 sql alter table st51 set tag tag_bigint = 'NULL'
-sql alter table st51 set tag tag_bigint = ''
+sql_error alter table st51 set tag tag_bigint = ''
 sql_error alter table st51 set tag tag_bigint = abc379
 
 ####
@@ -482,7 +482,7 @@ endi
 sql alter table st51 set tag tag_smallint = -32768
 
 sql alter table st51 set tag tag_smallint = 'NULL'
-sql alter table st51 set tag tag_smallint = ''
+sql_error alter table st51 set tag tag_smallint = ''
 sql_error alter table st51 set tag tag_smallint = abc379
 
 ####
@@ -501,7 +501,7 @@ endi
 sql alter table st51 set tag tag_tinyint = '-128'
 sql_error alter table st51 set tag tag_tinyint = 128
 sql alter table st51 set tag tag_tinyint = 'NULL'
-sql alter table st51 set tag tag_tinyint = ''
+sql_error alter table st51 set tag tag_tinyint = ''
 sql_error alter table st51 set tag tag_tinyint = abc379
 
 # test end
