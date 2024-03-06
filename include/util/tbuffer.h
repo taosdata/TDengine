@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 typedef struct SBuffer       SBuffer;
-typedef struct SBufferWriter SBufferWriter;
 typedef struct SBufferReader SBufferReader;
 
 // SBuffer
@@ -52,11 +51,11 @@ static int32_t tBufferPutCStr(SBuffer *buffer, const char *str);
 static int32_t tBufferPutF32(SBuffer *buffer, float value);
 static int32_t tBufferPutF64(SBuffer *buffer, double value);
 
-#define tBufferGetSize(buffer)        ((buffer)->size)
-#define tBufferGetCapacity(buffer)    ((buffer)->capacity)
-#define tBufferGetData(buffer)        ((buffer)->data)
-#define tBufferGetDataAt(buffer, idx) ((char *)(buffer)->data + (idx))
-#define tBufferGetDataEnd(buffer)     ((char *)(buffer)->data + (buffer)->size)
+#define tBufferGetSize(buffer)           ((buffer)->size)
+#define tBufferGetCapacity(buffer)       ((buffer)->capacity)
+#define tBufferGetData(buffer)           ((buffer)->data)
+#define tBufferGetDataAt(buffer, offset) ((char *)(buffer)->data + (offset))
+#define tBufferGetDataEnd(buffer)        ((char *)(buffer)->data + (buffer)->size)
 
 // SBufferReader
 #define BUFFER_READER_INITIALIZER(offset, buffer) ((SBufferReader){offset, buffer})

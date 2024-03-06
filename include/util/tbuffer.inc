@@ -22,12 +22,6 @@ struct SBuffer {
   void    *data;
 };
 
-struct SBufferWriter {
-  bool     forward;
-  uint32_t offset;
-  SBuffer *buffer;
-};
-
 struct SBufferReader {
   uint32_t offset;
   SBuffer *buffer;
@@ -175,7 +169,9 @@ static FORCE_INLINE int32_t tBufferGet(SBufferReader *reader, uint32_t size, voi
   if (reader->offset < 0 || reader->offset + size > reader->buffer->size) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
-  memcpy(data, (char *)reader->buffer->data + reader->offset, size);
+  if (data) {
+    memcpy(data, BR_PTR(reader), size);
+  }
   reader->offset += size;
   return 0;
 }
@@ -209,24 +205,23 @@ static int32_t tBufferGetU64(SBufferReader *reader, uint64_t *value) {
 }
 
 static int32_t tBufferGetU64v(SBufferReader *reader, uint64_t *value) {
-  uint8_t byte;
-  int32_t code;
-
-  if (value) {
-    *value = 0;
-  }
+  uint8_t  byte;
+  int32_t  code;
+  uint64_t u64 = 0;
 
   for (int32_t i = 0;; i++) {
     code = tBufferGetU8(reader, &byte);
     if (code) return code;
 
-    if (value) {
-      *value |= (((uint64_t)(byte & 0x7F)) << (i * 7));
-    }
+    u64 |= (((uint64_t)(byte & 0x7F)) << (i * 7));
 
     if (byte < 0x80) {
       break;
     }
+  }
+
+  if (value) {
+    *value = u64;
   }
 
   return 0;
@@ -299,10 +294,10 @@ static int32_t tBufferGetBinary(SBufferReader *reader, const void **data, uint32
       return TSDB_CODE_OUT_OF_RANGE;
     }
     if (data) {
-      *data = (char *)reader->buffer->data + reader->offset;
+      *data = BR_PTR(reader);
     }
     reader->offset += tmpSize;
-  } else {
+  } else if (data) {
     *data = NULL;
   }
 
