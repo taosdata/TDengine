@@ -1,0 +1,193 @@
+name: QA-workflow
+# run-name: ${{ github.actor }}, your PR is under test. 🚀
+
+on:
+  workflow_dispatch:
+  pull_request:
+  # push:
+
+env:
+  RELEASE_HOST: 192.168.1.45
+  RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
+
+jobs:
+  build_rust:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Print Env
+        run: |
+          pwd
+          rustup component add llvm-tools-preview
+          rustc --version
+      - name: Build taosx
+        run: |
+          # build taosx and taosx-agent
+          # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
+          rm -rf ./target/debug/taosx-profraw/
+          export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+          cargo build --target-dir ./target/debug/taosx-build/
+          # if [ $TAOSX_RUN_UNIT_TEST -eq 1 ]; then
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+              echo "run taosx unit test"
+              cargo test --target-dir ./target/debug/taosx-build/
+          fi
+
+      - name: Build agent
+        run: |
+          # build agent
+          rm -rf ./target/debug/taosx-agent-profraw/
+          # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
+          export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+          cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
+          # if [ $TAOSX_RUN_UNIT_TEST -eq 1 ]; then
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+            echo "run unit test"
+            cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
+          fi
+
+      - name: Copy files
+        run: |
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin || mkdir -p /data/artifacts/${{ github.event.number }}/bin"
+          scp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/
+          scp -r ./target/debug/taosx-profraw/ root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/
+          scp -r ./target/debug/taosx-agent-profraw/ root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/
+          cd ..
+          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          scp taosx.tar.gz root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/
+          rm taosx.tar.gz
+          ssh root@$RELEASE_HOST "tar -xzf /data/artifacts/${{ github.event.number }}/taosx.tar.gz -C /data/artifacts/${{ github.event.number }}/"
+          ssh root@$RELEASE_HOST "rm /data/artifacts/${{ github.event.number }}/taosx.tar.gz"
+
+  build_go:
+    runs-on: [self-hosted, linux, x64, qa, go]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Print Env
+        run: |
+          pwd
+          go version
+      - name: Build opc, run unit test
+        run: |
+          cd plugins/opc
+          go build -cover -o taosx-opc
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+            echo "run opc unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            go test
+          fi
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin/opc || mkdir -p /data/artifacts/${{ github.event.number }}/bin/opc/"
+          scp taosx-opc root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opc/
+      - name: Build mqtt, run unit test
+        run: |
+          cd plugins/mqtt
+          go build -cover -o taosx-mqtt
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+            echo "run opc unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            go test
+          fi
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin/mqtt || mkdir -p /data/artifacts/${{ github.event.number }}/bin/mqtt/"
+          scp taosx-mqtt root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/mqtt/
+
+  build_java:
+    runs-on: [self-hosted, linux, x64, qa, java]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4    
+      - name: Print Env
+        run: |
+          pwd
+          java -version
+      - name: Build influxdb, run unit test
+        run: |
+          cd plugins/influxdb
+          mvn clean package -Dmaven.test.skip=true
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+            echo "run influxdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin/influxdb || mkdir -p /data/artifacts/${{ github.event.number }}/bin/influxdb/"
+          scp ./target/taosx-influxdb.jar root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/influxdb/
+
+      - name: Build opentsdb, run unit test
+        run: |
+          cd plugins/opentsdb
+          mvn clean package -Dmaven.test.skip=true
+          if [ -f "/etc/taos/taosx_run_unit_test" ]; then
+            echo "run opentsdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin/opentsdb || mkdir -p /data/artifacts/${{ github.event.number }}/bin/opentsdb/"
+          scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
+
+  deploy:
+    runs-on: [self-hosted, linux, x64, qa]
+    needs: [build_rust, build_go, build_java]
+    steps:
+      - name: Deploy taosx
+        run: |
+          pwd
+          ls ${{ github.workspace }}
+          # run taosx
+          ssh root@$RELEASE_HOST "export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw"
+          ssh root@$RELEASE_HOST "export DATABASE_URL=/var/lib/taos/taosx/taosx.db"
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
+          ssh root@$RELEASE_HOST "export GOCOVERDIR==/data/artifacts/${{ github.event.number }}/go_cover/"
+          ssh root@$RELEASE_HOST "export PLUGINS_HOME==/data/artifacts/${{ github.event.number }}/bin/"
+          ssh root@$RELEASE_HOST "nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &"
+          
+      - name: Deploy taosx-agent
+        run: |
+          pwd
+          ls ${{ github.workspace }}
+          # run taosx-agent
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
+          ssh root@$RELEASE_HOST "export GOCOVERDIR==/data/artifacts/${{ github.event.number }}/go_cover/"
+          ssh root@$RELEASE_HOST "export PLUGINS_HOME==/data/artifacts/${{ github.event.number }}/bin/"
+          ssh root@$RELEASE_HOST "export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+          ssh root@$RELEASE_HOST "nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &"
+
+  test:
+    runs-on: [self-hosted, linux, x64, qa]
+    needs: deploy
+    steps:
+      - name: Update Repo
+        run: |
+          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+      
+      - name: Run Test
+        run: |
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=300 -m sanity connectivity_test.py"
+
+      - name: Stop taosx-agent & taosx
+        if: always()
+        run: |
+          ssh root@$RELEASE_HOST 'pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi'
+          ssh root@$RELEASE_HOST 'pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi'
+
+      # - name: Generate Report
+      #   run: |
+      #     # taosx report
+      #     ssh root@$RELEASE_HOST "grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx"
+      #     # taosx-agent report
+      #     ssh root@$RELEASE_HOST "grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx-agent"
+
+      #     # taosx merged report
+      #     ssh root@$RELEASE_HOST "grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx.info"
+      #     ssh root@$RELEASE_HOST "grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info"
+      #     # merge filter report
+      #     ssh root@$RELEASE_HOST "lcov -a /data/artifacts/${{ github.event.number }}/lcov_taosx.info -a /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info -o /data/artifacts/${{ github.event.number }}/lcov_combined.info"
+      #     ssh root@$RELEASE_HOST "lcov --remove /data/artifacts/${{ github.event.number }}/lcov_combined.info '*/.cargo/*' '*/report/*' -o /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info"
+
+      #     ssh root@$RELEASE_HOST "genhtml -o /data/coverage/${{ github.event.number }}/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info"
+
+          # TODO plugins report
+          
+
+
