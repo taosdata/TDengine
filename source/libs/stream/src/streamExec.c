@@ -353,7 +353,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     ASSERT(status == TASK_STATUS__HALT || status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
   } else {
-    ASSERT(status == TASK_STATUS__READY || status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
+    ASSERT(status == TASK_STATUS__READY || status == TASK_STATUS__PAUSE || status == TASK_STATUS__DROPPING ||
+           status == TASK_STATUS__STOP);
     int32_t code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s halt stream task:%s failed, code:%s not transfer state to stream task", id,
