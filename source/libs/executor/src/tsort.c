@@ -241,11 +241,19 @@ void destroyTuple(void* t) {
 }
 
 int tsortSeekFile(FILE* file, int64_t offset, int whence) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
   return _fseeki64(file, offset, whence);
-  #else
+#else
   return fseeko(file, offset, whence);
-  #endif
+#endif
+}
+
+int tsortSetAutoDelFile(char* path) {
+#ifdef WINDOWS
+  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+#else
+  return unlink(path);
+#endif
 }
 
 /**
@@ -1027,9 +1035,16 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
   if (pRegion->buf == NULL) {
     pRegion->bufRegOffset = 0;
     pRegion->buf = taosMemoryMalloc(pMemFile->blockSize);
+    if (pRegion->buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET);
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize);
-    fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+    int ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+    if (ret != 1) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
     pRegion->bufLen = readBytes;
   }
   // TODO: ASSERT(pRegion->offset < tupleOffset);
@@ -1038,12 +1053,20 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     *ppRow = pRegion->buf + tupleOffset - pRegion->bufRegOffset;
   } else {
       *ppRow = taosMemoryMalloc(rowLen);
+      if (*ppRow == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       int32_t szThisBlock = pRegion->bufLen - (tupleOffset - pRegion->bufRegOffset);
       memcpy(*ppRow, pRegion->buf + tupleOffset - pRegion->bufRegOffset,
              szThisBlock);
       tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET);
       int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize - (pRegion->bufRegOffset + pRegion->bufLen));
-      fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+      int ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+      if (ret != 1) {
+        taosMemoryFreeClear(*ppRow);
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return terrno;
+      }
       memcpy(*ppRow + szThisBlock, pRegion->buf, rowLen - szThisBlock);
       *pFreeRow = true;
       pRegion->bufRegOffset += pRegion->bufLen;
@@ -1057,27 +1080,55 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   if (pHandle->pExtRowsMemFile != NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  int32_t       code = TSDB_CODE_SUCCESS;
   SSortMemFile* pMemFile = taosMemoryCalloc(1, sizeof(SSortMemFile));
-  pMemFile->cacheSize = pHandle->extRowsMemSize;
-  taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-  pMemFile->pTdFile = fopen(pMemFile->memFilePath, "w+");
-  if (pMemFile->pTdFile == NULL) {
-    taosMemoryFree(pMemFile);
-    return TAOS_SYSTEM_ERROR(errno);
+  if (pMemFile == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
   }
-  pMemFile->currRegionId = -1;
-  pMemFile->currRegionOffset = -1;
+  if (code == TSDB_CODE_SUCCESS) {
+    taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
+    pMemFile->pTdFile = fopen(pMemFile->memFilePath, "w+");
+    if (pMemFile->pTdFile == NULL) {
+      code = terrno = TAOS_SYSTEM_ERROR(errno);
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    tsortSetAutoDelFile(pMemFile->memFilePath);
 
-  pMemFile->writeBufSize = 4 * 1024 * 1024;
-  pMemFile->writeBuf = taosMemoryMalloc(pMemFile->writeBufSize);
-  pMemFile->writeFileOffset = -1;
-  pMemFile->bRegionDirty = false;
+    pMemFile->currRegionId = -1;
+    pMemFile->currRegionOffset = -1;
 
-  pMemFile->aFileRegions = taosArrayInit(64, sizeof(SSortMemFileRegion));
-
-  pHandle->pExtRowsMemFile = pMemFile;
-  return TSDB_CODE_SUCCESS;
-} 
+    pMemFile->writeBufSize = 4 * 1024 * 1024;
+    pMemFile->writeFileOffset = -1;
+    pMemFile->bRegionDirty = false;
+    
+    pMemFile->writeBuf = taosMemoryMalloc(pMemFile->writeBufSize);
+    if (pMemFile->writeBuf == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pMemFile->cacheSize = pHandle->extRowsMemSize;
+    pMemFile->aFileRegions = taosArrayInit(64, sizeof(SSortMemFileRegion));
+    if (pMemFile->aFileRegions == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pHandle->pExtRowsMemFile = pMemFile;
+  } else {
+    if (pMemFile) {
+      if (pMemFile->aFileRegions) taosMemoryFreeClear(pMemFile->aFileRegions);
+      if (pMemFile->writeBuf) taosMemoryFreeClear(pMemFile->writeBuf);
+      if (pMemFile->pTdFile) {
+        fclose(pMemFile->pTdFile);
+        pMemFile->pTdFile = NULL;
+      }
+      taosMemoryFreeClear(pMemFile);
+    }
+  }
+  return code;
+}
 
 static int32_t destroySortMemFile(SSortHandle* pHandle) {
   if (pHandle->pExtRowsMemFile == NULL) return TSDB_CODE_SUCCESS;
