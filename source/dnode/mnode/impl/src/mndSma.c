@@ -1634,6 +1634,17 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   char streamTargetStbFullName[TSDB_TABLE_FNAME_LEN] = {0};
   mndTSMAGenerateOutputName(createReq.name, streamName, streamTargetStbFullName);
 
+  pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.name);
+  if (pSma && createReq.igExists) {
+    mInfo("tsma:%s, already exists in sma:%s, ignore exist is set", createReq.name, pSma->name);
+    code = 0;
+    goto _OVER;
+  }
+  if (pSma) {
+    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
+    goto _OVER;
+  }
+
   SStbObj *pTargetStb = mndAcquireStb(pMnode, streamTargetStbFullName);
   if (pTargetStb) {
     terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
@@ -1646,17 +1657,6 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   if (pStream != NULL) {
     mError("tsma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
     terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-    goto _OVER;
-  }
-
-  pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.name);
-  if (pSma && createReq.igExists) {
-    mInfo("tsma:%s, already exists in sma:%s, ignore exist is set", createReq.name, pSma->name);
-    code = 0;
-    goto _OVER;
-  }
-  if (pSma) {
-    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
   }
 
