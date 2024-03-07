@@ -29,7 +29,7 @@ struct STsdbSnapReader {
   int64_t ever;
   int8_t  type;
 
-  SBuffer  buffers[5];
+  SBuffer  buffers[10];
   SSkmInfo skmTb[1];
 
   TFileSetRangeArray* fsrArr;
@@ -554,7 +554,7 @@ struct STsdbSnapWriter {
   int32_t szPage;
   int64_t compactVersion;
   int64_t now;
-  SBuffer buffers[5];
+  SBuffer buffers[10];
 
   TFileSetArray* fsetArr;
   TFileOpArray   fopArr[1];
