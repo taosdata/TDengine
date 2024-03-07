@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+int32_t mndInitCrypt(SMnode *pMnode);
+void    mndCleanupCrypt(SMnode *pMnode);
 int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 #ifdef __cplusplus
