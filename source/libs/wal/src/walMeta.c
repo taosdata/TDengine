@@ -622,7 +622,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     /*A(idxEntry.ver == ckHead.head.version);*/
 
     idxEntry.ver += 1;
-    idxEntry.offset += sizeof(SWalCkHead) + ckHead.head.bodyLen;
+    idxEntry.offset += sizeof(SWalCkHead) + CRYPTEDLEN(ckHead.head.bodyLen);
 
     if (walReadLogHead(pLogFile, idxEntry.offset, &ckHead) < 0) {
       wError("vgId:%d, failed to read wal log head since %s. index:%" PRId64 ", offset:%" PRId64 ", file:%s",

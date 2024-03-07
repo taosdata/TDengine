@@ -28,6 +28,8 @@
 extern "C" {
 #endif
 
+#define CRYPTEDLEN(len) (len/16) * 16 + (len%16?1:0) * 16
+
 // meta section begin
 typedef struct {
   int64_t firstVer;

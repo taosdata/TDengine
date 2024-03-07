@@ -1437,6 +1437,66 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
 void tFreeSStatusRsp(SStatusRsp *pRsp) { taosArrayDestroy(pRsp->pDnodeEps); }
 
+int32_t tSerializeSCryptReq(void *buf, int32_t bufLen, SCryptReq *pReq){
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->unused) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq){
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  
+  if (tDecodeI32(&decoder, &pReq->unused) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp){
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pRsp->cryptAlgorithm) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->cryptScope) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->dnodeid) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp){
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  
+  if (tDecodeI32(&decoder, &pRsp->cryptAlgorithm) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->cryptScope) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->dnodeid) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);

@@ -15,6 +15,8 @@
 
 #include "mndCrypt.h"
 #include "mndShow.h"
+#include "tmisce.h"
+#include "mndDnode.h"
 
 int32_t mndInitCrypt(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CRYPT, mndRetrieveCrypt);
@@ -33,26 +35,83 @@ void mndCleanupCrypt(SMnode *pMnode) {
 
 int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
   SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
+  SDnodeObj  *pDnode = NULL;
+  int64_t     curMs = taosGetTimestampMs();
+  ESdbStatus  objStatus = 0;
 
-  while (numOfRows < 1) {
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
+
+    if (pShow->pIter == NULL) break;
+
+    bool online = mndIsDnodeOnline(pDnode, curMs);
+    if(!online) continue;
+
     SColumnInfoData *pColInfo;
     SName            n;
     int32_t          cols = 0;
+    
+    SEpSet epSet = {0};
+    addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
+
+    SCryptReq req = {0};
+    
+    int32_t contLen = tSerializeSCryptReq(NULL, 0, &req);
+    void *  pHead = rpcMallocCont(contLen);
+    tSerializeSCryptReq(pHead, contLen, &req);
+
+    SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_DND_QUERY_CRYPT,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
+    SRpcMsg rpcRsp = {0};
+
+    int8_t epUpdated = 0;
+
+    rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, 5 * 1000);
+    if (rpcRsp.code != 0) {
+      mError("failed to get crypt info from dnode:%d, %s, code:%d", pDnode->id, pDnode->fqdn, rpcRsp.code);
+      continue;
+    }
+
+    SCryptRsp cryptRsp = {0};
+
+    if(tDeserializeSCryptRsp(rpcRsp.pCont, rpcRsp.contLen, &cryptRsp) != 0){
+      mError("failed to deserialize crypt rsp from dnode:%d, %s", pDnode->id, pDnode->fqdn);
+      continue;
+    }
 
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
-    int32_t dnode = 1;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&dnode, false);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)&cryptRsp.dnodeid, false);
 
+    char algorStr[10] = {0};    
+    if(cryptRsp.cryptAlgorithm == DND_CA_SM4){
+      sprintf(algorStr, "%s", "sm4");
+    }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    strncpy(varDataVal(tmpBuf), "sm4", TSDB_SHOW_SQL_LEN);
+    strncpy(varDataVal(tmpBuf), algorStr, TSDB_SHOW_SQL_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
+    char scopeStr[10] = {0};
+    if(cryptRsp.cryptScope & 1 == DND_CS_TSDB){
+        sprintf(scopeStr, "%s", "tsdb");
+    }
+    if(cryptRsp.cryptScope & 2 == DND_CS_WAL){
+        sprintf(scopeStr, "%s", "wal");
+    }
+    if(cryptRsp.cryptScope & 4 == DND_CS_SDB){
+        sprintf(scopeStr, "%s", "sdb");
+    }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    strncpy(varDataVal(tmpBuf), "tsdb", TSDB_SHOW_SQL_LEN);
+    strncpy(varDataVal(tmpBuf), scopeStr, TSDB_SHOW_SQL_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 

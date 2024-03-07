@@ -415,6 +415,33 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dmProcessCryptReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg){
+  SCryptRsp cryptRsp = {0};
+
+  cryptRsp.cryptAlgorithm = tsiCryptAlgorithm;
+  cryptRsp.cryptScope = tsiCryptScope;
+  cryptRsp.dnodeid = pMgmt->pData->dnodeId;
+
+  SRpcMsg rspMsg = {.info = pMsg->info};
+  int32_t rspLen = tSerializeSCryptRsp(NULL, 0, &cryptRsp);
+  if (rspLen < 0) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSCryptRsp(pRsp, rspLen, &cryptRsp);
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -430,7 +457,8 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_CRYPT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;   
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

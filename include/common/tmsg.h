@@ -1582,6 +1582,22 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef struct{
+  int32_t unused;
+} SCryptReq;
+
+int32_t tSerializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq);
+int32_t tDeserializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq);
+
+typedef struct{
+  int32_t dnodeid;
+  int32_t cryptAlgorithm;
+  int32_t cryptScope;
+} SCryptRsp;
+
+int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp);
+int32_t tDeserializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp);
+
 typedef struct {
   int32_t     contLen;
   char*       pCont;
