@@ -196,24 +196,39 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
 
   // Tuple
   sinfo->tupleFlag = sinfo->flag;
-  if (sinfo->flag == HAS_NONE || sinfo->flag == HAS_NULL) {
-    sinfo->tupleRowSize = sizeof(SRow);
-  } else {
-    if (sinfo->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
-      sinfo->tupleBitmapSize = BIT2_SIZE(schema->numOfCols - 1);
-    } else if (sinfo->flag != HAS_VALUE) {
+  switch (sinfo->flag) {
+    case HAS_NONE:
+    case HAS_NULL:
+      sinfo->tupleBitmapSize = 0;
+      sinfo->tupleFixedSize = 0;
+      break;
+    case HAS_VALUE:
+      sinfo->tupleBitmapSize = 0;
+      sinfo->tupleFixedSize = schema->flen;
+      break;
+    case (HAS_NONE | HAS_NULL):
       sinfo->tupleBitmapSize = BIT1_SIZE(schema->numOfCols - 1);
-    }
-    for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
-      sinfo->tupleIndices[i].offset += sinfo->tupleBitmapSize;
-      sinfo->tuplePKSize += tPutPrimaryKeyIndex(NULL, sinfo->tupleIndices + i);
-    }
-    sinfo->tupleRowSize = sizeof(SRow)              // SRow
-                          + sinfo->tuplePKSize      // primary keys
-                          + sinfo->tupleBitmapSize  // bitmap
-                          + sinfo->tupleFixedSize   // fixed part
-                          + sinfo->tupleVarSize;    // var part
+      sinfo->tupleFixedSize = 0;
+      break;
+    case (HAS_NONE | HAS_VALUE):
+    case (HAS_NULL | HAS_VALUE):
+      sinfo->tupleBitmapSize = BIT1_SIZE(schema->numOfCols - 1);
+      sinfo->tupleFixedSize = schema->flen;
+      break;
+    case (HAS_NONE | HAS_NULL | HAS_VALUE):
+      sinfo->tupleBitmapSize = BIT2_SIZE(schema->numOfCols - 1);
+      sinfo->tupleFixedSize = schema->flen;
+      break;
   }
+  for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
+    sinfo->tupleIndices[i].offset += sinfo->tupleBitmapSize;
+    sinfo->tuplePKSize += tPutPrimaryKeyIndex(NULL, sinfo->tupleIndices + i);
+  }
+  sinfo->tupleRowSize = sizeof(SRow)              // SRow
+                        + sinfo->tuplePKSize      // primary keys
+                        + sinfo->tupleBitmapSize  // bitmap
+                        + sinfo->tupleFixedSize   // fixed part
+                        + sinfo->tupleVarSize;    // var part
 
   // Key-Value
   if (sinfo->kvMaxOffset <= UINT8_MAX) {
