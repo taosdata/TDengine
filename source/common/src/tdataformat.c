@@ -352,7 +352,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   (*ppRow)->len = sinfo->kvRowSize;
   (*ppRow)->ts = colValArray[0].value.val;
 
-  ASSERT(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL && sinfo->flag != HAS_VALUE);
+  ASSERT(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL);
 
   uint8_t *primaryKeys = (*ppRow)->data;
   SKVIdx  *indices = (SKVIdx *)(primaryKeys + sinfo->kvPKSize);
