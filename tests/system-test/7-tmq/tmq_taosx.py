@@ -366,6 +366,7 @@ class TDTestCase:
         tdSql.execute(f"insert into `test`.b1 using `test`.`b`(key) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(key) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(key) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
 
         tdSql.execute(f'create topic tt as select tbname,task_id,key from b')
+
         consumer_dict = {
             "group.id": "g1",
             "td.connect.user": "root",
@@ -375,7 +376,7 @@ class TDTestCase:
         consumer = Consumer(consumer_dict)
 
         try:
-            consumer.subscribe(["tt"])
+          consumer.subscribe(["tt"])
         except TmqError:
             tdLog.exit(f"subscribe error")
 
@@ -395,9 +396,36 @@ class TDTestCase:
 
         finally:
             consumer.close()
+        
+    def consume_ts_4544(self):
+        tdSql.execute(f'create database if not exists d1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table stt(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into tt1 using stt tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt2 using stt tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt3 using stt tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt1 using stt tags(1) values(now+5s, 11) (now+10s, 12)')
+
+        tdSql.execute(f'create topic topic_in as select * from stt where tbname in ("tt2")')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_in"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        consumer.close()
 
     def run(self):
         self.consumeTest()
+        self.consume_ts_4544()
         self.consume_TS_4540_Test()
 
         tdSql.prepare()
