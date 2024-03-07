@@ -18,6 +18,8 @@
 #include "sync.h"
 #include "tchecksum.h"
 #include "wal.h"
+#include "tglobal.h"
+#include "sm4.h"
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
@@ -276,6 +278,9 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
+    if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+      readLen = CRYPTEDLEN(pRaw->dataLen) + sizeof(int32_t);
+    }
     if (readLen >= bufLen) {
       bufLen = pRaw->dataLen * 2;
       SSdbRaw *pNewRaw = taosMemoryMalloc(bufLen + 100);
@@ -301,6 +306,25 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
       goto _OVER;
+    }
+
+    if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+      int32_t count = 0;
+      int32_t NewLen;
+      unsigned char Key[17]="0000100001000010";
+      unsigned char IV[17]="0000100001000010";
+
+      char *plantContent = taosMemoryMalloc(CRYPTEDLEN(pRaw->dataLen));
+      
+      while (count < CRYPTEDLEN(pRaw->dataLen)) {
+        SM4_CBC_Decrypt(Key, 16, IV, 16, (char*)pRaw->pData + count, 16, (char*)plantContent + count, &NewLen);
+        count += NewLen;
+      }
+      mInfo("read sdb, SM4_CBC_Decrypt dataLen:%d, %s", pRaw->dataLen, __FUNCTION__);
+
+      memcpy(pRaw->pData, plantContent, pRaw->dataLen);
+      taosMemoryFree(plantContent);
+      memcpy(pRaw->pData + pRaw->dataLen, &pRaw->pData[CRYPTEDLEN(pRaw->dataLen)], sizeof(int32_t));
     }
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
@@ -401,12 +425,48 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
         pRaw->status = pRow->status;
-        int32_t writeLen = sizeof(SSdbRaw) + pRaw->dataLen;
-        if (taosWriteFile(pFile, pRaw, writeLen) != writeLen) {
+
+        if (taosWriteFile(pFile, pRaw, sizeof(SSdbRaw)) != sizeof(SSdbRaw)) {
           code = TAOS_SYSTEM_ERROR(errno);
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
+        }
+
+        int32_t newDataLen = pRaw->dataLen;
+        char* newData = pRaw->pData;
+        if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+          newDataLen = CRYPTEDLEN(pRaw->dataLen);
+          newData = taosMemoryMalloc(newDataLen);
+          if (newData == NULL) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            taosHashCancelIterate(hash, ppRow);
+            sdbFreeRaw(pRaw);
+            break;
+          }
+
+          int		NewLen;
+          unsigned char Key[17]="0000100001000010";
+          unsigned char IV[17]="0000100001000010";
+
+          int32_t count = 0;
+          while (count < newDataLen) {
+            SM4_CBC_Encrypt(Key, 16, IV, 16, (char*)pRaw->pData + count, 16, (char*)newData + count, &NewLen);
+            count += NewLen;
+          }
+          mInfo("write sdb, SM4_CBC_Encrypt newDataLen:%d, dataLen:%d, %s", 
+                newDataLen, pRaw->dataLen, __FUNCTION__);
+        }
+
+        if (taosWriteFile(pFile, newData, newDataLen) != newDataLen) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          taosHashCancelIterate(hash, ppRow);
+          sdbFreeRaw(pRaw);
+          break;
+        }
+
+        if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+          taosMemoryFree(newData);
         }
 
         int32_t cksum = taosCalcChecksum(0, (const uint8_t *)pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
