@@ -326,6 +326,7 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
       pTSchema = NULL;            \
     }                             \
   } while (0)
+const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid);
 
 struct SValueColumn {
   int8_t   type;

@@ -295,18 +295,21 @@ _exit:
 
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+
   SDiskDataHdr hdr;
+  SBuffer     *buffer0 = reader->buffers + 0;
+  SBuffer     *buffer1 = reader->buffers + 1;
+  SBuffer     *assist = reader->buffers + 2;
 
   // load key part
-  tBufferClear(&reader->buffers[0]);
-  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize,
-                              &reader->buffers[0], 0);
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize, buffer0, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // SDiskDataHdr
-  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
   code = tGetDiskDataHdr(&br, &hdr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -318,35 +321,42 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   bData->nRow = hdr.nRow;
 
   // Key part
-  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, reader->buffers + 1);
+  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
-  ASSERT(br.offset == reader->buffers[0].size);
+  ASSERT(br.offset == buffer0->size);
 
-  if (ncid == 0) {
+  bool loadExtra = false;
+  for (int i = 0; i < ncid; i++) {
+    if (tBlockDataGetColData(bData, cids[i]) == NULL) {
+      loadExtra = true;
+      break;
+    }
+  }
+
+  if (!loadExtra) {
     goto _exit;
   }
 
   // load SBlockCol part
-  tBufferClear(&reader->buffers[0]);
+  tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize, hdr.szBlkCol,
-                              &reader->buffers[0], 0);
+                              buffer0, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // load each column
   SBlockCol blockCol = {
       .cid = 0,
   };
-  br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+  br = BUFFER_READER_INITIALIZER(0, buffer0);
   for (int32_t i = 0; i < ncid; i++) {
     int16_t cid = cids[i];
 
-    if (tBlockDataGetColData(bData, cid)) {
-      // this column has been loaded
+    if (tBlockDataGetColData(bData, cid)) {  // already loaded
       continue;
     }
 
     while (cid > blockCol.cid) {
-      if (br.offset >= reader->buffers[0].size) {
+      if (br.offset >= buffer0->size) {
         blockCol.cid = INT16_MAX;
         break;
       }
@@ -356,19 +366,32 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
     }
 
     if (cid < blockCol.cid) {
-      // this column as NONE
-      continue;
+      const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
+      ASSERT(tcol);
+      SBlockCol none = {
+          .cid = cid,
+          .type = tcol->type,
+          .cflag = tcol->flags,
+          .flag = HAS_NONE,
+          .szOrigin = 0,
+          .szBitmap = 0,
+          .szOffset = 0,
+          .szValue = 0,
+          .offset = 0,
+      };
+      code = tBlockDataDecompressColData(&hdr, &none, &br, bData, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
     } else if (cid == blockCol.cid) {
       // load from file
-      tBufferClear(&reader->buffers[1]);
+      tBufferClear(buffer1);
       code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA],
                                   record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
-                                  blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, &reader->buffers[1], 0);
+                                  blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       // decode the buffer
-      SBufferReader br1 = BUFFER_READER_INITIALIZER(0, &reader->buffers[1]);
-      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, reader->buffers + 2);
+      SBufferReader br1 = BUFFER_READER_INITIALIZER(0, buffer1);
+      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }

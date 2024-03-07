@@ -1694,6 +1694,24 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   return pTSchema;
 }
 
+static int32_t tTColumnCompare(const void *p1, const void *p2) {
+  if (((STColumn *)p1)->colId < ((STColumn *)p2)->colId) {
+    return -1;
+  } else if (((STColumn *)p1)->colId > ((STColumn *)p2)->colId) {
+    return 1;
+  }
+
+  return 0;
+}
+
+const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid) {
+  STColumn tcol = {
+      .colId = cid,
+  };
+
+  return taosbsearch(&tcol, pTSchema->columns, pTSchema->numOfCols, sizeof(STColumn), tTColumnCompare, TD_EQ);
+}
+
 // SColData ========================================
 void tColDataDestroy(void *ph) {
   if (ph) {
