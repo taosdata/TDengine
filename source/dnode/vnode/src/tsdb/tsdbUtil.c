@@ -1231,6 +1231,7 @@ int32_t tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, i
   pBlockData->nColData++;
 
   *ppColData = &pBlockData->aColData[pBlockData->nColData - 1];
+  memset(*ppColData, 0, sizeof(SColData));
   tColDataInit(*ppColData, cid, type, cflag);
 
   return 0;
@@ -1655,7 +1656,7 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
       .numOfData = hdr->nRow,
       .bitmapOriginalSize = 0,
       .bitmapCompressedSize = blockCol->szBitmap,
-      .offsetOriginalSize = sizeof(int32_t) * hdr->nRow,
+      .offsetOriginalSize = blockCol->szOffset ? sizeof(int32_t) * hdr->nRow : 0,
       .offsetCompressedSize = blockCol->szOffset,
       .dataOriginalSize = blockCol->szOrigin,
       .dataCompressedSize = blockCol->szValue,
