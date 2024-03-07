@@ -627,9 +627,10 @@ void* destroyConnPool(SCliThrd* pThrd) {
 }
 
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
-  void*      pool = pThrd->pool;
+  void*   pool = pThrd->pool;
+  STrans* pTranInst = pThrd->pTransInst;
+
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
-  STrans*    pTranInst = pThrd->pTransInst;
   if (plist == NULL) {
     SConnList list = {0};
     taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
@@ -657,7 +658,8 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
-  tDebug("conn %p got from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+  tDebug("conn %p got from pool, pool size: %d, dst: %s, connNum:%d", conn, conn->list->size, conn->dstAddr,
+         conn->list->list->numOfConn);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -732,7 +734,8 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
-  tDebug("conn %p got from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+  tDebug("conn %p got from pool, pool size: %d, dst: %s, connNum: %d", conn, conn->list->size, conn->dstAddr,
+         conn->list->list->numOfConn);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -785,7 +788,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
-  tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+  tDebug("conn %p added to pool, pool size: %d, dst: %s, connNum: %d", conn, conn->list->size, conn->dstAddr,
+         conn->list->list->numOfConn);
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
@@ -920,17 +924,18 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_INIT(&conn->q);
 
   conn->broken = true;
+  if (conn->list == NULL) {
+    conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
+  }
 
-  if (conn->list != NULL) {
-    SConnList* connList = conn->list;
-    connList->list->numOfConn--;
-    connList->size--;
-  } else {
-    if (pThrd->pool) {
-      SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
-      if (connList != NULL) connList->list->numOfConn--;
+  if (conn->list) {
+    SConnList* list = conn->list;
+    list->list->numOfConn--;
+    if (conn->status == ConnInPool) {
+      list->size--;
     }
   }
+
   conn->list = NULL;
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);

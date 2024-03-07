@@ -937,6 +937,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
   SMsgSendInfo *pMsgSendInfo = NULL;
   bool          isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
+
+  if (isHb && persistHandle && trans->pHandle == 0) {
+    trans->pHandle = rpcAllocHandle();
+  } 
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
 
