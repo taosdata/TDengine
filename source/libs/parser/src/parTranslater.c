@@ -8129,7 +8129,9 @@ static int32_t adjustTagsForCreateTable(STranslateContext* pCxt, SCreateStreamSt
     SColumnDefNode* pDef = (SColumnDefNode*)pTagDef;
     if (!dataTypeEqual(&pDef->dataType, &((SExprNode*)pTagExpr)->resType)) {
       SNode*  pFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pTagExpr, pDef->dataType, &pFunc);
+      SDataType defType = pDef->dataType;
+      defType.bytes = calcTypeBytes(defType);
+      int32_t code = createCastFunc(pCxt, pTagExpr, defType, &pFunc);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
