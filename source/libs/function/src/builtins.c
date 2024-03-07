@@ -463,13 +463,19 @@ static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translateAvgState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // TODO check params
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType))
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+
   pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateAvgStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // TODO check params
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+
   pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
@@ -3831,8 +3837,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-  
-    //TODO test for child table
     //TODO for outer use not only internal
     .name = "_avg_state",
     .type = FUNCTION_TYPE_AVG_STATE,

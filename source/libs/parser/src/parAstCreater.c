@@ -2748,27 +2748,6 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
 
 SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
   CHECK_PARSER_STATUS(pCxt);
-  /*
-  SNode *pNode1, *pNode2;
-  SNodeList* pTSMAFuncs = nodesMakeList();
-  CHECK_OUT_OF_MEM(pTSMAFuncs);
-  FOREACH(pNode1, pFuncs) {
-    FOREACH(pNode2, pCols) {
-      SFunctionNode* pFunc = (SFunctionNode*)nodesCloneNode(pNode1);
-      SColumnNode*   pCol = (SColumnNode*)nodesCloneNode(pNode2);
-      if (!pFunc || !pCol ||
-          (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, (SNode*)pCol) || (pCol = NULL)) ||
-          TSDB_CODE_SUCCESS != nodesListAppend(pTSMAFuncs, (SNode*)pFunc)) {
-        nodesDestroyNode((SNode*)pFunc);
-        nodesDestroyNode((SNode*)pCol);
-        nodesDestroyList(pTSMAFuncs);
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
-        return NULL;
-      }
-    }
-  }
-  */
   STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
   if (!pOptions) {
     //nodesDestroyList(pTSMAFuncs);
@@ -2776,14 +2755,8 @@ SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
     return NULL;
   }
-  // TODO check duplicate funcs somewhere
   // TODO check non supported funcs somewhere
   pOptions->pFuncs = pFuncs;
-  //pOptions->pCols = pCols;
-
-  //nodesDestroyList(pFuncs);
-  //nodesDestroyList(pCols);
-
   return (SNode*)pOptions;
 }
 

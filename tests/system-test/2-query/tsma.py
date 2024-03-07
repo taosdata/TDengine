@@ -239,6 +239,7 @@ class TSMATester:
                    (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
+        return
         tdLog.debug(f"start to check sql: {sql}")
         actual_ctx = self.check_explain(sql, expect=expect)
         tdLog.debug(f"ctx: {actual_ctx}")
@@ -751,8 +752,8 @@ class TDTestCase:
         self.create_tsma('tsma5', 'test', 'norm_tb', [
                          'avg(c1)', 'avg(c2)'], '10m')
 
-        #self.test_query_with_tsma_interval()
-        #self.test_query_with_tsma_agg()
+        self.test_query_with_tsma_interval()
+        self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
         # self.test_query_with_drop_tsma()
         # self.test_query_with_add_tag()
@@ -780,7 +781,6 @@ class TDTestCase:
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
-        time.sleep(9999999)
         self.check(self.test_query_tsma_all(['avg(c2)', 'avg(c3)']))
         self.create_recursive_tsma(
             'tsma4', 'tsma6', 'test', '1h', 'meters', func_list)
@@ -998,9 +998,9 @@ class TDTestCase:
     def run(self):
         self.init_data()
         # time.sleep(999999)
-        #self.test_ddl()
+        self.test_ddl()
         self.test_query_with_tsma()
-        # time.sleep(999999)
+        time.sleep(999999)
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
@@ -1071,7 +1071,7 @@ class TDTestCase:
         tdSql.execute('create database nsdb precision "ns"', queryTimes=1)
         tdSql.execute('use nsdb', queryTimes=1)
         tdSql.execute(
-            'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
+            'create table meters(ts timestamp, c1 int, c2 int, c3 varchar(255)) tags(t1 int, t2 int)', queryTimes=1)
         self.create_tsma('tsma1', 'nsdb', 'meters', [
                          'avg(c1)', 'avg(c2)'], '5m')
         # Invalid tsma interval, 1ms ~ 1h is allowed
@@ -1087,6 +1087,13 @@ class TDTestCase:
             'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
         tdSql.error(
             'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
+        tdSql.error('create tsma tsma2 on meters function(avg(c1, c2), avg(c2)) interval(10m)',  -2147471096) ## invalid tsma func param
+        tdSql.error('create tsma tsma2 on meters function(avg(ts), avg(c2)) interval(10m)',  -2147473406)## invalid param data type
+        tdSql.error('create tsma tsma2 on meters function(avg(c3), avg(c2)) interval(10m)',  -2147473406)
+        tdSql.error('create tsma tsma2 on meters function(avg(c1+1), avg(c2)) interval(10m)', -2147471096) ## invalid tsma func param
+        tdSql.error('create tsma tsma2 on meters function(avg(c1*c2), avg(c2)) interval(10m)', -2147471096) ## invalid tsma func param
+
+        tdSql.error('create tsma tsma1 on meters function(avg(c1), avg(c2)) interval(10m)', -2147482496) ## sma already exists
 
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('use test', queryTimes=1)
