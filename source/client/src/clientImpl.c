@@ -743,6 +743,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .chkKillFp = chkRequestKilled,
          .chkKillParam = (void*)pRequest->self,
          .pExecRes = &res,
+         .source = pRequest->source,
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1212,6 +1213,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
            .chkKillFp = chkRequestKilled,
            .chkKillParam = (void*)pRequest->self,
            .pExecRes = NULL,
+           .source = pRequest->source,
     };
     code = schedulerExecJob(&req, &pRequest->body.queryJob);
     taosArrayDestroy(pNodeList);
@@ -2475,7 +2477,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   tsem_post(&pParam->sem);
 }
 
-void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly, int8_t source) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (fp) {
@@ -2501,6 +2503,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
+  pRequest->source = source;
   pRequest->body.queryFp = fp;
   doAsyncQuery(pRequest, false);
 }
@@ -2535,7 +2538,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -2550,7 +2553,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   }
   tsem_init(&param->sem, 0, 0);
 
-  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
+  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
   tsem_wait(&param->sem);
 
   SRequestObj* pRequest = NULL;

@@ -7192,6 +7192,7 @@ int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (tEncodeBinary(&encoder, pReq->msg, pReq->phyLen) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->source) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7228,6 +7229,9 @@ int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->msg, &msgLen) < 0) return -1;
   pReq->phyLen = msgLen;
 
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->source) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -8427,6 +8431,7 @@ int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   if (tEncodeCStr(pCoder, pRes->tableFName) < 0) return -1;
   if (tEncodeCStr(pCoder, pRes->tsColName) < 0) return -1;
   if (tEncodeI64(pCoder, pRes->ctimeMs) < 0) return -1;
+  if (tEncodeI8(pCoder, pRes->source) < 0) return -1;
   return 0;
 }
 
@@ -8450,6 +8455,9 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
   pRes->ctimeMs = 0;
   if (!tDecodeIsEnd(pCoder)) {
     if (tDecodeI64(pCoder, &pRes->ctimeMs) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI8(pCoder, &pRes->source) < 0) return -1;
   }
   return 0;
 }
