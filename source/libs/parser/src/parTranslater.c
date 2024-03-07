@@ -3156,6 +3156,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name);
         len = taosCreateMD5Hash(tsmaTargetTbName.tname, len);
         sprintf(tsmaTargetTbName.tname + len, "_%s", pRealTable->table.tableName);
+        collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
         SVgroupInfo vgInfo = {0};
         bool exists = false;
         code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tsmaTargetTbName, &vgInfo, &exists);
