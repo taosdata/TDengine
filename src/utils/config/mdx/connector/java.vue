@@ -3,16 +3,18 @@
     <h2 id="add-dependency">{{ $t("docs.connector.java.step1") }}</h2>
     <el-tabs value="maven">
       <el-tab-pane name="maven" label="Maven">
-        <pre v-highlight><code class="language-xml">    &lt;dependency&gt;
-      &lt;groupId&gt;com.taosdata.jdbc&lt;/groupId&gt;
-      &lt;artifactId&gt;taos-jdbcdriver&lt;/artifactId&gt;
-      &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
+        <pre v-highlight="
+`&lt;dependency&gt;
+  &lt;groupId&gt;com.taosdata.jdbc&lt;/groupId&gt;
+  &lt;artifactId&gt;taos-jdbcdriver&lt;/artifactId&gt;
+  &lt;version&gt;3.2.7&lt;/version&gt;
+&lt;/dependency&gt;`
+        "><code class="language-xml">
 </code></pre>
       </el-tab-pane>
       <el-tab-pane name="gradel" label="Gradle">
         <pre v-highlight><code class="language-groovy">dependencies {
-  implementation &#39;com.taosdata.jdbc:taos-jdbcdriver:3.1.0&#39;
+  implementation &#39;com.taosdata.jdbc:taos-jdbcdriver:3.2.7&#39;
 }
 </code></pre>
       </el-tab-pane>
@@ -21,8 +23,8 @@
         label="Spring"
       >
         <p>{{ $t('docs.connector.java.step3depdesc') }}</p>
-        <pre v-highlight><code class="language-xml">
-&lt;dependency&gt;
+        <pre v-highlight="
+`&lt;dependency&gt;
   &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
   &lt;artifactId&gt;spring-boot-starter&lt;/artifactId&gt;
 &lt;/dependency&gt;
@@ -46,9 +48,8 @@
   &lt;groupId&gt;com.taosdata.jdbc&lt;/groupId&gt;
   &lt;artifactId&gt;taos-jdbcdriver&lt;/artifactId&gt;
   &lt;version&gt;3.2.7&lt;/version&gt;
-&lt;/dependency&gt;
-        </code>
-        </pre>
+&lt;/dependency&gt;`
+        "><code class="language-xml"></code></pre>
       </el-tab-pane>
     </el-tabs>
 
@@ -85,8 +86,8 @@
       >
         <p>{{ $t('docs.connector.java.step3confdesc') }}</p>
         <pre 
-          v-highlight="`
-server:
+          v-highlight="
+`server:
   port: 8080
 
 spring:
@@ -108,10 +109,7 @@ spring:
 # mybatis
 mybatis:
   mapper-locations: classpath:mapper/*.xml`
-          "
-        >
-          <code class="language-yml"></code>
-        </pre>
+          "><code class="language-yml"></code></pre>
       </el-tab-pane>
     </el-tabs>
 
@@ -123,12 +121,11 @@ mybatis:
         label="Java"
       >
         <p>{{ $t('docs.connector.java.step3desc') }}</p>
-        <pre v-highlight><code class="language-java">
-import java.sql.Connection;
+        <pre v-highlight="
+`import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
-
 
 public class ConnectCloudExample {
     public static void main(String[] args) throws SQLException {
@@ -140,9 +137,10 @@ public class ConnectCloudExample {
             }
         }
     }
-}
-        </code>
-        </pre>
+}`
+        "><code class="language-java">
+
+        </code></pre>
       </el-tab-pane>
       <el-tab-pane
         name="spring"
@@ -151,21 +149,22 @@ public class ConnectCloudExample {
         <ol class="seeq-ol">
           <li class="seeq-span">
             {{ $t('docs.connector.java.step3mybatisdesc1') }}
-            <pre v-highlight><code class="language-java">
-  @Select("select * from meters limit 10")
-  List&lt;/Meter&gt;find();
+            <pre v-highlight='
+`@Select("select * from meters limit 10")
+List&lt;Meter&gt; find();
 
-  int create(@Param("meter")Meter meter, @Param("tableName")String tableName);
+int create(@Param("meter")Meter meter, @Param("tableName")String tableName);
 
-  int save(@Param("meter")Meter meter, @Param("tableName")String tableName);
+int save(@Param("meter")Meter meter, @Param("tableName")String tableName);
 
-  Meter lastRow(@Param("tableName")String tableName);
+Meter lastRow(@Param("tableName")String tableName);`
+            '><code class="language-java">
         </code></pre>
           </li>
           <li class="seeq-span"
             >{{ $t('docs.connector.java.step3mybatisdesc2') }}
-            <pre v-highlight><code class="language-xml">
-&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+            <pre v-highlight='
+`&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd"&gt;
 &lt;mapper namespace="com.taos.example.dao.MeterMapper"&gt;
@@ -184,20 +183,20 @@ public class ConnectCloudExample {
   &lt;/insert&gt;
 
   &lt;insert id="save"&gt;
-    INSERT INTO #{tableName} VALUES (#{meter.ts}, #{meter.current}, #{meter.voltage}, #{meter.phase}) ;
+    INSERT INTO #{tableName} VALUES (#{meter.ts}, #{meter.current}, #{meter.voltage}, #{meter.phase});
   &lt;/insert&gt;
 
   &lt;select id="lastRow" resultMap="Meter"&gt;
     SELECT last_row(*) FROM meters;
   &lt;/select&gt;
-&lt;/mapper&gt;
-        </code>
-        </pre>
+&lt;/mapper&gt;`
+            '><code class="language-xml">
+        </code></pre>
           </li>
           <li class="seeq-span">
             {{ $t('docs.connector.java.step3href') }}
             <a :href="`https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring`">
-              {{ `https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring` }}
+              {{ `TDengine-examples-java` }}
             </a>
           </li>
         </ol>
