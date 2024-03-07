@@ -7717,6 +7717,8 @@ static void clearSampleAstInfo(SSampleAstInfo* pInfo) {
   nodesDestroyNode(pInfo->pInterval);
   nodesDestroyNode(pInfo->pOffset);
   nodesDestroyNode(pInfo->pSliding);
+  nodesDestroyNode(pInfo->pSubTable);
+  nodesDestroyList(pInfo->pTags);
 }
 
 static SNode* makeIntervalVal(SRetention* pRetension, int8_t precision) {
@@ -10692,6 +10694,11 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
   } else {
     FOREACH(pNode, pStmt->pOptions->pFuncs) {
       pFunc = (SFunctionNode*)pNode;
+      if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
+          nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
+        code = TSDB_CODE_TSMA_INVALID_FUNC_PARAM;
+        break;
+      }
       // TODO test func params with exprs
       pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
       snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
@@ -10717,6 +10724,11 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 #define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000) // 1h
   if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
     return TSDB_CODE_TSMA_INVALID_INTERVAL;
+  }
+
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 3
+  if (LIST_LENGTH(pStmt->pOptions->pFuncs) > TSDB_MAX_COLUMNS - TSMA_RES_STB_EXTRA_COLUMN_NUM) {
+    return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -10774,9 +10786,6 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    //code = getSmaIndexDstVgId(pCxt, pStmt->dbName, pStmt->tableName, &pReq->dstVgId);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
