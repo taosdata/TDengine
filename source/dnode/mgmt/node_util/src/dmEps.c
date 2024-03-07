@@ -63,11 +63,12 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
   if (code < 0) return -1;
+#ifdef TD_ENTERPRISE
   tjsonGetInt32ValueFromDouble(pJson, "cryptAlgor", pData->cryptAlgorigthm, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "cryptScope", pData->cryptScope, code);
   if (code < 0) return -1;
-
+#endif
   SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
   if (dnodes == NULL) return 0;
   int32_t numOfDnodes = tjsonGetArraySize(dnodes);
@@ -128,6 +129,8 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
+
+#ifdef TD_ENTERPRISE
     if(strcmp(tsCryptAlgorithm, "sm4") == 0) {
       pData->cryptAlgorigthm = DND_CA_SM4;
     }
@@ -155,7 +158,7 @@ int32_t dmReadEps(SDnodeData *pData) {
     taosMemoryFree(array);
 
     dInfo("set tsCryptAlgorithm:%s, tsCryptScope:%s from cfg", tsCryptAlgorithm, tsCryptScope);
-
+#endif
     code = 0;
     goto _OVER;
   }
@@ -241,9 +244,10 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
+#ifdef TD_ENTERPRISE
   if (tjsonAddDoubleToObject(pJson, "cryptAlgor", pData->cryptAlgorigthm) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "cryptScope", pData->cryptScope) < 0) return -1;
-
+#endif
   SJson *dnodes = tjsonCreateArray();
   if (dnodes == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "dnodes", dnodes) < 0) return -1;

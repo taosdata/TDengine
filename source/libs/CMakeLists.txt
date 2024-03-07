@@ -10,6 +10,7 @@ add_subdirectory(catalog)
 add_subdirectory(audit)
 add_subdirectory(monitorfw)
 add_subdirectory(sm4)
+add_subdirectory(crypt)
 
 add_subdirectory(scalar)
 add_subdirectory(function)

@@ -15,7 +15,7 @@
 
 #include "cos.h"
 #include "tsdb.h"
-#include "sm4.h"
+#include "crypt.h"
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
@@ -163,11 +163,18 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
 
       int32_t count = 0;
       while (count < pFD->szPage) {
-        SM4_CBC_Encrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
+        SCryptOpts opts = {0};
+        opts.len = 128;
+        opts.source = pFD->pBuf + count;
+        opts.result = PacketData;
+        opts.unitLen = 128;
+        NewLen = CBC_Encrypt(&opts);
+
+        //SM4_CBC_Encrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
         memcpy(pFD->pBuf + count, PacketData, NewLen);
-        count += NewLen;
-        tsdbInfo("SM4_CBC_Encrypt count:%d, NewLen:%d", count, NewLen);
+        count += NewLen; 
       }
+      tsdbInfo("CBC_Encrypt count:%d %s", count, __FUNCTION__);
     }
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
@@ -239,17 +246,22 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     if(tsiCryptAlgorithm == DND_CA_SM4 && tsiCryptScope & DND_CS_TSDB){
       unsigned char		PacketData[128];
       int		NewLen;
-      unsigned char Key[17]="0000100001000010";
-      unsigned char IV[17]="0000100001000010";
 
       int32_t count = 0;
       while(count < pFD->szPage)
       {
-        SM4_CBC_Decrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
+        SCryptOpts opts = {0};
+        opts.len = 128;
+        opts.source = pFD->pBuf + count;
+        opts.result = PacketData;
+        opts.unitLen = 128;
+        NewLen = CBC_Decrypt(&opts);
+        //SM4_CBC_Decrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
+
         memcpy(pFD->pBuf + count, PacketData, NewLen);
         count += NewLen;
-        tsdbInfo("SM4_CBC_Decrypt count:%d, NewLen:%d", count, NewLen);
       }
+      tsdbInfo("CBC_Decrypt count:%d %s", count, __FUNCTION__);
     }
   }
 
