@@ -605,9 +605,11 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
   }
 
   for (int32_t i = 0; i < pJob->tbTsmaNum; ++i) {
-    // TODO test for it
-    SName* name = taosArrayGet(pReq->pTableTSMAs, i);
-    ctgDropTSMAForTbEnqueue(pCtg, name, true);
+    STablesReq* pTbReq = taosArrayGet(pReq->pTableTSMAs, i);
+    for (int32_t j = 0; j < pTbReq->pTables->size; ++j) {
+      SName* name = taosArrayGet(pTbReq->pTables, j);
+      ctgDropTSMAForTbEnqueue(pCtg, name, true);
+    }
   }
 
   // REFRESH VIEW META

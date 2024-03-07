@@ -19,13 +19,14 @@ class TSMA:
         self.cols = []
         self.interval: str = ''
 
+
 class UsedTsma:
     TS_MIN = '-9223372036854775808'
     TS_MAX = '9223372036854775806'
     TSMA_RES_STB_POSTFIX = '_tsma_res_stb_'
 
     def __init__(self) -> None:
-        self.name = '' ## tsma name or table name
+        self.name = ''  # tsma name or table name
         self.time_range_start: float = float(UsedTsma.TS_MIN)
         self.time_range_end: float = float(UsedTsma.TS_MAX)
         self.is_tsma_ = False
@@ -33,9 +34,9 @@ class UsedTsma:
     def __eq__(self, __value: object) -> bool:
         if isinstance(__value, self.__class__):
             return self.name == __value.name \
-                    and self.time_range_start == __value.time_range_start \
-                    and self.time_range_end == __value.time_range_end \
-                    and self.is_tsma_ == __value.is_tsma_
+                and self.time_range_start == __value.time_range_start \
+                and self.time_range_end == __value.time_range_end \
+                and self.is_tsma_ == __value.is_tsma_
         else:
             return False
 
@@ -51,9 +52,10 @@ class UsedTsma:
     def setIsTsma(self):
         self.is_tsma_ = self.name.endswith(self.TSMA_RES_STB_POSTFIX)
         if not self.is_tsma_:
-            pos = self.name.find('_') ## for tsma output child table
+            pos = self.name.find('_')  # for tsma output child table
             if pos == 32:
                 self.is_tsma_ = True
+
 
 class TSMAQueryContext:
     def __init__(self) -> None:
@@ -87,6 +89,7 @@ class TSMAQueryContext:
                 return True
         return False
 
+
 class TSMAQCBuilder:
     def __init__(self) -> None:
         self.qc_: TSMAQueryContext = TSMAQueryContext()
@@ -101,7 +104,8 @@ class TSMAQCBuilder:
     def to_timestamp(self, ts: str) -> float:
         if ts == UsedTsma.TS_MAX or ts == UsedTsma.TS_MIN:
             return float(ts)
-        tdSql.query("select to_timestamp('%s', 'yyyy-mm-dd hh24-mi-ss.ms')" % (ts))
+        tdSql.query(
+            "select to_timestamp('%s', 'yyyy-mm-dd hh24-mi-ss.ms')" % (ts))
         res = tdSql.queryResult[0][0]
         return res.timestamp() * 1000
 
@@ -113,11 +117,11 @@ class TSMAQCBuilder:
         used_tsma.is_tsma_ = False
         self.qc_.used_tsmas.append(used_tsma)
         return self
-    
+
     def ignore_query_table(self):
         self.qc_.ignore_tsma_check_ = True
         return self
-    
+
     def ignore_res_order(self, ignore: bool):
         self.qc_.ignore_res_order_ = ignore
         return self
@@ -133,6 +137,7 @@ class TSMAQCBuilder:
         used_tsma.is_tsma_ = True
         self.qc_.used_tsmas.append(used_tsma)
         return self
+
 
 class TSMATester:
     def __init__(self, tdSql: TDSql) -> None:
@@ -153,7 +158,7 @@ class TSMATester:
         query_ctx: TSMAQueryContext = TSMAQueryContext()
         query_ctx.sql = sql
         query_ctx.used_tsmas = []
-        used_tsma : UsedTsma = UsedTsma()
+        used_tsma: UsedTsma = UsedTsma()
         for row in explain_res:
             row = str(row)
             if len(used_tsma.name) == 0:
@@ -188,14 +193,17 @@ class TSMATester:
     def check_explain(self, sql: str, expect: TSMAQueryContext) -> TSMAQueryContext:
         query_ctx = self.get_tsma_query_ctx(sql)
         if not query_ctx == expect:
-            tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
+            tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (
+                sql, str(expect), str(query_ctx)))
         elif expect.has_tsma():
-            tdLog.debug('check explain succeed for sql: %s \ntsma: %s' % (sql, str(expect.used_tsmas)))
+            tdLog.debug('check explain succeed for sql: %s \ntsma: %s' %
+                        (sql, str(expect.used_tsmas)))
         has_tsma = False
         for tsma in query_ctx.used_tsmas:
             has_tsma = has_tsma or tsma.is_tsma_
         if not has_tsma and len(query_ctx.used_tsmas) > 1:
-            tdLog.exit(f'explain err for sql: {sql}, has multi non tsmas, {query_ctx.used_tsmas}')
+            tdLog.exit(
+                f'explain err for sql: {sql}, has multi non tsmas, {query_ctx.used_tsmas}')
         return query_ctx
 
     def check_result(self, sql: str, skip_order: bool = False):
@@ -207,20 +215,28 @@ class TSMATester:
 
         if no_tsma_res is None or tsma_res is None:
             if no_tsma_res != tsma_res:
-                tdLog.exit("comparing tsma res for: %s got different rows of result: without tsma: %s, with tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
+                tdLog.exit("comparing tsma res for: %s got different rows of result: without tsma: %s, with tsma: %s" % (
+                    sql, str(no_tsma_res), str(tsma_res)))
             else:
                 return
 
         if len(no_tsma_res) != len(tsma_res):
-            tdLog.exit("comparing tsma res for: %s got different rows of result: \nwithout tsma: %s\nwith    tsma: %s" % (sql, str(no_tsma_res), str(tsma_res)))
+            tdLog.exit("comparing tsma res for: %s got different rows of result: \nwithout tsma: %s\nwith    tsma: %s" % (
+                sql, str(no_tsma_res), str(tsma_res)))
         if skip_order:
-            no_tsma_res.sort()
-            tsma_res.sort()
+            try:
+                no_tsma_res.sort(key=lambda x: [v is None for v in x] + list(x))
+                tsma_res.sort(key=lambda x: [v is None for v in x] + list(x))
+            except Exception as e:
+                tdLog.exit("comparing tsma res for: %s got different data: \nno tsma res: %s \n  tsma res: %s err: %s" % (
+                    sql, str(no_tsma_res), str(tsma_res), str(e)))
 
         for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
             if row_no_tsma != row_tsma:
-                tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n  tsma res: %s" % (sql, str(row_no_tsma), str(row_tsma), str(no_tsma_res), str(tsma_res)))
-        tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' % (sql, str(tsma_res), str(no_tsma_res)))
+                tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n  tsma res: %s" % (
+                    sql, str(row_no_tsma), str(row_tsma), str(no_tsma_res), str(tsma_res)))
+        tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' %
+                   (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
         tdLog.debug(f"start to check sql: {sql}")
@@ -233,6 +249,7 @@ class TSMATester:
         for sql, query_ctx in zip(sqls, expects):
             self.check_sql(sql, query_ctx)
 
+
 class TSMATesterSQLGeneratorOptions:
     def __init__(self) -> None:
         self.ts_min: int = 1537146000000 - 1000 * 60 * 60
@@ -240,21 +257,25 @@ class TSMATesterSQLGeneratorOptions:
         self.times: int = 100
         self.pk_col: str = 'ts'
         self.column_prefix: str = 'c'
-        self.column_num: int = 9 ### c1 - c10
+        self.column_num: int = 9  # c1 - c10
         self.tags_prefix: str = 't'
-        self.tag_num: int = 6  ### t1 - t6
-        self.char_tag_idx: List = [2,3]
+        self.tag_num: int = 6  # t1 - t6
+        self.str_tag_idx: List = [2, 3]
         self.child_table_name_prefix: str = 't'
-        self.child_table_num: int = 10  #### t0 - t9
+        self.child_table_num: int = 10  # t0 - t9
         self.interval: bool = False
-        self.partition_by: bool = False ## 70% generating a partition by, 30% no partition by, same as group by
+        # 70% generating a partition by, 30% no partition by, same as group by
+        self.partition_by: bool = False
         self.group_by: bool = False
-        self.where_ts_range: bool = False ## generating no ts range condition is also possible
+        # generating no ts range condition is also possible
+        self.where_ts_range: bool = False
         self.where_tbname_func: bool = False
         self.where_tag_func: bool = False
         self.where_col_func: bool = False
         self.slimit_max = 10
         self.limit_max = 10
+        self.norm_tb = False
+
 
 class TSMATesterSQLGeneratorRes:
     def __init__(self):
@@ -269,13 +290,15 @@ class TSMATesterSQLGeneratorRes:
     def can_ignore_res_order(self):
         return not (self.has_limit and self.has_slimit)
 
+
 class TSMATestSQLGenerator:
     def __init__(self, opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()):
         self.db_name_: str = ''
         self.tb_name_: str = ''
-        self.ts_scan_range_: List[float] = [float(UsedTsma.TS_MIN), float(UsedTsma.TS_MAX)]
+        self.ts_scan_range_: List[float] = [
+            float(UsedTsma.TS_MIN), float(UsedTsma.TS_MAX)]
         self.agg_funcs_: List[str] = []
-        self.tsmas_: List[TSMA] = [] ## currently created tsmas
+        self.tsmas_: List[TSMA] = []  # currently created tsmas
         self.opts_: TSMATesterSQLGeneratorOptions = opts
         self.res_: TSMATesterSQLGeneratorRes = TSMATesterSQLGeneratorRes()
 
@@ -289,7 +312,7 @@ class TSMATestSQLGenerator:
         concat2 = f'CONCAT({name}, {name})'
         concat3 = f'CONCAT({name}, {name}, {name})'
         start = random.randint(1, 3)
-        len  =random.randint(0,3)
+        len = random.randint(0, 3)
         substr = f'SUBSTR({name}, {start}, {len})'
         lower = f'LOWER({name})'
         ltrim = f'LTRIM({name})'
@@ -303,14 +326,11 @@ class TSMATestSQLGenerator:
 
     def generate_str_func(self, column_name: str, depth: int = 0) -> str:
         if depth == 0:
-            depth = random.randint(1,3)
+            depth = random.randint(1, 3)
 
         ret = self.generate_depthed_str_func(column_name, depth)
         tdLog.debug(f'generating str func: {ret}')
         return ret
-    
-    def generate_integer_func(self, column_name: str, depth: int = 0) -> str:
-        pass
 
     def get_random_type(self, funcs):
         rand: int = randrange(1, len(funcs))
@@ -345,26 +365,81 @@ class TSMATestSQLGenerator:
         interval = self.generate_interval(interval_list)
         (partition_by, partition_by_list) = self.generate_partition_by()
         limit = self.generate_limit()
-        auto_select_list = self.generate_select_list(select_list, partition_by_list)
+        auto_select_list = self.generate_select_list(
+            select_list, partition_by_list)
         order_by = self.generate_order_by(order_by_list, partition_by_list)
         sql = f"SELECT {auto_select_list} FROM {tb} {where} {partition_by} {partition_by_list} {interval} {order_by} {limit}"
+        tdLog.debug(sql)
         return sql
 
     def can_ignore_res_order(self):
         return self.res_.can_ignore_res_order()
 
     def generate_where(self) -> str:
-        return self.generate_ts_where_range()
+        v = random.random()
+        where = ''
+        if not self.opts_.norm_tb:
+            if v < 0.2:
+                where = f'{self.generate_tbname_where()}'
+            elif v < 0.5:
+                where = f'{self.generate_tag_where()}'
+            elif v < 0.7:
+                op = random.choice(['AND', 'OR'])
+                where = f'{self.generate_tbname_where()} {op} {self.generate_tag_where()}'
+        ts_where = self.generate_ts_where_range()
+        if len(ts_where) > 0 or len(where) > 0:
+            op = ''
+            if len(where) > 0 and len(ts_where) > 0:
+                op = random.choice(['AND', 'AND', 'AND', 'AND', 'OR'])
+            return f'WHERE {ts_where} {op} {where}'
+        return ''
+
+    def generate_str_equal_operator(self, column_name: str, opts: List) -> str:
+        opt = random.choice(opts)
+        return f'{column_name} = "{opt}"'
+
+    ## TODO support it
+    def generate_str_in_operator(self, column_name: str, opts: List) -> str:
+        opt = random.choice(opts)
+        IN = f'"{",".join(opts)}"'
+        return f'{column_name} in ({IN})'
+
+    def generate_str_like_operator(self, column_name: str, opts: List) -> str:
+        opt = random.choice(opts)
+        return f'{column_name} like "{opt}"'
+
+    def generate_tbname_where(self) -> str:
+        tbs = []
+        for idx in range(1, self.opts_.tag_num + 1):
+            tbs.append(f'{self.opts_.child_table_name_prefix}{idx}')
+
+        if random.random() < 0.5:
+            return self.generate_str_equal_operator('tbname', tbs)
+        else:
+            return self.generate_str_like_operator('tbname', ['t%', '%2'])
+
+    def generate_tag_where(self) -> str:
+        idx = random.randrange(1, self.opts_.tag_num + 1)
+        if random.random() < 0.5 and idx in self.opts_.str_tag_idx:
+            if random.random() < 0.5:
+                return self.generate_str_equal_operator(f'{self.opts_.tags_prefix}{idx}', [f'tb{random.randint(1,100)}'])
+            else:
+                return self.generate_str_like_operator(f'{self.opts_.tags_prefix}{idx}', ['%1', 'tb%', 'tb1%', '%1%'])
+        else:
+            operator = random.choice(['>', '>=', '<', '<=', '=', '!='])
+            val = random.randint(1, 100)
+            return f'{self.opts_.tags_prefix}{idx} {operator} {val}'
 
     def generate_timestamp(self, min: float = -1, max: float = 0) -> int:
         milliseconds_aligned: float = random.randint(int(min), int(max))
-        seconds_aligned = int( milliseconds_aligned/ 1000) * 1000
+        seconds_aligned = int(milliseconds_aligned / 1000) * 1000
         if seconds_aligned < min:
             seconds_aligned = int(min)
         minutes_aligned = int(milliseconds_aligned / 1000 / 60) * 1000 * 60
         if minutes_aligned < min:
             minutes_aligned = int(min)
-        hour_aligned = int(milliseconds_aligned / 1000 / 60 / 60) * 1000 * 60 * 60
+        hour_aligned = int(milliseconds_aligned / 1000 /
+                           60 / 60) * 1000 * 60 * 60
         if hour_aligned < min:
             hour_aligned = int(min)
 
@@ -380,7 +455,8 @@ class TSMATestSQLGenerator:
         a = ''
         left_value = None
         if left_operator:
-            left_value = self.generate_timestamp(self.opts_.ts_min, self.opts_.ts_max)
+            left_value = self.generate_timestamp(
+                self.opts_.ts_min, self.opts_.ts_max)
             a += f'{self.opts_.pk_col} {left_operator} {left_value}'
         if right_operator:
             if left_value:
@@ -391,10 +467,9 @@ class TSMATestSQLGenerator:
             if left_operator:
                 a += ' AND '
             a += f'{self.opts_.pk_col} {right_operator} {right_value}'
-        #tdLog.debug(f'{self.opts_.pk_col} range with: {a}')
+        # tdLog.debug(f'{self.opts_.pk_col} range with: {a}')
         if len(a) > 0:
             self.res_.has_where_ts_range = True
-            return f'WHERE {a}'
         return a
 
     def generate_limit(self) -> str:
@@ -409,23 +484,23 @@ class TSMATestSQLGenerator:
             ret = ret + f' LIMIT {random.randint(0, self.opts_.limit_max)}'
         return ret
 
-    ## add sliding offset
+    # add sliding offset
     def generate_interval(self, intervals: List[str]) -> str:
         if not self.opts_.interval:
             return ''
-        if random.random() < 0.4: ## no interval
+        if random.random() < 0.4:  # no interval
             return ''
         value = random.choice(intervals)
         self.res_.has_interval = True
         return f'INTERVAL({value})'
 
     def generate_tag_list(self):
-        used_tag_num = random.randrange(1, self.opts_.tag_num)
+        used_tag_num = random.randrange(1, self.opts_.tag_num + 1)
         ret = ''
         for _ in range(used_tag_num):
-            tag_idx = random.randint(1,self.opts_.tag_num)
+            tag_idx = random.randint(1, self.opts_.tag_num)
             tag_name = self.opts_.tags_prefix + f'{tag_idx}'
-            if random.random() < 0.5 and tag_idx in self.opts_.char_tag_idx:
+            if random.random() < 0.5 and tag_idx in self.opts_.str_tag_idx:
                 tag_func = self.generate_str_func(tag_name, 2)
             else:
                 tag_func = tag_name
@@ -440,18 +515,16 @@ class TSMATestSQLGenerator:
             if i == tbname_idx:
                 ret = ret + 'tbname,'
             else:
-                tag_idx = random.randint(1,self.opts_.tag_num)
+                tag_idx = random.randint(1, self.opts_.tag_num)
                 ret = ret + self.opts_.tags_prefix + f'{tag_idx},'
         return ret[:-1]
-            
 
-    ## TODO add tbname, tag functions
     def generate_partition_by(self):
         if not self.opts_.partition_by and not self.opts_.group_by:
-            return ('','')
-        ## no partition or group
+            return ('', '')
+        # no partition or group
         if random.random() < 0.3:
-            return ('','')
+            return ('', '')
         ret = ''
         rand = random.random()
         if rand < 0.4:
@@ -462,39 +535,41 @@ class TSMATestSQLGenerator:
         elif rand < 0.8:
             ret = self.generate_tag_list()
         else:
-            ## tbname and tag
+            # tbname and tag
             ret = self.generate_tbname_tag_list()
-        tdLog.debug(f'partition by: {ret}')
+        # tdLog.debug(f'partition by: {ret}')
         if self.res_.has_interval or random.random() < 0.5:
             self.res_.partition_by = True
             return (str('PARTITION BY'), f'{ret}')
         else:
             self.res_.group_by = True
             return (str('GROUP BY'),  f'{ret}')
-    
+
     def generate_where_tbname(self) -> str:
         return self.generate_str_func('tbname')
 
     def generate_where_tag(self) -> str:
-        #tag_idx = random.randint(1, self.opts_.tag_num)
-        #tag = self.opts_.tags_prefix + str(tag_idx)
+        # tag_idx = random.randint(1, self.opts_.tag_num)
+        # tag = self.opts_.tags_prefix + str(tag_idx)
         return self.generate_str_func('t3')
 
     def generate_where_conditions(self) -> str:
 
         pass
 
-    ## generate func in tsmas(select list)
+    # generate func in tsmas(select list)
     def _generate_agg_func_for_select(self) -> str:
         pass
 
-    ## order by, limit, having, subquery...
+    # order by, limit, having, subquery...
+
 
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
+
     def __init__(self):
-        self.vgroups    = 4
-        self.ctbNum     = 10
+        self.vgroups = 4
+        self.ctbNum = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
@@ -505,59 +580,69 @@ class TDTestCase:
         self.tsma_tester: TSMATester = TSMATester(tdSql)
         self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
-    def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
+    def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:
-            tsql.execute("drop database if exists %s"%(dbName))
+            tsql.execute("drop database if exists %s" % (dbName))
 
-        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s"%(dbName, vgroups, replica, duration))
-        tdLog.debug("complete to create database %s"%(dbName))
+        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s" % (
+            dbName, vgroups, replica, duration))
+        tdLog.debug("complete to create database %s" % (dbName))
         return
 
-    def create_stable(self,tsql, paraDict):
-        colString = tdCom.gen_column_type_str(colname_prefix=paraDict["colPrefix"], column_elm_list=paraDict["colSchema"])
-        tagString = tdCom.gen_tag_type_str(tagname_prefix=paraDict["tagPrefix"], tag_elm_list=paraDict["tagSchema"])
-        sqlString = f"create table if not exists %s.%s (%s) tags (%s)"%(paraDict["dbName"], paraDict["stbName"], colString, tagString)
-        tdLog.debug("%s"%(sqlString))
+    def create_stable(self, tsql, paraDict):
+        colString = tdCom.gen_column_type_str(
+            colname_prefix=paraDict["colPrefix"], column_elm_list=paraDict["colSchema"])
+        tagString = tdCom.gen_tag_type_str(
+            tagname_prefix=paraDict["tagPrefix"], tag_elm_list=paraDict["tagSchema"])
+        sqlString = f"create table if not exists %s.%s (%s) tags (%s)" % (
+            paraDict["dbName"], paraDict["stbName"], colString, tagString)
+        tdLog.debug("%s" % (sqlString))
         tsql.execute(sqlString)
         return
 
-    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1,ctbStartIdx=0):
+    def create_ctable(self, tsql=None, dbName='dbx', stbName='stb', ctbPrefix='ctb', ctbNum=1, ctbStartIdx=0):
         for i in range(ctbNum):
             sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % \
-                    (dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,(i+ctbStartIdx) % 5,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx)
+                (dbName, ctbPrefix, i+ctbStartIdx, dbName, stbName, (i+ctbStartIdx) % 5, i+ctbStartIdx +
+                 random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100))
             tsql.execute(sqlString)
 
-        tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
+        tdLog.debug("complete to create %d child tables by %s.%s" %
+                    (ctbNum, dbName, stbName))
         return
 
     def init_normal_tb(self, tsql, db_name: str, tb_name: str, rows: int, start_ts: int, ts_step: int):
-        sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 VARCHAR(255), c4 INT)' % (db_name, tb_name)
+        sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 INT, c4 VARCHAR(255))' % (
+            db_name, tb_name)
         tsql.execute(sql)
         sql = 'INSERT INTO %s.%s values' % (db_name, tb_name)
         for j in range(rows):
-            sql += '(%d, %d,%d,"varchar_%d",%d),' % (start_ts + j * ts_step + randrange(500), j % 10 + randrange(100), j % 10 + randrange(200), j % 10, j % 10)
+            sql += '(%d, %d,%d,%d,"varchar_%d"),' % (start_ts + j * ts_step + randrange(500), j % 10 + randrange(200), j % 10, j % 10,
+                                                     j % 10 + randrange(100))
         tsql.execute(sql)
 
-    def insert_data(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,tsStep):
+    def insert_data(self, tsql, dbName, ctbPrefix, ctbNum, rowsPerTbl, batchNum, startTs, tsStep):
         tdLog.debug("start to insert data ............")
-        tsql.execute("use %s" %dbName)
+        tsql.execute("use %s" % dbName)
         pre_insert = "insert into "
         sql = pre_insert
 
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(ctbPrefix,i)
+            sql += " %s%d values " % (ctbPrefix, i)
             for j in range(rowsPerTbl):
                 if (i < ctbNum/2):
-                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep + randrange(500), j%10 + randrange(100), j%10 + randrange(200), j%10, j%10, j%10, j%10, j%10, j%10)
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') " % (startTs + j*tsStep + randrange(
+                        500), j % 10 + randrange(100), j % 10 + randrange(200), j % 10, j % 10, j % 10, j % 10, j % 10, j % 10)
                 else:
-                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep + randrange(500), j%10, j%10, j%10, j%10, j%10, j%10)
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') " % (
+                        startTs + j*tsStep + randrange(500), j % 10, j % 10, j % 10, j % 10, j % 10, j % 10)
                 rowsBatched += 1
                 if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                        sql = "insert into %s%d values " % (ctbPrefix, i)
                     else:
                         sql = "insert into "
         if sql != pre_insert:
@@ -565,16 +650,17 @@ class TDTestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def init_data(self, ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts : int = 1537146000000 , ts_step : int = 500):
-        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+    def init_data(self, ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
+        tdLog.printNoPrefix(
+            "======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'test',
                     'dropFlag':   1,
                     'vgroups':    2,
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
-                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'FLOAT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'smallint', 'count':1},{'type': 'tinyint', 'count':1},{'type': 'bool', 'count':1},{'type': 'binary', 'len':10, 'count':1},{'type': 'nchar', 'len':10, 'count':1}],
-                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
+                    'colSchema':   [{'type': 'INT', 'count': 1}, {'type': 'BIGINT', 'count': 1}, {'type': 'FLOAT', 'count': 1}, {'type': 'DOUBLE', 'count': 1}, {'type': 'smallint', 'count': 1}, {'type': 'tinyint', 'count': 1}, {'type': 'bool', 'count': 1}, {'type': 'binary', 'len': 10, 'count': 1}, {'type': 'nchar', 'len': 10, 'count': 1}],
+                    'tagSchema':   [{'type': 'INT', 'count': 1}, {'type': 'nchar', 'len': 20, 'count': 1}, {'type': 'binary', 'len': 20, 'count': 1}, {'type': 'BIGINT', 'count': 1}, {'type': 'smallint', 'count': 1}, {'type': 'DOUBLE', 'count': 1}],
                     'ctbPrefix':  't',
                     'ctbStartIdx': 0,
                     'ctbNum':     ctb_num,
@@ -588,25 +674,29 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
         tdLog.info("create database")
-        self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"], vgroups=paraDict["vgroups"], replica=self.replicaVar, duration=self.duraion)
+        self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"],
+                             vgroups=paraDict["vgroups"], replica=self.replicaVar, duration=self.duraion)
 
         tdLog.info("create stb")
         self.create_stable(tsql=tdSql, paraDict=paraDict)
 
         tdLog.info("create child tables")
-        self.create_ctable(tsql=tdSql, dbName=paraDict["dbName"], \
-                stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],\
-                ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict["ctbStartIdx"])
-        self.insert_data(tsql=tdSql, dbName=paraDict["dbName"],\
-                ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],\
-                rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],\
-                startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
-        self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb', paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
+        self.create_ctable(tsql=tdSql, dbName=paraDict["dbName"],
+                           stbName=paraDict["stbName"], ctbPrefix=paraDict["ctbPrefix"],
+                           ctbNum=paraDict["ctbNum"], ctbStartIdx=paraDict["ctbStartIdx"])
+        self.insert_data(tsql=tdSql, dbName=paraDict["dbName"],
+                         ctbPrefix=paraDict["ctbPrefix"], ctbNum=paraDict["ctbNum"],
+                         rowsPerTbl=paraDict["rowsPerTbl"], batchNum=paraDict["batchNum"],
+                         startTs=paraDict["startTs"], tsStep=paraDict["tsStep"])
+        self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
+                            paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
 
     def wait_for_tsma_calculation(self, func_list: list, db: str, tb: str, interval: str, tsma_name: str):
         while True:
-            sql = 'select %s from %s.%s interval(%s)' % (', '.join(func_list), db, tb, interval)
-            tdLog.debug(f'waiting for tsma {db}.{tsma_name} to be useful with sql {sql}')
+            sql = 'select %s from %s.%s interval(%s)' % (
+                ', '.join(func_list), db, tb, interval)
+            tdLog.debug(
+                f'waiting for tsma {db}.{tsma_name} to be useful with sql {sql}')
             ctx: TSMAQueryContext = self.tsma_tester.get_tsma_query_ctx(sql)
             if ctx.has_tsma():
                 if ctx.used_tsmas[0].name == tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX:
@@ -618,18 +708,20 @@ class TDTestCase:
             else:
                 time.sleep(1)
 
-
     def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, interval: str):
         tdSql.execute('use %s' % db)
-        sql = "CREATE TSMA %s ON %s.%s FUNCTION(%s) INTERVAL(%s)" % (tsma_name, db, tb, ','.join(func_list), interval)
+        sql = "CREATE TSMA %s ON %s.%s FUNCTION(%s) INTERVAL(%s)" % (
+            tsma_name, db, tb, ','.join(func_list), interval)
         tdSql.execute(sql, queryTimes=1)
         self.wait_for_tsma_calculation(func_list, db, tb, interval, tsma_name)
 
     def create_recursive_tsma(self, base_tsma_name: str, new_tsma_name: str, db: str, interval: str, tb_name: str, func_list: List[str] = ['avg(c1)']):
         tdSql.execute('use %s' % db, queryTimes=1)
-        sql = 'CREATE RECURSIVE TSMA %s ON %s.%s INTERVAL(%s)' % (new_tsma_name, db, base_tsma_name, interval)
+        sql = 'CREATE RECURSIVE TSMA %s ON %s.%s INTERVAL(%s)' % (
+            new_tsma_name, db, base_tsma_name, interval)
         tdSql.execute(sql, queryTimes=1)
-        self.wait_for_tsma_calculation(func_list, db, tb_name, interval, new_tsma_name)
+        self.wait_for_tsma_calculation(
+            func_list, db, tb_name, interval, new_tsma_name)
 
     def drop_tsma(self, tsma_name: str, db: str):
         sql = 'DROP TSMA %s.%s' % (db, tsma_name)
@@ -639,174 +731,212 @@ class TDTestCase:
         plan_found = False
         for row in explain_output:
             if str(row).find(plan_str_expect) >= 0:
-                tdLog.debug("plan: [%s] found in: [%s]" % (plan_str_expect, str(row)))
+                tdLog.debug("plan: [%s] found in: [%s]" %
+                            (plan_str_expect, str(row)))
                 plan_found = True
                 break
         if not plan_found:
-            tdLog.exit("plan: %s not found in res: [%s]" % (plan_str_expect, str(explain_output)))
+            tdLog.exit("plan: %s not found in res: [%s]" % (
+                plan_str_expect, str(explain_output)))
 
-    def check(self, func):
-        for ctx in func():
+    def check(self, ctxs: List):
+        for ctx in ctxs:
             self.tsma_tester.check_sql(ctx.sql, ctx)
 
     def test_query_with_tsma(self):
-        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
-        self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
-        self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
+        self.create_tsma('tsma1', 'test', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma2', 'test', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '30m')
+        self.create_tsma('tsma5', 'test', 'norm_tb', [
+                         'avg(c1)', 'avg(c2)'], '10m')
 
-        self.test_query_with_tsma_interval()
-        self.test_query_with_tsma_agg()
+        #self.test_query_with_tsma_interval()
+        #self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
-        ## self.test_query_with_drop_tsma()
-        ## self.test_query_with_add_tag()
-        ## self.test_union()
+        # self.test_query_with_drop_tsma()
+        # self.test_query_with_add_tag()
+        # self.test_union()
         self.test_query_sub_table()
 
     def test_query_sub_table(self):
         sql = 'select avg(c1) from t1'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
+            'e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
         sql = 'select avg(c1) from t3'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('e8945e7385834f8c22705546d4016539_t3', child_tb=True).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
+            'e8945e7385834f8c22705546d4016539_t3', child_tb=True).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
         func_list: List[str] = ['avg(c2)', 'avg(c3)']
         self.create_tsma('tsma3', 'test', 'meters', func_list, '5m')
-        self.create_recursive_tsma('tsma3', 'tsma4', 'test', '20m', 'meters', func_list)
-        ## now we have 5m, 10m, 30m, 1h 4 tsmas
+        self.create_recursive_tsma(
+            'tsma3', 'tsma4', 'test', '20m', 'meters', func_list)
+        # now we have 5m, 10m, 30m, 1h 4 tsmas
         sql = 'select avg(c2), "recursive tsma4" from meters'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma4', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
+            'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
-        self.create_recursive_tsma('tsma4', 'tsma6', 'test', '1h', 'meters', func_list)
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma6', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc()
+        time.sleep(9999999)
+        self.check(self.test_query_tsma_all(['avg(c2)', 'avg(c3)']))
+        self.create_recursive_tsma(
+            'tsma4', 'tsma6', 'test', '1h', 'meters', func_list)
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
+            'tsma6', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
+
+        self.check(self.test_query_tsma_all(['avg(c2)', 'avg(c3)']))
 
         tdSql.error('drop tsma tsma3', -2147482491)
         tdSql.error('drop tsma tsma4', -2147482491)
         tdSql.execute('drop tsma tsma6')
         tdSql.execute('drop tsma tsma4')
         tdSql.execute('drop tsma tsma3')
-        self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
+        self.create_tsma('tsma2', 'test', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '30m')
 
     def test_query_with_tsma_interval(self):
-        self.check(self.test_query_with_tsma_interval_possibly_partition)
-        self.check(self.test_query_with_tsma_interval_partition_by_col)
-    
-    def test_query_with_tsma_interval_possibly_partition(self) -> List[TSMAQueryContext]:
-        ctxs: List[TSMAQueryContext] = []
-        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
+        self.check(self.test_query_with_tsma_interval_possibly_partition())
+        self.check(self.test_query_with_tsma_interval_partition_by_col())
 
-        sql = 'select avg(c1), avg(c2) from meters interval(10m)'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(30m)'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(60m)'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_qc())
-
-        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.009','2018-09-17 09:29:59.999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.664').get_qc())
-
-        sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333' ).get_qc())
-
-
-        interval_list = ['1s', '5s', '60s', '1m', '10m', '20m', '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
+    def test_query_tsma_all(self, func_list: List = ['avg(c1)', 'avg(c2)']) -> List:
+        ctxs = []
+        interval_list = ['1s', '5s', '60s', '1m', '10m', '20m',
+                         '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
         opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
         opts.interval = True
         opts.where_ts_range = True
-        for _ in range(1, 100):
+        for _ in range(1, 1000):
             opts.partition_by = True
+            opts.group_by = True
+            opts.norm_tb = False
             sql_generator = TSMATestSQLGenerator(opts)
-            sql = sql_generator.generate_one('avg(c1), avg(c2)', ['meters', 't1', 't9'], '', interval_list)
-            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
+            sql = sql_generator.generate_one(
+                ','.join(func_list), ['meters', 'meters', 't1', 't9'], '', interval_list)
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table(
+            ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
 
+            if random.random() > 0.7:
+                continue
             opts.partition_by = False
+            opts.group_by = False
+            opts.norm_tb = True
             sql_generator = TSMATestSQLGenerator(opts)
-            sql = sql_generator.generate_one('avg(c1), avg(c2)', ['norm_tb', 't5'], '', interval_list)
-            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table().ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
+            sql = sql_generator.generate_one(
+                ','.join(func_list), ['norm_tb', 't5'], '', interval_list)
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table(
+            ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
+        return ctxs
+
+    def test_query_with_tsma_interval_possibly_partition(self) -> List[TSMAQueryContext]:
+        ctxs: List[TSMAQueryContext] = []
+        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+
+        sql = 'select avg(c1), avg(c2) from meters interval(10m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = 'select avg(c1), avg(c2) from meters interval(30m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = 'select avg(c1), avg(c2) from meters interval(60m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+
+        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:29:59.999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.664').get_qc())
+
+        sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333').get_qc())
+        ctxs.extend(self.test_query_tsma_all())
         return ctxs
 
     def test_query_with_tsma_interval_partition_by_col(self):
         return []
 
     def test_query_with_tsma_agg(self):
-        self.check(self.test_query_with_tsma_agg_no_group_by)
-        self.check(self.test_query_with_tsma_agg_group_by_tbname)
-        self.check(self.test_query_with_tsma_with_having)
+        self.check(self.test_query_with_tsma_agg_no_group_by())
+        self.check(self.test_query_with_tsma_agg_group_by_tbname())
+        self.check(self.test_query_with_tsma_with_having())
 
     def test_query_with_tsma_agg_no_group_by(self):
         ctxs: List[TSMAQueryContext] = []
         sql = 'select avg(c1), avg(c2) from meters'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma2', '2018-09-17 09:00:00','2018-09-17 09:59:59:999') \
-                        .should_query_with_table("meters", '2018-09-17 10:00:00','2018-09-17 10:00:00').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:00:00', '2018-09-17 09:59:59:999')
+                    .should_query_with_table("meters", '2018-09-17 10:00:00', '2018-09-17 10:00:00').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
         sql = 'select avg(c1) + avg(c2), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
         sql = 'select avg(c1) + avg(c2), avg(c2) + 1 from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
         sql = "select avg(c1) + 1, avg(c2) from meters where ts >= '2018-09-17 9:30:00.118' and ts < '2018-09-17 10:50:00'"
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_table('meters', '2018-09-17 9:30:00.118', '2018-09-17 9:59:59.999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 10:00:00', '2018-09-17 10:29:59.999') \
-                            .should_query_with_tsma('tsma1', '2018-09-17 10:30:00.000', '2018-09-17 10:49:59.999').get_qc())
-        
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 9:30:00.118', '2018-09-17 9:59:59.999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 10:00:00', '2018-09-17 10:29:59.999')
+                    .should_query_with_tsma('tsma1', '2018-09-17 10:30:00.000', '2018-09-17 10:49:59.999').get_qc())
+
         sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 9:00:00' and ts < '2018-09-17 9:45:00' limit 2"
-        ctxs.append(TSMAQCBuilder().with_sql(sql) \
-                    .should_query_with_tsma('tsma2', '2018-09-17 9:00:00', '2018-09-17 9:29:59.999') \
-                        .should_query_with_tsma('tsma1', '2018-09-17 9:30:00', '2018-09-17 9:44:59.999').get_qc())
-        
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma2', '2018-09-17 9:00:00', '2018-09-17 9:29:59.999')
+                    .should_query_with_tsma('tsma1', '2018-09-17 9:30:00', '2018-09-17 9:44:59.999').get_qc())
+
         sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where c1 is not NULL'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_table('meters').get_qc())
 
         sql = 'select avg(c1), avg(c2), spread(c4) from meters'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_table('meters').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\''
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\' or tbname = \'t2\''
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = '''select avg(c1), avg(c2) from meters where tbname = 't1' and c1 is not NULL'''
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
-        
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_table('meters').get_qc())
+
         sql = 'select avg(c1+c2) from meters'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_table('meters').get_qc())
 
         sql = 'select avg(c1), avg(c2) from meters where ts >= "2018-09-17 9:25:00" and ts < "2018-09-17 10:00:00" limit 6'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1', '2018-09-17 9:25:00', '2018-09-17 9:29:59.999') \
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1', '2018-09-17 9:25:00', '2018-09-17 9:29:59.999')
                     .should_query_with_tsma('tsma2', '2018-09-17 9:30:00', '2018-09-17 9:59:59.999').get_qc())
 
         return ctxs
@@ -814,38 +944,46 @@ class TDTestCase:
     def test_query_with_tsma_agg_group_by_tbname(self):
         ctxs: List[TSMAQueryContext] = []
         sql = 'select avg(c1) as a, avg(c2) as b, tbname from meters group by tbname order by tbname, a, b'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1) as a, avg(c2) + 1 as b, tbname from meters where c1 > 10 group by tbname order by tbname, a, b'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_table('meters').get_qc())
 
         sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, tbname from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by tbname order by tbname, a, b'
-        ctxs.append(TSMAQCBuilder().with_sql(sql)\
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
         sql = 'select avg(c1) + avg(c2) + 3 as a, substr(tbname, 1) as c from meters group by substr(tbname, 1) order by c, a'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, substr(tbname, 1, 1) as c from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by substr(tbname, 1, 1) order by c, a, b'
-        ctxs.append(TSMAQCBuilder().with_sql(sql)\
-                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
-                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
-                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
         sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 order by tbname'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
         sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1"'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
         sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname like "t%" order by tbname'
-        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
 
         return ctxs
 
@@ -859,10 +997,10 @@ class TDTestCase:
 
     def run(self):
         self.init_data()
-        #time.sleep(999999)
+        # time.sleep(999999)
         #self.test_ddl()
         self.test_query_with_tsma()
-        #time.sleep(999999)
+        # time.sleep(999999)
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
@@ -871,17 +1009,19 @@ class TDTestCase:
         self.test_create_tsma_on_norm_table()
         self.test_create_tsma_on_child_table()
         self.test_create_recursive_tsma()
-        ## self.test_drop_stable() ## drop stable and recreate a stable
-        ## self.test_drop_ctable()
+        # self.test_drop_stable() ## drop stable and recreate a stable
+        # self.test_drop_ctable()
         self.test_drop_db()
 
     def test_drop_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma1', 'test', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '15m', 'meters')
 
-        tdSql.error('drop tsma tsma1', -2147482491) ## drop recursive tsma first
+        # drop recursive tsma first
+        tdSql.error('drop tsma tsma1', -2147482491)
         tdSql.execute('drop tsma tsma2', queryTimes=1)
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('drop database test', queryTimes=1)
@@ -893,9 +1033,11 @@ class TDTestCase:
         tdLog.debug(f'-----{function_name}------')
         tdSql.execute('create database nsdb precision "ns"', queryTimes=1)
         tdSql.execute('use nsdb', queryTimes=1)
-        tdSql.execute('create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
-        ## TODO insert data
-        self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        tdSql.execute(
+            'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
+        # TODO insert data
+        self.create_tsma('tsma1', 'nsdb', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'nsdb', '10m', 'meters')
         tdSql.query('select avg(c1) from meters', queryTimes=1)
         tdSql.execute('drop database nsdb', queryTimes=1)
@@ -905,42 +1047,57 @@ class TDTestCase:
         tdLog.debug(f'-----{function_name}------')
         tdSql.execute('create database nsdb precision "ns"', queryTimes=1)
         tdSql.execute('use nsdb', queryTimes=1)
-        tdSql.execute('create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
-        self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
-        ## drop column, drop tag
+        tdSql.execute(
+            'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
+        self.create_tsma('tsma1', 'nsdb', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
+        # drop column, drop tag
         tdSql.error('alter table meters drop column c1', -2147482637)
         tdSql.error('alter table meters drop tag t1', -2147482637)
-        tdSql.error('alter table meters drop tag t2', -2147482637) # Stream must be dropped first 
+        tdSql.error('alter table meters drop tag t2', -
+                    2147482637)  # Stream must be dropped first
         tdSql.execute('drop tsma tsma1', queryTimes=1)
 
-        ## add tag
+        # add tag
         tdSql.execute('alter table meters add tag t3 int', queryTimes=1)
         tdSql.execute('alter table meters drop tag t3', queryTimes=1)
         tdSql.execute('drop database nsdb')
 
-        ## TODO test drop stream
+        # TODO test drop stream
 
     def test_create_tsma_on_stable(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
         tdSql.execute('create database nsdb precision "ns"', queryTimes=1)
         tdSql.execute('use nsdb', queryTimes=1)
-        tdSql.execute('create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
-        self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(2h)', -2147471097) ## Invalid tsma interval, 1ms ~ 1h is allowed
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3601s)', -2147471097)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3600001a)', -2147471097)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3600001000u)', -2147471097)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
+        tdSql.execute(
+            'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
+        self.create_tsma('tsma1', 'nsdb', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
+        # Invalid tsma interval, 1ms ~ 1h is allowed
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3601s)', -2147471097)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3600001a)', -2147471097)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(3600001000u)', -2147471097)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
 
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('use test', queryTimes=1)
-        tdSql.execute('create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2)) interval(10m)', queryTimes=1)
-        self.wait_for_tsma_calculation(['avg(c1)', 'avg(c2)'], 'nsdb', 'meters', '10m', 'tsma1')
+        tdSql.execute(
+            'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2)) interval(10m)', queryTimes=1)
+        self.wait_for_tsma_calculation(
+            ['avg(c1)', 'avg(c2)'], 'nsdb', 'meters', '10m', 'tsma1')
         tdSql.execute('drop tsma nsdb.tsma1', queryTimes=1)
 
-        tdSql.error('create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
+        tdSql.error(
+            'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):
@@ -950,19 +1107,22 @@ class TDTestCase:
     def test_create_tsma_on_child_table(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        tdSql.error('create tsma tsma1 on test.t1 function(avg(c1), avg(c2)) interval(1m)', -2147471098) ## Invalid table to create tsma, only stable or normal table allowed
+        # Invalid table to create tsma, only stable or normal table allowed
+        tdSql.error(
+            'create tsma tsma1 on test.t1 function(avg(c1), avg(c2)) interval(1m)', -2147471098)
 
     def test_create_recursive_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
         tdSql.execute('use test')
-        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma1', 'test', 'meters', [
+                         'avg(c1)', 'avg(c2)'], '5m')
         sql = 'create recursive tsma tsma2 on tsma1 interval(1m)'
-        tdSql.error(sql, -2147471099) ## invalid tsma parameter
+        tdSql.error(sql, -2147471099)  # invalid tsma parameter
         sql = 'create recursive tsma tsma2 on tsma1 interval(7m)'
-        tdSql.error(sql, -2147471099) ## invalid tsma parameter
+        tdSql.error(sql, -2147471099)  # invalid tsma parameter
         sql = 'create recursive tsma tsma2 on tsma1 interval(11m)'
-        tdSql.error(sql, -2147471099) ## invalid tsma parameter
+        tdSql.error(sql, -2147471099)  # invalid tsma parameter
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '20m', 'meters')
 
         tdSql.execute('drop tsma tsma2', queryTimes=1)
@@ -971,6 +1131,7 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 
