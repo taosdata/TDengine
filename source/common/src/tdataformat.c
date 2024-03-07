@@ -196,22 +196,24 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
 
   // Tuple
   sinfo->tupleFlag = sinfo->flag;
-  if (sinfo->flag == HAS_NONE || sinfo->flag == HAS_NULL || sinfo->flag == HAS_VALUE) {
-    sinfo->tupleBitmapSize = 0;
-  } else if (sinfo->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
-    sinfo->tupleBitmapSize = BIT2_SIZE(schema->numOfCols - 1);
+  if (sinfo->flag == HAS_NONE || sinfo->flag == HAS_NULL) {
+    sinfo->tupleRowSize = sizeof(SRow);
   } else {
-    sinfo->tupleBitmapSize = BIT1_SIZE(schema->numOfCols - 1);
+    if (sinfo->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+      sinfo->tupleBitmapSize = BIT2_SIZE(schema->numOfCols - 1);
+    } else if (sinfo->flag != HAS_VALUE) {
+      sinfo->tupleBitmapSize = BIT1_SIZE(schema->numOfCols - 1);
+    }
+    for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
+      sinfo->tupleIndices[i].offset += sinfo->tupleBitmapSize;
+      sinfo->tuplePKSize += tPutPrimaryKeyIndex(NULL, sinfo->tupleIndices + i);
+    }
+    sinfo->tupleRowSize = sizeof(SRow)              // SRow
+                          + sinfo->tuplePKSize      // primary keys
+                          + sinfo->tupleBitmapSize  // bitmap
+                          + sinfo->tupleFixedSize   // fixed part
+                          + sinfo->tupleVarSize;    // var part
   }
-  for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
-    sinfo->tupleIndices[i].offset += sinfo->tupleBitmapSize;
-    sinfo->tuplePKSize += tPutPrimaryKeyIndex(NULL, sinfo->tupleIndices + i);
-  }
-  sinfo->tupleRowSize = sizeof(SRow)              // SRow
-                        + sinfo->tuplePKSize      // primary keys
-                        + sinfo->tupleBitmapSize  // bitmap
-                        + sinfo->tupleFixedSize   // fixed part
-                        + sinfo->tupleVarSize;    // var part
 
   // Key-Value
   if (sinfo->kvMaxOffset <= UINT8_MAX) {
@@ -251,6 +253,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   (*ppRow)->ts = colValArray[0].value.val;
 
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
+    ASSERT(sinfo->tupleRowSize == sizeof(SRow));
     return 0;
   }
 
