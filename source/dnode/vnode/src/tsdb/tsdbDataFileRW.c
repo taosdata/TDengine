@@ -19,7 +19,7 @@
 struct SDataFileReader {
   SDataFileReaderConfig config[1];
 
-  SBuffer  local[5];
+  SBuffer  local[10];
   SBuffer *buffers;
 
   struct {
@@ -189,14 +189,16 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   int32_t code = 0;
   int32_t lino = 0;
 
+  SBuffer *buffer = reader->buffers + 0;
+  SBuffer *assist = reader->buffers + 1;
+
   // load data
-  tBufferClear(&reader->buffers[0]);
-  code =
-      tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, &reader->buffers[0], 0);
+  tBufferClear(buffer);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode brin block
-  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
   tBrinBlockClear(brinBlock);
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
@@ -207,8 +209,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int64_t),
     };
-    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), &cinfo, brinBlock->buffers + i,
-                                   reader->buffers + 1);
+    code = tDecompressDataToBuffer(BR_PTR(&br), &cinfo, brinBlock->buffers + i, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
     br.offset += brinBlk->size[i];
   }
@@ -220,8 +221,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int32_t),
     };
-    code = tDecompressDataToBuffer(tBufferGetDataAt(br.buffer, br.offset), &cinfo, brinBlock->buffers + i,
-                                   reader->buffers + 1);
+    code = tDecompressDataToBuffer(BR_PTR(&br), &cinfo, brinBlock->buffers + i, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
     br.offset += brinBlk->size[i];
   }
@@ -242,22 +242,18 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
     for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
       SValueColumnCompressInfo *info = firstInfos + i;
-      int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
 
-      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), info, brinBlock->firstKeyPKs + i,
-                                    reader->buffers + 1);
+      code = tValueColumnDecompress(BR_PTR(&br), info, brinBlock->firstKeyPKs + i, assist);
       TSDB_CHECK_CODE(code, lino, _exit);
-      br.offset += totalCompressedSize;
+      br.offset += (info->offsetCompressedSize + info->dataCompressedSize);
     }
 
     for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
       SValueColumnCompressInfo *info = lastInfos + i;
-      int32_t                   totalCompressedSize = info->offsetCompressedSize + info->dataCompressedSize;
 
-      code = tValueColumnDecompress(tBufferGetDataAt(br.buffer, br.offset), info, brinBlock->lastKeyPKs + i,
-                                    reader->buffers + 1);
+      code = tValueColumnDecompress(BR_PTR(&br), info, brinBlock->lastKeyPKs + i, assist);
       TSDB_CHECK_CODE(code, lino, _exit);
-      br.offset += totalCompressedSize;
+      br.offset += (info->offsetCompressedSize + info->dataCompressedSize);
     }
   }
 
@@ -276,16 +272,19 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
   int32_t code = 0;
   int32_t lino = 0;
 
+  SBuffer *buffer = reader->buffers + 0;
+  SBuffer *assist = reader->buffers + 1;
+
   // load data
-  tBufferClear(&reader->buffers[0]);
-  code =
-      tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockSize, &reader->buffers[0], 0);
+  tBufferClear(buffer);
+  code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockSize, buffer, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decompress
-  SBufferReader br = BUFFER_READER_INITIALIZER(0, &reader->buffers[0]);
-  code = tBlockDataDecompress(&br, bData, reader->buffers + 1);
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
+  code = tBlockDataDecompress(&br, bData, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
+  ASSERT(br.offset == buffer->size);
 
 _exit:
   if (code) {
@@ -293,24 +292,6 @@ _exit:
   }
   return code;
 }
-
-int32_t tBlockColAndColumnCmpr(const void *p1, const void *p2) {
-  const SBlockCol *pBlockCol = (const SBlockCol *)p1;
-  const STColumn  *pColumn = (const STColumn *)p2;
-
-  if (pBlockCol->cid < pColumn->colId) {
-    return -1;
-  } else if (pBlockCol->cid > pColumn->colId) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-extern int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
-                                           SBuffer *assist);
-extern int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
-                                           SBlockData *blockData, SBuffer *assist);
 
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid) {

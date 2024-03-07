@@ -194,7 +194,6 @@ _exit:
   return code;
 }
 
-extern int32_t tBlockColAndColumnCmpr(const void *p1, const void *p2);
 extern int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
                                            SBuffer *assist);
 extern int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
