@@ -19,7 +19,7 @@
 #include "tchecksum.h"
 #include "wal.h"
 #include "tglobal.h"
-#include "sm4.h"
+#include "crypt.h"
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
@@ -310,17 +310,17 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
     if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
       int32_t count = 0;
-      int32_t NewLen;
-      unsigned char Key[17]="0000100001000010";
-      unsigned char IV[17]="0000100001000010";
 
       char *plantContent = taosMemoryMalloc(CRYPTEDLEN(pRaw->dataLen));
+
+      SCryptOpts opts;
+      opts.len = CRYPTEDLEN(pRaw->dataLen);
+      opts.source = pRaw->pData;
+      opts.result = plantContent;
+      opts.unitLen = 16;
+      count = CBC_Decrypt(&opts);
       
-      while (count < CRYPTEDLEN(pRaw->dataLen)) {
-        SM4_CBC_Decrypt(Key, 16, IV, 16, (char*)pRaw->pData + count, 16, (char*)plantContent + count, &NewLen);
-        count += NewLen;
-      }
-      mInfo("read sdb, SM4_CBC_Decrypt dataLen:%d, %s", pRaw->dataLen, __FUNCTION__);
+      mInfo("read sdb, SM4_CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -445,16 +445,18 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
             break;
           }
 
-          int		NewLen;
           unsigned char Key[17]="0000100001000010";
           unsigned char IV[17]="0000100001000010";
 
-          int32_t count = 0;
-          while (count < newDataLen) {
-            SM4_CBC_Encrypt(Key, 16, IV, 16, (char*)pRaw->pData + count, 16, (char*)newData + count, &NewLen);
-            count += NewLen;
-          }
-          mInfo("write sdb, SM4_CBC_Encrypt newDataLen:%d, dataLen:%d, %s", 
+          SCryptOpts opts;
+          opts.len = newDataLen;
+          opts.source = pRaw->pData;
+          opts.result = newData;
+          opts.unitLen = 16;
+
+          int32_t count = CBC_Encrypt(&opts);
+
+          mInfo("write sdb, SM4_CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s", 
                 newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 
