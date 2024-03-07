@@ -47,7 +47,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 <token\> 和 <url\> 为 TDengine Cloud 的令牌和 URL 。
+替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL 。
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Node.js“。
 :::
 <!-- exclude-end -->
@@ -58,6 +58,6 @@ $env:TDENGINE_CLOUD_URL='<url>'
 {{#include docs/examples/node/connect.js}}
 ```
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/programming/insert/> and <https://docs.taosdata.com/cloud/programming/query/>.
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 \<https://docs.taosdata.com/cloud/programming/insert/> and \<https://docs.taosdata.com/cloud/programming/query/>.
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).

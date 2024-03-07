@@ -185,7 +185,7 @@ $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 </Tabs>
 
 :::note 非常重要
-请使用实际值替换<TDENGINE_CLOUD_TMQ>，格式类似于`wss://<cloud_endpoint>)/rest/tmq?token=<token>`。获取`TDENGINE_CLOUD_TMQ`的实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
+请使用实际值替换\<TDENGINE_CLOUD_TMQ>，格式类似于`wss://<cloud_endpoint>)/rest/tmq?token=<token>`。获取`TDENGINE_CLOUD_TMQ`的实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
 :::
 
 对于 Python 语言，您需要设置下面的环境变量：
@@ -217,7 +217,7 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 </Tabs>
 
 :::note 非常重要
-请使用实际值替换<TDENGINE_CLOUD_ENDPOINT>和<TDENGINE_CLOUD_TOKEN>。获取这些实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后在想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分，最后切换到 Python 标签页。
+请使用实际值替换\<TDENGINE_CLOUD_ENDPOINT>和\<TDENGINE_CLOUD_TOKEN>。获取这些实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后在想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分，最后切换到 Python 标签页。
 :::
 
 最后对于 Java 语言，您需要设置下面的环境变量：
@@ -246,7 +246,7 @@ $env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
 </Tabs>
 
 :::note 非常重要
-请使用实际值替换<TDENGINE_JDBC_URL>, 格式类似于`jdbc:TAOS-RS://<cloud_endpoint>)?useSSL=false&token=<token>`。获取这些实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后在想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分，最后切换到 Java 标签页。
+请使用实际值替换\<TDENGINE_JDBC_URL>, 格式类似于`jdbc:TAOS-RS://<cloud_endpoint>)?useSSL=false&token=<token>`。获取这些实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后在想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分，最后切换到 Java 标签页。
 :::
 
 ### 从实例创建消费者
@@ -397,7 +397,7 @@ consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 </Tabs>
 
 :::note 非常重要
-请使用实际值替换<TDC_TOPIC\>。获取这个实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后复制您想消费的主题名称。
+请使用实际值替换\<TDC_TOPIC>。获取这个实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后复制您想消费的主题名称。
 :::
 
 ## 消费消息

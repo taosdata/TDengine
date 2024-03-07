@@ -60,7 +60,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 <DSN\> 为 真实的值，格式应该是 `https(<cloud_endpoint>)/?token=<token>`。
+替换 \<DSN> 为 真实的值，格式应该是 `https(<cloud_endpoint>)/?token=<token>`。
 
 获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Rust“。
 
@@ -75,6 +75,6 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
 ```
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/programming/insert/> and <https://docs.taosdata.com/cloud/programming/query/>.
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 \<https://docs.taosdata.com/cloud/programming/insert/> and \<https://docs.taosdata.com/cloud/programming/query/>.
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
