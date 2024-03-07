@@ -77,6 +77,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DatabaseOptions";
     case QUERY_NODE_TABLE_OPTIONS:
       return "TableOptions";
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return "ColumnOptions";
     case QUERY_NODE_INDEX_OPTIONS:
       return "IndexOptions";
     case QUERY_NODE_EXPLAIN_OPTIONS:
@@ -4973,6 +4975,26 @@ static int32_t jsonToTableOptions(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkColumnOptionsEncode = "encode";
+static const char* jkColumnOptionsCompress = "compress";
+static const char* jkColumnOptionsLevel = "level";
+static int32_t     columnOptionsToJson(const void* pObj, SJson* pJson) {
+  const SColumnOptions* pNode = (const SColumnOptions*)pObj;
+  int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  return code;
+}
+
+static int32_t jsonToColumnOptions(const SJson* pJson, void* pObj) {
+  SColumnOptions* pNode = (SColumnOptions*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkColumnOptionsEncode, pNode->encode);
+  code = tjsonGetStringValue(pJson, jkColumnOptionsCompress, pNode->compress);
+  code = tjsonGetStringValue(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  return code;
+}
+
 static const char* jkIndexOptionsFuncs = "Funcs";
 static const char* jkIndexOptionsInterval = "Interval";
 static const char* jkIndexOptionsOffset = "Offset";
@@ -7051,6 +7073,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return databaseOptionsToJson(pObj, pJson);
     case QUERY_NODE_TABLE_OPTIONS:
       return tableOptionsToJson(pObj, pJson);
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return columnOptionsToJson(pObj, pJson);
     case QUERY_NODE_INDEX_OPTIONS:
       return indexOptionsToJson(pObj, pJson);
     case QUERY_NODE_EXPLAIN_OPTIONS:
@@ -7388,6 +7412,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDatabaseOptions(pJson, pObj);
     case QUERY_NODE_TABLE_OPTIONS:
       return jsonToTableOptions(pJson, pObj);
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return jsonToColumnOptions(pJson, pObj);
     case QUERY_NODE_INDEX_OPTIONS:
       return jsonToIndexOptions(pJson, pObj);
     case QUERY_NODE_EXPLAIN_OPTIONS:

@@ -162,12 +162,21 @@ typedef struct STableOptions {
   SNodeList* pSma;
 } STableOptions;
 
+typedef struct SColumnOptions {
+  ENodeType  type;
+  bool       commentNull;
+  char       comment[TSDB_CL_COMMENT_LEN];
+  char       encode[TSDB_CL_COMPRESS_OPTION_LEN];
+  char       compress[TSDB_CL_COMPRESS_OPTION_LEN];
+  char       compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
+} SColumnOptions;
 typedef struct SColumnDefNode {
-  ENodeType type;
-  char      colName[TSDB_COL_NAME_LEN];
-  SDataType dataType;
-  char      comments[TSDB_TB_COMMENT_LEN];
-  bool      sma;
+  ENodeType       type;
+  char            colName[TSDB_COL_NAME_LEN];
+  SDataType       dataType;
+  char            comments[TSDB_TB_COMMENT_LEN];
+  SColumnOptions* pOptions;
+  bool            sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -217,15 +226,16 @@ typedef struct SDropSuperTableStmt {
 } SDropSuperTableStmt;
 
 typedef struct SAlterTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  int8_t         alterType;
-  char           colName[TSDB_COL_NAME_LEN];
-  char           newColName[TSDB_COL_NAME_LEN];
-  STableOptions* pOptions;
-  SDataType      dataType;
-  SValueNode*    pVal;
+  ENodeType       type;
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  int8_t          alterType;
+  char            colName[TSDB_COL_NAME_LEN];
+  char            newColName[TSDB_COL_NAME_LEN];
+  STableOptions*  pOptions;
+  SDataType       dataType;
+  SValueNode*     pVal;
+  SColumnOptions* pColOptions;
 } SAlterTableStmt;
 
 typedef struct SCreateUserStmt {

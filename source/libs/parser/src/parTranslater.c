@@ -26,6 +26,7 @@
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "tcol.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
@@ -5745,7 +5746,39 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
 
+static int32_t checkColumnOptions(SNodeList* pList) {
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SColumnDefNode*   pCol = (SColumnDefNode*)pNode;
+    if (!pCol->pOptions)  return TSDB_CODE_TSC_ENCODE_PARAM_NULL;
+    if (!checkColumnEncode(pCol->type, pCol->pOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnCompress(pCol->type, pCol->pOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnLevel(pCol->type, pCol->pOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
+  *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SColumnDefNode*   pCol = (SColumnDefNode*)pNode;
+    SFieldWithOptions field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
+    strcpy(field.name, pCol->colName);
+    if (pCol->pOptions) {
+      setColEncode(&field.compress, columnEncodeVal(pCol->pOptions->encode));
+      setColCompress(&field.compress, columnCompressVal(pCol->pOptions->compress));
+      setColLevel(&field.compress, columnLevelVal(pCol->pOptions->compressLevel));
+    }
+    if (pCol->sma) {
+      field.flags |= COL_SMA_ON;
+    }
+    taosArrayPush(*pArray, &field);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -6111,6 +6144,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableSchema(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkColumnOptions(pStmt->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                      "Only supported for create non-super table in databases "
@@ -6436,7 +6472,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
-  columnDefNodeToField(pStmt->pTags, &pReq->pTags);
+  tagDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   if (pStmt->pOptions->commentNull == false) {
@@ -8402,7 +8438,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     pReq->fillHistory = pStmt->pOptions->fillHistory;
     pReq->igExpired = pStmt->pOptions->ignoreExpired;
     if (pReq->createStb) {
-      columnDefNodeToField(pStmt->pTags, &pReq->pTags);
+      tagDefNodeToField(pStmt->pTags, &pReq->pTags);
       pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
     }
     pReq->igUpdate = pStmt->pOptions->ignoreUpdate;

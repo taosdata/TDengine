@@ -1487,9 +1487,38 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   return pOptions;
 }
 
-SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment) {
+SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkColumnName(pCxt, pColName) || !checkComment(pCxt, pComment, false)) {
+  SColumnOptions* pOptions = (SColumnOptions*)nodesMakeNode(QUERY_NODE_COLUMN_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->commentNull = true;
+  return (SNode*)pOptions;
+}
+
+SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  switch (type) {
+    case COLUMN_OPTION_ENCODE:
+      memset(((SColumnOptions*)pOptions)->encode, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->encode, (SToken*)pVal);
+      break;
+    case COLUMN_OPTION_COMPRESS:
+      memset(((SColumnOptions*)pOptions)->compress, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal);
+      break;
+    case COLUMN_OPTION_LEVEL:
+      memset(((SColumnOptions*)pOptions)->compressLevel, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal);
+      break;
+    default:
+      break;
+  }
+  return pOptions;
+}
+
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkColumnName(pCxt, pColName)) {
     return NULL;
   }
   if (IS_VAR_DATA_TYPE(dataType.type) && dataType.bytes == 0) {
@@ -1500,9 +1529,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   CHECK_OUT_OF_MEM(pCol);
   COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   pCol->dataType = dataType;
-  if (NULL != pComment) {
-    trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
-  }
+  pCol->pOptions = (SColumnOptions*)pNode;
   pCol->sma = true;
   return (SNode*)pCol;
 }
@@ -1615,6 +1642,20 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+}
+
+SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkColumnName(pCxt, pColName)) {
+    return NULL;
+  }
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->pColOptions = (SColumnOptions*)pOptions;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 

@@ -367,7 +367,9 @@
 #define TK_VALUES                         348
 #define TK_VARIABLE                       349
 #define TK_WAL                            350
-
+#define TK_ENCODE                         351
+#define TK_COMPRESS                       352
+#define TK_LEVEL                          353
 
 #define TK_NK_SPACE         600
 #define TK_NK_COMMENT       601

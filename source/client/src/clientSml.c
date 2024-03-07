@@ -909,6 +909,14 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   // put front for free
   pReq.numOfColumns = taosArrayGetSize(pColumns);
+  for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
+    SField *pField = taosArrayGet(pColumns, i);
+    SFieldWithOptions fieldWithOption;
+    setFieldWithOptions(&fieldWithOption, pField);
+    setDefaultOptionsForField(&fieldWithOption);
+    taosArrayPush(pReq.pColumns, &fieldWithOption);
+  }
+
   pReq.pColumns = pColumns;
   pReq.numOfTags = taosArrayGetSize(pTags);
   pReq.pTags = pTags;

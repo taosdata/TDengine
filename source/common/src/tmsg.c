@@ -38,6 +38,7 @@
 #include "tmsgdef.h"
 
 #include "tlog.h"
+#include "tcol.h"
 
 #define DECODESQL()                                                                 \
   do {                                                                              \
@@ -566,11 +567,14 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   if (tEncodeI32(&encoder, pReq->ast2Len) < 0) return -1;
 
   for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
-    SField *pField = taosArrayGet(pReq->pColumns, i);
+    SFieldWithOptions *pField = taosArrayGet(pReq->pColumns, i);
     if (tEncodeI8(&encoder, pField->type) < 0) return -1;
     if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+    if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
+    // XSDEBUG
+    printf("column: %s, compress: %0x.\n", pField->name, pField->compress);
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -647,6 +651,9 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
     if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
     if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+    // if (tDecodeCStrTo(&decoder, field.encode) < 0) return -1;
+    // if (tDecodeCStrTo(&decoder, field.compress) < 0) return -1;
+    // if (tDecodeCStrTo(&decoder, field.level) < 0) return -1;
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -7637,6 +7644,8 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   }
   if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
 
+  // Encode Column Options: encode compress level
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -8101,6 +8110,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (pReq->newCommentLen > 0) {
         if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
       }
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       break;
     default:
       break;
@@ -9416,4 +9427,17 @@ void tFreeSViewHbRsp(SViewHbRsp *pRsp) {
   }
 
   taosArrayDestroy(pRsp->pViewRsp);
+}
+
+void setDefaultOptionsForField(SFieldWithOptions *field) {
+  setColEncode(&field->compress, getDefaultEncode(field->type));
+  setColCompress(&field->compress, getDefaultCompress(field->type));
+  setColLevel(&field->compress, getDefaultLevel(field->type));
+}
+
+void setFieldWithOptions(SFieldWithOptions *fieldWithOptions, SField *field) {
+  fieldWithOptions->bytes = field->bytes;
+  fieldWithOptions->flags = field->flags;
+  fieldWithOptions->type = field->type;
+  strncpy(fieldWithOptions->name, field->name, TSDB_COL_NAME_LEN);
 }

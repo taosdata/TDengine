@@ -26,6 +26,7 @@
 #include "tname.h"
 #include "trow.h"
 #include "tuuid.h"
+#include "tcol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -153,19 +154,19 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG                1
-#define TSDB_ALTER_TABLE_DROP_TAG               2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME        3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL         4
-#define TSDB_ALTER_TABLE_ADD_COLUMN             5
-#define TSDB_ALTER_TABLE_DROP_COLUMN            6
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES    7
-#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES       8
-#define TSDB_ALTER_TABLE_UPDATE_OPTIONS         9
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME     10
-#define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
-#define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
+#define TSDB_ALTER_TABLE_ADD_TAG                  1
+#define TSDB_ALTER_TABLE_DROP_TAG                 2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME          3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL           4
+#define TSDB_ALTER_TABLE_ADD_COLUMN               5
+#define TSDB_ALTER_TABLE_DROP_COLUMN              6
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES      7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES         8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS           9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME       10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX            11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX           12
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS   13
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -246,6 +247,7 @@ typedef enum ENodeType {
   QUERY_NODE_HINT,
   QUERY_NODE_VIEW,
   QUERY_NODE_COUNT_WINDOW,
+  QUERY_NODE_COLUMN_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -456,6 +458,13 @@ typedef struct SField {
   int8_t  flags;
   int32_t bytes;
 } SField;
+typedef struct SFieldWithOptions {
+  char     name[TSDB_COL_NAME_LEN];
+  uint8_t  type;
+  int8_t   flags;
+  int32_t  bytes;
+  uint32_t compress;
+} SFieldWithOptions;
 
 typedef struct SRetention {
   int64_t freq;
@@ -832,7 +841,7 @@ typedef struct {
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
-  SArray*  pColumns;  // array of SField
+  SArray*  pColumns;  // array of SFieldWithOptions
   SArray*  pTags;     // array of SField
   SArray*  pFuncs;
   char*    pComment;
@@ -4099,6 +4108,9 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+
+void setDefaultOptionsForField(SFieldWithOptions *field);
+void setFieldWithOptions(SFieldWithOptions *fieldWithOptions, SField* field);
 
 #pragma pack(pop)
 
