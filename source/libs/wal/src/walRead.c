@@ -15,7 +15,7 @@
 
 #include "taoserror.h"
 #include "walInt.h"
-#include "sm4.h"
+#include "crypt.h"
 
 SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
   SWalReader *pReader = taosMemoryCalloc(1, sizeof(SWalReader));
@@ -385,12 +385,15 @@ int32_t walFetchBody(SWalReader *pRead) {
     unsigned char Key[17]="0000100001000010";
     unsigned char IV[17]="0000100001000010";
 
-    int32_t count = 0;
-    while (count < newBodyLen) {
-      SM4_CBC_Decrypt(Key, 16, IV, 16, (char*)newBody + count, 16, (char*)newBodyDecrypted + count, &NewLen);
-      count += NewLen;
-      wInfo("SM4_CBC_Decrypt count:%d, NewLen:%d, %s", count, NewLen, __FILE__);
-    }
+    SCryptOpts opts;
+    opts.len = newBodyLen;
+    opts.source = newBody;
+    opts.result = newBodyDecrypted;
+    opts.unitLen = 16;
+
+    int32_t count = CBC_Decrypt(&opts);
+
+    wInfo("CBC_Decrypt decrypted body len:%d, body len:%d, %s", count, pReadHead->bodyLen, __FILE__);
 
     taosMemoryFree(newBody);
 

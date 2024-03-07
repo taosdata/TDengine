@@ -395,18 +395,6 @@ void SMS4_CBC_DecryptionEx(unsigned char ciphertext[16], unsigned int key[32], u
     }
 }
 
-
-/**@brief  ECB模式的SMS4加密
- * @param[in]  pKey         密钥
- * @param[in]  KeyLen    密钥长度，16字节。
- * @param[in]  pInData    输入数据
- * @param[in]  inDataLen    输入数据长度
- * @param[out]  pOutData    输出数据
- * @param[out]  pOutDataLen    输出数据长度
- * @return  
- * @remarks  
- *  
- */
 int SM4_ECB_Encrypt( unsigned char *pKey, 
                       unsigned int KeyLen, 
                       unsigned char *pInData,
@@ -441,17 +429,6 @@ int SM4_ECB_Encrypt( unsigned char *pKey,
     return 0;
 }
 
-/**@brief  ECB模式的SM4解密
- * @param[in]  pKey         密钥
- * @param[in]  KeyLen    密钥长度，16字节。
- * @param[in]  pInData    输入数据
- * @param[in]  inDataLen    输入数据长度
- * @param[out]  pOutData    输出数据
- * @param[out]  pOutDataLen    输出数据长度
- * @return  
- * @remarks  
- *  
- */
 int SM4_ECB_Decrypt(  unsigned char *pKey, 
                       unsigned int KeyLen, 
                       unsigned char *pInData, 
@@ -485,20 +462,6 @@ int SM4_ECB_Decrypt(  unsigned char *pKey,
     return 0;
 }
 
-
-/**@brief  CBC模式的SM4加密
- * @param[in]  pKey         密钥
- * @param[in]  KeyLen    密钥长度，16字节。
- * @param[in]  pIV         初始向量
- * @param[in]  ivLen    初始向量，16字节。
- * @param[in]  pInData    输入数据
- * @param[in]  inDataLen    输入数据长度
- * @param[out]  pOutData    输出数据
- * @param[out]  pOutDataLen    输出数据长度
- * @return  
- * @remarks  
- *  
- */
 int SM4_CBC_Encrypt( unsigned char *pKey, 
                      unsigned int KeyLen,
                      unsigned char *pIV, 
@@ -539,19 +502,6 @@ int SM4_CBC_Encrypt( unsigned char *pKey,
     return 0;
 }
 
-/**@brief  CBC模式的SM4解密
- * @param[in]  pKey         密钥
- * @param[in]  KeyLen    密钥长度，16字节。
- * @param[in]  pIV         初始向量
- * @param[in]  ivLen    初始向量，16字节。
- * @param[in]  pInData    输入数据
- * @param[in]  inDataLen    输入数据长度
- * @param[out]  pOutData    输出数据
- * @param[out]  pOutDataLen    输出数据长度
- * @return  
- * @remarks  
- *  
- */
 int SM4_CBC_Decrypt(unsigned char *pKey, 
                     unsigned int KeyLen, 
                     unsigned char *pIV, 
@@ -590,28 +540,4 @@ int SM4_CBC_Decrypt(unsigned char *pKey,
     }
     *pOutDataLen = inDataLen;
     return 0;
-}
-
-void SM4Mac(unsigned char *InData, int InLen, unsigned char *Key, unsigned char *IV, unsigned char *Mac)
-{
-	unsigned char		PacketData[128];
-	int		NewLen;
-	unsigned char		Pad[16] = { 0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
-
-	memcpy(PacketData, InData, InLen);
-	if (InLen % 16)
-	{
-		memcpy(PacketData + InLen, Pad, 16 - InLen % 16);
-		NewLen = InLen + (16 - InLen % 16);
-	}
-	else
-	{
-		memcpy(PacketData + InLen, Pad, 16);
-		NewLen = InLen + 16;
-	}
-
-	//SM4 CBC加密
-	SM4_CBC_Encrypt(Key, 16, IV, 16, PacketData, NewLen, PacketData, &NewLen);
-	memcpy(Mac, PacketData + NewLen - 16, 4);
-	return;
 }

@@ -18,7 +18,7 @@
 #include "tchecksum.h"
 #include "tglobal.h"
 #include "walInt.h"
-#include "sm4.h"
+#include "crypt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
@@ -551,13 +551,16 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     unsigned char Key[17]="0000100001000010";
     unsigned char IV[17]="0000100001000010";
 
-    int32_t count = 0;
-    while (count < newBodyLen) {
-      SM4_CBC_Encrypt(Key, 16, IV, 16, (char*)newBody + count, 16, (char*)newBodyEncrypted + count, &NewLen);
-      count += NewLen;
-    }
-    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", SM4_CBC_Encrypt newBodyLen:%d, bodyLen:%d, %s", 
-          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, newBodyLen, bodyLen, __FUNCTION__);
+    SCryptOpts opts;
+    opts.len = newBodyLen;
+    opts.source = newBody;
+    opts.result = newBodyEncrypted;
+    opts.unitLen = 16;
+
+    int32_t count = CBC_Encrypt(&opts);
+
+    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt newBodyLen:%d, bodyLen:%d, %s", 
+          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, bodyLen, __FUNCTION__);
 
     len = newBodyLen;
     buf = newBodyEncrypted;

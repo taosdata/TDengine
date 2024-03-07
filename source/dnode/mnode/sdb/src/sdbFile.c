@@ -320,7 +320,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.unitLen = 16;
       count = CBC_Decrypt(&opts);
       
-      mInfo("read sdb, SM4_CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+      mInfo("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -456,7 +456,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
           int32_t count = CBC_Encrypt(&opts);
 
-          mInfo("write sdb, SM4_CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s", 
+          mInfo("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s", 
                 newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 

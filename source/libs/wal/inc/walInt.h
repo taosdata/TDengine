@@ -22,7 +22,7 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "wal.h"
-#include "sm4.h"
+#include "crypt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,16 +124,15 @@ static inline int walValidBodyCksum(SWalCkHead* pHead, int cryptAlgorithm) {
     int32_t newBodyLen = (pHead->head.bodyLen/16) * 16 + (pHead->head.bodyLen%16?1:0) * 16;
     newBody = taosMemoryMalloc(newBodyLen);
 
-    int		NewLen;
-    unsigned char Key[17]="0000100001000010";
-    unsigned char IV[17]="0000100001000010";
+    SCryptOpts opts;
+    opts.len = newBodyLen;
+    opts.source = pHead->head.body;
+    opts.result = newBody;
+    opts.unitLen = 16;
 
-    int32_t count = 0;
-    while (count < newBodyLen) {
-      SM4_CBC_Decrypt(Key, 16, IV, 16, pHead->head.body + count, 16, newBody + count, &NewLen);
-      count += NewLen;
-    }
-    wInfo("SM4_CBC_Decrypt newBodyLen:%d, bodyLen:%d, %s", newBodyLen, pHead->head.bodyLen, __FUNCTION__);
+    int32_t count = CBC_Decrypt(&opts);
+
+    wInfo("CBC_Decrypt newBodyLen:%d, bodyLen:%d, %s", count, pHead->head.bodyLen, __FUNCTION__);
   }
 
   int32_t code = taosCheckChecksum((uint8_t*)newBody, pHead->head.bodyLen, pHead->cksumBody);

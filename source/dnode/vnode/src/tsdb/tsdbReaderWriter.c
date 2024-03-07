@@ -170,7 +170,6 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
         opts.unitLen = 128;
         NewLen = CBC_Encrypt(&opts);
 
-        //SM4_CBC_Encrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
         memcpy(pFD->pBuf + count, PacketData, NewLen);
         count += NewLen; 
       }
@@ -256,7 +255,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
         opts.result = PacketData;
         opts.unitLen = 128;
         NewLen = CBC_Decrypt(&opts);
-        //SM4_CBC_Decrypt(Key, 16, IV, 16, pFD->pBuf + count, 128, PacketData, &NewLen);
 
         memcpy(pFD->pBuf + count, PacketData, NewLen);
         count += NewLen;
