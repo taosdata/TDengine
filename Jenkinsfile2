@@ -52,7 +52,7 @@ def check_docs() {
             '''
         }
         sh '''
-            cd ${WKC}
+            cd ${WKC} 
             git remote prune origin
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
