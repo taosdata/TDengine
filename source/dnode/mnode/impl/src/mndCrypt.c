@@ -100,18 +100,41 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
-    char scopeStr[10] = {0};
-    if(cryptRsp.cryptScope & 1 == DND_CS_TSDB){
-        sprintf(scopeStr, "%s", "tsdb");
+    char scopeStr[95] = {0};
+    if((cryptRsp.cryptScope & 1) == DND_CS_TSDB){
+      if(strlen(scopeStr) > 0){
+        strcat(scopeStr, ",tsdb");
+      }
+      else{
+        strcpy(scopeStr, "tsdb");
+      }
     }
-    if(cryptRsp.cryptScope & 2 == DND_CS_WAL){
-        sprintf(scopeStr, "%s", "wal");
+    if((cryptRsp.cryptScope & 2) == DND_CS_WAL){
+      if(strlen(scopeStr) > 0){
+        strcat(scopeStr, ",wal");
+      }
+      else{
+        strcpy(scopeStr, "wal");
+      }
     }
-    if(cryptRsp.cryptScope & 4 == DND_CS_SDB){
-        sprintf(scopeStr, "%s", "sdb");
+    if((cryptRsp.cryptScope & 4) == DND_CS_SDB){
+      if(strlen(scopeStr) > 0){
+        strcat(scopeStr, ",sdb");
+      }
+      else{
+        strcpy(scopeStr, "sdb");
+      }
+    }
+    char scopeFinialStr[100] = {0};
+    if((cryptRsp.cryptScope & 1) == DND_CS_TSDB && (cryptRsp.cryptScope & 2) == DND_CS_WAL 
+        && (cryptRsp.cryptScope & 4) == DND_CS_SDB){
+      sprintf(scopeFinialStr, "all(%s)", scopeStr);
+    }
+    else{
+      strcpy(scopeFinialStr, scopeStr);
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    strncpy(varDataVal(tmpBuf), scopeStr, TSDB_SHOW_SQL_LEN);
+    strncpy(varDataVal(tmpBuf), scopeFinialStr, TSDB_SHOW_SQL_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
