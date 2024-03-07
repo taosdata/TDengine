@@ -95,6 +95,9 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     if(cryptRsp.cryptAlgorithm == DND_CA_SM4){
       sprintf(algorStr, "%s", "sm4");
     }
+    if(cryptRsp.cryptAlgorithm == 0){
+      sprintf(algorStr, "%s", "na");
+    }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     strncpy(varDataVal(tmpBuf), algorStr, TSDB_SHOW_SQL_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
@@ -132,6 +135,9 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     }
     else{
       strcpy(scopeFinialStr, scopeStr);
+    }
+    if(cryptRsp.cryptScope == 0){
+      strcpy(scopeFinialStr, "na");
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     strncpy(varDataVal(tmpBuf), scopeFinialStr, TSDB_SHOW_SQL_LEN);
