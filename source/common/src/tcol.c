@@ -16,14 +16,14 @@
 #include "tcol.h"
 #include "tutil.h"
 
-const char* supportedEncode[5] = {TSDB_COLUMN_ENCODE_UNKNOWN, TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR,
+const char* supportedEncode[4] = {TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR,
                                   TSDB_COLUMN_ENCODE_RLE, TSDB_COLUMN_ENCODE_DISABLED};
 
-const char* supportedCompress[7] = {TSDB_COLUMN_COMPRESS_UNKNOWN, TSDB_COLUMN_COMPRESS_LZ4,  TSDB_COLUMN_COMPRESS_TSZ,
+const char* supportedCompress[6] = {TSDB_COLUMN_COMPRESS_LZ4,  TSDB_COLUMN_COMPRESS_TSZ,
                                     TSDB_COLUMN_COMPRESS_XZ,      TSDB_COLUMN_COMPRESS_ZLIB, TSDB_COLUMN_COMPRESS_ZSTD,
                                     TSDB_COLUMN_COMPRESS_DISABLED};
 
-const char* supportedLevel[4] = {TSDB_COLUMN_LEVEL_UNKNOWN, TSDB_COLUMN_LEVEL_HIGH, TSDB_COLUMN_LEVEL_MEDIUM,
+const char* supportedLevel[3] = {TSDB_COLUMN_LEVEL_HIGH, TSDB_COLUMN_LEVEL_MEDIUM,
                                  TSDB_COLUMN_LEVEL_LOW};
 
 const int supportedEncodeNum = sizeof(supportedEncode) / sizeof(char*);
@@ -158,6 +158,8 @@ uint8_t columnLevelVal(const char* level) {
     l = TSDB_COLVAL_LEVEL_MEDIUM;
   } else if (0 == strcmp(level, "l") || 0 == strcmp(level, TSDB_COLUMN_LEVEL_LOW)) {
     l = TSDB_COLVAL_LEVEL_LOW;
+  } else {
+    l = TSDB_COLVAL_LEVEL_NOCHANGE;
   }
   return l;
 }
@@ -176,6 +178,8 @@ uint16_t columnCompressVal(const char* compress) {
     c = TSDB_COLVAL_COMPRESS_ZSTD;
   } else if (0 == strcmp(compress, TSDB_COLUMN_COMPRESS_DISABLED)) {
     c = TSDB_COLVAL_COMPRESS_DISABLED;
+  } else {
+    c = TSDB_COLVAL_COMPRESS_NOCHANGE;
   }
   return c;
 }
@@ -190,6 +194,8 @@ uint8_t columnEncodeVal(const char* encode) {
     e = TSDB_COLVAL_ENCODE_RLE;
   } else if (0 == strcmp(encode, TSDB_COLUMN_ENCODE_DISABLED)) {
     e = TSDB_COLVAL_ENCODE_DISABLED;
+  } else {
+    e = TSDB_COLVAL_ENCODE_NOCHANGE;
   }
   return e;
 }
@@ -212,39 +218,43 @@ const char* columnLevelStr(uint8_t type) {
   return level;
 }
 
-bool checkColumnEncode(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
-  if (0 == strlen(encode)) {
-    strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
-    return true;
-  }
+bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]){
+  if (0 == strlen(encode)) return true;
   strtolower(encode, encode);
   for (int i = 0; i < supportedEncodeNum; ++i) {
     if (0 == strcmp((const char*)encode, supportedEncode[i])) {
       return true;
     }
   }
-
   return false;
 }
-bool checkColumnCompress(uint8_t type, char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
-  if (0 == strlen(compress)) {
-    strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
+  if (0 == strlen(encode)) {
+    strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
+  return checkColumnEncode(encode);
+}
+bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
+  if (0 == strlen(compress)) return true;
   strtolower(compress, compress);
   for (int i = 0; i < supportedCompressNum; ++i) {
     if (0 == strcmp((const char*)compress, supportedCompress[i])) {
       return true;
     }
   }
-
   return false;
 }
-bool checkColumnLevel(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
-  if (0 == strlen(level)) {
-    strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
+  if (0 == strlen(compress)) {
+    strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
-  } else if (1 == strlen(level)) {
+  }
+  return checkColumnCompress(compress);
+}
+bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
+  if (0 == strlen(level)) return true;
+  if (1 == strlen(level)) {
     if ('h' == level[0] || 'm' == level[0] || 'l' == level[0]) return true;
   } else {
     for (int i = 0; i < supportedLevelNum; ++i) {
@@ -253,8 +263,14 @@ bool checkColumnLevel(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
       }
     }
   }
-
   return false;
+}
+bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
+  if (0 == strlen(level)) {
+    strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    return true;
+  } 
+  return checkColumnLevel(level);
 }
 
 void setColEncode(uint32_t* compress, uint8_t l1) {

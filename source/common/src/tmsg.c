@@ -573,6 +573,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
     if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
+    // XSDEBUG
+    printf("column: %s, compress: %0x.\n", pField->name, pField->compress);
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -7638,10 +7640,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
-  if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
-
-  // Encode Column Options: encode compress level
-
+  //if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
   tEndEncode(pCoder);
   return 0;
 }
@@ -8115,6 +8114,9 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
     default:
       break;
   }
+  if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
+  // xsren
+  printf("alter table compress:%0x\n", pReq->compress);
   if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
   if (tEncodeI8(pEncoder, pReq->source) < 0) return -1;
 
@@ -8166,6 +8168,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
     default:
       break;
   }
+  if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
   return 0;
 }
 
