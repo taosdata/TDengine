@@ -4547,7 +4547,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (pSelect->pWhere != NULL) {
+  if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
   return code;
@@ -8147,7 +8147,9 @@ static int32_t adjustTagsForCreateTable(STranslateContext* pCxt, SCreateStreamSt
     SColumnDefNode* pDef = (SColumnDefNode*)pTagDef;
     if (!dataTypeEqual(&pDef->dataType, &((SExprNode*)pTagExpr)->resType)) {
       SNode*  pFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pTagExpr, pDef->dataType, &pFunc);
+      SDataType defType = pDef->dataType;
+      defType.bytes = calcTypeBytes(defType);
+      int32_t code = createCastFunc(pCxt, pTagExpr, defType, &pFunc);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
