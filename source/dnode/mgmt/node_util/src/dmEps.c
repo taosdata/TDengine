@@ -147,11 +147,14 @@ int32_t dmReadEps(SDnodeData *pData) {
       if(strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0){
         pData->cryptScope |= DND_CS_TSDB;
       }
-      if(strcasecmp(str, "wal") == 0 || strcasecmp(str, "all") == 0){
-        pData->cryptScope |= DND_CS_WAL;
+      if(strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0){
+        pData->cryptScope |= DND_CS_VNODE_WAL;
       }
       if(strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0){
         pData->cryptScope |= DND_CS_SDB;
+      }
+      if(strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0){
+        pData->cryptScope |= DND_CS_MNODE_WAL;
       }
     }
 

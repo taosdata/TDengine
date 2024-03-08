@@ -155,12 +155,9 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
 
     taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
     
-    if(tsiCryptAlgorithm == DND_CA_SM4 && tsiCryptScope & DND_CS_TSDB){
+    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_TSDB)){
       unsigned char		PacketData[128];
       int		NewLen;
-      unsigned char Key[17]="0000100001000010";
-      unsigned char IV[17]="0000100001000010";
-
       int32_t count = 0;
       while (count < pFD->szPage) {
         SCryptOpts opts = {0};
@@ -242,7 +239,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
       goto _exit;
     }
 
-    if(tsiCryptAlgorithm == DND_CA_SM4 && tsiCryptScope & DND_CS_TSDB){
+    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_TSDB)){
       unsigned char		PacketData[128];
       int		NewLen;
 

@@ -444,7 +444,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .retentionPeriod = 0,
       .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
-      .cryptAlgorithm = tsiCryptAlgorithm,
+      .cryptAlgorithm = (tsiCryptScope & DND_CS_MNODE_WAL)? tsiCryptAlgorithm : 0,
   };
 
   pMnode->pWal = walOpen(path, &cfg);

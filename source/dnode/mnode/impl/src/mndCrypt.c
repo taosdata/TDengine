@@ -104,7 +104,7 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     char scopeStr[95] = {0};
-    if((cryptRsp.cryptScope & 1) == DND_CS_TSDB){
+    if((cryptRsp.cryptScope & DND_CS_TSDB) == DND_CS_TSDB){
       if(strlen(scopeStr) > 0){
         strcat(scopeStr, ",tsdb");
       }
@@ -112,15 +112,15 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
         strcpy(scopeStr, "tsdb");
       }
     }
-    if((cryptRsp.cryptScope & 2) == DND_CS_WAL){
+    if((cryptRsp.cryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
       if(strlen(scopeStr) > 0){
-        strcat(scopeStr, ",wal");
+        strcat(scopeStr, ",vnode_wal");
       }
       else{
-        strcpy(scopeStr, "wal");
+        strcpy(scopeStr, "vnode_wal");
       }
     }
-    if((cryptRsp.cryptScope & 4) == DND_CS_SDB){
+    if((cryptRsp.cryptScope & DND_CS_SDB) == DND_CS_SDB){
       if(strlen(scopeStr) > 0){
         strcat(scopeStr, ",sdb");
       }
@@ -128,9 +128,19 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
         strcpy(scopeStr, "sdb");
       }
     }
+    if((cryptRsp.cryptScope & 4) == DND_CS_MNODE_WAL){
+      if(strlen(scopeStr) > 0){
+        strcat(scopeStr, ",mnode_wal");
+      }
+      else{
+        strcpy(scopeStr, "mnode_wal");
+      }
+    }
     char scopeFinialStr[100] = {0};
-    if((cryptRsp.cryptScope & 1) == DND_CS_TSDB && (cryptRsp.cryptScope & 2) == DND_CS_WAL 
-        && (cryptRsp.cryptScope & 4) == DND_CS_SDB){
+    if((cryptRsp.cryptScope & DND_CS_TSDB) == DND_CS_TSDB && 
+       (cryptRsp.cryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL &&
+       (cryptRsp.cryptScope & DND_CS_SDB) == DND_CS_SDB &&
+       (cryptRsp.cryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
       sprintf(scopeFinialStr, "all(%s)", scopeStr);
     }
     else{

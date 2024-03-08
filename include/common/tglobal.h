@@ -35,8 +35,9 @@ typedef enum {
 
 typedef enum {
   DND_CS_TSDB = 1,
-  DND_CS_WAL = 2,
+  DND_CS_VNODE_WAL = 2,
   DND_CS_SDB = 4,
+  DND_CS_MNODE_WAL = 8,
 } ECryptScope;
 
 // cluster
