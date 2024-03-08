@@ -1587,7 +1587,7 @@ typedef struct{
 } SCryptReq;
 
 int32_t tSerializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq);
-int32_t tDeserializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq);
+//no need tDeserializeSCryptReq
 
 typedef struct{
   int32_t dnodeid;

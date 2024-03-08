@@ -373,31 +373,6 @@ int32_t walFetchBody(SWalReader *pRead) {
     return -1;
   }
 
-/*
-  if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    char* decryptedBody = taosMemoryMalloc(cryptedBodyLen);
-    if(decryptedBody == NULL){
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    int		NewLen;
-
-    SCryptOpts opts;
-    opts.len = cryptedBodyLen;
-    opts.source = pReadHead->body;
-    opts.result = decryptedBody;
-    opts.unitLen = 16;
-
-    int32_t count = CBC_Decrypt(&opts);
-
-    wInfo("CBC_Decrypt decryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, __FILE__);
-
-    memcpy(pReadHead->body, decryptedBody, plainBodyLen);
-
-    taosMemoryFree(decryptedBody);
-  }
-*/
   decryptBody(pRead->pWal->cfg.cryptAlgorithm, pRead->pHead, plainBodyLen, __FUNCTION__);
 
   if (walValidBodyCksum(pRead->pHead) != 0) {

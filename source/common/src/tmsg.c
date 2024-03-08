@@ -1452,19 +1452,6 @@ int32_t tSerializeSCryptReq(void *buf, int32_t bufLen, SCryptReq *pReq){
   return tlen;
 }
 
-int32_t tDeserializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq){
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
-  
-  if (tDecodeI32(&decoder, &pReq->unused) < 0) return -1;
-
-  tEndDecode(&decoder);
-  tDecoderClear(&decoder);
-  return 0;
-}
-
 int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp){
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
