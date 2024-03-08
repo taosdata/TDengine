@@ -3072,7 +3072,7 @@ static int32_t setNormalTableVgroupList(STranslateContext* pCxt, SName* pName, S
 }
 
 static int32_t setTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (pCxt->pParseCxt->topicQuery) {
+  if (0 && pCxt->pParseCxt->topicQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -9189,7 +9189,7 @@ static int32_t buildTSMAAstMakeConcatFuncNode(SCreateTSMAStmt* pStmt, SMCreateSm
       code = nodesListMakeStrictAppend(&pSubstrFunc->pParameterList, nodesMakeNode(QUERY_NODE_VALUE));
       if (TSDB_CODE_SUCCESS == code) {
         SValueNode* pV = (SValueNode*)pSubstrFunc->pParameterList->pTail->pNode;
-        pV->literal = strdup("34");
+        pV->literal = strdup("34"); // TODO define this magic number
         if (!pV->literal) code = TSDB_CODE_OUT_OF_MEMORY;
         pV->isDuration = false;
         pV->translate = false;
@@ -9271,6 +9271,8 @@ static int32_t createColumnBySchema(const SSchema* pSchema, SColumnNode** ppCol)
   if (!*ppCol) return TSDB_CODE_OUT_OF_MEMORY;
 
   (*ppCol)->colId = pSchema->colId;
+  (*ppCol)->node.resType.type = pSchema->type;
+  (*ppCol)->node.resType.bytes = pSchema->bytes;
   strcpy((*ppCol)->colName, pSchema->name);
   return TSDB_CODE_SUCCESS;
 }
@@ -9282,22 +9284,21 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
   SFunctionNode* pFunc = NULL;
   SColumnNode*   pCol = NULL;
   if (pStmt->pOptions->recursiveTsma) {
+    int32_t i = 0;
+    FOREACH(pNode, pStmt->pOptions->pFuncs) {
+      // rewrite all func parameters with tsma dest tb cols
+      pFunc = (SFunctionNode*)pNode;
+      const SSchema* pSchema = pCols + i;
+      code = createColumnBySchema(pSchema, &pCol);
+      if (code) break;
+      nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pHead);
+      nodesListPushFront(pFunc->pParameterList, (SNode*)pCol);
+      snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s", pSchema->name);
+      ++i;
+    }
     // recursive tsma, create func list from base tsma
-    code = fmCreateStateMergeFuncs(pStmt->pOptions->pFuncs);
     if (TSDB_CODE_SUCCESS == code) {
-      int32_t i = 0;
-      FOREACH(pNode, pStmt->pOptions->pFuncs) {
-        // rewrite all func parameters with tsma dest tb cols
-        pFunc = (SFunctionNode*)pNode;
-        const SSchema* pSchema = pCols + i;
-        code = createColumnBySchema(pSchema, &pCol);
-        if (code) break;
-        nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pHead);
-        nodesListPushFront(pFunc->pParameterList, (SNode*)pCol);
-        //TODO what if exceeds the max size
-        snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s", pSchema->name);
-        ++i;
-      }
+      code = fmCreateStateMergeFuncs(pStmt->pOptions->pFuncs);
     }
   } else {
     FOREACH(pNode, pStmt->pOptions->pFuncs) {
@@ -9307,7 +9308,13 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
         code = TSDB_CODE_TSMA_INVALID_FUNC_PARAM;
         break;
       }
-      // TODO test func params with exprs
+      code = fmGetFuncInfo(pFunc, NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) break;
+      if (!fmIsTSMASupportedFunc(pFunc->funcId)) {
+        code = TSDB_CODE_TSMA_UNSUPPORTED_FUNC;
+        break;
+      }
+
       pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
       snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
     }

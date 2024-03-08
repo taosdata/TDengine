@@ -529,7 +529,8 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
 }
 
 bool fmIsTSMASupportedFunc(func_id_t funcId) {
-  return fmIsAggFunc(funcId) && !fmIsForbidStreamFunc(funcId);
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC) &&
+         !isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STREAM_FUNC);
 }
 
 int32_t fmCreateStateFuncs(SNodeList* pFuncs) {

@@ -714,6 +714,7 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if(colDataIsNull_s(pCol, i)) continue;
     char*    data = colDataGetData(pCol, i);
     SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
     avgTransferInfo(pInputInfo, pInfo);

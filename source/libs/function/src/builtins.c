@@ -2408,7 +2408,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateCount,
     .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
@@ -2421,12 +2421,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = combineFunction,
     .pPartialFunc = "count",
+    .pStateFunc = "count",
     .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateSum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSumFuncEnv,
@@ -2439,12 +2440,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = sumCombine,
     .pPartialFunc = "sum",
+    .pStateFunc = "sum",
     .pMergeFunc   = "sum"
   },
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2454,12 +2456,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = minmaxFunctionFinalize,
     .combineFunc  = minCombine,
     .pPartialFunc = "min",
+    .pStateFunc = "min",
     .pMergeFunc   = "min"
   },
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2469,6 +2472,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = minmaxFunctionFinalize,
     .combineFunc  = maxCombine,
     .pPartialFunc = "max",
+    .pStateFunc = "max",
     .pMergeFunc   = "max"
   },
   {
@@ -2534,7 +2538,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2896,7 +2900,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -3840,7 +3844,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     //TODO for outer use not only internal
     .name = "_avg_state",
     .type = FUNCTION_TYPE_AVG_STATE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateAvgState,
     //.dataRequiredFunc = statisDataRequired,
     .getEnvFunc = getAvgFuncEnv,
@@ -3854,12 +3858,25 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_state_merge",
     .type = FUNCTION_TYPE_AVG_STATE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateAvgStateMerge,
     .getEnvFunc = getAvgFuncEnv,
     .initFunc = avgFunctionSetup,
     .processFunc = avgFunctionMerge,
     .finalizeFunc = avgPartialFinalize,
+  },
+  {
+    .name = "_first_state",
+    .type = FUNCTION_TYPE_FIRST_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateAvgState,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = firstFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+    .pPartialFunc = "_first_partial",
+    .pMergeFunc = "_avg_state_merge"
   },
 };
 // clang-format on

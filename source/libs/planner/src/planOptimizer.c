@@ -4463,7 +4463,7 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
     }
     int32_t queryColId = ((SColumnNode*)pQueryFunc->pParameterList->pHead->pNode)->colId;
     found = false;
-    int32_t notMyStateFuncId = 0;
+    int32_t notMyStateFuncId = -1;
     // iterate funcs
     // TODO if func is count, skip checking cols, test count(*)
     for (int32_t i = 0; i < pTsmaFuncs->size; i++) {
