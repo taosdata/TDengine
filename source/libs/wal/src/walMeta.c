@@ -153,11 +153,11 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // validate body
-      int32_t newBodyLen = logContent->head.bodyLen;
+      int32_t cryptedBodyLen = logContent->head.bodyLen;
       if(pWal->cfg.cryptAlgorithm == 1){
-        newBodyLen = (logContent->head.bodyLen/16) * 16 + (logContent->head.bodyLen%16?1:0) * 16;
+        cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
       }
-      recordLen = walCkHeadSz + newBodyLen;
+      recordLen = walCkHeadSz + cryptedBodyLen;
       if (len < recordLen) {
         int64_t extraSize = recordLen - len;
         if (capacity < readSize + extraSize + sizeof(magic)) {

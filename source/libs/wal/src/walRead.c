@@ -329,33 +329,35 @@ int32_t walFetchBody(SWalReader *pRead) {
          ", 0x%" PRIx64,
          vgId, ver, pVer->firstVer, pVer->commitVer, pVer->lastVer, pVer->appliedVer, id);
 
-  int32_t newBodyLen = pReadHead->bodyLen;
+  int32_t plainBodyLen = pReadHead->bodyLen;
+  int32_t cryptedBodyLen = plainBodyLen;
+
   if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    newBodyLen = (pReadHead->bodyLen/16) * 16 + (pReadHead->bodyLen%16?1:0) * 16;
+    cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
   }
 
-  if (pRead->capacity < newBodyLen) {
-    SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + newBodyLen);
+  if (pRead->capacity < cryptedBodyLen) {
+    SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + cryptedBodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
     pRead->pHead = ptr;
     pReadHead = &pRead->pHead->head;
-    pRead->capacity = newBodyLen;
+    pRead->capacity = cryptedBodyLen;
   }
 
   char* newBody = pReadHead->body;
   if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    newBody = taosMemoryMalloc(newBodyLen);
+    newBody = taosMemoryMalloc(cryptedBodyLen);
     if(newBody == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
   }
 
-  if (newBodyLen != taosReadFile(pRead->pLogFile, newBody, newBodyLen)) {
-    if (pReadHead->bodyLen < 0) {
+  if (cryptedBodyLen != taosReadFile(pRead->pLogFile, newBody, cryptedBodyLen)) {
+    if (plainBodyLen < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, 0x%"PRIx64,
              vgId, pReadHead->version, ver, tstrerror(terrno), id);
@@ -375,7 +377,7 @@ int32_t walFetchBody(SWalReader *pRead) {
   }
 
   if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    char* newBodyDecrypted = taosMemoryMalloc(newBodyLen);
+    char* newBodyDecrypted = taosMemoryMalloc(cryptedBodyLen);
     if(newBodyDecrypted == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -386,18 +388,18 @@ int32_t walFetchBody(SWalReader *pRead) {
     unsigned char IV[17]="0000100001000010";
 
     SCryptOpts opts;
-    opts.len = newBodyLen;
+    opts.len = cryptedBodyLen;
     opts.source = newBody;
     opts.result = newBodyDecrypted;
     opts.unitLen = 16;
 
     int32_t count = CBC_Decrypt(&opts);
 
-    wInfo("CBC_Decrypt decrypted body len:%d, body len:%d, %s", count, pReadHead->bodyLen, __FILE__);
+    wInfo("CBC_Decrypt decryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, __FILE__);
 
     taosMemoryFree(newBody);
 
-    memcpy(pReadHead->body, newBodyDecrypted, pReadHead->bodyLen);
+    memcpy(pReadHead->body, newBodyDecrypted, plainBodyLen);
 
     taosMemoryFree(newBodyDecrypted);
   }
@@ -474,26 +476,27 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     return -1;
   }
 
-  int32_t newBodyLen = pReader->pHead->head.bodyLen;
+  int32_t plainBodyLen = pReader->pHead->head.bodyLen;
+  int32_t cryptedBodyLen = plainBodyLen;
   
   if(pReader->pWal->cfg.cryptAlgorithm == 1){
-    newBodyLen = (pReader->pHead->head.bodyLen/16) * 16 + (pReader->pHead->head.bodyLen%16?1:0) * 16;
+    cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
   }
 
-  if (pReader->capacity < newBodyLen) {
+  if (pReader->capacity < cryptedBodyLen) {
     SWalCkHead *ptr =
-        (SWalCkHead *)taosMemoryRealloc(pReader->pHead, sizeof(SWalCkHead) + newBodyLen);
+        (SWalCkHead *)taosMemoryRealloc(pReader->pHead, sizeof(SWalCkHead) + cryptedBodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
     pReader->pHead = ptr;
-    pReader->capacity = newBodyLen;
+    pReader->capacity = cryptedBodyLen;
   }
 
-  if ((contLen = taosReadFile(pReader->pLogFile, pReader->pHead->head.body, newBodyLen)) !=
-      newBodyLen) {
+  if ((contLen = taosReadFile(pReader->pLogFile, pReader->pHead->head.body, cryptedBodyLen)) !=
+      cryptedBodyLen) {
     if (contLen < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
     else {
@@ -518,7 +521,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   if (code != 0) {
     wError("vgId:%d, unexpected wal log, index:%" PRId64 ", since body checksum not passed", pReader->pWal->cfg.vgId,
            ver);
-    uint32_t readCkSum = walCalcBodyCksum(pReader->pHead->head.body, pReader->pHead->head.bodyLen);
+    uint32_t readCkSum = walCalcBodyCksum(pReader->pHead->head.body, plainBodyLen);
     uint32_t logCkSum = pReader->pHead->cksumBody;
     wError("checksum written into log:%u, checksum calculated:%u", logCkSum, readCkSum);
 //    pReader->curInvalid = 1;

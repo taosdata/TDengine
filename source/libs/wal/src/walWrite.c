@@ -522,24 +522,25 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     goto END;
   }
 
-  int32_t len = bodyLen;
+  int32_t plainBodyLen = bodyLen;
+  int32_t cyptedBodyLen = plainBodyLen;
   char* buf = (char*)body;
   char* newBody = NULL;
   char* newBodyEncrypted = NULL;
 
   if(pWal->cfg.cryptAlgorithm == 1){
-    int32_t newBodyLen = (bodyLen/16) * 16 + (bodyLen%16?1:0) * 16;
-    char* newBody = taosMemoryMalloc(newBodyLen);
+    cyptedBodyLen = CRYPTEDLEN(cyptedBodyLen);
+    char* newBody = taosMemoryMalloc(cyptedBodyLen);
     if(newBody == NULL){
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
       code = -1;
       goto END;
     }
-    memset(newBody, 0, newBodyLen);
-    memcpy(newBody, body, bodyLen);
+    memset(newBody, 0, cyptedBodyLen);
+    memcpy(newBody, body, plainBodyLen);
 
-    char* newBodyEncrypted = taosMemoryMalloc(newBodyLen);
+    char* newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
     if(newBodyEncrypted == NULL){
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
@@ -552,22 +553,21 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     unsigned char IV[17]="0000100001000010";
 
     SCryptOpts opts;
-    opts.len = newBodyLen;
+    opts.len = cyptedBodyLen;
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
 
     int32_t count = CBC_Encrypt(&opts);
 
-    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt newBodyLen:%d, bodyLen:%d, %s", 
-          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, bodyLen, __FUNCTION__);
+    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", 
+          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
-    len = newBodyLen;
     buf = newBodyEncrypted;
   }
   
 
-  if (taosWriteFile(pWal->pLogFile, (char *)buf, len) != len) {
+  if (taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));

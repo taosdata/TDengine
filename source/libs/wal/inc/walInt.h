@@ -120,22 +120,24 @@ static inline int walValidHeadCksum(SWalCkHead* pHead) {
 static inline int walValidBodyCksum(SWalCkHead* pHead, int cryptAlgorithm) {
   char* newBody = pHead->head.body;
 
+  int32_t plainBodyLen = pHead->head.bodyLen;
+
   if(cryptAlgorithm == 1){
-    int32_t newBodyLen = (pHead->head.bodyLen/16) * 16 + (pHead->head.bodyLen%16?1:0) * 16;
-    newBody = taosMemoryMalloc(newBodyLen);
+    int32_t cryptedBodyLen = CRYPTEDLEN(plainBodyLen);
+    newBody = taosMemoryMalloc(cryptedBodyLen);
 
     SCryptOpts opts;
-    opts.len = newBodyLen;
+    opts.len = cryptedBodyLen;
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
 
     int32_t count = CBC_Decrypt(&opts);
 
-    wInfo("CBC_Decrypt newBodyLen:%d, bodyLen:%d, %s", count, pHead->head.bodyLen, __FUNCTION__);
+    wInfo("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, __FUNCTION__);
   }
 
-  int32_t code = taosCheckChecksum((uint8_t*)newBody, pHead->head.bodyLen, pHead->cksumBody);
+  int32_t code = taosCheckChecksum((uint8_t*)newBody, plainBodyLen, pHead->cksumBody);
 
   if(cryptAlgorithm == 1){
     taosMemoryFree(newBody);
