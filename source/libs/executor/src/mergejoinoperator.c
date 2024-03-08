@@ -633,7 +633,7 @@ int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnI
   
   while (++pTb->blkRowIdx < pTb->blk->info.rows) {
     MJOIN_GET_TB_CUR_TS(pCol, *probeTs, pTb);
-    if (PROBE_TS_LOWER(pCtx->ascTs, *probeTs, *buildTs)) {
+    if (PROBE_TS_NMATCH(pCtx->ascTs, *probeTs, *buildTs)) {
       pCtx->probeNEqGrp.endIdx = pTb->blkRowIdx;
       continue;
     }
@@ -652,7 +652,7 @@ int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
   
   while (++pTb->blkRowIdx < pTb->blk->info.rows) {
     MJOIN_GET_TB_CUR_TS(pCol, *buildTs, pTb);
-    if (PROBE_TS_GREATER(pCtx->ascTs, *probeTs, *buildTs)) {
+    if (PROBE_TS_NREACH(pCtx->ascTs, *probeTs, *buildTs)) {
       pCtx->buildNEqGrp.endIdx = pTb->blkRowIdx;
       continue;
     }

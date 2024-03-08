@@ -158,3 +158,49 @@ if $data31 != NULL then
   return -1
 endi
 
+sql select a.ts, b.ts from tba2 a left join tba1 b on a.ts = b.ts order by a.ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data11 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data20 != @23-11-17 16:29:01.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data30 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data31 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+
+sql select a.ts, b.ts from sta a left join sta b on a.ts=b.ts order by a.ts desc;
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data01 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data11 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+

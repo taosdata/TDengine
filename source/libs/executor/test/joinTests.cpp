@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       20000
+#define JT_MAX_LOOP       5000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -957,7 +957,7 @@ void appendAllAsofResRows() {
   taosArrayClear(jtCtx.leftRowsList);
 }
 
-void chkAppendAsofGreaterResRows(bool forceOut) {
+void chkAppendAsofForwardGrpResRows(bool forceOut) {
   int32_t rightRows = taosArrayGetSize(jtCtx.rightRowsList);
   if (rightRows < jtCtx.jLimit && !forceOut) {
     return;
@@ -974,7 +974,7 @@ void chkAppendAsofGreaterResRows(bool forceOut) {
     for (int32_t r = rightOffset; r < rightRows; ++r) {
       char* rightRow = (char*)taosArrayGet(jtCtx.rightRowsList, r);
       int64_t* rightTs = (int64_t*)(rightRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
-      if ((*leftTs > *rightTs) || (*leftTs == *rightTs && OP_TYPE_LOWER_THAN == jtCtx.asofOpType)) {
+      if (((jtCtx.asc && *leftTs > *rightTs) || (!jtCtx.asc && *leftTs < *rightTs)) || (*leftTs == *rightTs && (OP_TYPE_LOWER_THAN == jtCtx.asofOpType || OP_TYPE_GREATER_THAN == jtCtx.asofOpType))) {
         rightOffset++;
         rightRemains--;
         if (rightRemains < jtCtx.jLimit && !forceOut) {
@@ -1031,7 +1031,8 @@ void appendWinEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rightRow
   }
 
   int32_t endIdx = rightRows + rightOffset;
-  for (int32_t r = rightOffset; r < endIdx; ++r) {
+  int32_t beginIdx = (!jtCtx.asc && rightRows > jtCtx.jLimit) ? (endIdx - jtCtx.jLimit) : rightOffset;
+  for (int32_t r = beginIdx; r < endIdx; ++r) {
     bool* rightFilterOut = (bool*)taosArrayGet(jtCtx.rightFilterOut, r);
     if (*rightFilterOut) {
       continue;
@@ -1075,7 +1076,7 @@ void chkAppendWinResRows(bool forceOut) {
     for (int32_t r = rightOffset; r < rightRows; ++r) {
       char* rightRow = (char*)taosArrayGet(jtCtx.rightRowsList, r);
       int64_t* rightTs = (int64_t*)(rightRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
-      if (*rightTs < winStart) {
+      if ((jtCtx.asc && *rightTs < winStart) || (!jtCtx.asc && *rightTs > winEnd)) {
         rightOffset++;
         rightRemains--;
         if (rightRemains < jtCtx.jLimit && !forceOut) {
@@ -1086,7 +1087,7 @@ void chkAppendWinResRows(bool forceOut) {
         }
         
         continue;
-      } else if (*rightTs > winEnd) {
+      } else if ((jtCtx.asc && *rightTs > winEnd) || (!jtCtx.asc && *rightTs < winStart)) {
         winClosed = true;
         appendWinEachResGrps(leftRow, winBeginIdx, r - winBeginIdx);
         append = true;
@@ -1097,7 +1098,7 @@ void chkAppendWinResRows(bool forceOut) {
         winBeginIdx = r;
       }
 
-      if ((r - winBeginIdx + 1) >= jtCtx.jLimit) {
+      if (jtCtx.asc && (r - winBeginIdx + 1) >= jtCtx.jLimit) {
         appendWinEachResGrps(leftRow, winBeginIdx, jtCtx.jLimit);
         append = true;
         break;
@@ -1213,7 +1214,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
-          ++jtCtx.curTs;
+          jtCtx.asc ? ++jtCtx.curTs : --jtCtx.curTs;
           pData = (char*)&jtCtx.curTs;
           isNull = false;
           if (!filterOut && filterNum && filterCol[c] && jtCtx.curTs <= TIMESTAMP_FILTER_VALUE) {
@@ -1292,14 +1293,14 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
 
   if (keepInput) {
     if (JOIN_STYPE_ASOF == jtCtx.subType) {
-      if (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN || jtCtx.asofOpType == OP_TYPE_EQUAL) {
+      if (((jtCtx.asc && (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN)) || (!jtCtx.asc && (jtCtx.asofOpType == OP_TYPE_LOWER_EQUAL || jtCtx.asofOpType == OP_TYPE_LOWER_THAN)) ) || jtCtx.asofOpType == OP_TYPE_EQUAL) {
         if (blkId == LEFT_BLK_ID) {
           appendAllAsofResRows();
         } else {
           trimForAsofJlimit();
         }
       } else {
-        chkAppendAsofGreaterResRows(false);
+        chkAppendAsofForwardGrpResRows(false);
       }
     } else {
       chkAppendWinResRows(false);
@@ -1965,7 +1966,7 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
     }
   }
 
-  if (!leftTable && (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN || jtCtx.asofOpType == OP_TYPE_EQUAL)) {
+  if (!leftTable && ((jtCtx.asc && (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN)) || (!jtCtx.asc && (jtCtx.asofOpType == OP_TYPE_LOWER_EQUAL || jtCtx.asofOpType == OP_TYPE_LOWER_THAN))) || jtCtx.asofOpType == OP_TYPE_EQUAL) {
     trimForAsofJlimit();
   }
 }
@@ -1973,22 +1974,58 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
 void asofJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
 
+  if (jtCtx.asc) {
+    switch (jtCtx.asofOpType) {
+      case OP_TYPE_GREATER_THAN:
+        addAsofEqInRows(leftGrpRows, 0, true);
+        appendAllAsofResRows();
+        addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+        break;
+      case OP_TYPE_GREATER_EQUAL:
+        addAsofEqInRows(leftGrpRows, 0, true);
+        addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+        appendAllAsofResRows();
+        break;
+      case OP_TYPE_LOWER_THAN:
+      case OP_TYPE_LOWER_EQUAL:
+        addAsofEqInRows(leftGrpRows, 0, true);
+        addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+        chkAppendAsofForwardGrpResRows(false);
+        break;
+      case OP_TYPE_EQUAL:
+        taosArrayClear(jtCtx.leftRowsList);
+        taosArrayClear(jtCtx.rightRowsList);
+        taosArrayClear(jtCtx.rightFilterOut);
+        addAsofEqInRows(leftGrpRows, 0, true);
+        addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+        chkAppendAsofForwardGrpResRows(true);
+        taosArrayClear(jtCtx.leftRowsList);
+        taosArrayClear(jtCtx.rightRowsList);
+        taosArrayClear(jtCtx.rightFilterOut);
+        break;
+      default:
+        return;
+    }
+
+    return;
+  } 
+  
   switch (jtCtx.asofOpType) {
-    case OP_TYPE_GREATER_THAN:
-      addAsofEqInRows(leftGrpRows, 0, true);
-      appendAllAsofResRows();
-      addAsofEqInRows(rightGrpRows, rightTbOffset, false);
-      break;
-    case OP_TYPE_GREATER_EQUAL:
-      addAsofEqInRows(leftGrpRows, 0, true);
-      addAsofEqInRows(rightGrpRows, rightTbOffset, false);
-      appendAllAsofResRows();
-      break;
     case OP_TYPE_LOWER_THAN:
+      addAsofEqInRows(leftGrpRows, 0, true);
+      appendAllAsofResRows();
+      addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+      break;
     case OP_TYPE_LOWER_EQUAL:
       addAsofEqInRows(leftGrpRows, 0, true);
       addAsofEqInRows(rightGrpRows, rightTbOffset, false);
-      chkAppendAsofGreaterResRows(false);
+      appendAllAsofResRows();
+      break;
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+      addAsofEqInRows(leftGrpRows, 0, true);
+      addAsofEqInRows(rightGrpRows, rightTbOffset, false);
+      chkAppendAsofForwardGrpResRows(false);
       break;
     case OP_TYPE_EQUAL:
       taosArrayClear(jtCtx.leftRowsList);
@@ -1996,7 +2033,7 @@ void asofJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
       taosArrayClear(jtCtx.rightFilterOut);
       addAsofEqInRows(leftGrpRows, 0, true);
       addAsofEqInRows(rightGrpRows, rightTbOffset, false);
-      chkAppendAsofGreaterResRows(true);
+      chkAppendAsofForwardGrpResRows(true);
       taosArrayClear(jtCtx.leftRowsList);
       taosArrayClear(jtCtx.rightRowsList);
       taosArrayClear(jtCtx.rightFilterOut);
@@ -2227,7 +2264,7 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
     jtCtx.inputStat |= (1 << 2);
   }
 
-  ++jtCtx.curTs;
+  jtCtx.asc ? ++jtCtx.curTs : --jtCtx.curTs;
 
   if (NULL == *ppLeft && leftGrpRows > 0) {
     *ppLeft = createDummyBlock(LEFT_BLK_ID);
@@ -2257,8 +2294,9 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
 void forceFlushResRows() {
   if (JOIN_STYPE_ASOF == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
-    ASSERT(OP_TYPE_LOWER_EQUAL == jtCtx.asofOpType || OP_TYPE_LOWER_THAN == jtCtx.asofOpType);
-    chkAppendAsofGreaterResRows(true);
+    ASSERT((jtCtx.asc && (OP_TYPE_LOWER_EQUAL == jtCtx.asofOpType || OP_TYPE_LOWER_THAN == jtCtx.asofOpType))
+         || (!jtCtx.asc && (OP_TYPE_GREATER_EQUAL == jtCtx.asofOpType || OP_TYPE_GREATER_THAN == jtCtx.asofOpType)));
+    chkAppendAsofForwardGrpResRows(true);
   } else if (JOIN_STYPE_WIN == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
     chkAppendWinResRows(true);
   }
@@ -2277,7 +2315,8 @@ void createBothBlkRowsData(void) {
   jtCtx.rightTotalRows = taosRand() % jtCtx.rightMaxRows;
 
   int32_t minTotalRows = TMIN(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
-  jtCtx.curTs = TIMESTAMP_FILTER_VALUE - minTotalRows / 5; 
+  int32_t maxTotalRows = TMAX(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
+  jtCtx.curTs = jtCtx.asc ? (TIMESTAMP_FILTER_VALUE - minTotalRows / 5) : (TIMESTAMP_FILTER_VALUE + 4 * maxTotalRows / 5); 
 
   int32_t leftTotalRows = 0, rightTotalRows = 0;
   int32_t leftGrpRows = 0, rightGrpRows = 0;
@@ -2463,8 +2502,8 @@ void printInputData() {
           printInputRowData(pBlk, &leftRowIdx);
           break;
         }
-        
-        printf("\t--------------------------blk end-------------------------------     ");
+
+        printf("\t%*s-------------------------blk end-------------------------------", jtCtx.grpJoin ? 6 : 0, " ");
         jtCtx.leftBlkReadIdx++;
         leftRowIdx = 0;
         break;
@@ -2481,7 +2520,7 @@ void printInputData() {
           break;
         }
         
-        printf("\t%*s--------------------------blk end----------------------------\t", jtCtx.grpJoin ? 5 : 0, " ");
+        printf("\t%*s--------------------------blk end----------------------------\t", jtCtx.grpJoin ? 6 : 0, " ");
         jtCtx.rightBlkReadIdx++;
         rightRowIdx = 0;
         break;
@@ -2801,7 +2840,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(12, 3, 12, 3, 3);
+  createDummyBlkList(100, 10, 100, 10, 10);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -2848,6 +2887,7 @@ TEST(innerJoin, noCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -2874,6 +2914,7 @@ TEST(innerJoin, eqCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -2900,6 +2941,7 @@ TEST(innerJoin, onCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -2926,6 +2968,7 @@ TEST(innerJoin, fullCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -2954,6 +2997,7 @@ TEST(leftOuterJoin, noCondTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -2982,6 +3026,7 @@ TEST(leftOuterJoin, eqCondTest) {
   param.grpJoin = false;  
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3008,6 +3053,7 @@ TEST(leftOuterJoin, onCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3034,6 +3080,7 @@ TEST(leftOuterJoin, fullCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3062,6 +3109,7 @@ TEST(fullOuterJoin, noCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3088,6 +3136,7 @@ TEST(fullOuterJoin, eqCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3115,6 +3164,7 @@ TEST(fullOuterJoin, onCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3141,6 +3191,7 @@ TEST(fullOuterJoin, fullCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3169,6 +3220,7 @@ TEST(leftSemiJoin, noCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3195,6 +3247,7 @@ TEST(leftSemiJoin, eqCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3222,6 +3275,7 @@ TEST(leftSemiJoin, onCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3248,6 +3302,7 @@ TEST(leftSemiJoin, fullCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3276,6 +3331,7 @@ TEST(leftAntiJoin, noCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3302,6 +3358,7 @@ TEST(leftAntiJoin, eqCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3329,6 +3386,7 @@ TEST(leftAntiJoin, onCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3355,6 +3413,7 @@ TEST(leftAntiJoin, fullCondTest) {
   param.grpJoin = false;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
 
@@ -3383,6 +3442,7 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
 
     param.grpJoin = taosRand() % 2 ? true : false;
@@ -3413,6 +3473,7 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
 
     param.grpJoin = taosRand() % 2 ? true : false;  
@@ -3443,6 +3504,7 @@ TEST(leftAsofJoin, noCondEqTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
     param.grpJoin = taosRand() % 2 ? true : false;  
@@ -3473,6 +3535,7 @@ TEST(leftAsofJoin, noCondLowerThanTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
     param.grpJoin = taosRand() % 2 ? true : false;  
@@ -3504,6 +3567,7 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
     param.grpJoin = taosRand() % 2 ? true : false;  
@@ -3537,6 +3601,7 @@ TEST(leftWinJoin, noCondProjectionTest) {
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
     param.grpJoin = taosRand() % 2 ? true : false;  
