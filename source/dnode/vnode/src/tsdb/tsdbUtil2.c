@@ -111,50 +111,86 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
   return 0;
 }
 
-int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record) {
-  int32_t code;
+static int32_t tStatisBlockAppend(STbStatisBlock *block, SRowInfo *row) {
+  int32_t     code;
+  STsdbRowKey key;
 
-  ASSERT(record->firstKey.numOfPKs == record->lastKey.numOfPKs);
-
-  if (statisBlock->numOfRecords == 0) {
-    statisBlock->numOfPKs = record->firstKey.numOfPKs;
-  } else if (statisBlock->numOfPKs != record->firstKey.numOfPKs) {
+  tsdbRowGetKey(&row->row, &key);
+  if (block->numOfRecords == 0) {
+    block->numOfPKs = key.key.numOfPKs;
+  } else if (block->numOfPKs != key.key.numOfPKs) {
     return TSDB_CODE_INVALID_PARA;
   } else {
-    for (int i = 0; i < statisBlock->numOfPKs; i++) {
-      if (record->firstKey.pks[i].type != statisBlock->firstKeyPKs[i].type) {
+    for (int i = 0; i < block->numOfPKs; i++) {
+      if (key.key.pks[i].type != block->firstKeyPKs[i].type) {
         return TSDB_CODE_INVALID_PARA;
       }
     }
   }
 
-  ASSERT(statisBlock->numOfPKs == record->firstKey.numOfPKs);
-  ASSERT(statisBlock->numOfPKs == record->lastKey.numOfPKs);
-
-  code = tBufferPutI64(&statisBlock->suids, record->suid);
-  if (code) return code;
-
-  code = tBufferPutI64(&statisBlock->uids, record->uid);
-  if (code) return code;
-
-  code = tBufferPutI64(&statisBlock->firstKeyTimestamps, record->firstKey.ts);
-  if (code) return code;
-
-  code = tBufferPutI64(&statisBlock->lastKeyTimestamps, record->lastKey.ts);
-  if (code) return code;
-
-  code = tBufferPutI64(&statisBlock->counts, record->count);
-  if (code) return code;
-
-  for (int32_t i = 0; i < statisBlock->numOfPKs; ++i) {
-    code = tValueColumnAppend(&statisBlock->firstKeyPKs[i], &record->firstKey.pks[i]);
-    if (code) return code;
-    code = tValueColumnAppend(&statisBlock->lastKeyPKs[i], &record->lastKey.pks[i]);
-    if (code) return code;
+  if ((code = tBufferPutI64(&block->suids, row->suid))) return code;
+  if ((code = tBufferPutI64(&block->uids, row->uid))) return code;
+  if ((code = tBufferPutI64(&block->firstKeyTimestamps, key.key.ts))) return code;
+  if ((code = tBufferPutI64(&block->lastKeyTimestamps, key.key.ts))) return code;
+  if ((code = tBufferPutI64(&block->counts, 1))) return code;
+  for (int32_t i = 0; i < block->numOfPKs; ++i) {
+    if ((code = tValueColumnAppend(block->firstKeyPKs + i, key.key.pks + i))) return code;
+    if ((code = tValueColumnAppend(block->lastKeyPKs + i, key.key.pks + i))) return code;
   }
 
-  statisBlock->numOfRecords++;
+  block->numOfRecords++;
   return 0;
+}
+
+static int32_t tStatisBlockUpdate(STbStatisBlock *block, SRowInfo *row) {
+  STbStatisRecord record;
+  STsdbRowKey     key;
+  int32_t         c;
+  int32_t         code;
+
+  tStatisBlockGet(block, block->numOfRecords - 1, &record);
+  tsdbRowGetKey(&row->row, &key);
+
+  c = tRowKeyCompare(&record.lastKey, &key.key);
+  if (c == 0) {
+    return 0;
+  } else if (c < 0) {
+    // last ts
+    code = tBufferPutAt(&block->lastKeyTimestamps, (block->numOfRecords - 1) * sizeof(record.lastKey.ts), &key.key.ts,
+                        sizeof(key.key.ts));
+    if (code) return code;
+
+    // last primary keys
+    for (int i = 0; i < block->numOfPKs; i++) {
+      code = tValueColumnUpdate(&block->lastKeyPKs[i], block->numOfRecords - 1, &key.key.pks[i]);
+      if (code) return code;
+    }
+
+    // count
+    record.count++;
+    code = tBufferPutAt(&block->counts, (block->numOfRecords - 1) * sizeof(record.count), &record.count,
+                        sizeof(record.count));
+    if (code) return code;
+  } else {
+    ASSERT(0);
+  }
+
+  return 0;
+}
+
+int32_t tStatisBlockPut(STbStatisBlock *block, SRowInfo *row, int32_t maxRecords) {
+  if (block->numOfRecords > 0) {
+    int64_t       lastUid;
+    SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * (block->numOfRecords - 1), &block->uids);
+    tBufferGetI64(&br, &lastUid);
+
+    if (lastUid == row->uid) {
+      return tStatisBlockUpdate(block, row);
+    } else if (block->numOfRecords >= maxRecords) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  return tStatisBlockAppend(block, row);
 }
 
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record) {

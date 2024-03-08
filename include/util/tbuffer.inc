@@ -74,6 +74,14 @@ static FORCE_INLINE int32_t tBufferPut(SBuffer *buffer, const void *data, uint32
   return 0;
 }
 
+static int32_t tBufferPutAt(SBuffer *buffer, uint32_t offset, const void *data, uint32_t size) {
+  if (offset + size > buffer->size) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  memcpy((char *)buffer->data + offset, data, size);
+  return 0;
+}
+
 static FORCE_INLINE int32_t tBufferPutI8(SBuffer *buffer, int8_t value) {
   return tBufferPut(buffer, &value, sizeof(value));
 }

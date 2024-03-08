@@ -372,12 +372,17 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
                           tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)), rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
       } else {
-        while (i < rows && ((int64_t *)block.suids.data)[i] == suid) {
-          taosArrayPush(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)));
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey,
-                        tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)));
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)));
-          taosArrayPush(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)));
+        STbStatisRecord record;
+        while (i < rows) {
+          tStatisBlockGet(&block, i, &record);
+          if (record.suid != suid) {
+            break;
+          }
+
+          taosArrayPush(pBlockLoadInfo->info.pUid, &record.uid);
+          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &record.firstKey.ts);
+          taosArrayPush(pBlockLoadInfo->info.pLastKey, &record.lastKey.ts);
+          taosArrayPush(pBlockLoadInfo->info.pCount, &record.count);
           i += 1;
         }
       }
@@ -414,6 +419,7 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
     return code;
   }
 
+#if 0
   // load stt statistics block for all stt-blocks, to decide if the data of queried table exists in current stt file
   TStatisBlkArray *pStatisBlkArray = NULL;
   code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pStatisBlkArray);
@@ -428,6 +434,7 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
     tsdbError("failed to load stt statistics block data, code:%s, %s", tstrerror(code), idStr);
     return code;
   }
+#endif
 
   code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
 

@@ -114,7 +114,7 @@ typedef struct {
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
 int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock);
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock);
-int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record);
+int32_t tStatisBlockPut(STbStatisBlock *statisBlock, SRowInfo *row, int32_t maxRecords);
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record);
 
 // SBrinRecord ----------

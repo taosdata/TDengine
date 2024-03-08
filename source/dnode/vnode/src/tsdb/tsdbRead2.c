@@ -2080,7 +2080,7 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
   initMemDataIterator(pScanInfo, pReader);
   initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
 
-  if (conf.rspRows) {
+  if (0 /*conf.rspRows*/) {
     pScanInfo->cleanSttBlocks =
         isCleanSttBlock(info.pTimeWindowList, &pReader->info.window, pScanInfo, pReader->info.order);
 

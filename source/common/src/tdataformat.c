@@ -4039,6 +4039,37 @@ int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
   return 0;
 }
 
+int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value) {
+  int32_t code;
+
+  if (idx < 0 || idx >= valCol->numOfValues) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  if (IS_VAR_DATA_TYPE(valCol->type)) {
+    int32_t *offsets = (int32_t *)tBufferGetData(&valCol->offsets);
+    int32_t  nextOffset = (idx == valCol->numOfValues - 1) ? tBufferGetSize(&valCol->data) : offsets[idx + 1];
+    int32_t  oldDataSize = nextOffset - offsets[idx];
+    int32_t  bytesAdded = value->nData - oldDataSize;
+
+    if (bytesAdded != 0) {
+      if ((code = tBufferEnsureCapacity(&valCol->data, tBufferGetSize(&valCol->data) + bytesAdded))) return code;
+      memmove(tBufferGetDataAt(&valCol->data, nextOffset + bytesAdded), tBufferGetDataAt(&valCol->data, nextOffset),
+              tBufferGetSize(&valCol->data) - nextOffset);
+      valCol->data.size += bytesAdded;
+
+      for (int32_t i = idx + 1; i < valCol->numOfValues; i++) {
+        offsets[i] += bytesAdded;
+      }
+    }
+    return tBufferPutAt(&valCol->data, offsets[idx], value->pData, value->nData);
+  } else {
+    return tBufferPutAt(&valCol->data, idx * tDataTypes[valCol->type].bytes, &value->val,
+                        tDataTypes[valCol->type].bytes);
+  }
+  return 0;
+}
+
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
   if (idx < 0 || idx >= valCol->numOfValues) {
     return TSDB_CODE_OUT_OF_RANGE;

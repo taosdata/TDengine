@@ -32,6 +32,7 @@ static int32_t tBufferDestroy(SBuffer *buffer);
 static int32_t tBufferClear(SBuffer *buffer);
 static int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity);
 static int32_t tBufferPut(SBuffer *buffer, const void *data, uint32_t size);
+static int32_t tBufferPutAt(SBuffer *buffer, uint32_t offset, const void *data, uint32_t size);
 static int32_t tBufferPutI8(SBuffer *buffer, int8_t value);
 static int32_t tBufferPutI16(SBuffer *buffer, int16_t value);
 static int32_t tBufferPutI32(SBuffer *buffer, int32_t value);
