@@ -22,7 +22,6 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "wal.h"
-#include "crypt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -117,37 +116,12 @@ static inline int walValidHeadCksum(SWalCkHead* pHead) {
   return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalCont), pHead->cksumHead);
 }
 
-static inline int walValidBodyCksum(SWalCkHead* pHead, int cryptAlgorithm) {
-  char* newBody = pHead->head.body;
-
-  int32_t plainBodyLen = pHead->head.bodyLen;
-
-  if(cryptAlgorithm == 1){
-    int32_t cryptedBodyLen = CRYPTEDLEN(plainBodyLen);
-    newBody = taosMemoryMalloc(cryptedBodyLen);
-
-    SCryptOpts opts;
-    opts.len = cryptedBodyLen;
-    opts.source = pHead->head.body;
-    opts.result = newBody;
-    opts.unitLen = 16;
-
-    int32_t count = CBC_Decrypt(&opts);
-
-    wInfo("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, __FUNCTION__);
-  }
-
-  int32_t code = taosCheckChecksum((uint8_t*)newBody, plainBodyLen, pHead->cksumBody);
-
-  if(cryptAlgorithm == 1){
-    taosMemoryFree(newBody);
-  }
-  
-  return code;
+static inline int walValidBodyCksum(SWalCkHead* pHead) {
+  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.bodyLen, pHead->cksumBody);
 }
 
-static inline int walValidCksum(SWalCkHead* pHead, void* body, int64_t bodyLen, int cryptAlgorithm) {
-  return walValidHeadCksum(pHead) && walValidBodyCksum(pHead, cryptAlgorithm);
+static inline int walValidCksum(SWalCkHead* pHead, void* body, int64_t bodyLen) {
+  return walValidHeadCksum(pHead) && walValidBodyCksum(pHead);
 }
 
 static inline uint32_t walCalcHeadCksum(SWalCkHead* pHead) {

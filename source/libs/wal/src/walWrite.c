@@ -492,12 +492,13 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
                                          const void *body, int32_t bodyLen) {
   int64_t code = 0;
+  int32_t plainBodyLen = bodyLen;
 
   int64_t       offset = walGetCurFileOffset(pWal);
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
 
   pWal->writeHead.head.version = index;
-  pWal->writeHead.head.bodyLen = bodyLen;
+  pWal->writeHead.head.bodyLen = plainBodyLen;
   pWal->writeHead.head.msgType = msgType;
   pWal->writeHead.head.ingestTs = taosGetTimestampUs();
 
@@ -505,7 +506,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.syncMeta = syncMeta;
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
-  pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
+  pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
   wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s, cksum head %u cksum body %u", pWal->cfg.vgId, index,
          TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
 
@@ -522,7 +523,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     goto END;
   }
 
-  int32_t plainBodyLen = bodyLen;
   int32_t cyptedBodyLen = plainBodyLen;
   char* buf = (char*)body;
   char* newBody = NULL;
@@ -548,10 +548,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       goto END;
     }
 
-    int		NewLen;
-    unsigned char Key[17]="0000100001000010";
-    unsigned char IV[17]="0000100001000010";
-
     SCryptOpts opts;
     opts.len = cyptedBodyLen;
     opts.source = newBody;
@@ -566,7 +562,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     buf = newBodyEncrypted;
   }
   
-
   if (taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
@@ -581,7 +576,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   if(pWal->cfg.cryptAlgorithm == 1){
     taosMemoryFree(newBody);
-    taosMemoryFree(newBodyEncrypted);    
+    taosMemoryFree(newBodyEncrypted); 
+    wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
+          pWal->cfg.vgId, __FUNCTION__);   
   }
 
   // set status
@@ -589,9 +586,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     pWal->vers.firstVer = 0;
   }
   pWal->vers.lastVer = index;
-  pWal->totSize += sizeof(SWalCkHead) + bodyLen;
+  pWal->totSize += sizeof(SWalCkHead) + cyptedBodyLen;
   pFileInfo->lastVer = index;
-  pFileInfo->fileSize += sizeof(SWalCkHead) + bodyLen;
+  pFileInfo->fileSize += sizeof(SWalCkHead) + cyptedBodyLen;
 
   return 0;
 
