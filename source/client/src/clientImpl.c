@@ -2184,6 +2184,8 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
+  taosMemoryFreeClear(pResultInfo->pRspMsg);
+  pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
