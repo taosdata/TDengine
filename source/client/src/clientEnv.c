@@ -342,6 +342,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 }
 
 void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
+  taosMemoryFreeClear(pResInfo->pRspMsg);
   taosMemoryFreeClear(pResInfo->length);
   taosMemoryFreeClear(pResInfo->row);
   taosMemoryFreeClear(pResInfo->pCol);
