@@ -5,7 +5,7 @@ title: TDengine ODBC
 
 ## Introduction
 
-The TDengine ODBC driver is a driver specifically designed for TDengine based on the ODBC standard. It can be used by ODBC based applications,like [PowerBI](https://powerbi.microsoft.com), on Windows, to access a local or remote TDengine cluster or an instance in the TDengine Cloud service. The TDengine version must be above 3.2.1.0.
+The TDengine ODBC driver is a driver specifically designed for TDengine based on the ODBC standard. It can be used by ODBC based applications,like [PowerBI](https://powerbi.microsoft.com), on Windows, to access a local or remote TDengine cluster or a TDengine Cloud instance. The minimum TDengine version is 3.2.2.0.
 
 TDengine ODBC provides two kinds of connections, native connection and WebSocket connection. You can choose to use either one for your convenience. WebSocket is the recommended choice and you must use WebSocket if you are trying to access an instance in the TDengine Cloud service.
 
@@ -33,7 +33,7 @@ Note: TDengine ODBC driver can only be run on 64-bit systems, and can only be in
 
     4.2 [Connection Type]: required field, we choose "WebSocket"
 
-    4.3 [URL]: required field, the URL for the ODBC data source, `https://gw.cloud.taosdata.com?token=your_token` is the URL for a TDengine Cloud service instance.
+    4.3 [URL]: required field, the URL for the ODBC data source, `https://gw.cloud.taosdata.com?token=your_token` is the URL for an instance in the TDengine Cloud service.
 
     4.4 [Database]: optional field, the default database to access
 
