@@ -7640,7 +7640,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
-  //if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
+  if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
   tEndEncode(pCoder);
   return 0;
 }
