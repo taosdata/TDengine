@@ -181,6 +181,7 @@ typedef struct SResultColumn {
 
 typedef struct SReqResultInfo {
   SExecResult    execRes;
+  const char*    pRspMsg;
   const char*    pData;
   TAOS_FIELD*    fields;      // todo, column names are not needed.
   TAOS_FIELD*    userFields;  // the fields info that return to user
