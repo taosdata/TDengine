@@ -49,6 +49,7 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
@@ -179,6 +180,18 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 ```
 
 ![TDengine Database 事件窗口示意图](./event_window.webp)
+
+### 计数窗口
+
+计数窗口按固定的数据行数来划分窗口。默认将数据按时间戳排序，再按照count_val的值，将数据划分为多个窗口，然后做聚合计算。count_val表示每个count window包含的最大数据行数，总数据行数不能整除count_val时，最后一个窗口的行数会小于count_val。sliding_val是常量，表示窗口滑动的数量，类似于 interval的SLIDING。
+
+以下面的 SQL 语句为例，计数窗口切分如图所示：
+```sql
+select _wstart, _wend, count(*) from t count_window(4);
+```
+
+![count_window](https://github.com/taosdata/TDengine/assets/38781207/aedea174-2aad-4767-8f7f-9261e0a72d5d)
+
 
 ### 时间戳伪列
 
