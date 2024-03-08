@@ -190,7 +190,8 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![count_window](https://github.com/taosdata/TDengine/assets/38781207/aedea174-2aad-4767-8f7f-9261e0a72d5d)
+![count_window](https://github.com/taosdata/TDengine/assets/38781207/ff86278e-cbff-477f-a866-6e5cc150b712)
+
 
 
 ### 时间戳伪列
