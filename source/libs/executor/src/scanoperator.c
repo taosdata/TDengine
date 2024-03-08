@@ -4349,7 +4349,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
-  if (!hasLimit && blockDataGetRowSize(pInfo->pResBlock) >= 256) {
+  if (!hasLimit && blockDataGetRowSize(pInfo->pResBlock) >= 256 && !pTableScanNode->smallDataTsSort) {
     pInfo->bSortRowId = true;
   } else {
     pInfo->bSortRowId = false;
