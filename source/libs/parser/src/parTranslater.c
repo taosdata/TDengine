@@ -8813,15 +8813,15 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag);
     }
 
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+      }
+    }
+
     if (TSDB_CODE_SUCCESS != code) {
       break;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code && tagStr) {
-    NEXT_VALID_TOKEN(tagStr, token);
-    if (token.n != 0) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
     }
   }
 
@@ -8875,16 +8875,17 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag);
     }
 
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+      }
+    }
+
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
     ++pTagSchema;
-  }
-  if (TSDB_CODE_SUCCESS == code && tagStr) {
-    NEXT_VALID_TOKEN(tagStr, token);
-    if (token.n != 0) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !isJson) {

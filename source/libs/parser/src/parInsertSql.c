@@ -234,16 +234,14 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
       if (pToken->type != TK_NK_STRING) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, ts)) {
-        if (IS_NOW_STR(pToken->z, pToken->n)) {
-          *isTs = true;
-          *ts = taosGetTimestamp(timePrec);
-        } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
-          *isTs = true;
-          *ts = taosGetTimestampToday(timePrec);
-        } else {
-          return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
-        }
+      if (IS_NOW_STR(pToken->z, pToken->n)) {
+        *isTs = true;
+        *ts = taosGetTimestamp(timePrec);
+      } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
+        *isTs = true;
+        *ts = taosGetTimestampToday(timePrec);
+      } else {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
     }
   }
@@ -268,10 +266,22 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
 
   for (int k = pToken->n; pToken->z[k] != '\0'; k++) {
     if (pToken->z[k] == ' ' || pToken->z[k] == '\t') continue;
-    if (pToken->z[k] == '(' && pToken->z[k + 1] == ')') {  // for insert NOW()/TODAY()
-      *end = pTokenEnd = &pToken->z[k + 2];
-      k++;
-      continue;
+    if (pToken->z[k] == '(') {  // for insert NOW()/TODAY()
+      if (pToken->z[k + 1] == ')') {
+        *end = pTokenEnd = &pToken->z[k + 2];
+        ++k;
+        continue;
+      } else {
+        char nc = pToken->z[k + 1];
+        while (nc == ' ' || nc == '\t' || nc == '\n' || nc == '\r' || nc == '\f') {
+          nc = pToken->z[(++k) + 1];
+        }
+        if (nc == ')') {
+          *end = pTokenEnd = &pToken->z[k + 2];
+          ++k;
+          continue;
+        }
+      }
     }
     if (pToken->z[k] == ',') {
       *end = pTokenEnd;

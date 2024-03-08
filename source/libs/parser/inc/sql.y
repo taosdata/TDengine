@@ -707,6 +707,18 @@ tags_literal(A) ::= NK_BOOL(B).                                                 
 tags_literal(A) ::= NULL(B).                                                      { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B, NULL); }
 
 tags_literal(A) ::= literal_func(B).                                              { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, NULL, B); }
+tags_literal(A) ::= literal_func(B) NK_PLUS duration_literal(C).                  {
+                                                                                    SToken l = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, B, C);
+                                                                                  }
+tags_literal(A) ::= literal_func(B) NK_MINUS duration_literal(C).                 {
+                                                                                    SToken l = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, B, C);
+                                                                                  }
 
 %type tags_literal_list                                                           { SNodeList* }
 %destructor tags_literal_list                                                     { nodesDestroyList($$); }
