@@ -927,7 +927,7 @@ void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHa
     int32_t regionId = *(int32_t*)tsortGetValue(pTupleHandle, 1);
     int32_t offset = *(int32_t*)tsortGetValue(pTupleHandle, 2);
     int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 3);
-
+    
     char* buf = NULL;
     bool bFreeRow = false;
     getRowBufFromExtMemFile(pHandle, regionId, offset, length, &buf, &bFreeRow);
@@ -1047,32 +1047,30 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     }
     pRegion->bufLen = readBytes;
   }
-  // TODO: ASSERT(pRegion->offset < tupleOffset);
+  ASSERT(pRegion->bufRegOffset <= tupleOffset);
   if (pRegion->bufRegOffset + pRegion->bufLen >= tupleOffset + rowLen) {
     *pFreeRow = false;
     *ppRow = pRegion->buf + tupleOffset - pRegion->bufRegOffset;
   } else {
-      *ppRow = taosMemoryMalloc(rowLen);
-      if (*ppRow == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      int32_t szThisBlock = pRegion->bufLen - (tupleOffset - pRegion->bufRegOffset);
-      memcpy(*ppRow, pRegion->buf + tupleOffset - pRegion->bufRegOffset,
-             szThisBlock);
-      tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET);
-      int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize - (pRegion->bufRegOffset + pRegion->bufLen));
-      int ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
-      if (ret != 1) {
-        taosMemoryFreeClear(*ppRow);
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return terrno;
-      }
-      memcpy(*ppRow + szThisBlock, pRegion->buf, rowLen - szThisBlock);
-      *pFreeRow = true;
-      pRegion->bufRegOffset += pRegion->bufLen;
-      pRegion->bufLen = readBytes;
+    *ppRow = taosMemoryMalloc(rowLen);
+    if (*ppRow == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t szThisBlock = pRegion->bufLen - (tupleOffset - pRegion->bufRegOffset);
+    memcpy(*ppRow, pRegion->buf + tupleOffset - pRegion->bufRegOffset, szThisBlock);
+    tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET);
+    int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize - (pRegion->bufRegOffset + pRegion->bufLen));
+    int     ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+    if (ret != 1) {
+      taosMemoryFreeClear(*ppRow);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
+    memcpy(*ppRow + szThisBlock, pRegion->buf, rowLen - szThisBlock);
+    *pFreeRow = true;
+    pRegion->bufRegOffset += pRegion->bufLen;
+    pRegion->bufLen = readBytes;
   }
-  //TODO: free region memory
   return TSDB_CODE_SUCCESS;
 }
 
