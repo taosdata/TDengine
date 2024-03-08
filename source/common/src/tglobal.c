@@ -1353,6 +1353,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosAddClientLogCfg(tsCfg) != 0) return -1;
     if (taosAddServerLogCfg(tsCfg) != 0) return -1;
   }
+
   taosAddSystemCfg(tsCfg);
 
   if (taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
@@ -1379,7 +1380,9 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetTfsCfg(tsCfg) != 0) return -1;
     if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
+
   taosSetSystemCfg(tsCfg);
+
   if (taosSetFileHandlesLimit() != 0) return -1;
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
