@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
-cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
+cJSON* syncNode2Json(const SyncNode* pSyncNode) {
   char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
@@ -172,18 +172,18 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   }
 
   cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncNode", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncNode", pRoot);
   return pJson;
 }
 
-char* syncNode2Str(const SSyncNode* pSyncNode) {
+char* syncNode2Str(const SyncNode* pSyncNode) {
   cJSON* pJson = syncNode2Json(pSyncNode);
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
-inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
+inline char* syncNode2SimpleStr(const SyncNode* pSyncNode) {
   int32_t len = 256;
   char*   s = (char*)taosMemoryMalloc(len);
 
@@ -207,7 +207,7 @@ inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
 }
 
 // ping --------------
-int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
+int32_t syncNodePing(SyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
   syncPingLog2((char*)"==syncNodePing==", pMsg);
   int32_t ret = 0;
 
@@ -219,7 +219,7 @@ int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* 
   return ret;
 }
 
-int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
+int32_t syncNodePingSelf(SyncNode* pSyncNode) {
   int32_t   ret = 0;
   SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId, pSyncNode->vgId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
@@ -229,7 +229,7 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
+int32_t syncNodePingPeers(SyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId*  destId = &(pSyncNode->peersId[i]);
@@ -241,7 +241,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodePingAll(SSyncNode* pSyncNode) {
+int32_t syncNodePingAll(SyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.replicaNum; ++i) {
     SRaftId*  destId = &(pSyncNode->replicasId[i]);
@@ -254,7 +254,7 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
 }
 
 // on message ----
-int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
+int32_t syncNodeOnPing(SyncNode* ths, SyncPing* pMsg) {
   sTrace("vgId:%d, recv sync-ping", ths->vgId);
 
   SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId, ths->vgId);
@@ -274,7 +274,7 @@ int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
   return 0;
 }
 
-int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg) {
+int32_t syncNodeOnPingReply(SyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
   sTrace("vgId:%d, recv sync-ping-reply", ths->vgId);
   return ret;

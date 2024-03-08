@@ -17,9 +17,9 @@ int32_t  myIndex = 0;
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM*  pFsm;
-SSyncNode* pSyncNode;
+SyncNode*  pSyncNode;
 
-SSyncNode* syncNodeInit() {
+SyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.syncSendMSg = syncIOSendMsg;
@@ -53,9 +53,9 @@ SSyncNode* syncNodeInit() {
   return pSyncNode;
 }
 
-SSyncNode* syncInitTest() { return syncNodeInit(); }
+SyncNode* syncInitTest() { return syncNodeInit(); }
 
-void initRaftId(SSyncNode* pSyncNode) {
+void initRaftId(SyncNode* pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
     ids[i] = pSyncNode->replicasId[i];
     char* s = syncUtilRaftId2Str(&ids[i]);
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
   ret = syncInit();
   assert(ret == 0);
 
-  SSyncNode* pSyncNode = syncInitTest();
+  SyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
   char* serialized = syncNode2Str(pSyncNode);

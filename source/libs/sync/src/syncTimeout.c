@@ -23,7 +23,7 @@
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 
-static void syncNodeCleanConfigIndex(SSyncNode* ths) {
+static void syncNodeCleanConfigIndex(SyncNode* ths) {
 #if 0
   int32_t   newArrIndex = 0;
   SyncIndex newConfigIndexArr[MAX_CONFIG_INDEX_COUNT] = {0};
@@ -55,7 +55,7 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 #endif
 }
 
-static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
+static int32_t syncNodeTimerRoutine(SyncNode* ths) {
   ths->tmrRoutineNum++;
 
   if (ths->tmrRoutineNum % 60 == 0 && ths->totalReplicaNum > 1) {
@@ -75,7 +75,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   int64_t timeNow = taosGetTimestampMs();
 
   for (int i = 0; i < ths->peersNum; ++i) {
-    SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
+    SyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
       if (ths->isStart && (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) &&
           pSender->start) {
@@ -102,7 +102,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   return 0;
 }
 
-int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
+int32_t syncNodeOnTimeout(SyncNode* ths, const SRpcMsg* pRpc) {
   int32_t      ret = 0;
   SyncTimeout* pMsg = pRpc->pCont;
 

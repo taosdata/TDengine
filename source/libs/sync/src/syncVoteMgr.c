@@ -23,7 +23,7 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
   pVotesGranted->votes = 0;
 }
 
-SVotesGranted *voteGrantedCreate(SSyncNode *pNode) {
+SVotesGranted *voteGrantedCreate(SyncNode *pNode) {
   SVotesGranted *pVotesGranted = taosMemoryCalloc(1, sizeof(SVotesGranted));
   if (pVotesGranted == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -48,7 +48,7 @@ void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
   }
 }
 
-void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode) {
+void voteGrantedUpdate(SVotesGranted *pVotesGranted, SyncNode *pNode) {
   pVotesGranted->replicas = (void*)&pNode->replicasId;
   pVotesGranted->replicaNum = pNode->replicaNum;
   voteGrantedClearVotes(pVotesGranted);
@@ -108,7 +108,7 @@ void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
   pVotesGranted->toLeader = false;
 }
 
-SVotesRespond *votesRespondCreate(SSyncNode *pNode) {
+SVotesRespond *votesRespondCreate(SyncNode *pNode) {
   SVotesRespond *pVotesRespond = taosMemoryCalloc(1, sizeof(SVotesRespond));
   if (pVotesRespond == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -129,7 +129,7 @@ void votesRespondDestory(SVotesRespond *pVotesRespond) {
   }
 }
 
-void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode) {
+void votesRespondUpdate(SVotesRespond *pVotesRespond, SyncNode *pNode) {
   pVotesRespond->replicas = (void*)&pNode->replicasId;
   pVotesRespond->replicaNum = pNode->replicaNum;
   pVotesRespond->term = 0;

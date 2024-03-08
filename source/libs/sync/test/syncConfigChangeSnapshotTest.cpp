@@ -221,7 +221,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   int64_t rid = syncOpen(&syncInfo);
   assert(rid > 0);
 
-  SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
+  SyncNode* pSyncNode = (SyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
@@ -323,7 +323,7 @@ int main(int argc, char** argv) {
     }
   */
 
-  SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
+  SyncNode* pSyncNode = (SyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
 
   if (isConfigChange) {

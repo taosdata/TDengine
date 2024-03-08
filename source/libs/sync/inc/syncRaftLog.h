@@ -25,7 +25,7 @@ extern "C" {
 #include "wal.h"
 
 typedef struct SSyncLogStoreData {
-  SSyncNode* pSyncNode;
+  SyncNode*  pSyncNode;
   SWal*      pWal;
 
   TdThreadMutex mutex;
@@ -34,7 +34,7 @@ typedef struct SSyncLogStoreData {
   // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 
-SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
+SSyncLogStore* logStoreCreate(SyncNode* pSyncNode);
 void           logStoreDestory(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
@@ -48,7 +48,7 @@ int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
 SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
 SyncIndex raftLogIndexRetention(struct SSyncLogStore* pLogStore, int64_t bytes);
 SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
-int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SyncRaftEntry** ppEntry);
 
 #ifdef __cplusplus
 }

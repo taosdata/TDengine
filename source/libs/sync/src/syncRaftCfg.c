@@ -85,7 +85,7 @@ static int32_t syncEncodeRaftCfg(const void *pObj, SJson *pJson) {
   return 0;
 }
 
-int32_t syncWriteCfgFile(SSyncNode *pNode) {
+int32_t syncWriteCfgFile(SyncNode *pNode) {
   int32_t     code = -1;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
@@ -198,7 +198,7 @@ static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
   return 0;
 }
 
-int32_t syncReadCfgFile(SSyncNode *pNode) {
+int32_t syncReadCfgFile(SyncNode *pNode) {
   int32_t     code = -1;
   TdFilePtr   pFile = NULL;
   char       *pData = NULL;
@@ -260,7 +260,7 @@ _OVER:
   return code;
 }
 
-int32_t syncAddCfgIndex(SSyncNode *pNode, SyncIndex cfgIndex) {
+int32_t syncAddCfgIndex(SyncNode *pNode, SyncIndex cfgIndex) {
   SRaftCfg *pCfg = &pNode->raftCfg;
   if (pCfg->configIndexCount < MAX_CONFIG_INDEX_COUNT) {
     return -1;

@@ -32,9 +32,9 @@ SWal* createWal(char* path, int32_t vgId) {
   return pWal;
 }
 
-SSyncNode* createSyncNode(SWal* pWal) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+SyncNode* createSyncNode(SWal* pWal) {
+  SyncNode* pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(SyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
   pSyncNode->pWal = pWal;
   return pSyncNode;
 }
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
   init();
   SWal* pWal = createWal(path, vgId);
   assert(pWal != NULL);
-  SSyncNode* pSyncNode = createSyncNode(pWal);
+  SyncNode* pSyncNode = createSyncNode(pWal);
   assert(pSyncNode != NULL);
 
   SSyncLogStore* pLog = logStoreCreate(pSyncNode);

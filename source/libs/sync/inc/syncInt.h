@@ -25,31 +25,31 @@ extern "C" {
 #include "trpc.h"
 #include "ttimer.h"
 
-typedef struct SyncTimeout            SyncTimeout;
-typedef struct SyncClientRequest      SyncClientRequest;
-typedef struct SyncRequestVote        SyncRequestVote;
-typedef struct SyncRequestVoteReply   SyncRequestVoteReply;
-typedef struct SyncAppendEntries      SyncAppendEntries;
-typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
-typedef struct SSyncEnv               SSyncEnv;
-typedef struct SVotesGranted          SVotesGranted;
-typedef struct SVotesRespond          SVotesRespond;
-typedef struct SSyncIndexMgr          SSyncIndexMgr;
-typedef struct SSyncRespMgr           SSyncRespMgr;
-typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
-typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
-typedef struct SSyncTimer             SSyncTimer;
-typedef struct SSyncHbTimerData       SSyncHbTimerData;
-typedef struct SyncSnapshotSend       SyncSnapshotSend;
-typedef struct SyncSnapshotRsp        SyncSnapshotRsp;
-typedef struct SyncLocalCmd           SyncLocalCmd;
-typedef struct SyncAppendEntriesBatch SyncAppendEntriesBatch;
-typedef struct SyncPreSnapshotReply   SyncPreSnapshotReply;
-typedef struct SyncHeartbeatReply     SyncHeartbeatReply;
-typedef struct SyncHeartbeat          SyncHeartbeat;
-typedef struct SyncPreSnapshot        SyncPreSnapshot;
-typedef struct SSyncLogBuffer         SSyncLogBuffer;
-typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
+typedef struct SSyncTimeout            SyncTimeout;
+typedef struct SSyncClientRequest      SyncClientRequest;
+typedef struct SSyncRequestVote        SyncRequestVote;
+typedef struct SSyncRequestVoteReply   SyncRequestVoteReply;
+typedef struct SSyncAppendEntries      SyncAppendEntries;
+typedef struct SSyncAppendEntriesReply SyncAppendEntriesReply;
+typedef struct SSyncEnv                SyncEnv;
+typedef struct SSVotesGranted          SVotesGranted;
+typedef struct SSVotesRespond          SVotesRespond;
+typedef struct SSyncIndexMgr           SyncIndexMgr;
+typedef struct SSyncRespMgr            SyncRespMgr;
+typedef struct SSyncSnapshotSender     SyncSnapshotSender;
+typedef struct SSyncSnapshotReceiver   SyncSnapshotReceiver;
+typedef struct SSyncTimer              SyncTimer;
+typedef struct SSyncHbTimerData        SyncHbTimerData;
+typedef struct SSyncSnapshotSend       SyncSnapshotSend;
+typedef struct SSyncSnapshotRsp        SyncSnapshotRsp;
+typedef struct SSyncLocalCmd           SyncLocalCmd;
+typedef struct SSyncAppendEntriesBatch SyncAppendEntriesBatch;
+typedef struct SSyncPreSnapshotReply   SyncPreSnapshotReply;
+typedef struct SSyncHeartbeatReply     SyncHeartbeatReply;
+typedef struct SSyncHeartbeat          SyncHeartbeat;
+typedef struct SSyncPreSnapshot        SyncPreSnapshot;
+typedef struct SSyncLogBuffer          SyncLogBuffer;
+typedef struct SSyncLogReplMgr         SyncLogReplMgr;
 
 #define MAX_CONFIG_INDEX_COUNT 256
 
@@ -76,12 +76,12 @@ typedef struct SRaftStore {
 
 typedef struct SSyncHbTimerData {
   int64_t     syncNodeRid;
-  SSyncTimer* pTimer;
+  SyncTimer*  pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
   int64_t     execTime;
   int64_t     rid;
-} SSyncHbTimerData;
+} SyncHbTimerData;
 
 typedef struct SSyncTimer {
   void*             pTimer;
@@ -92,11 +92,11 @@ typedef struct SSyncTimer {
   int64_t           timeStamp;
   SRaftId           destId;
   int64_t           hbDataRid;
-} SSyncTimer;
+} SyncTimer;
 
 typedef struct SElectTimerParam {
   uint64_t   logicClock;
-  SSyncNode* pSyncNode;
+  SyncNode*  pSyncNode;
   int64_t    executeTime;
   void*      pData;
 } SElectTimerParam;
@@ -115,7 +115,7 @@ typedef struct SSyncNode {
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
-  SSyncLogBuffer* pLogBuf;
+  SyncLogBuffer*  pLogBuf;
   SWal*           pWal;
   const SMsgCb*   msgcb;
   int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
@@ -153,8 +153,8 @@ typedef struct SSyncNode {
   SVotesRespond* pVotesRespond;
 
   // tla+ leader vars
-  SSyncIndexMgr* pNextIndex;
-  SSyncIndexMgr* pMatchIndex;
+  SyncIndexMgr* pNextIndex;
+  SyncIndexMgr* pMatchIndex;
 
   // tla+ log vars
   SSyncLogStore* pLogStore;
@@ -197,19 +197,19 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // peer heartbeat timer
-  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   // tools
-  SSyncRespMgr* pSyncRespMgr;
+  SyncRespMgr* pSyncRespMgr;
 
   // restore state
   bool restoreFinish;
   // SSnapshot*             pSnapshot;
-  SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
-  SSyncSnapshotReceiver* pNewNodeReceiver;
+  SyncSnapshotSender*   senders[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncSnapshotReceiver* pNewNodeReceiver;
 
   // log replication mgr
-  SSyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncLogReplMgr* logReplMgrs[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   SPeerState peerStates[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
@@ -234,105 +234,105 @@ typedef struct SSyncNode {
 
   bool isStart;
 
-} SSyncNode;
+} SyncNode;
 
 // open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
-int32_t    syncNodeStart(SSyncNode* pSyncNode);
-int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
-void       syncNodeClose(SSyncNode* pSyncNode);
-void       syncNodePreClose(SSyncNode* pSyncNode);
-void       syncNodePostClose(SSyncNode* pSyncNode);
-int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
-int32_t    syncNodeRestore(SSyncNode* pSyncNode);
-void       syncHbTimerDataFree(SSyncHbTimerData* pData);
+SyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
+int32_t   syncNodeStart(SyncNode* pSyncNode);
+int32_t   syncNodeStartStandBy(SyncNode* pSyncNode);
+void      syncNodeClose(SyncNode* pSyncNode);
+void      syncNodePreClose(SyncNode* pSyncNode);
+void      syncNodePostClose(SyncNode* pSyncNode);
+int32_t   syncNodePropose(SyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
+int32_t   syncNodeRestore(SyncNode* pSyncNode);
+void      syncHbTimerDataFree(SyncHbTimerData* pData);
 
 // config
-int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str);
+int32_t syncNodeChangeConfig(SyncNode* ths, SyncRaftEntry* pEntry, char* str);
 
 // on message ---------------------
-int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshot(SSyncNode* ths, SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotRsp(SSyncNode* ths, SRpcMsg* pMsg);
-int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnTimeout(SyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnClientRequest(SyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
+int32_t syncNodeOnRequestVote(SyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnRequestVoteReply(SyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntries(SyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntriesReply(SyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshot(SyncNode* ths, SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshotRsp(SyncNode* ths, SRpcMsg* pMsg);
+int32_t syncNodeOnHeartbeat(SyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnHeartbeatReply(SyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnLocalCmd(SyncNode* ths, const SRpcMsg* pMsg);
 
 // timer control --------------
-int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
-int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
-void    syncNodeResetElectTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartPingTimer(SyncNode* pSyncNode);
+int32_t syncNodeStopPingTimer(SyncNode* pSyncNode);
+int32_t syncNodeStartElectTimer(SyncNode* pSyncNode, int32_t ms);
+int32_t syncNodeStopElectTimer(SyncNode* pSyncNode);
+int32_t syncNodeRestartElectTimer(SyncNode* pSyncNode, int32_t ms);
+void    syncNodeResetElectTimer(SyncNode* pSyncNode);
+int32_t syncNodeStartHeartbeatTimer(SyncNode* pSyncNode);
+int32_t syncNodeStopHeartbeatTimer(SyncNode* pSyncNode);
+int32_t syncNodeRestartHeartbeatTimer(SyncNode* pSyncNode);
 
 // utils --------------
-int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
-int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h);
-bool      syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode);
-bool      syncNodeSnapshotSending(SSyncNode* pSyncNode);
-bool      syncNodeSnapshotRecving(SSyncNode* pSyncNode);
-bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
+int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SyncNode* pSyncNode, SRpcMsg* pMsg);
+SyncIndex syncMinMatchIndex(SyncNode* pSyncNode);
+int32_t   syncCacheEntry(SSyncLogStore* pLogStore, SyncRaftEntry* pEntry, LRUHandle** h);
+bool      syncNodeHeartbeatReplyTimeout(SyncNode* pSyncNode);
+bool      syncNodeSnapshotSending(SyncNode* pSyncNode);
+bool      syncNodeSnapshotRecving(SyncNode* pSyncNode);
+bool      syncNodeIsReadyForRead(SyncNode* pSyncNode);
 
 // raft state change --------------
-void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
-void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode);
-void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
-void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
-void syncNodeLeader2Follower(SSyncNode* pSyncNode);
-void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
-int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode);
+void syncNodeUpdateTerm(SyncNode* pSyncNode, SyncTerm term);
+void syncNodeUpdateTermWithoutStepDown(SyncNode* pSyncNode, SyncTerm term);
+void syncNodeStepDown(SyncNode* pSyncNode, SyncTerm newTerm);
+void syncNodeBecomeFollower(SyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeLearner(SyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeLeader(SyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeAssignedLeader(SyncNode* pSyncNode);
+void syncNodeCandidate2Leader(SyncNode* pSyncNode);
+void syncNodeFollower2Candidate(SyncNode* pSyncNode);
+void syncNodeLeader2Follower(SyncNode* pSyncNode);
+void syncNodeCandidate2Follower(SyncNode* pSyncNode);
+int32_t syncNodeAssignedLeader2Leader(SyncNode* pSyncNode);
 
 // raft vote --------------
-void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
-void syncNodeVoteForSelf(SSyncNode* pSyncNode, SyncTerm term);
+void syncNodeVoteForTerm(SyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
+void syncNodeVoteForSelf(SyncNode* pSyncNode, SyncTerm term);
 
 // log replication
-SSyncLogReplMgr* syncNodeGetLogReplMgr(SSyncNode* pNode, SRaftId* pDestId);
+SyncLogReplMgr* syncNodeGetLogReplMgr(SyncNode* pNode, SRaftId* pDestId);
 
 // snapshot --------------
-bool    syncNodeHasSnapshot(SSyncNode* pSyncNode);
-void    syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
-int32_t syncNodeStartSnapshot(SSyncNode* pSyncNode, SRaftId* pDestId);
+bool    syncNodeHasSnapshot(SyncNode* pSyncNode);
+void    syncNodeMaybeUpdateCommitBySnapshot(SyncNode* pSyncNode);
+int32_t syncNodeStartSnapshot(SyncNode* pSyncNode, SRaftId* pDestId);
 
-SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
-SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
-int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
-SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode);
-SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index);
-SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
-int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
+SyncIndex syncNodeGetLastIndex(const SyncNode* pSyncNode);
+SyncTerm  syncNodeGetLastTerm(SyncNode* pSyncNode);
+int32_t   syncNodeGetLastIndexTerm(SyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
+SyncIndex syncNodeSyncStartIndex(SyncNode* pSyncNode);
+SyncIndex syncNodeGetPreIndex(SyncNode* pSyncNode, SyncIndex index);
+SyncTerm  syncNodeGetPreTerm(SyncNode* pSyncNode, SyncIndex index);
+int32_t   syncNodeGetPreIndexTerm(SyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
-int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
-int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex);
-int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code);
+int32_t syncNodeDoCommit(SyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
+int32_t syncNodeFollowerCommit(SyncNode* ths, SyncIndex newCommitIndex);
+int32_t syncNodePreCommit(SyncNode* ths, SyncRaftEntry* pEntry, int32_t code);
 
-bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
-SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
-SSyncTimer*          syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId);
-SPeerState*          syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId);
-bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
+bool                syncNodeInRaftGroup(SyncNode* ths, SRaftId* pRaftId);
+SyncSnapshotSender* syncNodeGetSnapshotSender(SyncNode* ths, SRaftId* pDestId);
+SyncTimer*          syncNodeGetHbTimer(SyncNode* ths, SRaftId* pDestId);
+SPeerState*         syncNodeGetPeerState(SyncNode* ths, const SRaftId* pDestId);
+bool                syncNodeNeedSendAppendEntries(SyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
 
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
-int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
-bool    syncNodeIsMnode(SSyncNode* pSyncNode);
-int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
+int32_t syncNodeDynamicQuorum(const SyncNode* pSyncNode);
+bool    syncNodeIsMnode(SyncNode* pSyncNode);
+int32_t syncNodePeerStateInit(SyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

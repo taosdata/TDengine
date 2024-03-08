@@ -471,7 +471,7 @@ static void syncIOTickPing(void *param, void *tmrId) {
   taosTmrReset(syncIOTickPing, io->pingTimerMS, io, io->timerMgr, &io->pingTimer);
 }
 
-void syncEntryDestory(SSyncRaftEntry *pEntry) {}
+void syncEntryDestory(SyncRaftEntry *pEntry) {}
 
 void syncUtilMsgNtoH(void *msg) {
   SMsgHead *pHead = msg;

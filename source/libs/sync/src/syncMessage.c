@@ -19,7 +19,7 @@
 #include "syncRaftStore.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
-                         SSyncNode* pNode) {
+                         SyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
   pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
@@ -64,7 +64,7 @@ int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t
   return 0;
 }
 
-int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId) {
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SyncRaftEntry* pEntry, int32_t vgId) {
   int32_t bytes = sizeof(SyncClientRequest) + pEntry->bytes;
   pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
@@ -154,7 +154,7 @@ int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+int32_t syncBuildAppendEntriesFromRaftEntry(SyncNode* pNode, SyncRaftEntry* pEntry, SyncTerm prevLogTerm,
                                             SRpcMsg* pRpcMsg) {
   uint32_t dataLen = pEntry->bytes;
   uint32_t bytes = sizeof(SyncAppendEntries) + dataLen;

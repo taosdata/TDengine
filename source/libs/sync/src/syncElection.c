@@ -33,7 +33,7 @@
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
+static int32_t syncNodeRequestVotePeers(SyncNode* pNode) {
   if (pNode->state != TAOS_SYNC_STATE_CANDIDATE) {
     sNTrace(pNode, "not candidate, stop elect");
     return 0;
@@ -70,7 +70,7 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
   return 0;
 }
 
-int32_t syncNodeElect(SSyncNode* pSyncNode) {
+int32_t syncNodeElect(SyncNode* pSyncNode) {
   if (pSyncNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     sNError(pSyncNode, "skip leader election due to incomplete fsm state");
     return -1;

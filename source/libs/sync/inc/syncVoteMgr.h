@@ -22,7 +22,7 @@ extern "C" {
 
 #include "syncInt.h"
 
-typedef struct SVotesGranted {
+typedef struct SSVotesGranted {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   bool       isGranted[TSDB_MAX_REPLICA];
   int32_t    replicaNum;
@@ -30,27 +30,27 @@ typedef struct SVotesGranted {
   SyncTerm   term;
   int32_t    quorum;
   bool       toLeader;
-  SSyncNode *pNode;
+  SyncNode  *pNode;
 } SVotesGranted;
 
-SVotesGranted *voteGrantedCreate(SSyncNode *pNode);
+SVotesGranted *voteGrantedCreate(SyncNode *pNode);
 void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
-void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode);
+void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SyncNode *pNode);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
 
-typedef struct SVotesRespond {
+typedef struct SSVotesRespond {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   bool       isRespond[TSDB_MAX_REPLICA];
   int32_t    replicaNum;
   SyncTerm   term;
-  SSyncNode *pNode;
+  SyncNode  *pNode;
 } SVotesRespond;
 
-SVotesRespond *votesRespondCreate(SSyncNode *pNode);
+SVotesRespond *votesRespondCreate(SyncNode *pNode);
 void           votesRespondDestory(SVotesRespond *pVotesRespond);
-void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode);
+void           votesRespondUpdate(SVotesRespond *pVotesRespond, SyncNode *pNode);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);

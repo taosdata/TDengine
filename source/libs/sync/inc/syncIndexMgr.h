@@ -31,23 +31,23 @@ typedef struct SSyncIndexMgr {
   int64_t    recvTimeArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   int32_t    replicaNum;
   int32_t    totalReplicaNum;
-  SSyncNode *pNode;
-} SSyncIndexMgr;
+  SyncNode  *pNode;
+} SyncIndexMgr;
 
-SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode);
-void           syncIndexMgrUpdate(SSyncIndexMgr *pIndexMgr, SSyncNode *pNode);
-void           syncIndexMgrDestroy(SSyncIndexMgr *pIndexMgr);
-void           syncIndexMgrClear(SSyncIndexMgr *pIndexMgr);
-void           syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index);
-SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
-void           syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldIndex, SRaftId *oldReplicasId);
+SyncIndexMgr *syncIndexMgrCreate(SyncNode *pNode);
+void          syncIndexMgrUpdate(SyncIndexMgr *pIndexMgr, SyncNode *pNode);
+void          syncIndexMgrDestroy(SyncIndexMgr *pIndexMgr);
+void          syncIndexMgrClear(SyncIndexMgr *pIndexMgr);
+void          syncIndexMgrSetIndex(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index);
+SyncIndex     syncIndexMgrGetIndex(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void          syncIndexMgrCopyIfExist(SyncIndexMgr *pNewIndex, SyncIndexMgr *pOldIndex, SRaftId *oldReplicasId);
 
-void     syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime);
-int64_t  syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
-void     syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime);
-int64_t  syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
-void     syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term);
-SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void     syncIndexMgrSetStartTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime);
+int64_t  syncIndexMgrGetStartTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void     syncIndexMgrSetRecvTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime);
+int64_t  syncIndexMgrGetRecvTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void     syncIndexMgrSetTerm(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term);
+SyncTerm syncIndexMgrGetTerm(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
 
 #ifdef __cplusplus
 }

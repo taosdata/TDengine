@@ -10,8 +10,8 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SSyncRaftEntry *createEntry(int i) {
-  SSyncRaftEntry *pEntry = syncEntryBuild(20);
+SyncRaftEntry *createEntry(int i) {
+  SyncRaftEntry *pEntry = syncEntryBuild(20);
   assert(pEntry != NULL);
   pEntry->msgType = 1;
   pEntry->originalRpcType = 2;
@@ -24,11 +24,11 @@ SSyncRaftEntry *createEntry(int i) {
 }
 
 SyncAppendEntriesBatch *createMsg() {
-  SSyncRaftEntry *entryPArr[5];
+  SyncRaftEntry *entryPArr[5];
   memset(entryPArr, 0, sizeof(entryPArr));
 
   for (int32_t i = 0; i < 5; ++i) {
-    SSyncRaftEntry *pEntry = createEntry(i);
+    SyncRaftEntry *pEntry = createEntry(i);
     entryPArr[i] = pEntry;
   }
 
@@ -52,7 +52,7 @@ void test1() {
     SOffsetAndContLen *metaArr = syncAppendEntriesBatchMetaTableArray(pMsg);
     int32_t            retArrSize = pMsg->dataCount;
     for (int i = 0; i < retArrSize; ++i) {
-      SSyncRaftEntry *pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
+      SyncRaftEntry *pEntry = (SyncRaftEntry*)(pMsg->data + metaArr[i].offset);
       ASSERT(pEntry->bytes == metaArr[i].contLen);
       syncEntryPrint(pEntry);
     }

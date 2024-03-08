@@ -18,9 +18,9 @@
 #include "syncUtil.h"
 #include "tref.h"
 
-SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
-  int32_t         bytes = sizeof(SSyncRaftEntry) + dataLen;
-  SSyncRaftEntry* pEntry = taosMemoryCalloc(1, bytes);
+SyncRaftEntry* syncEntryBuild(int32_t dataLen) {
+  int32_t        bytes = sizeof(SyncRaftEntry) + dataLen;
+  SyncRaftEntry* pEntry = taosMemoryCalloc(1, bytes);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -33,8 +33,8 @@ SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
+SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
+  SyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   if (pEntry == NULL) return NULL;
 
   pEntry->msgType = pMsg->msgType;
@@ -48,8 +48,8 @@ SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, S
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->contLen);
+SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index) {
+  SyncRaftEntry* pEntry = syncEntryBuild(pMsg->contLen);
   if (pEntry == NULL) return NULL;
 
   pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
@@ -63,8 +63,8 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SSyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
+SyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
+  SyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -74,8 +74,8 @@ SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(sizeof(SMsgHead));
+SyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId) {
+  SyncRaftEntry* pEntry = syncEntryBuild(sizeof(SMsgHead));
   if (pEntry == NULL) return NULL;
 
   pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
@@ -92,14 +92,14 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   return pEntry;
 }
 
-void syncEntryDestroy(SSyncRaftEntry* pEntry) {
+void syncEntryDestroy(SyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     sTrace("free entry:%p", pEntry);
     taosMemoryFree(pEntry);
   }
 }
 
-void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
+void syncEntry2OriginalRpc(const SyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   pRpcMsg->msgType = pEntry->originalRpcType;
   pRpcMsg->contLen = (int32_t)(pEntry->dataLen);
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);

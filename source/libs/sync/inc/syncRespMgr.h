@@ -33,16 +33,16 @@ typedef struct SSyncRespMgr {
   void *        data;
   TdThreadMutex mutex;
   uint64_t      seqNum;
-} SSyncRespMgr;
+} SyncRespMgr;
 
-SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl);
-void          syncRespMgrDestroy(SSyncRespMgr *pObj);
-uint64_t      syncRespMgrAdd(SSyncRespMgr *pObj, const SRespStub *pStub);
-int32_t       syncRespMgrDel(SSyncRespMgr *pObj, uint64_t seq);
-int32_t       syncRespMgrGet(SSyncRespMgr *pObj, uint64_t seq, SRespStub *pStub);
-int32_t       syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *pInfo);
-void          syncRespClean(SSyncRespMgr *pObj);
-void          syncRespCleanRsp(SSyncRespMgr *pObj);
+SyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl);
+void         syncRespMgrDestroy(SyncRespMgr *pObj);
+uint64_t     syncRespMgrAdd(SyncRespMgr *pObj, const SRespStub *pStub);
+int32_t      syncRespMgrDel(SyncRespMgr *pObj, uint64_t seq);
+int32_t      syncRespMgrGet(SyncRespMgr *pObj, uint64_t seq, SRespStub *pStub);
+int32_t      syncRespMgrGetAndDel(SyncRespMgr *pObj, uint64_t seq, SRpcHandleInfo *pInfo);
+void         syncRespClean(SyncRespMgr *pObj);
+void         syncRespCleanRsp(SyncRespMgr *pObj);
 
 #ifdef __cplusplus
 }

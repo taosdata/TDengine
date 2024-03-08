@@ -8,7 +8,7 @@ void logTest() {
   sError("--- sync log test: error");
   sFatal("--- sync log test: fatal");
 }
-SSyncRespMgr *pMgr = NULL;
+SyncRespMgr *pMgr = NULL;
 
 void syncRespMgrInsert(uint64_t count) {
   for (uint64_t i = 0; i < count; ++i) {
@@ -69,9 +69,9 @@ void syncRespMgrGetAndDelTest(uint64_t i) {
   }
 }
 
-SSyncNode *createSyncNode() {
-  SSyncNode *pSyncNode = (SSyncNode *)taosMemoryMalloc(sizeof(SSyncNode));
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+SyncNode *createSyncNode() {
+  SyncNode *pSyncNode = (SyncNode *)taosMemoryMalloc(sizeof(SyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
   return pSyncNode;
 }
 

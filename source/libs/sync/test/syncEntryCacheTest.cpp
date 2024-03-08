@@ -9,9 +9,9 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SSyncRaftEntry* createEntry(int i) {
+SyncRaftEntry* createEntry(int i) {
   int32_t         dataLen = 20;
-  SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+  SyncRaftEntry*  pEntry = syncEntryBuild(dataLen);
   assert(pEntry != NULL);
   pEntry->msgType = 88;
   pEntry->originalRpcType = 99;
@@ -24,16 +24,16 @@ SSyncRaftEntry* createEntry(int i) {
   return pEntry;
 }
 
-SSyncNode* createFakeNode() {
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
+SyncNode* createFakeNode() {
+  SyncNode* pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(SyncNode));
   ASSERT(pSyncNode != NULL);
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
 
   return pSyncNode;
 }
 
 SRaftEntryCache* createCache(int maxCount) {
-  SSyncNode* pSyncNode = createFakeNode();
+  SyncNode* pSyncNode = createFakeNode();
   ASSERT(pSyncNode != NULL);
 
   SRaftEntryCache* pCache = raftEntryCacheCreate(pSyncNode, maxCount);
@@ -46,7 +46,7 @@ void test1() {
   int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftEntryCachePutEntry(pCache, pEntry);
     sTrace("put entry code:%d, pEntry:%p", code, pEntry);
   }
@@ -63,14 +63,14 @@ void test2() {
   int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftEntryCachePutEntry(pCache, pEntry);
     sTrace("put entry code:%d, pEntry:%p", code, pEntry);
   }
   raftEntryCacheLog2((char*)"==test1 write 5 entries==", pCache);
 
   SyncIndex       index = 2;
-  SSyncRaftEntry* pEntry = NULL;
+  SyncRaftEntry*  pEntry = NULL;
 
   code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   ASSERT(code == 1 && index == pEntry->index);
@@ -102,12 +102,12 @@ void test3() {
   int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(20);
   for (int i = 0; i <= 4; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftEntryCachePutEntry(pCache, pEntry);
     sTrace("put entry code:%d, pEntry:%p", code, pEntry);
   }
   for (int i = 9; i >= 5; --i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftEntryCachePutEntry(pCache, pEntry);
     sTrace("put entry code:%d, pEntry:%p", code, pEntry);
   }
@@ -115,7 +115,7 @@ void test3() {
 }
 
 static void freeObj(void* param) {
-  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
+  SyncRaftEntry* pEntry = (SyncRaftEntry*)param;
   syncEntryLog2((char*)"freeObj: ", pEntry);
   syncEntryDestory(pEntry);
 }
@@ -123,14 +123,14 @@ static void freeObj(void* param) {
 void test4() {
   int32_t testRefId = taosOpenRef(200, freeObj);
 
-  SSyncRaftEntry* pEntry = createEntry(10);
+  SyncRaftEntry* pEntry = createEntry(10);
   ASSERT(pEntry != NULL);
 
   int64_t rid = taosAddRef(testRefId, pEntry);
   sTrace("rid: %" PRId64, rid);
 
   do {
-    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    SyncRaftEntry* pAcquireEntry = (SyncRaftEntry*)taosAcquireRef(testRefId, rid);
     syncEntryLog2((char*)"acquire: ", pAcquireEntry);
 
     taosAcquireRef(testRefId, rid);
@@ -152,7 +152,7 @@ void test4() {
 void test5() {
   int32_t testRefId = taosOpenRef(5, freeObj);
   for (int i = 0; i < 100; i++) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     ASSERT(pEntry != NULL);
 
     int64_t rid = taosAddRef(testRefId, pEntry);
@@ -160,7 +160,7 @@ void test5() {
   }
 
   for (int64_t rid = 2; rid < 101; rid++) {
-    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    SyncRaftEntry* pAcquireEntry = (SyncRaftEntry*)taosAcquireRef(testRefId, rid);
     syncEntryLog2((char*)"taosAcquireRef: ", pAcquireEntry);
   }
 }

@@ -36,7 +36,7 @@ SWal* createWal(char* path, int32_t vgId) {
   return pWal;
 }
 
-SSyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path) {
+SyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.msgcb = &gSyncIO->msgcb;
@@ -56,7 +56,7 @@ SSyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWa
     // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
   }
 
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
+  SyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
   snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
   SWal* pWal = createWal(walPath, gVgId);
 
-  SSyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
+  SyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
   assert(pSyncNode != NULL);
   sNTrace(pSyncNode, "==syncElectTest==");
 

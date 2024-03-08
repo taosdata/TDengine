@@ -35,7 +35,7 @@ extern "C" {
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntriesReply(SyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

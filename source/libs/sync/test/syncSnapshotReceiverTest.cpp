@@ -27,8 +27,8 @@ int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void* pParam, void** ppWriter)
 int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot) { return 0; }
 int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len) { return 0; }
 
-SSyncSnapshotReceiver* createReceiver() {
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
+SyncSnapshotReceiver* createReceiver() {
+  SyncNode* pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
   // pSyncNode->pRaftStore = (SRaftStore*)taosMemoryMalloc(sizeof(*(pSyncNode->pRaftStore)));
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(*(pSyncNode->pFsm)));
 
@@ -42,7 +42,7 @@ SSyncSnapshotReceiver* createReceiver() {
   id.addr = syncUtilAddr2U64("1.2.3.4", 99);
   id.vgId = 100;
 
-  SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, id);
+  SyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, id);
   pReceiver->start = true;
   pReceiver->ack = 20;
   pReceiver->pWriter = (void*)0x11;
@@ -56,7 +56,7 @@ int main() {
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
-  SSyncSnapshotReceiver* pReceiver = createReceiver();
+  SyncSnapshotReceiver* pReceiver = createReceiver();
   sTrace("%s", snapshotReceiver2Str(pReceiver));
 
   return 0;

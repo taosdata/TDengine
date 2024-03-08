@@ -16,27 +16,27 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
-void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
+void syncIndexMgrPrint(SyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", (uint64_t)strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
-void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
+void syncIndexMgrPrint2(char *s, SyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", (uint64_t)strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
-void syncIndexMgrLog(SSyncIndexMgr *pObj) {
+void syncIndexMgrLog(SyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", (uint64_t)strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
-void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
+void syncIndexMgrLog2(char *s, SyncIndexMgr *pObj) {
   if (gRaftDetailLog) {
     char *serialized = syncIndexMgr2Str(pObj);
     sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", (uint64_t)strlen(serialized), s, serialized);
@@ -44,7 +44,7 @@ void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
   }
 }
 
-cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
+cJSON *syncIndexMgr2Json(SyncIndexMgr *pSyncIndexMgr) {
   char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
@@ -85,7 +85,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
   return pJson;
 }
 
-char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
+char *syncIndexMgr2Str(SyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
   char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);

@@ -39,10 +39,10 @@ typedef struct SSyncLogReplMgr {
   int64_t       peerStartTime;
   int32_t       retryBackoff;
   int32_t       peerId;
-} SSyncLogReplMgr;
+} SyncLogReplMgr;
 
 typedef struct SSyncLogBufEntry {
-  SSyncRaftEntry* pItem;
+  SyncRaftEntry*  pItem;
   SyncIndex       prevLogIndex;
   SyncTerm        prevLogTerm;
 } SSyncLogBufEntry;
@@ -58,63 +58,63 @@ typedef struct SSyncLogBuffer {
   TdThreadMutexAttr attr;
   int64_t          totalIndex;
   bool             isCatchup;
-} SSyncLogBuffer;
+} SyncLogBuffer;
 
 // SSyncLogRepMgr
-SSyncLogReplMgr* syncLogReplCreate();
-void             syncLogReplDestroy(SSyncLogReplMgr* pMgr);
-void             syncLogReplReset(SSyncLogReplMgr* pMgr);
+SyncLogReplMgr* syncLogReplCreate();
+void            syncLogReplDestroy(SyncLogReplMgr* pMgr);
+void            syncLogReplReset(SyncLogReplMgr* pMgr);
 
-int32_t syncNodeLogReplInit(SSyncNode* pNode);
-void    syncNodeLogReplDestroy(SSyncNode* pNode);
+int32_t syncNodeLogReplInit(SyncNode* pNode);
+void    syncNodeLogReplDestroy(SyncNode* pNode);
 
 // access
-static FORCE_INLINE int64_t syncLogReplGetRetryBackoffTimeMs(SSyncLogReplMgr* pMgr) {
+static FORCE_INLINE int64_t syncLogReplGetRetryBackoffTimeMs(SyncLogReplMgr* pMgr) {
   return ((int64_t)1 << pMgr->retryBackoff) * SYNC_LOG_REPL_RETRY_WAIT_MS;
 }
 
-static FORCE_INLINE int32_t syncLogReplGetNextRetryBackoff(SSyncLogReplMgr* pMgr) {
+static FORCE_INLINE int32_t syncLogReplGetNextRetryBackoff(SyncLogReplMgr* pMgr) {
   return TMIN(pMgr->retryBackoff + 1, SYNC_MAX_RETRY_BACKOFF);
 }
 
-SyncTerm syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index);
+SyncTerm syncLogReplGetPrevLogTerm(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index);
 
-int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
-int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
-int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index);
-int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode);
-int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm, SRaftId* pDestId,
+int32_t syncLogReplStart(SyncLogReplMgr* pMgr, SyncNode* pNode);
+int32_t syncLogReplAttempt(SyncLogReplMgr* pMgr, SyncNode* pNode);
+int32_t syncLogReplProbe(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index);
+int32_t syncLogReplRetryOnNeed(SyncLogReplMgr* pMgr, SyncNode* pNode);
+int32_t syncLogReplSendTo(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index, SyncTerm* pTerm, SRaftId* pDestId,
                           bool* pBarrier);
 
-int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
-int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
-int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t syncLogReplProcessReply(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t syncLogReplRecover(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg);
+int32_t syncLogReplContinue(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg);
 
-int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg);
+int32_t syncLogReplProcessHeartbeatReply(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncHeartbeatReply* pMsg);
 
-// SSyncLogBuffer
-SSyncLogBuffer* syncLogBufferCreate();
-void            syncLogBufferDestroy(SSyncLogBuffer* pBuf);
-int32_t         syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
-int32_t         syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+// SyncLogBuffer
+SyncLogBuffer* syncLogBufferCreate();
+void           syncLogBufferDestroy(SyncLogBuffer* pBuf);
+int32_t        syncLogBufferInit(SyncLogBuffer* pBuf, SyncNode* pNode);
+int32_t        syncLogBufferReInit(SyncLogBuffer* pBuf, SyncNode* pNode);
 
 // access
-int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
-SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf);
-bool     syncLogBufferIsEmpty(SSyncLogBuffer* pBuf);
+int64_t  syncLogBufferGetEndIndex(SyncLogBuffer* pBuf);
+SyncTerm syncLogBufferGetLastMatchTerm(SyncLogBuffer* pBuf);
+bool     syncLogBufferIsEmpty(SyncLogBuffer* pBuf);
 
-int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
-int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str);
-int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex);
-int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+int32_t syncLogBufferAppend(SyncLogBuffer* pBuf, SyncNode* pNode, SyncRaftEntry* pEntry);
+int32_t syncLogBufferAccept(SyncLogBuffer* pBuf, SyncNode* pNode, SyncRaftEntry* pEntry, SyncTerm prevTerm);
+int64_t syncLogBufferProceed(SyncLogBuffer* pBuf, SyncNode* pNode, SyncTerm* pMatchTerm, char* str);
+int32_t syncLogBufferCommit(SyncLogBuffer* pBuf, SyncNode* pNode, int64_t commitIndex);
+int32_t syncLogBufferReset(SyncLogBuffer* pBuf, SyncNode* pNode);
 
 // private
-SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf);
-int32_t         syncLogBufferValidate(SSyncLogBuffer* pBuf);
-int32_t         syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
+SyncRaftEntry* syncLogBufferGetOneEntry(SyncLogBuffer* pBuf, SyncNode* pNode, SyncIndex index, bool* pInBuf);
+int32_t        syncLogBufferValidate(SyncLogBuffer* pBuf);
+int32_t        syncLogBufferRollback(SyncLogBuffer* pBuf, SyncNode* pNode, SyncIndex toIndex);
 
-int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
+int32_t syncFsmExecute(SyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SyncRaftEntry* pEntry,
                        int32_t applyCode, bool force);
 #ifdef __cplusplus
 }

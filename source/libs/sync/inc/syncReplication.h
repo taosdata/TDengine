@@ -47,18 +47,18 @@ extern "C" {
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
-int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg);
+int32_t syncNodeHeartbeatPeers(SyncNode* pSyncNode);
+int32_t syncNodeSendHeartbeat(SyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg);
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode);
-int32_t syncNodeReplicateReset(SSyncNode* pSyncNode, SRaftId* pDestId);
-int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode);
+int32_t syncNodeReplicate(SyncNode* pSyncNode);
+int32_t syncNodeReplicateReset(SyncNode* pSyncNode, SRaftId* pDestId);
+int32_t syncNodeReplicateWithoutLock(SyncNode* pNode);
 
-int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+int32_t syncNodeSendAppendEntries(SyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
-int32_t syncSnapSendMsg(SSyncSnapshotSender* pSender, int32_t seq, void* pBlock, int32_t len, int32_t typ);
-int32_t syncSnapSendRsp(SSyncSnapshotReceiver* pReceiver, SyncSnapshotSend* pMsg, void* pBlock, int32_t len,
-                        int32_t typ, int32_t code);
+int32_t syncSnapSendMsg(SyncSnapshotSender* pSender, int32_t seq, void* pBlock, int32_t len, int32_t typ);
+int32_t syncSnapSendRsp(SyncSnapshotReceiver* pReceiver, SyncSnapshotSend* pMsg, void* pBlock, int32_t len, int32_t typ,
+                        int32_t code);
 
 #ifdef __cplusplus
 }

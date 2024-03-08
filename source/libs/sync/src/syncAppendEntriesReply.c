@@ -39,7 +39,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
 
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+int32_t syncNodeOnAppendEntriesReply(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
   int32_t ret = 0;
 
@@ -86,7 +86,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
 
     // replicate log
-    SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+    SyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
     if (pMgr == NULL) {
       sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
       return -1;

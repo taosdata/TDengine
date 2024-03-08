@@ -23,14 +23,14 @@
 
 // public function
 static int32_t   raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex);
-static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forceSync);
+static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SyncRaftEntry* pEntry, bool forceSync);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 static int32_t   raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore);
-static int32_t   raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
+static int32_t   raftLogGetLastEntry(SSyncLogStore* pLogStore, SyncRaftEntry** ppLastEntry);
 
-SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
+SSyncLogStore* logStoreCreate(SyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryCalloc(1, sizeof(SSyncLogStore));
   if (pLogStore == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -187,7 +187,7 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   if (walIsEmpty(pWal)) {
     return 0;
   } else {
-    SSyncRaftEntry* pLastEntry;
+    SyncRaftEntry*  pLastEntry;
     int32_t         code = raftLogGetLastEntry(pLogStore, &pLastEntry);
     if (code == 0 && pLastEntry != NULL) {
       SyncTerm lastTerm = pLastEntry->term;
@@ -202,7 +202,7 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   return SYNC_TERM_INVALID;
 }
 
-static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forceSync) {
+static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SyncRaftEntry* pEntry, bool forceSync) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
@@ -239,7 +239,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 // entry found, return 0
 // entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
 // other error, return -1
-int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
+int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   int32_t            code = 0;
@@ -343,7 +343,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 // entry found, return 0
 // entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
 // other error, return -1
-static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry) {
+static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SyncRaftEntry** ppLastEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   ASSERT(ppLastEntry != NULL);

@@ -45,7 +45,7 @@
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
 
-static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
+static bool syncNodeOnRequestVoteLogOK(SyncNode* ths, SyncRequestVote* pMsg) {
   SyncTerm  myLastTerm = syncNodeGetLastTerm(ths);
   SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
 
@@ -87,7 +87,7 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   return false;
 }
 
-int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+int32_t syncNodeOnRequestVote(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
   bool             resetElect = false;

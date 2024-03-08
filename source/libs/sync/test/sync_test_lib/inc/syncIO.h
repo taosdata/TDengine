@@ -54,16 +54,16 @@ typedef struct SSyncIO {
   tmr_h   timerMgr;
 
   void *pSyncNode;
-  int32_t (*FpOnSyncPing)(SSyncNode *pSyncNode, SyncPing *pMsg);
-  int32_t (*FpOnSyncPingReply)(SSyncNode *pSyncNode, SyncPingReply *pMsg);
-  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SRpcMsg *pMsg, SyncIndex *pRetIndex);
-  int32_t (*FpOnSyncRequestVote)(SSyncNode *pSyncNode, SyncRequestVote *pMsg);
-  int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
-  int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);
-  int32_t (*FpOnSyncAppendEntriesReply)(SSyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
-  int32_t (*FpOnSyncTimeout)(SSyncNode *pSyncNode, SyncTimeout *pMsg);
-  int32_t (*FpOnSyncSnapshot)(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg);
-  int32_t (*FpOnSyncSnapshotReply)(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg);
+  int32_t (*FpOnSyncPing)(SyncNode *pSyncNode, SyncPing *pMsg);
+  int32_t (*FpOnSyncPingReply)(SyncNode *pSyncNode, SyncPingReply *pMsg);
+  int32_t (*FpOnSyncClientRequest)(SyncNode *pSyncNode, SRpcMsg *pMsg, SyncIndex *pRetIndex);
+  int32_t (*FpOnSyncRequestVote)(SyncNode *pSyncNode, SyncRequestVote *pMsg);
+  int32_t (*FpOnSyncRequestVoteReply)(SyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
+  int32_t (*FpOnSyncAppendEntries)(SyncNode *pSyncNode, SyncAppendEntries *pMsg);
+  int32_t (*FpOnSyncAppendEntriesReply)(SyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
+  int32_t (*FpOnSyncTimeout)(SyncNode *pSyncNode, SyncTimeout *pMsg);
+  int32_t (*FpOnSyncSnapshot)(SyncNode *pSyncNode, SyncSnapshotSend *pMsg);
+  int32_t (*FpOnSyncSnapshotReply)(SyncNode *pSyncNode, SyncSnapshotRsp *pMsg);
 
   int8_t isStart;
 
@@ -81,7 +81,7 @@ int32_t syncIOQTimerStop();
 int32_t syncIOPingTimerStart();
 int32_t syncIOPingTimerStop();
 
-void syncEntryDestory(SSyncRaftEntry* pEntry);
+void syncEntryDestory(SyncRaftEntry *pEntry);
 
 #ifdef __cplusplus
 }

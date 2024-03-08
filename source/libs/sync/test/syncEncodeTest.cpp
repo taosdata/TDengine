@@ -19,9 +19,9 @@ SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM  *pFsm;
 SWal      *pWal;
-SSyncNode *pSyncNode;
+SyncNode *pSyncNode;
 
-SSyncNode *syncNodeInit() {
+SyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.syncSendMSg = syncIOSendMsg;
@@ -72,9 +72,9 @@ SSyncNode *syncNodeInit() {
   return pSyncNode;
 }
 
-SSyncNode *syncInitTest() { return syncNodeInit(); }
+SyncNode *syncInitTest() { return syncNodeInit(); }
 
-void initRaftId(SSyncNode *pSyncNode) {
+void initRaftId(SyncNode *pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
     ids[i] = pSyncNode->replicasId[i];
     char *s = syncUtilRaftId2Str(&ids[i]);
@@ -109,12 +109,12 @@ SyncClientRequest *step3(const SRpcMsg *pMsg) {
   return pRetMsg;
 }
 
-SSyncRaftEntry *step4(const SyncClientRequest *pMsg) {
-  SSyncRaftEntry *pRetMsg = syncEntryBuildFromClientRequest((SyncClientRequest *)pMsg, 100, 0);
+SyncRaftEntry *step4(const SyncClientRequest *pMsg) {
+  SyncRaftEntry *pRetMsg = syncEntryBuildFromClientRequest((SyncClientRequest *)pMsg, 100, 0);
   return pRetMsg;
 }
 
-SRpcMsg *step7(const SSyncRaftEntry *pMsg) {
+SRpcMsg *step7(const SyncRaftEntry *pMsg) {
   SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   syncEntry2OriginalRpc(pMsg, pRetMsg);
   return pRetMsg;
@@ -157,13 +157,13 @@ int main(int argc, char **argv) {
   syncClientRequestLog2((char *)"==step3==", pMsg3);
 
   // step4
-  SSyncRaftEntry *pMsg4 = step4(pMsg3);
+  SyncRaftEntry *pMsg4 = step4(pMsg3);
   syncEntryLog2((char *)"==step4==", pMsg4);
 
   // log, relog
-  SSyncNode *pSyncNode = syncNodeInit();
+  SyncNode *pSyncNode = syncNodeInit();
   assert(pSyncNode != NULL);
-  SSyncRaftEntry *pEntry = pMsg4;
+  SyncRaftEntry *pEntry = pMsg4;
   pSyncNode->pLogStore->syncLogAppendEntry(pSyncNode->pLogStore, pEntry);
  
   int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, pEntry->index, &pEntry);

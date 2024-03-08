@@ -18,12 +18,12 @@
 #include "syncUtil.h"
 #include "tref.h"
 
-static SSyncEnv gSyncEnv = {0};
+static SyncEnv  gSyncEnv = {0};
 static int32_t  gNodeRefId = -1;
 static int32_t  gHbDataRefId = -1;
 static void     syncEnvTick(void *param, void *tmrId);
 
-SSyncEnv *syncEnv() { return &gSyncEnv; }
+SyncEnv *syncEnv() { return &gSyncEnv; }
 
 bool syncIsInit() { return atomic_load_8(&gSyncEnv.isStart); }
 
@@ -33,7 +33,7 @@ int32_t syncInit() {
   uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
   taosSeedRand(seed);
 
-  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+  memset(&gSyncEnv, 0, sizeof(SyncEnv));
   gSyncEnv.envTickTimerCounter = 0;
   gSyncEnv.envTickTimerMS = ENV_TICK_TIMER_MS;
   gSyncEnv.FpEnvTickTimer = syncEnvTick;
@@ -65,7 +65,7 @@ int32_t syncInit() {
 void syncCleanUp() {
   atomic_store_8(&gSyncEnv.isStart, 0);
   taosTmrCleanUp(gSyncEnv.pTimerManager);
-  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+  memset(&gSyncEnv, 0, sizeof(SyncEnv));
 
   if (gNodeRefId != -1) {
     sDebug("sync rsetId:%d is closed", gNodeRefId);
@@ -80,7 +80,7 @@ void syncCleanUp() {
   }
 }
 
-int64_t syncNodeAdd(SSyncNode *pNode) {
+int64_t syncNodeAdd(SyncNode *pNode) {
   pNode->rid = taosAddRef(gNodeRefId, pNode);
   if (pNode->rid < 0) return -1;
 
@@ -90,8 +90,8 @@ int64_t syncNodeAdd(SSyncNode *pNode) {
 
 void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
 
-SSyncNode *syncNodeAcquire(int64_t rid) {
-  SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
+SyncNode *syncNodeAcquire(int64_t rid) {
+  SyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
   if (pNode == NULL) {
     sError("failed to acquire node from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -100,11 +100,11 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
   return pNode;
 }
 
-void syncNodeRelease(SSyncNode *pNode) {
+void syncNodeRelease(SyncNode *pNode) {
   if (pNode) taosReleaseRef(gNodeRefId, pNode->rid);
 }
 
-int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
+int64_t syncHbTimerDataAdd(SyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);
   if (pData->rid < 0) return -1;
   return pData->rid;
@@ -112,8 +112,8 @@ int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
 
 void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
 
-SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
-  SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
+SyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
+  SyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
   if (pData == NULL && rid > 0) {
     sInfo("failed to acquire hb-timer-data from refId:%" PRId64, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -122,7 +122,7 @@ SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   return pData;
 }
 
-void syncHbTimerDataRelease(SSyncHbTimerData *pData) { taosReleaseRef(gHbDataRefId, pData->rid); }
+void syncHbTimerDataRelease(SyncHbTimerData *pData) { taosReleaseRef(gHbDataRefId, pData->rid); }
 
 #if 0
 void syncEnvStartTimer() {
@@ -142,7 +142,7 @@ void syncEnvStopTimer() {
 
 static void syncEnvTick(void *param, void *tmrId) {
 #if 0
-  SSyncEnv *pSyncEnv = param;
+  SyncEnv *pSyncEnv = param;
   if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
     gSyncEnv.envTickTimerCounter++;
     sTrace("syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64

@@ -14,11 +14,11 @@ int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncNode* pSyncNode;
+SyncNode*  pSyncNode;
 
-SSyncNode* syncNodeInit() {
-  pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+SyncNode* syncNodeInit() {
+  pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(SyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
   pSyncNode->replicaNum = replicaNum;
   for (int i = 0; i < replicaNum; ++i) {
     pSyncNode->replicasId[i].addr = syncUtilAddr2U64("127.0.0.1", ports[i]);
@@ -40,11 +40,11 @@ int main(int argc, char** argv) {
     myIndex = atoi(argv[1]);
   }
 
-  SSyncNode* pSyncNode = syncNodeInit();
+  SyncNode* pSyncNode = syncNodeInit();
   assert(pSyncNode != NULL);
 
   printf("---------------------------------------\n");
-  SSyncIndexMgr* pSyncIndexMgr = syncIndexMgrCreate(pSyncNode);
+  SyncIndexMgr* pSyncIndexMgr = syncIndexMgrCreate(pSyncNode);
   assert(pSyncIndexMgr != NULL);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);

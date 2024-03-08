@@ -38,7 +38,7 @@
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 //
 
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+int32_t syncNodeOnRequestVoteReply(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t               ret = 0;
   SyncRequestVoteReply* pMsg = pRpcMsg->pCont;
 

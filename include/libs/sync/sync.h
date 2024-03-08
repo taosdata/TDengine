@@ -69,9 +69,9 @@ typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
 typedef int64_t  SyncTerm;
 
-typedef struct SSyncNode      SSyncNode;
+typedef struct SSyncNode      SyncNode;
 typedef struct SWal           SWal;
-typedef struct SSyncRaftEntry SSyncRaftEntry;
+typedef struct SSyncRaftEntry SyncRaftEntry;
 
 typedef enum {
   TAOS_SYNC_STATE_OFFLINE = 0,
@@ -225,8 +225,8 @@ typedef struct SSyncLogStore {
   SyncIndex (*syncLogIndexRetention)(struct SSyncLogStore* pLogStore, int64_t bytes);
   SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
 
-  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forcSync);
-  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SyncRaftEntry* pEntry, bool forcSync);
+  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SyncRaftEntry** ppEntry);
   int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 
 } SSyncLogStore;
@@ -286,8 +286,8 @@ bool      syncIsReadyForRead(int64_t rid);
 bool      syncSnapshotSending(int64_t rid);
 bool      syncSnapshotRecving(int64_t rid);
 int32_t   syncSendTimeoutRsp(int64_t rid, int64_t seq);
-int32_t   syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg);
-int32_t   syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg);
+int32_t   syncForceBecomeFollower(SyncNode* ths, const SRpcMsg* pRpcMsg);
+int32_t   syncBecomeAssignedLeader(SyncNode* ths, SRpcMsg* pRpcMsg);
 
 int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm);
 

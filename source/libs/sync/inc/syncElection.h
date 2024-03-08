@@ -34,7 +34,7 @@ extern "C" {
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeElect(SSyncNode* pNode);
+int32_t syncNodeElect(SyncNode* pNode);
 
 #ifdef __cplusplus
 }

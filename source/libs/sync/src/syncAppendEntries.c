@@ -89,11 +89,11 @@
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   SRpcMsg            rpcRsp = {0};
   bool               accepted = false;
-  SSyncRaftEntry*    pEntry = NULL;
+  SyncRaftEntry*     pEntry = NULL;
   bool               resetElect = false;
 
   // if already drop replica, do not process
@@ -131,7 +131,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     resetElect = true;
   }
 
-  if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
+  if (pMsg->dataLen < sizeof(SyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
     goto _IGNORE;

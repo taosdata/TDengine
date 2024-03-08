@@ -35,17 +35,17 @@ typedef struct SSyncRaftEntry {
   int64_t   rid;
   uint32_t  dataLen;  // origin RpcMsg.contLen
   char      data[];   // origin RpcMsg.pCont
-} SSyncRaftEntry;
+} SyncRaftEntry;
 
-SSyncRaftEntry* syncEntryBuild(int32_t dataLen);
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
-SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);
-SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
-SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
-void            syncEntryDestroy(SSyncRaftEntry* pEntry);
-void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
+SyncRaftEntry* syncEntryBuild(int32_t dataLen);
+SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);
+SyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
+SyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
+void           syncEntryDestroy(SyncRaftEntry* pEntry);
+void           syncEntry2OriginalRpc(const SyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
 
-static FORCE_INLINE bool syncLogReplBarrier(SSyncRaftEntry* pEntry) {
+static FORCE_INLINE bool syncLogReplBarrier(SyncRaftEntry* pEntry) {
   return pEntry->originalRpcType == TDMT_SYNC_NOOP || pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE;
 }
 

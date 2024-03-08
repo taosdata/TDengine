@@ -10,7 +10,7 @@ void logTest() {
 }
 
 void test1() {
-  SSyncRaftEntry* pEntry = syncEntryBuild(10);
+  SyncRaftEntry* pEntry = syncEntryBuild(10);
   assert(pEntry != NULL);
   pEntry->msgType = 1;
   pEntry->originalRpcType = 2;
@@ -31,7 +31,7 @@ void test2() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test2");
 
-  SSyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
+  SyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
   syncEntryPrint(pEntry);
 
   taosMemoryFree(pSyncMsg);
@@ -45,7 +45,7 @@ void test3() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test3");
 
-  SSyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
+  SyncRaftEntry* pEntry = syncEntryBuildFromClientRequest(pSyncMsg, 100, 200);
   syncEntryPrint(pEntry);
 
   taosMemoryFree(pSyncMsg);
@@ -53,7 +53,7 @@ void test3() {
 }
 
 void test4() {
-  SSyncRaftEntry* pEntry = syncEntryBuild(10);
+  SyncRaftEntry* pEntry = syncEntryBuild(10);
   assert(pEntry != NULL);
   pEntry->msgType = 11;
   pEntry->originalRpcType = 22;

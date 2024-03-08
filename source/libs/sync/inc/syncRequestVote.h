@@ -44,7 +44,7 @@ extern "C" {
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnRequestVote(SyncNode* pNode, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

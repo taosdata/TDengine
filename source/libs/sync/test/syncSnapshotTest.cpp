@@ -18,7 +18,7 @@ SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM  *pFsm;
 SWal      *pWal;
-SSyncNode *gSyncNode;
+SyncNode  *gSyncNode;
 SyncIndex  snapshotLastApplyIndex = SYNC_INDEX_INVALID;
 
 const char *pDir = "./syncSnapshotTest";
@@ -78,7 +78,7 @@ void initFsm() {
 #endif
 }
 
-SSyncNode *syncNodeInit() {
+SyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.syncSendMSg = syncIOSendMsg;
@@ -112,7 +112,7 @@ SSyncNode *syncNodeInit() {
     taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
+  SyncNode *pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -130,9 +130,9 @@ SSyncNode *syncNodeInit() {
   return pSyncNode;
 }
 
-SSyncNode *syncInitTest() { return syncNodeInit(); }
+SyncNode *syncInitTest() { return syncNodeInit(); }
 
-void initRaftId(SSyncNode *pSyncNode) {
+void initRaftId(SyncNode *pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
     ids[i] = pSyncNode->replicasId[i];
     char *s = syncUtilRaftId2Str(&ids[i]);

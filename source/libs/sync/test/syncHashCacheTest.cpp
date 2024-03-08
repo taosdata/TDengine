@@ -9,9 +9,9 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SSyncRaftEntry* createEntry(int i) {
+SyncRaftEntry* createEntry(int i) {
   int32_t         dataLen = 20;
-  SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+  SyncRaftEntry*  pEntry = syncEntryBuild(dataLen);
   assert(pEntry != NULL);
   pEntry->msgType = 88;
   pEntry->originalRpcType = 99;
@@ -24,16 +24,16 @@ SSyncRaftEntry* createEntry(int i) {
   return pEntry;
 }
 
-SSyncNode* createFakeNode() {
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
+SyncNode* createFakeNode() {
+  SyncNode* pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(SyncNode));
   ASSERT(pSyncNode != NULL);
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
 
   return pSyncNode;
 }
 
 SRaftEntryHashCache* createCache(int maxCount) {
-  SSyncNode* pSyncNode = createFakeNode();
+  SyncNode* pSyncNode = createFakeNode();
   ASSERT(pSyncNode != NULL);
 
   SRaftEntryHashCache* pCache = raftCacheCreate(pSyncNode, maxCount);
@@ -46,7 +46,7 @@ void test1() {
   int32_t              code = 0;
   SRaftEntryHashCache* pCache = createCache(5);
   for (int i = 0; i < 5; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
     ASSERT(code == 1);
     syncEntryDestory(pEntry);
@@ -71,7 +71,7 @@ void test2() {
   int32_t              code = 0;
   SRaftEntryHashCache* pCache = createCache(5);
   for (int i = 0; i < 5; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
     ASSERT(code == 1);
     syncEntryDestory(pEntry);
@@ -80,7 +80,7 @@ void test2() {
 
   SyncIndex index;
   index = 1;
-  SSyncRaftEntry* pEntry;
+  SyncRaftEntry* pEntry;
   code = raftCacheGetEntry(pCache, index, &pEntry);
   ASSERT(code == 0);
   syncEntryDestory(pEntry);
@@ -108,13 +108,13 @@ void test3() {
   int32_t              code = 0;
   SRaftEntryHashCache* pCache = createCache(5);
   for (int i = 0; i < 5; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
     ASSERT(code == 1);
     syncEntryDestory(pEntry);
   }
   for (int i = 6; i < 10; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
     ASSERT(code == 0);
     syncEntryDestory(pEntry);
@@ -126,7 +126,7 @@ void test4() {
   int32_t              code = 0;
   SRaftEntryHashCache* pCache = createCache(5);
   for (int i = 0; i < 5; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry* pEntry = createEntry(i);
     code = raftCachePutEntry(pCache, pEntry);
     ASSERT(code == 1);
     syncEntryDestory(pEntry);
@@ -135,7 +135,7 @@ void test4() {
 
   SyncIndex index;
   index = 3;
-  SSyncRaftEntry* pEntry;
+  SyncRaftEntry* pEntry;
   code = raftCacheGetAndDel(pCache, index, &pEntry);
   ASSERT(code == 0);
   syncEntryLog2((char*)"==test4 get-and-del entry 3==", pEntry);
@@ -143,7 +143,7 @@ void test4() {
 }
 
 static char* keyFn(const void* pData) {
-  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pData;
+  SyncRaftEntry* pEntry = (SyncRaftEntry*)pData;
   return (char*)(&(pEntry->index));
 }
 
@@ -156,7 +156,7 @@ void printSkipList(SSkipList* pSkipList) {
   while (tSkipListIterNext(pIter)) {
     SSkipListNode* pNode = tSkipListIterGet(pIter);
     ASSERT(pNode != NULL);
-    SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+    SyncRaftEntry* pEntry = (SyncRaftEntry*)SL_GET_NODE_DATA(pNode);
     syncEntryPrint2((char*)"", pEntry);
   }
 }
@@ -173,9 +173,9 @@ void delSkipListFirst(SSkipList* pSkipList, int n) {
   }
 }
 
-SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
+SyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
   SyncIndex       index2 = index;
-  SSyncRaftEntry* pEntry = NULL;
+  SyncRaftEntry*  pEntry = NULL;
   int             arraySize = 0;
 
   SArray* entryPArray = tSkipListGet(pSkipList, (char*)(&index2));
@@ -183,7 +183,7 @@ SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
   if (arraySize > 0) {
     SSkipListNode** ppNode = (SSkipListNode**)taosArrayGet(entryPArray, 0);
     ASSERT(*ppNode != NULL);
-    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
+    pEntry = (SyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
   }
   taosArrayDestroy(entryPArray);
 
@@ -192,16 +192,16 @@ SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
   return pEntry;
 }
 
-SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
+SyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
   sTrace("get index: %" PRId64 " -------------", index);
   SyncIndex          index2 = index;
-  SSyncRaftEntry*    pEntry = NULL;
+  SyncRaftEntry*     pEntry = NULL;
   SSkipListIterator* pIter =
       tSkipListCreateIterFromVal(pSkipList, (const char*)&index2, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   if (tSkipListIterNext(pIter)) {
     SSkipListNode* pNode = tSkipListIterGet(pIter);
     ASSERT(pNode != NULL);
-    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+    pEntry = (SyncRaftEntry*)SL_GET_NODE_DATA(pNode);
   }
 
   syncEntryLog2((char*)"getLogEntry", pEntry);
@@ -215,19 +215,19 @@ void test5() {
 
   sTrace("insert 9 - 5");
   for (int i = 9; i >= 5; --i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry*  pEntry = createEntry(i);
     SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
   }
 
   sTrace("insert 0 - 4");
   for (int i = 0; i <= 4; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(i);
+    SyncRaftEntry*  pEntry = createEntry(i);
     SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
   }
 
   sTrace("insert 7 7 7 7 7");
   for (int i = 0; i <= 4; ++i) {
-    SSyncRaftEntry* pEntry = createEntry(7);
+    SyncRaftEntry*  pEntry = createEntry(7);
     SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
   }
 

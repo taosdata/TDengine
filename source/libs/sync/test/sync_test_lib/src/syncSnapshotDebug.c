@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
-cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
+cJSON *snapshotSender2Json(SyncSnapshotSender *pSender) {
   char   u64buf[128];
   cJSON *pRoot = cJSON_CreateObject();
 
@@ -63,18 +63,18 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
   }
 
   cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotSender", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncSnapshotSender", pRoot);
   return pJson;
 }
 
-char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
+char *snapshotSender2Str(SyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
   char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
-cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
+cJSON *snapshotReceiver2Json(SyncSnapshotReceiver *pReceiver) {
   char   u64buf[128];
   cJSON *pRoot = cJSON_CreateObject();
 
@@ -120,18 +120,18 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
   }
 
   cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncSnapshotReceiver", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncSnapshotReceiver", pRoot);
   return pJson;
 }
 
-char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
+char *snapshotReceiver2Str(SyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
   char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
-int32_t syncNodeOnPreSnapshot(SSyncNode *ths, SyncPreSnapshot *pMsg) {
+int32_t syncNodeOnPreSnapshot(SyncNode *ths, SyncPreSnapshot *pMsg) {
   // syncLogRecvSyncPreSnapshot(ths, pMsg, "");
 
   SyncPreSnapshotReply *pMsgReply = syncPreSnapshotReplyBuild(ths->vgId);
@@ -180,7 +180,7 @@ _IGNORE:
   return 0;
 }
 
-int32_t syncNodeOnPreSnapshotReply(SSyncNode *ths, SyncPreSnapshotReply *pMsg) {
+int32_t syncNodeOnPreSnapshotReply(SyncNode *ths, SyncPreSnapshotReply *pMsg) {
   // syncLogRecvSyncPreSnapshotReply(ths, pMsg, "");
 
   // start snapshot

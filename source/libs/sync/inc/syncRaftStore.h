@@ -26,15 +26,15 @@ extern "C" {
 #define RAFT_STORE_PATH_LEN   (TSDB_FILENAME_LEN * 2)
 #define EMPTY_RAFT_ID         ((SRaftId){.addr = 0, .vgId = 0})
 
-int32_t raftStoreOpen(SSyncNode *pNode);
-void    raftStoreClose(SSyncNode *pNode);
+int32_t raftStoreOpen(SyncNode *pNode);
+void    raftStoreClose(SyncNode *pNode);
 
-bool raftStoreHasVoted(SSyncNode *pNode);
-void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId);
-void raftStoreClearVote(SSyncNode *pNode);
-void raftStoreNextTerm(SSyncNode *pNode);
-void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term);
-SyncTerm raftStoreGetTerm(SSyncNode *pNode);
+bool     raftStoreHasVoted(SyncNode *pNode);
+void     raftStoreVote(SyncNode *pNode, SRaftId *pRaftId);
+void     raftStoreClearVote(SyncNode *pNode);
+void     raftStoreNextTerm(SyncNode *pNode);
+void     raftStoreSetTerm(SyncNode *pNode, SyncTerm term);
+SyncTerm raftStoreGetTerm(SyncNode *pNode);
 
 #ifdef __cplusplus
 }

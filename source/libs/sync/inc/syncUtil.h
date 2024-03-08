@@ -80,39 +80,39 @@ bool        syncUtilUserRollback(tmsg_t msgType);
 
 void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf);
 
-void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...);
-void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
+void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SyncNode* pNode, const char* format, ...);
+void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SyncSnapshotSender* pSender,
                                 const char* format, ...);
-void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
+void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SyncSnapshotReceiver* pReceiver,
                                   const char* format, ...);
 
-void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s);
-void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s);
+void syncLogRecvTimer(SyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s);
+void syncLogRecvLocalCmd(SyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s);
 
-void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
-void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+void syncLogSendAppendEntriesReply(SyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+void syncLogRecvAppendEntriesReply(SyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
 
-void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
+void syncLogSendHeartbeat(SyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
                           int64_t execTime);
-void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s);
+void syncLogRecvHeartbeat(SyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s);
 
-void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s);
-void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s);
+void syncLogSendHeartbeatReply(SyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s);
+void syncLogRecvHeartbeatReply(SyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s);
 
-void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
-void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
+void syncLogSendSyncSnapshotSend(SyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
+void syncLogRecvSyncSnapshotSend(SyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
 
-void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
-void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
+void syncLogSendSyncSnapshotRsp(SyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
+void syncLogRecvSyncSnapshotRsp(SyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
 
-void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
-void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
+void syncLogRecvAppendEntries(SyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
+void syncLogSendAppendEntries(SyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
 
-void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* s);
-void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s);
+void syncLogRecvRequestVote(SyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* s);
+void syncLogSendRequestVote(SyncNode* pNode, const SyncRequestVote* pMsg, const char* s);
 
-void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
-void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
+void syncLogRecvRequestVoteReply(SyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
+void syncLogSendRequestVoteReply(SyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
 
 #ifdef __cplusplus
 }

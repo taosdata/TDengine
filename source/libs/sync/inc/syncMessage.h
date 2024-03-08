@@ -28,7 +28,7 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_HEARTBEAT,
 } ESyncTimeoutType;
 
-typedef struct SyncTimeout {
+typedef struct SSyncTimeout {
   uint32_t         bytes;
   int32_t          vgId;
   uint32_t         msgType;
@@ -39,7 +39,7 @@ typedef struct SyncTimeout {
   void*            data;  // need optimized
 } SyncTimeout;
 
-typedef struct SyncClientRequest {
+typedef struct SSyncClientRequest {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;          // TDMT_SYNC_CLIENT_REQUEST
@@ -51,7 +51,7 @@ typedef struct SyncClientRequest {
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
 
-typedef struct SyncClientRequestReply {
+typedef struct SSyncClientRequestReply {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -60,7 +60,7 @@ typedef struct SyncClientRequestReply {
   int16_t  reserved;
 } SyncClientRequestReply;
 
-typedef struct SyncRequestVote {
+typedef struct SSyncRequestVote {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -73,7 +73,7 @@ typedef struct SyncRequestVote {
   int16_t   reserved;
 } SyncRequestVote;
 
-typedef struct SyncRequestVoteReply {
+typedef struct SSyncRequestVoteReply {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -85,7 +85,7 @@ typedef struct SyncRequestVoteReply {
   int16_t  reserved;
 } SyncRequestVoteReply;
 
-typedef struct SyncAppendEntries {
+typedef struct SSyncAppendEntries {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -103,7 +103,7 @@ typedef struct SyncAppendEntries {
   char      data[];
 } SyncAppendEntries;
 
-typedef struct SyncAppendEntriesReply {
+typedef struct SSyncAppendEntriesReply {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -119,7 +119,7 @@ typedef struct SyncAppendEntriesReply {
   int16_t   fsmState;
 } SyncAppendEntriesReply;
 
-typedef struct SyncHeartbeat {
+typedef struct SSyncHeartbeat {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -135,7 +135,7 @@ typedef struct SyncHeartbeat {
   int16_t   reserved;
 } SyncHeartbeat;
 
-typedef struct SyncHeartbeatReply {
+typedef struct SSyncHeartbeatReply {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -150,7 +150,7 @@ typedef struct SyncHeartbeatReply {
   int16_t  reserved;
 } SyncHeartbeatReply;
 
-typedef struct SyncPreSnapshot {
+typedef struct SSyncPreSnapshot {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -162,7 +162,7 @@ typedef struct SyncPreSnapshot {
   int16_t  reserved;
 } SyncPreSnapshot;
 
-typedef struct SyncPreSnapshotReply {
+typedef struct SSyncPreSnapshotReply {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -175,7 +175,7 @@ typedef struct SyncPreSnapshotReply {
   int16_t   reserved;
 } SyncPreSnapshotReply;
 
-typedef struct SyncApplyMsg {
+typedef struct SSyncApplyMsg {
   uint32_t   bytes;
   int32_t    vgId;
   uint32_t   msgType;          // user SyncApplyMsg msgType
@@ -185,7 +185,7 @@ typedef struct SyncApplyMsg {
   char       data[];   // user RpcMsg.pCont
 } SyncApplyMsg;
 
-typedef struct SyncSnapshotSend {
+typedef struct SSyncSnapshotSend {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -205,7 +205,7 @@ typedef struct SyncSnapshotSend {
   char      data[];
 } SyncSnapshotSend;
 
-typedef struct SyncSnapshotRsp {
+typedef struct SSyncSnapshotRsp {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -223,7 +223,7 @@ typedef struct SyncSnapshotRsp {
   char      data[];
 } SyncSnapshotRsp;
 
-typedef struct SyncLeaderTransfer {
+typedef struct SSyncLeaderTransfer {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -241,7 +241,7 @@ typedef enum {
   SYNC_LOCAL_CMD_LEARNER_CMT,
 } ESyncLocalCmd;
 
-typedef struct SyncLocalCmd {
+typedef struct SSyncLocalCmd {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
@@ -253,14 +253,14 @@ typedef struct SyncLocalCmd {
   SyncIndex commitIndex;  // follower commit index
 } SyncLocalCmd;
 
-int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SSyncNode* pNode);
+int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType ttype, uint64_t logicClock, int32_t ms, SyncNode* pNode);
 int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seq, bool isWeak, int32_t vgId);
-int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry* pEntry, int32_t vgId);
+int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SyncRaftEntry* pEntry, int32_t vgId);
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildRequestVoteReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildAppendEntries(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildAppendEntriesReply(SRpcMsg* pMsg, int32_t vgId);
-int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevLogTerm,
+int32_t syncBuildAppendEntriesFromRaftEntry(SyncNode* pNode, SyncRaftEntry* pEntry, SyncTerm prevLogTerm,
                                             SRpcMsg* pRpcMsg);
 int32_t syncBuildHeartbeat(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId);

@@ -17,8 +17,8 @@
 #include "syncIndexMgr.h"
 #include "syncUtil.h"
 
-SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode) {
-  SSyncIndexMgr *pIndexMgr = taosMemoryCalloc(1, sizeof(SSyncIndexMgr));
+SyncIndexMgr *syncIndexMgrCreate(SyncNode *pNode) {
+  SyncIndexMgr *pIndexMgr = taosMemoryCalloc(1, sizeof(SyncIndexMgr));
   if (pIndexMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -33,7 +33,7 @@ SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode) {
   return pIndexMgr;
 }
 
-void syncIndexMgrUpdate(SSyncIndexMgr *pIndexMgr, SSyncNode *pNode) {
+void syncIndexMgrUpdate(SyncIndexMgr *pIndexMgr, SyncNode *pNode) {
   pIndexMgr->replicas = &pNode->replicasId;
   pIndexMgr->replicaNum = pNode->replicaNum;
   pIndexMgr->totalReplicaNum = pNode->totalReplicaNum;
@@ -41,13 +41,13 @@ void syncIndexMgrUpdate(SSyncIndexMgr *pIndexMgr, SSyncNode *pNode) {
   syncIndexMgrClear(pIndexMgr);
 }
 
-void syncIndexMgrDestroy(SSyncIndexMgr *pIndexMgr) {
+void syncIndexMgrDestroy(SyncIndexMgr *pIndexMgr) {
   if (pIndexMgr != NULL) {
     taosMemoryFree(pIndexMgr);
   }
 }
 
-void syncIndexMgrClear(SSyncIndexMgr *pIndexMgr) {
+void syncIndexMgrClear(SyncIndexMgr *pIndexMgr) {
   memset(pIndexMgr->index, 0, sizeof(pIndexMgr->index));
   memset(pIndexMgr->privateTerm, 0, sizeof(pIndexMgr->privateTerm));
 
@@ -58,7 +58,7 @@ void syncIndexMgrClear(SSyncIndexMgr *pIndexMgr) {
   }
 }
 
-void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index) {
+void syncIndexMgrSetIndex(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       (pIndexMgr->index)[i] = index;
@@ -70,7 +70,7 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, Sync
          DID(pRaftId), CID(pRaftId));
 }
 
-void syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldIndex, SRaftId *oldReplicasId){
+void syncIndexMgrCopyIfExist(SyncIndexMgr *pNewIndex, SyncIndexMgr *pOldIndex, SRaftId *oldReplicasId) {
   for(int j = 0; j < pOldIndex->totalReplicaNum; ++j){
     sDebug("old Index j:%d, index:%"PRId64, j, pOldIndex->index[j]);
   }
@@ -91,7 +91,7 @@ void syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldInde
   }
 }
 
-SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
+SyncLogReplMgr *syncNodeGetLogReplMgr(SyncNode *pNode, SRaftId *pRaftId) {
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], pRaftId)) {
       return pNode->logReplMgrs[i];
@@ -102,7 +102,7 @@ SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
   return NULL;
 }
 
-SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+SyncIndex syncIndexMgrGetIndex(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       SyncIndex idx = (pIndexMgr->index)[i];
@@ -115,7 +115,7 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId)
   return SYNC_INDEX_INVALID;
 }
 
-void syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime) {
+void syncIndexMgrSetStartTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       (pIndexMgr->startTimeArr)[i] = startTime;
@@ -127,7 +127,7 @@ void syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, 
          startTime, DID(pRaftId), CID(pRaftId));
 }
 
-int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+int64_t syncIndexMgrGetStartTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       int64_t startTime = (pIndexMgr->startTimeArr)[i];
@@ -140,7 +140,7 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftI
   return -1;
 }
 
-void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
+void syncIndexMgrSetRecvTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       (pIndexMgr->recvTimeArr)[i] = recvTime;
@@ -152,7 +152,7 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
          DID(pRaftId), CID(pRaftId));
 }
 
-int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+int64_t syncIndexMgrGetRecvTime(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       int64_t recvTime = (pIndexMgr->recvTimeArr)[i];
@@ -165,7 +165,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
   return -1;
 }
 
-void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term) {
+void syncIndexMgrSetTerm(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       (pIndexMgr->privateTerm)[i] = term;
@@ -177,7 +177,7 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncT
          DID(pRaftId), CID(pRaftId));
 }
 
-SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+SyncTerm syncIndexMgrGetTerm(SyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
       SyncTerm term = (pIndexMgr->privateTerm)[i];

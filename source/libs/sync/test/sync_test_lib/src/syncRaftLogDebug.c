@@ -54,7 +54,7 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
 
     if (!raftLogIsEmpty(pLogStore)) {
       for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-        SSyncRaftEntry* pEntry = NULL;
+        SyncRaftEntry* pEntry = NULL;
         raftLogGetEntry(pLogStore, i, &pEntry);
 
         cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));

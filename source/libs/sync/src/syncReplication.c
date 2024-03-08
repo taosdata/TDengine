@@ -46,24 +46,24 @@
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncNodeReplicateReset(SyncNode* pNode, SRaftId* pDestId) {
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
-  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
+  SyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
   syncLogReplReset(pMgr);
   taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 
-int32_t syncNodeReplicate(SSyncNode* pNode) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncNodeReplicate(SyncNode* pNode) {
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
   int32_t ret = syncNodeReplicateWithoutLock(pNode);
   taosThreadMutexUnlock(&pBuf->mutex);
   return ret;
 }
 
-int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
+int32_t syncNodeReplicateWithoutLock(SyncNode* pNode) {
   if ((pNode->state != TAOS_SYNC_STATE_LEADER && pNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) ||
       pNode->raftCfg.cfg.totalReplicaNum == 1) {
     return -1;
@@ -72,24 +72,24 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
       continue;
     }
-    SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
+    SyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
     (void)syncLogReplStart(pMgr, pNode);
   }
   return 0;
 }
 
-int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
+int32_t syncNodeSendAppendEntries(SyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
   return 0;
 }
 
-int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
+int32_t syncNodeSendHeartbeat(SyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
   return syncNodeSendMsgById(destId, pSyncNode, pMsg);
 }
 
-int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
+int32_t syncNodeHeartbeatPeers(SyncNode* pSyncNode) {
   int64_t ts = taosGetTimestampMs();
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SRpcMsg rpcMsg = {0};

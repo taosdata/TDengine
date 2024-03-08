@@ -45,23 +45,23 @@ extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 typedef struct SyncPing      SyncPing;
 typedef struct SyncPingReply SyncPingReply;
 
-typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
-typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
-typedef int32_t (*FpOnClientRequestCb)(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
-typedef int32_t (*FpOnRequestVoteCb)(SSyncNode* ths, SyncRequestVote* pMsg);
-typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
-typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
-typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
-typedef int32_t (*FpOnSnapshotCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
-typedef int32_t (*FpOnSnapshotReplyCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
+typedef int32_t (*FpOnPingCb)(SyncNode* ths, SyncPing* pMsg);
+typedef int32_t (*FpOnPingReplyCb)(SyncNode* ths, SyncPingReply* pMsg);
+typedef int32_t (*FpOnClientRequestCb)(SyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
+typedef int32_t (*FpOnRequestVoteCb)(SyncNode* ths, SyncRequestVote* pMsg);
+typedef int32_t (*FpOnRequestVoteReplyCb)(SyncNode* ths, SyncRequestVoteReply* pMsg);
+typedef int32_t (*FpOnAppendEntriesCb)(SyncNode* ths, SyncAppendEntries* pMsg);
+typedef int32_t (*FpOnAppendEntriesReplyCb)(SyncNode* ths, SyncAppendEntriesReply* pMsg);
+typedef int32_t (*FpOnTimeoutCb)(SyncNode* pSyncNode, SyncTimeout* pMsg);
+typedef int32_t (*FpOnSnapshotCb)(SyncNode* ths, SyncSnapshotSend* pMsg);
+typedef int32_t (*FpOnSnapshotReplyCb)(SyncNode* ths, SyncSnapshotRsp* pMsg);
 
-cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry);
-char*  syncEntry2Str(const SSyncRaftEntry* pEntry);
-void   syncEntryPrint(const SSyncRaftEntry* pObj);
-void   syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
-void   syncEntryLog(const SSyncRaftEntry* pObj);
-void   syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
+cJSON* syncEntry2Json(const SyncRaftEntry* pEntry);
+char*  syncEntry2Str(const SyncRaftEntry* pEntry);
+void   syncEntryPrint(const SyncRaftEntry* pObj);
+void   syncEntryPrint2(char* s, const SyncRaftEntry* pObj);
+void   syncEntryLog(const SyncRaftEntry* pObj);
+void   syncEntryLog2(char* s, const SyncRaftEntry* pObj);
 
 char*   syncCfg2Str(SSyncCfg* pSyncCfg);
 int32_t syncCfgFromStr(const char* s, SSyncCfg* pSyncCfg);
@@ -108,9 +108,9 @@ void   logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore);
 void   logStoreSimpleLog(SSyncLogStore* pLogStore);
 void   logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
 
-cJSON* syncNode2Json(const SSyncNode* pSyncNode);
-char*  syncNode2Str(const SSyncNode* pSyncNode);
-char*  syncNode2SimpleStr(const SSyncNode* pSyncNode);
+cJSON* syncNode2Json(const SyncNode* pSyncNode);
+char*  syncNode2Str(const SyncNode* pSyncNode);
+char*  syncNode2SimpleStr(const SyncNode* pSyncNode);
 
 cJSON* voteGranted2Json(SVotesGranted* pVotesGranted);
 char*  voteGranted2Str(SVotesGranted* pVotesGranted);
@@ -120,17 +120,17 @@ char*  votesRespond2Str(SVotesRespond* pVotesRespond);
 cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p);
 char*  syncUtilRaftId2Str(const SRaftId* p);
 
-cJSON* snapshotSender2Json(SSyncSnapshotSender* pSender);
-char*  snapshotSender2Str(SSyncSnapshotSender* pSender);
-cJSON* snapshotReceiver2Json(SSyncSnapshotReceiver* pReceiver);
-char*  snapshotReceiver2Str(SSyncSnapshotReceiver* pReceiver);
+cJSON* snapshotSender2Json(SyncSnapshotSender* pSender);
+char*  snapshotSender2Str(SyncSnapshotSender* pSender);
+cJSON* snapshotReceiver2Json(SyncSnapshotReceiver* pReceiver);
+char*  snapshotReceiver2Str(SyncSnapshotReceiver* pReceiver);
 
-cJSON* syncIndexMgr2Json(SSyncIndexMgr* pSyncIndexMgr);
-char*  syncIndexMgr2Str(SSyncIndexMgr* pSyncIndexMgr);
-void   syncIndexMgrPrint(SSyncIndexMgr* pObj);
-void   syncIndexMgrPrint2(char* s, SSyncIndexMgr* pObj);
-void   syncIndexMgrLog(SSyncIndexMgr* pObj);
-void   syncIndexMgrLog2(char* s, SSyncIndexMgr* pObj);
+cJSON* syncIndexMgr2Json(SyncIndexMgr* pSyncIndexMgr);
+char*  syncIndexMgr2Str(SyncIndexMgr* pSyncIndexMgr);
+void   syncIndexMgrPrint(SyncIndexMgr* pObj);
+void   syncIndexMgrPrint2(char* s, SyncIndexMgr* pObj);
+void   syncIndexMgrLog(SyncIndexMgr* pObj);
+void   syncIndexMgrLog2(char* s, SyncIndexMgr* pObj);
 
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
 cJSON* syncRpcUnknownMsg2Json();
@@ -205,12 +205,12 @@ void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg);
 void syncPingReplyLog(const SyncPingReply* pMsg);
 void syncPingReplyLog2(char* s, const SyncPingReply* pMsg);
 
-int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
-int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
-int32_t syncNodePingSelf(SSyncNode* pSyncNode);
-int32_t syncNodePingPeers(SSyncNode* pSyncNode);
-int32_t syncNodePingAll(SSyncNode* pSyncNode);
+int32_t syncNodeOnPing(SyncNode* ths, SyncPing* pMsg);
+int32_t syncNodeOnPingReply(SyncNode* ths, SyncPingReply* pMsg);
+int32_t syncNodePing(SyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
+int32_t syncNodePingSelf(SyncNode* pSyncNode);
+int32_t syncNodePingPeers(SyncNode* pSyncNode);
+int32_t syncNodePingAll(SyncNode* pSyncNode);
 
 SyncTimeout* syncTimeoutBuildX();
 SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, int32_t vgId,
@@ -385,8 +385,8 @@ void syncPreSnapshotReplyLog(const SyncPreSnapshotReply* pMsg);
 void syncPreSnapshotReplyLog2(char* s, const SyncPreSnapshotReply* pMsg);
 
 // ---------------------------------------------
-int32_t syncNodeOnPreSnapshot(SSyncNode* ths, SyncPreSnapshot* pMsg);
-int32_t syncNodeOnPreSnapshotReply(SSyncNode* ths, SyncPreSnapshotReply* pMsg);
+int32_t syncNodeOnPreSnapshot(SyncNode* ths, SyncPreSnapshot* pMsg);
+int32_t syncNodeOnPreSnapshotReply(SyncNode* ths, SyncPreSnapshotReply* pMsg);
 
 SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen);
 SyncApplyMsg* syncApplyMsgBuild2(const SRpcMsg* pOriginalRpcMsg, int32_t vgId, SFsmCbMeta* pMeta);

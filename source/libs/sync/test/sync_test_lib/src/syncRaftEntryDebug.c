@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
-cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
+cJSON* syncEntry2Json(const SyncRaftEntry* pEntry) {
   char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
@@ -46,11 +46,11 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
   }
 
   cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncRaftEntry", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncRaftEntry", pRoot);
   return pJson;
 }
 
-char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
+char* syncEntry2Str(const SyncRaftEntry* pEntry) {
   cJSON* pJson = syncEntry2Json(pEntry);
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
@@ -58,27 +58,27 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
 }
 
 // for debug ----------------------
-void syncEntryPrint(const SSyncRaftEntry* pObj) {
+void syncEntryPrint(const SyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   printf("syncEntryPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
-void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj) {
+void syncEntryPrint2(char* s, const SyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   printf("syncEntryPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
-void syncEntryLog(const SSyncRaftEntry* pObj) {
+void syncEntryLog(const SyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   sTrace("syncEntryLog | len:%zu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
-void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
+void syncEntryLog2(char* s, const SyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   sTrace("syncEntryLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
@@ -99,15 +99,15 @@ cJSON* raftCache2Json(SRaftEntryHashCache* pCache) {
     cJSON* pEntries = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "entries", pEntries);
 
-    SSyncRaftEntry* pIter = (SSyncRaftEntry*)taosHashIterate(pCache->pEntryHash, NULL);
+    SyncRaftEntry* pIter = (SyncRaftEntry*)taosHashIterate(pCache->pEntryHash, NULL);
     if (pIter != NULL) {
-      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
+      SyncRaftEntry* pEntry = (SyncRaftEntry*)pIter;
       cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
     }
     while (pIter) {
       pIter = taosHashIterate(pCache->pEntryHash, pIter);
       if (pIter != NULL) {
-        SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
+        SyncRaftEntry* pEntry = (SyncRaftEntry*)pIter;
         cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
       }
     }
@@ -173,7 +173,7 @@ cJSON* raftEntryCache2Json(SRaftEntryCache* pCache) {
     while (tSkipListIterNext(pIter)) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
       ASSERT(pNode != NULL);
-      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+      SyncRaftEntry* pEntry = (SyncRaftEntry*)SL_GET_NODE_DATA(pNode);
       cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
     }
     tSkipListDestroyIter(pIter);

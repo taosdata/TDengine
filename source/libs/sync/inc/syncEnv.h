@@ -46,20 +46,20 @@ typedef struct SSyncEnv {
   // other resources shared by SyncNodes
   // ...
 
-} SSyncEnv;
+} SyncEnv;
 
-SSyncEnv* syncEnv();
+SyncEnv*  syncEnv();
 bool      syncIsInit();
 
-int64_t    syncNodeAdd(SSyncNode* pNode);
+int64_t    syncNodeAdd(SyncNode* pNode);
 void       syncNodeRemove(int64_t rid);
-SSyncNode* syncNodeAcquire(int64_t rid);
-void       syncNodeRelease(SSyncNode* pNode);
+SyncNode*  syncNodeAcquire(int64_t rid);
+void       syncNodeRelease(SyncNode* pNode);
 
-int64_t           syncHbTimerDataAdd(SSyncHbTimerData* pData);
+int64_t           syncHbTimerDataAdd(SyncHbTimerData* pData);
 void              syncHbTimerDataRemove(int64_t rid);
-SSyncHbTimerData* syncHbTimerDataAcquire(int64_t rid);
-void              syncHbTimerDataRelease(SSyncHbTimerData* pData);
+SyncHbTimerData*  syncHbTimerDataAcquire(int64_t rid);
+void              syncHbTimerDataRelease(SyncHbTimerData* pData);
 
 #ifdef __cplusplus
 }

@@ -45,15 +45,15 @@ extern "C" {
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
-void syncOneReplicaAdvance(SSyncNode* pSyncNode);
-void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
+void syncOneReplicaAdvance(SyncNode* pSyncNode);
+void syncMaybeAdvanceCommitIndex(SyncNode* pSyncNode);
 
-bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
+bool syncNodeAgreedUpon(SyncNode* pNode, SyncIndex index);
 
-int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex);
-int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely);
+int64_t syncNodeUpdateCommitIndex(SyncNode* ths, SyncIndex commitIndex);
+int64_t syncNodeCheckCommitIndex(SyncNode* ths, SyncIndex indexLikely);
 
-int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex);
+int64_t syncNodeUpdateAssignedCommitIndex(SyncNode* ths, SyncIndex assignedCommitIndex);
 
 #ifdef __cplusplus
 }

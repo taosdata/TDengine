@@ -85,7 +85,7 @@ typedef struct SyncAppendEntriesBatch {
   char      data[];  // block1, block2
 } SyncAppendEntriesBatch;
 
-SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId);
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId);
 SOffsetAndContLen*      syncAppendEntriesBatchMetaTableArray(SyncAppendEntriesBatch* pMsg);
 void                    syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg);
 void                    syncAppendEntriesBatchSerialize(const SyncAppendEntriesBatch* pMsg, char* buf, uint32_t bufLen);
@@ -97,8 +97,8 @@ void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg,
 SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
 
 // ---------------------------------------------
-void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
-void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
+void syncLogSendAppendEntriesBatch(SyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
+void syncLogRecvAppendEntriesBatch(SyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
 
 #ifdef __cplusplus
 }

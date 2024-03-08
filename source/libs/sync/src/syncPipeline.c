@@ -37,14 +37,14 @@ FORCE_INLINE static int64_t syncGetRetryMaxWaitMs() {
   return SYNC_LOG_REPL_RETRY_WAIT_MS * (1 << SYNC_MAX_RETRY_BACKOFF);
 }
 
-int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
+int64_t syncLogBufferGetEndIndex(SyncLogBuffer* pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   int64_t index = pBuf->endIndex;
   taosThreadMutexUnlock(&pBuf->mutex);
   return index;
 }
 
-int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
+int32_t syncLogBufferAppend(SyncLogBuffer* pBuf, SyncNode* pNode, SyncRaftEntry* pEntry) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
   SyncIndex index = pEntry->index;
@@ -72,11 +72,11 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
 
   ASSERT(index == pBuf->endIndex);
 
-  SSyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
+  SyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
   ASSERT(pExist == NULL);
 
   // initial log buffer with at least one item, e.g. commitIndex
-  SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
+  SyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
   ASSERTS(pMatch != NULL, "no matched log entry");
   ASSERT(pMatch->index + 1 == index);
   ASSERT(pMatch->term <= pEntry->term);
@@ -96,9 +96,9 @@ _err:
   return -1;
 }
 
-SyncTerm syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  SSyncRaftEntry* pEntry = NULL;
+SyncTerm syncLogReplGetPrevLogTerm(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index) {
+  SyncLogBuffer*  pBuf = pNode->pLogBuf;
+  SyncRaftEntry*  pEntry = NULL;
   SyncIndex       prevIndex = index - 1;
   SyncTerm        prevLogTerm = -1;
   terrno = TSDB_CODE_SUCCESS;
@@ -145,11 +145,11 @@ SyncTerm syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, Sync
   return -1;
 }
 
-SSyncRaftEntry* syncEntryBuildDummy(SyncTerm term, SyncIndex index, int32_t vgId) {
+SyncRaftEntry* syncEntryBuildDummy(SyncTerm term, SyncIndex index, int32_t vgId) {
   return syncEntryBuildNoop(term, index, vgId);
 }
 
-int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex) {
+int32_t syncLogValidateAlignmentOfCommit(SyncNode* pNode, SyncIndex commitIndex) {
   SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   if (firstVer > commitIndex + 1) {
     sError("vgId:%d, firstVer of WAL log greater than tsdb commit version + 1. firstVer:%" PRId64
@@ -169,7 +169,7 @@ int32_t syncLogValidateAlignmentOfCommit(SSyncNode* pNode, SyncIndex commitIndex
   return 0;
 }
 
-int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+int32_t syncLogBufferInitWithoutLock(SyncLogBuffer* pBuf, SyncNode* pNode) {
   ASSERTS(pNode->pLogStore != NULL, "log store not created");
   ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
   ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
@@ -195,7 +195,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   // load log entries in reverse order
   SSyncLogStore*  pLogStore = pNode->pLogStore;
   SyncIndex       index = toIndex;
-  SSyncRaftEntry* pEntry = NULL;
+  SyncRaftEntry*  pEntry = NULL;
   bool            takeDummy = false;
   int             emptySize = (TSDB_SYNC_LOG_BUFFER_SIZE >> 1);
 
@@ -235,7 +235,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   if (takeDummy) {
     ASSERT(index == pBuf->commitIndex);
 
-    SSyncRaftEntry* pDummy = syncEntryBuildDummy(commitTerm, commitIndex, pNode->vgId);
+    SyncRaftEntry* pDummy = syncEntryBuildDummy(commitTerm, commitIndex, pNode->vgId);
     if (pDummy == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
@@ -265,18 +265,18 @@ _err:
   return -1;
 }
 
-int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+int32_t syncLogBufferInit(SyncLogBuffer* pBuf, SyncNode* pNode) {
   taosThreadMutexLock(&pBuf->mutex);
   int32_t ret = syncLogBufferInitWithoutLock(pBuf, pNode);
   taosThreadMutexUnlock(&pBuf->mutex);
   return ret;
 }
 
-int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+int32_t syncLogBufferReInit(SyncLogBuffer* pBuf, SyncNode* pNode) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
   for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
-    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+    SyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     if (pEntry == NULL) continue;
     syncEntryDestroy(pEntry);
     pEntry = NULL;
@@ -292,35 +292,35 @@ int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   return ret;
 }
 
-FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTermWithoutLock(SSyncLogBuffer* pBuf) {
+FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTermWithoutLock(SyncLogBuffer* pBuf) {
   SyncIndex       index = pBuf->matchIndex;
-  SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+  SyncRaftEntry*  pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
   ASSERT(pEntry != NULL);
   return pEntry->term;
 }
 
-SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
+SyncTerm syncLogBufferGetLastMatchTerm(SyncLogBuffer* pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   SyncTerm term = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);
   return term;
 }
 
-bool syncLogBufferIsEmpty(SSyncLogBuffer* pBuf) {
+bool syncLogBufferIsEmpty(SyncLogBuffer* pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   bool empty = (pBuf->endIndex <= pBuf->startIndex);
   taosThreadMutexUnlock(&pBuf->mutex);
   return empty;
 }
 
-int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm) {
+int32_t syncLogBufferAccept(SyncLogBuffer* pBuf, SyncNode* pNode, SyncRaftEntry* pEntry, SyncTerm prevTerm) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
   int32_t         ret = -1;
   SyncIndex       index = pEntry->index;
   SyncIndex       prevIndex = pEntry->index - 1;
   SyncTerm        lastMatchTerm = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
-  SSyncRaftEntry* pExist = NULL;
+  SyncRaftEntry*  pExist = NULL;
   bool            inBuf = true;
 
   if (index <= pBuf->commitIndex) {
@@ -404,11 +404,11 @@ _out:
   return ret;
 }
 
-static inline bool syncLogStoreNeedFlush(SSyncRaftEntry* pEntry, int32_t replicaNum) {
+static inline bool syncLogStoreNeedFlush(SyncRaftEntry* pEntry, int32_t replicaNum) {
   return (replicaNum > 1) && (pEntry->originalRpcType == TDMT_VND_COMMIT);
 }
 
-int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
+int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SyncNode* pNode, SyncRaftEntry* pEntry) {
   ASSERT(pEntry->index >= 0);
   SyncIndex lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (lastVer >= pEntry->index && pLogStore->syncLogTruncate(pLogStore, pEntry->index) < 0) {
@@ -430,7 +430,7 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   return 0;
 }
 
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str) {
+int64_t syncLogBufferProceed(SyncLogBuffer* pBuf, SyncNode* pNode, SyncTerm* pMatchTerm, char* str) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
 
@@ -445,7 +445,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     SSyncLogBufEntry* pBufEntry = &pBuf->entries[index % pBuf->size];
     SyncIndex         prevLogIndex = pBufEntry->prevLogIndex;
     SyncTerm          prevLogTerm = pBufEntry->prevLogTerm;
-    SSyncRaftEntry*   pEntry = pBufEntry->pItem;
+    SyncRaftEntry*    pEntry = pBufEntry->pItem;
     if (pEntry == NULL) {
       sTrace("vgId:%d, cannot proceed match index in log buffer. no raft entry at next pos of matchIndex:%" PRId64,
              pNode->vgId, pBuf->matchIndex);
@@ -455,7 +455,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     ASSERT(index == pEntry->index);
 
     // match
-    SSyncRaftEntry* pMatch = pBuf->entries[(pBuf->matchIndex + pBuf->size) % pBuf->size].pItem;
+    SyncRaftEntry* pMatch = pBuf->entries[(pBuf->matchIndex + pBuf->size) % pBuf->size].pItem;
     ASSERT(pMatch != NULL);
     ASSERT(pMatch->index == pBuf->matchIndex);
     ASSERT(pMatch->index + 1 == pEntry->index);
@@ -534,8 +534,8 @@ _out:
   return matchIndex;
 }
 
-int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
-                          int32_t applyCode, bool force) {
+int32_t syncFsmExecute(SyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SyncRaftEntry* pEntry,
+                       int32_t applyCode, bool force) {
   //learner need to execute fsm when it catch up entry log
   //if force is true, keep all contition check to execute fsm
   if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1
@@ -586,7 +586,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
   return code;
 }
 
-int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
+int32_t syncLogBufferValidate(SyncLogBuffer* pBuf) {
   ASSERT(pBuf->startIndex <= pBuf->matchIndex);
   ASSERT(pBuf->commitIndex <= pBuf->matchIndex);
   ASSERT(pBuf->matchIndex < pBuf->endIndex);
@@ -595,7 +595,7 @@ int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
   return 0;
 }
 
-int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex) {
+int32_t syncLogBufferCommit(SyncLogBuffer* pBuf, SyncNode* pNode, int64_t commitIndex) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
 
@@ -606,9 +606,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   SyncGroupId     vgId = pNode->vgId;
   int32_t         ret = -1;
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
-  SSyncRaftEntry* pEntry = NULL;
+  SyncRaftEntry*  pEntry = NULL;
   bool            inBuf = false;
-  SSyncRaftEntry* pNextEntry = NULL;
+  SyncRaftEntry*  pNextEntry = NULL;
   bool            nextInBuf = false;
 
   if (commitIndex <= pBuf->commitIndex) {
@@ -696,7 +696,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   // recycle
   SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
-    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+    SyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
     syncEntryDestroy(pEntry);
     memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
@@ -727,7 +727,7 @@ _out:
   return ret;
 }
 
-void syncLogReplReset(SSyncLogReplMgr* pMgr) {
+void syncLogReplReset(SyncLogReplMgr* pMgr) {
   if (pMgr == NULL) return;
 
   ASSERT(pMgr->startIndex >= 0);
@@ -741,7 +741,7 @@ void syncLogReplReset(SSyncLogReplMgr* pMgr) {
   pMgr->retryBackoff = 0;
 }
 
-int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
+int32_t syncLogReplRetryOnNeed(SyncLogReplMgr* pMgr, SyncNode* pNode) {
   if (pMgr->endIndex <= pMgr->startIndex) {
     return 0;
   }
@@ -804,7 +804,7 @@ int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 _out:
   if (retried) {
     pMgr->retryBackoff = syncLogReplGetNextRetryBackoff(pMgr);
-    SSyncLogBuffer* pBuf = pNode->pLogBuf;
+    SyncLogBuffer* pBuf = pNode->pLogBuf;
     sInfo("vgId:%d, resend %d sync log entries. dest:%" PRIx64 ", indexes:%" PRId64 " ..., terms: ... %" PRId64
           ", retryWaitMs:%" PRId64 ", repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64
           " %" PRId64 ", %" PRId64 ")",
@@ -814,8 +814,8 @@ _out:
   return ret;
 }
 
-int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncLogReplRecover(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg) {
+  SyncLogBuffer*  pBuf = pNode->pLogBuf;
   SRaftId         destId = pMsg->srcId;
   ASSERT(pMgr->restored == false);
 
@@ -900,8 +900,8 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
   return syncLogReplProbe(pMgr, pNode, index);
 }
 
-int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncLogReplProcessHeartbeatReply(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncHeartbeatReply* pMsg) {
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
   if (pMsg->startTime != 0 && pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in heartbeat. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64 "",
@@ -913,8 +913,8 @@ int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode
   return 0;
 }
 
-int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+int32_t syncLogReplProcessReply(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg) {
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
   if (pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in appendlog reply. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64,
@@ -932,7 +932,7 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
   return 0;
 }
 
-int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
+int32_t syncLogReplStart(SyncLogReplMgr* pMgr, SyncNode* pNode) {
   if (pMgr->restored) {
     (void)syncLogReplAttempt(pMgr, pNode);
   } else {
@@ -941,7 +941,7 @@ int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   return 0;
 }
 
-int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index) {
+int32_t syncLogReplProbe(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index) {
   ASSERT(!pMgr->restored);
   ASSERT(pMgr->startIndex >= 0);
   int64_t retryMaxWaitMs = syncGetRetryMaxWaitMs();
@@ -971,7 +971,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   pMgr->startIndex = index;
   pMgr->endIndex = index + 1;
 
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   sTrace("vgId:%d, probe peer:%" PRIx64 " with msg of index:%" PRId64 " term:%" PRId64 ". repl-mgr:[%" PRId64
          " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
          pNode->vgId, pDestId->addr, index, term, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pBuf->startIndex,
@@ -979,7 +979,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   return 0;
 }
 
-int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
+int32_t syncLogReplAttempt(SyncLogReplMgr* pMgr, SyncNode* pNode) {
   ASSERT(pMgr->restored);
 
   SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
@@ -1025,7 +1025,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
   syncLogReplRetryOnNeed(pMgr, pNode);
 
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  SyncLogBuffer* pBuf = pNode->pLogBuf;
   sTrace("vgId:%d, replicated %d msgs to peer:%" PRIx64 ". indexes:%" PRId64 "..., terms: ...%" PRId64
          ", repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
          ")",
@@ -1034,7 +1034,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   return 0;
 }
 
-int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
+int32_t syncLogReplContinue(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   ASSERT(pMgr->restored == true);
   if (pMgr->startIndex <= pMsg->lastSendIndex && pMsg->lastSendIndex < pMgr->endIndex) {
     if (pMgr->startIndex < pMgr->matchIndex && pMgr->retryBackoff > 0) {
@@ -1056,8 +1056,8 @@ int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendE
   return syncLogReplAttempt(pMgr, pNode);
 }
 
-SSyncLogReplMgr* syncLogReplCreate() {
-  SSyncLogReplMgr* pMgr = taosMemoryCalloc(1, sizeof(SSyncLogReplMgr));
+SyncLogReplMgr* syncLogReplCreate() {
+  SyncLogReplMgr* pMgr = taosMemoryCalloc(1, sizeof(SyncLogReplMgr));
   if (pMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -1070,7 +1070,7 @@ SSyncLogReplMgr* syncLogReplCreate() {
   return pMgr;
 }
 
-void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
+void syncLogReplDestroy(SyncLogReplMgr* pMgr) {
   if (pMgr == NULL) {
     return;
   }
@@ -1078,7 +1078,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
   return;
 }
 
-int32_t syncNodeLogReplInit(SSyncNode* pNode) {
+int32_t syncNodeLogReplInit(SyncNode* pNode) {
   for (int i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; i++) {
     ASSERT(pNode->logReplMgrs[i] == NULL);
     pNode->logReplMgrs[i] = syncLogReplCreate();
@@ -1091,15 +1091,15 @@ int32_t syncNodeLogReplInit(SSyncNode* pNode) {
   return 0;
 }
 
-void syncNodeLogReplDestroy(SSyncNode* pNode) {
+void syncNodeLogReplDestroy(SyncNode* pNode) {
   for (int i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; i++) {
     syncLogReplDestroy(pNode->logReplMgrs[i]);
     pNode->logReplMgrs[i] = NULL;
   }
 }
 
-SSyncLogBuffer* syncLogBufferCreate() {
-  SSyncLogBuffer* pBuf = taosMemoryCalloc(1, sizeof(SSyncLogBuffer));
+SyncLogBuffer* syncLogBufferCreate() {
+  SyncLogBuffer* pBuf = taosMemoryCalloc(1, sizeof(SyncLogBuffer));
   if (pBuf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -1134,10 +1134,10 @@ _err:
   return NULL;
 }
 
-void syncLogBufferClear(SSyncLogBuffer* pBuf) {
+void syncLogBufferClear(SyncLogBuffer* pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
-    SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
+    SyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     if (pEntry == NULL) continue;
     syncEntryDestroy(pEntry);
     pEntry = NULL;
@@ -1147,7 +1147,7 @@ void syncLogBufferClear(SSyncLogBuffer* pBuf) {
   taosThreadMutexUnlock(&pBuf->mutex);
 }
 
-void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
+void syncLogBufferDestroy(SyncLogBuffer* pBuf) {
   if (pBuf == NULL) {
     return;
   }
@@ -1158,7 +1158,7 @@ void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
   return;
 }
 
-int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex) {
+int32_t syncLogBufferRollback(SyncLogBuffer* pBuf, SyncNode* pNode, SyncIndex toIndex) {
   ASSERT(pBuf->commitIndex < toIndex && toIndex <= pBuf->endIndex);
 
   if (toIndex == pBuf->endIndex) {
@@ -1172,7 +1172,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   // trunc buffer
   SyncIndex index = pBuf->endIndex - 1;
   while (index >= toIndex) {
-    SSyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
+    SyncRaftEntry* pEntry = pBuf->entries[index % pBuf->size].pItem;
     if (pEntry != NULL) {
       (void)syncEntryDestroy(pEntry);
       pEntry = NULL;
@@ -1207,7 +1207,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   return 0;
 }
 
-int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
+int32_t syncLogBufferReset(SyncLogBuffer* pBuf, SyncNode* pNode) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
@@ -1223,7 +1223,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   // reset repl mgr
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
-    SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
+    SyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
     syncLogReplReset(pMgr);
   }
   syncLogBufferValidate(pBuf);
@@ -1231,8 +1231,8 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   return 0;
 }
 
-SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index, bool* pInBuf) {
-  SSyncRaftEntry* pEntry = NULL;
+SyncRaftEntry* syncLogBufferGetOneEntry(SyncLogBuffer* pBuf, SyncNode* pNode, SyncIndex index, bool* pInBuf) {
+  SyncRaftEntry* pEntry = NULL;
   if (index >= pBuf->endIndex) {
     return NULL;
   }
@@ -1248,19 +1248,19 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
   return pEntry;
 }
 
-int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm, SRaftId* pDestId,
+int32_t syncLogReplSendTo(SyncLogReplMgr* pMgr, SyncNode* pNode, SyncIndex index, SyncTerm* pTerm, SRaftId* pDestId,
                           bool* pBarrier) {
-  SSyncRaftEntry* pEntry = NULL;
+  SyncRaftEntry*  pEntry = NULL;
   SRpcMsg         msgOut = {0};
   bool            inBuf = false;
   SyncTerm        prevLogTerm = -1;
-  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  SyncLogBuffer*  pBuf = pNode->pLogBuf;
 
   pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
   if (pEntry == NULL) {
     sWarn("vgId:%d, failed to get raft entry for index:%" PRId64 "", pNode->vgId, index);
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
+      SyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
       if (pMgr) {
         sInfo("vgId:%d, reset sync log repl of peer:%" PRIx64 " since %s. index:%" PRId64, pNode->vgId, pDestId->addr,
               terrstr(), index);

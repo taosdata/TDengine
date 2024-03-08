@@ -193,7 +193,7 @@ void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
 // block2: SOffsetAndContLen Array
 // block3: entry Array
 
-SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
   ASSERT(entryPArr != NULL);
   ASSERT(arrSize >= 0);
 
@@ -201,7 +201,7 @@ SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, 
   int32_t metaArrayLen = sizeof(SOffsetAndContLen) * arrSize;  // <offset, contLen>
   int32_t entryArrayLen = 0;
   for (int i = 0; i < arrSize; ++i) {  // SRpcMsg pCont
-    SSyncRaftEntry* pEntry = entryPArr[i];
+    SyncRaftEntry* pEntry = entryPArr[i];
     entryArrayLen += pEntry->bytes;
   }
   dataLen += (metaArrayLen + entryArrayLen);
@@ -371,7 +371,7 @@ cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg) {
     cJSON* pEntryArr = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "entryArr", pEntryArr);
     for (int i = 0; i < pMsg->dataCount; ++i) {
-      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
+      SyncRaftEntry*  pEntry = (SyncRaftEntry*)(pMsg->data + metaArr[i].offset);
       cJSON*          pEntryJson = syncEntry2Json(pEntry);
       cJSON_AddItemToArray(pEntryArr, pEntryJson);
     }
@@ -426,7 +426,7 @@ void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg) {
   }
 }
 
-void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+void syncLogSendAppendEntriesBatch(SyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -438,7 +438,7 @@ void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
           pMsg->dataLen, pMsg->dataCount, s);
 }
 
-void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+void syncLogRecvAppendEntriesBatch(SyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);

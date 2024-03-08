@@ -10,7 +10,7 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SSyncNode*     pSyncNode;
+SyncNode*      pSyncNode;
 SWal*          pWal;
 SSyncLogStore* pLogStore;
 const char*    pWalPath = "./syncLogStoreTest_wal";
@@ -31,8 +31,8 @@ void init() {
   pWal = walOpen(pWalPath, &walCfg);
   assert(pWal != NULL);
 
-  pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+  pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(SyncNode));
+  memset(pSyncNode, 0, sizeof(SyncNode));
   pSyncNode->pWal = pWal;
 }
 
@@ -51,7 +51,7 @@ void logStoreTest() {
 
   for (int i = 0; i < 5; ++i) {
     int32_t         dataLen = 10;
-    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    SyncRaftEntry*  pEntry = syncEntryBuild(dataLen);
     assert(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;

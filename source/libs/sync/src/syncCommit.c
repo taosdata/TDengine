@@ -52,11 +52,11 @@ static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
   return c;
 }
 
-int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) { return pSyncNode->quorum; }
+int32_t syncNodeDynamicQuorum(const SyncNode* pSyncNode) { return pSyncNode->quorum; }
 
-bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
+bool syncNodeAgreedUpon(SyncNode* pNode, SyncIndex index) {
   int            count = 0;
-  SSyncIndexMgr* pMatches = pNode->pMatchIndex;
+  SyncIndexMgr*  pMatches = pNode->pMatchIndex;
   ASSERT(pNode->replicaNum == pMatches->replicaNum);
 
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
@@ -71,7 +71,7 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   return count >= pNode->quorum;
 }
 
-int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+int64_t syncNodeUpdateCommitIndex(SyncNode* ths, SyncIndex commitIndex) {
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   commitIndex = TMAX(commitIndex, ths->commitIndex);
   ths->commitIndex = TMIN(commitIndex, lastVer);
@@ -79,7 +79,7 @@ int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
   return ths->commitIndex;
 }
 
-int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+int64_t syncNodeCheckCommitIndex(SyncNode* ths, SyncIndex indexLikely) {
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
@@ -89,7 +89,7 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   return ths->commitIndex;
 }
 
-int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex) {
+int64_t syncNodeUpdateAssignedCommitIndex(SyncNode* ths, SyncIndex assignedCommitIndex) {
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   assignedCommitIndex = TMAX(assignedCommitIndex, ths->assignedCommitIndex);
   ths->assignedCommitIndex = TMIN(assignedCommitIndex, lastVer);

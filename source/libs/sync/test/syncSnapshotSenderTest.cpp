@@ -27,8 +27,8 @@ int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) { return 0; }
 int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) { return 0; }
 int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len) { return 0; }
 
-SSyncSnapshotSender* createSender() {
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
+SyncSnapshotSender* createSender() {
+  SyncNode* pSyncNode = (SyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
   // pSyncNode->pRaftStore = (SRaftStore*)taosMemoryMalloc(sizeof(*(pSyncNode->pRaftStore)));
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(*(pSyncNode->pFsm)));
 
@@ -39,7 +39,7 @@ SSyncSnapshotSender* createSender() {
   pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshot;
 #endif
 
-  SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
+  SyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
   pSender->start = true;
   pSender->seq = 10;
   pSender->ack = 20;
@@ -63,7 +63,7 @@ int main() {
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
-  SSyncSnapshotSender* pSender = createSender();
+  SyncSnapshotSender* pSender = createSender();
   sTrace("%s", snapshotSender2Str(pSender));
 
   return 0;
