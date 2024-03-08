@@ -37,8 +37,8 @@
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 
-#include "tlog.h"
 #include "tcol.h"
+#include "tlog.h"
 
 #define DECODESQL()                                                                 \
   do {                                                                              \
@@ -635,7 +635,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   if (tDecodeI32(&decoder, &pReq->ast1Len) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->ast2Len) < 0) return -1;
 
-  pReq->pColumns = taosArrayInit(pReq->numOfColumns, sizeof(SField));
+  pReq->pColumns = taosArrayInit(pReq->numOfColumns, sizeof(SFieldWithOptions));
   pReq->pTags = taosArrayInit(pReq->numOfTags, sizeof(SField));
   pReq->pFuncs = taosArrayInit(pReq->numOfFuncs, TSDB_FUNC_NAME_LEN);
   if (pReq->pColumns == NULL || pReq->pTags == NULL || pReq->pFuncs == NULL) {
@@ -7569,6 +7569,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   }
   if (tEncodeI8(pCoder, pReq->source) < 0) return -1;
 
+  if (tEncodeI8(pCoder, pReq->colCmpred) < 0) return -1;
   if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
 
   tEndEncode(pCoder);
@@ -7594,6 +7595,9 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   if (!tDecodeIsEnd(pCoder)) {
     if (tDecodeI8(pCoder, &pReq->source) < 0) return -1;
 
+    if (!tDecodeIsEnd(pCoder)) {
+      if (tDecodeI8(pCoder, &pReq->colCmpred) < 0) return -1;
+    }
     if (!tDecodeIsEnd(pCoder)) {
       if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
     }
@@ -7638,7 +7642,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
-  if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
+  if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
+    if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
+  }
 
   // Encode Column Options: encode compress level
 
@@ -7690,10 +7696,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (pReq->sqlLen > 0) {
       if (tDecodeBinaryAlloc(pCoder, (void **)&pReq->sql, NULL) < 0) return -1;
     }
-
-    if (!tDecodeIsEnd(pCoder)) {
-      if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
-    }
+    if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_SUPER_TABLE)
+      if (!tDecodeIsEnd(pCoder)) {
+        if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
+      }
   }
 
   tEndDecode(pCoder);

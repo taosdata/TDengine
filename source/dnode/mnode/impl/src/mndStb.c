@@ -310,6 +310,7 @@ _OVER:
       taosMemoryFreeClear(pStb->pColumns);
       taosMemoryFreeClear(pStb->pTags);
       taosMemoryFreeClear(pStb->comment);
+      taosMemoryFree(pStb->pCmpr);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -432,6 +433,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     memcpy(pOld->pAst2, pNew->pAst2, pNew->ast2Len);
     pOld->ast2Len = pNew->ast2Len;
   }
+  memcpy(pOld->pCmpr, pNew->pCmpr, pOld->numOfColumns * sizeof(SCmprObj));
+
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -494,10 +497,12 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.schemaTag.version = pStb->tagVer;
   req.schemaTag.pSchema = pStb->pTags;
 
+  req.colCmpred = 1;
   SColCmprWrapper *pCmpr = &req.colCmpr;
   pCmpr->version = pStb->colVer;
   pCmpr->nCols = pStb->numOfColumns;
-  for (int i = 0; pStb->numOfColumns; i++) {
+  req.colCmpr.pColCmpr = taosMemoryCalloc(1, sizeof(SColCmpr));
+  for (int32_t i = 0; i < pStb->numOfColumns; i++) {
     SColCmpr *p = &pCmpr->pColCmpr[i];
     p->alg = pStb->pCmpr[i].cmprAlg;
     p->id = pStb->pCmpr[i].colId;
@@ -553,10 +558,12 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   *pContLen = contLen;
   taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
   taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.colCmpr.pColCmpr);
   return pHead;
 _err:
   taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
   taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.colCmpr.pColCmpr);
   return NULL;
 }
 
@@ -619,7 +626,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   }
 
   for (int32_t i = 0; i < pCreate->numOfColumns; ++i) {
-    SField *pField1 = taosArrayGet(pCreate->pColumns, i);
+    SFieldWithOptions *pField1 = taosArrayGet(pCreate->pColumns, i);
     if (pField1->type >= TSDB_DATA_TYPE_MAX) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
@@ -861,8 +868,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
 
   for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
-    SField  *pField = taosArrayGet(pCreate->pColumns, i);
-    SSchema *pSchema = &pDst->pColumns[i];
+    SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+    SSchema           *pSchema = &pDst->pColumns[i];
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
     pSchema->flags = pField->flags;
@@ -883,10 +890,15 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
   }
-
+  // set col compress
   pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
   for (int32_t i = 0; i < pDst->numOfColumns; i++) {
-    SCmprObj *p = &pDst->pCmpr[i];
+    SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+    SSchema           *pSchema = &pDst->pColumns[i];
+
+    SCmprObj *pColCmpr = &pDst->pCmpr[i];
+    pColCmpr->colId = pSchema->colId;
+    pColCmpr->cmprAlg = pField->compress;
   }
   return 0;
 }
@@ -1126,8 +1138,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
 
   // todo xsdebug
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  goto _OVER;
+  // terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  // goto _OVER;
 
   mInfo("stb:%s, start to create", createReq.name);
   if (mndCheckCreateStbReq(&createReq) != 0) {

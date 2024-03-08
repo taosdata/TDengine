@@ -43,8 +43,6 @@ END:
   return -1;
 }
 
-
-
 int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
