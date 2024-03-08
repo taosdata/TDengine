@@ -1527,7 +1527,11 @@ async fn sync_specified_tables_with_workers(
     task_id: &Option<String>,
     file_mutex: Arc<tokio::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
-    tracing::info!("Synchronize table data with {} workers", workers);
+    tracing::info!(
+        tables = todo.tables_todo(),
+        "Synchronize table data with {} workers",
+        workers
+    );
     let mut count = 0;
     let (tx, rx) = flume::unbounded::<(
         Option<(Arc<String>, TimeRange)>,
@@ -1578,7 +1582,7 @@ async fn sync_specified_tables_with_workers(
     let (items_tx, items_rx) = flume::bounded(1024);
     let todo = todo.clone();
     tokio::task::spawn_blocking(move || {
-        tracing::info!(tables = todo.tables.len(), "Scanning tables ...");
+        tracing::info!(tables = todo.tables.len(), "Scanning new tables ...");
         let mut scanned = std::collections::HashSet::new();
         todo.tables.scan(|item: &LegacyTableItem| {
             if scanned.contains(item) {
@@ -2096,6 +2100,8 @@ impl TableTodo {
         self.stable.is_some()
     }
 }
+
+#[derive(Debug)]
 pub struct LegacyTodo {
     stables: scc::HashSet<Arc<String>>,
     tables: scc::HashSet<LegacyTableItem>,
@@ -2201,6 +2207,7 @@ pub async fn update_todo_list(
             })
             .collect_vec();
 
+        let tables = scc::HashSet::new();
         if opts.sparse {
             // Sparse mode only need to sync the stables.
             for stable in &stables {
@@ -2209,11 +2216,14 @@ pub async fn update_todo_list(
                     let _ = todo
                         .tables
                         .insert(LegacyTableItem::new_mtlf(0, stable.clone()));
+                    let _ = tables.insert(LegacyTableItem::new_mtlf(0, stable.clone()));
                 }
             }
-            return Ok(LegacyTodo::new());
+            return Ok(LegacyTodo {
+                stables: tables_from_vec(stables),
+                tables,
+            });
         }
-        let tables = scc::HashSet::new();
         if is_v2 {
             for stable in &stables {
                 let mut res = taos
@@ -2465,6 +2475,7 @@ pub async fn update_todo_list(
                     let stable = stable.clone();
                     let table = LegacyTableItem::new_mtlf(0, stable);
                     if !todo.tables.contains(&table) {
+                        tables.push(table.clone());
                         let _ = todo.tables.insert(table.clone());
                     }
                 });
@@ -2840,7 +2851,11 @@ async fn legacy_to_taos_impl(
         .total_stables
         .store(todo.stables.len() as _, Ordering::SeqCst);
 
-    tracing::info!("Prepare for {} worker scheduler", source_opts.workers);
+    tracing::info!(
+        tables = todo.tables_todo(),
+        "Prepare for {} worker scheduler",
+        source_opts.workers
+    );
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
