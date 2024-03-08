@@ -573,8 +573,6 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
     if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
-    // XSDEBUG
-    printf("column: %s, compress: %0x.\n", pField->name, pField->compress);
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -646,14 +644,12 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   }
 
   for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
-    SField field = {0};
+    SFieldWithOptions field = {0};
     if (tDecodeI8(&decoder, &field.type) < 0) return -1;
     if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
     if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
     if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
-    // if (tDecodeCStrTo(&decoder, field.encode) < 0) return -1;
-    // if (tDecodeCStrTo(&decoder, field.compress) < 0) return -1;
-    // if (tDecodeCStrTo(&decoder, field.level) < 0) return -1;
+    if (tDecodeU32(&decoder, &field.compress) < 0) return -1;
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
