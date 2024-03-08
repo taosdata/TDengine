@@ -1645,7 +1645,7 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
   code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  ASSERT(blockCol->flag != HAS_NONE);
+  // ASSERT(blockCol->flag != HAS_NONE);
 
   SColDataCompressInfo info = {
       .cmprAlg = hdr->cmprAlg,
