@@ -19,20 +19,6 @@ Note: TDengine ODBC driver can only be run on 64-bit systems, and can only be in
 
 ## Configure Data Source
 
-### Connection Types
-
-TDengine ODBC driver supports two kinds of connections to TDengine cluster: native connection and WebSocket connection. The major differences between them are listed below.
-
-1. Only a WebSocket connection can be used to connect to TDengine Cloud service.
-
-2. A Websocket connection is more compatible with different TDengine server versions. Usually, you don't need to upgrade the TDengine Client package along with the server side.
-
-3. Native connections usually have better performance, but the TDengine Client version must be compatible with the TDengine server version.
-
-4. For most users, it's recommended to use **WebSocket** connection, which has much better compatibility and almost the same performance as native connection.
-
-### WebSocket Connection
-
 1. Click the "Start" Menu, and Search for "ODBC", and choose "ODBC Data Source (64-bit)" (Note: Don't choose 32-bit)
 
 2. Select "User DSN" tab, and click "Add" to enter the page for "Create Data Source"
@@ -47,25 +33,13 @@ TDengine ODBC driver supports two kinds of connections to TDengine cluster: nati
 
     4.2 [Connection Type]: required field, we choose "WebSocket"
 
-    4.3 [URL]: required field, the URL for the ODBC data source, for example, `http://localhost:6041` is the URL for a local TDengine cluster, `https://gw.cloud.taosdata.com?token=your_token` is the URL for a TDengine cloud service.
+    4.3 [URL]: required field, the URL for the ODBC data source, `https://gw.cloud.taosdata.com?token=your_token` is the URL for a TDengine Cloud service instance.
 
     4.4 [Database]: optional field, the default database to access
-
-    4.5 [User]: optional field, only used for connection testing in step 5; If it's left as blank, "root" user will be used by default.
-
-    4.6 [Password]: optional field, only used for connection testing in step 5;
 
 5. Click "Test Connection" to test whether the connection to the data source is successful; if successful, it will prompt "Successfully connected to URL"
 
 6. Click "OK" to set the configuration and exit.
-
-7. You can also select an already configured data source name in step 2 to change existing configuration.
-
-### Native Connection
-
-Please be noted that native connection can't be used to access a TDengine client service.
-
-The steps are exactly same as "WebSocket" connection, except for you choose "Native" in step 4.2.
 
 ## PowerBI
 
