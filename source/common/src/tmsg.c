@@ -7644,16 +7644,11 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
-<<<<<<< HEAD
+  // Encode Column Options: encode compress level
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
   }
 
-  // Encode Column Options: encode compress level
-
-=======
-  if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
->>>>>>> cbd4dc2961a37ce1e04a9b609d3549fbee31ab61
   tEndEncode(pCoder);
   return 0;
 }
