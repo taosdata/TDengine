@@ -225,7 +225,8 @@ class TSMATester:
                 sql, str(no_tsma_res), str(tsma_res)))
         if skip_order:
             try:
-                no_tsma_res.sort(key=lambda x: [v is None for v in x] + list(x))
+                no_tsma_res.sort(
+                    key=lambda x: [v is None for v in x] + list(x))
                 tsma_res.sort(key=lambda x: [v is None for v in x] + list(x))
             except Exception as e:
                 tdLog.exit("comparing tsma res for: %s got different data: \nno tsma res: %s \n  tsma res: %s err: %s" % (
@@ -239,7 +240,6 @@ class TSMATester:
                    (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
-        return
         tdLog.debug(f"start to check sql: {sql}")
         actual_ctx = self.check_explain(sql, expect=expect)
         tdLog.debug(f"ctx: {actual_ctx}")
@@ -399,7 +399,7 @@ class TSMATestSQLGenerator:
         opt = random.choice(opts)
         return f'{column_name} = "{opt}"'
 
-    ## TODO support it
+    # TODO support it
     def generate_str_in_operator(self, column_name: str, opts: List) -> str:
         opt = random.choice(opts)
         IN = f'"{",".join(opts)}"'
@@ -603,9 +603,8 @@ class TDTestCase:
 
     def create_ctable(self, tsql=None, dbName='dbx', stbName='stb', ctbPrefix='ctb', ctbNum=1, ctbStartIdx=0):
         for i in range(ctbNum):
-            sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % \
-                (dbName, ctbPrefix, i+ctbStartIdx, dbName, stbName, (i+ctbStartIdx) % 5, i+ctbStartIdx +
-                 random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100))
+            sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % (dbName, ctbPrefix, i+ctbStartIdx, dbName, stbName, (i+ctbStartIdx) % 5, i+ctbStartIdx + random.randint(
+                1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100))
             tsql.execute(sqlString)
 
         tdLog.debug("complete to create %d child tables by %s.%s" %
@@ -613,13 +612,13 @@ class TDTestCase:
         return
 
     def init_normal_tb(self, tsql, db_name: str, tb_name: str, rows: int, start_ts: int, ts_step: int):
-        sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 INT, c4 VARCHAR(255))' % (
+        sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 INT, c4 double, c5 VARCHAR(255))' % (
             db_name, tb_name)
         tsql.execute(sql)
         sql = 'INSERT INTO %s.%s values' % (db_name, tb_name)
         for j in range(rows):
-            sql += '(%d, %d,%d,%d,"varchar_%d"),' % (start_ts + j * ts_step + randrange(500), j % 10 + randrange(200), j % 10, j % 10,
-                                                     j % 10 + randrange(100))
+            sql += f'(%d, %d,%d,%d,{random.random()},"varchar_%d"),' % (start_ts + j * ts_step + randrange(500), j %
+                                                     10 + randrange(200), j % 10, j % 10, j % 10 + randrange(100))
         tsql.execute(sql)
 
     def insert_data(self, tsql, dbName, ctbPrefix, ctbNum, rowsPerTbl, batchNum, startTs, tsStep):
@@ -772,23 +771,25 @@ class TDTestCase:
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
-        func_list: List[str] = ['avg(c2)', 'avg(c3)']
-        self.create_tsma('tsma3', 'test', 'meters', func_list, '5m')
+        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)']
+        select_func_list: List[str] = tsma_func_list.copy()
+        select_func_list.append('count(*)')
+        self.create_tsma('tsma3', 'test', 'meters', tsma_func_list, '5m')
         self.create_recursive_tsma(
-            'tsma3', 'tsma4', 'test', '20m', 'meters', func_list)
+            'tsma3', 'tsma4', 'test', '20m', 'meters', tsma_func_list)
         # now we have 5m, 10m, 30m, 1h 4 tsmas
         sql = 'select avg(c2), "recursive tsma4" from meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
-        self.check(self.test_query_tsma_all(['avg(c2)', 'avg(c3)']))
+        self.check(self.test_query_tsma_all(select_func_list))
         self.create_recursive_tsma(
-            'tsma4', 'tsma6', 'test', '1h', 'meters', func_list)
+            'tsma4', 'tsma6', 'test', '1h', 'meters', tsma_func_list)
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma6', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
-        self.check(self.test_query_tsma_all(['avg(c2)', 'avg(c3)']))
+        self.check(self.test_query_tsma_all(select_func_list))
 
         tdSql.error('drop tsma tsma3', -2147482491)
         tdSql.error('drop tsma tsma4', -2147482491)
@@ -1000,7 +1001,7 @@ class TDTestCase:
         # time.sleep(999999)
         self.test_ddl()
         self.test_query_with_tsma()
-        time.sleep(999999)
+        # time.sleep(999999)
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
@@ -1087,13 +1088,24 @@ class TDTestCase:
             'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999999b)', -2147471097)
         tdSql.error(
             'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(999u)', -2147471097)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1, c2), avg(c2)) interval(10m)',  -2147471096) ## invalid tsma func param
-        tdSql.error('create tsma tsma2 on meters function(avg(ts), avg(c2)) interval(10m)',  -2147473406)## invalid param data type
-        tdSql.error('create tsma tsma2 on meters function(avg(c3), avg(c2)) interval(10m)',  -2147473406)
-        tdSql.error('create tsma tsma2 on meters function(avg(c1+1), avg(c2)) interval(10m)', -2147471096) ## invalid tsma func param
-        tdSql.error('create tsma tsma2 on meters function(avg(c1*c2), avg(c2)) interval(10m)', -2147471096) ## invalid tsma func param
+        # invalid tsma func param
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1, c2), avg(c2)) interval(10m)',  -2147471096)
+        # invalid param data type
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(ts), avg(c2)) interval(10m)',  -2147473406)
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c3), avg(c2)) interval(10m)',  -2147473406)
+        # invalid tsma func param
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1+1), avg(c2)) interval(10m)', -2147471096)
+        # invalid tsma func param
+        tdSql.error(
+            'create tsma tsma2 on meters function(avg(c1*c2), avg(c2)) interval(10m)', -2147471096)
 
-        tdSql.error('create tsma tsma1 on meters function(avg(c1), avg(c2)) interval(10m)', -2147482496) ## sma already exists
+        # sma already exists
+        tdSql.error(
+            'create tsma tsma1 on meters function(avg(c1), avg(c2)) interval(10m)', -2147482496)
 
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('use test', queryTimes=1)
