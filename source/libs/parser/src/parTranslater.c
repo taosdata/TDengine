@@ -5751,9 +5751,9 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   FOREACH(pNode, pList) {
     SColumnDefNode*   pCol = (SColumnDefNode*)pNode;
     if (!pCol->pOptions)  return TSDB_CODE_TSC_ENCODE_PARAM_NULL;
-    if (!checkColumnEncode(pCol->type, pCol->pOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-    if (!checkColumnCompress(pCol->type, pCol->pOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-    if (!checkColumnLevel(pCol->type, pCol->pOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnEncodeOrSetDefault(pCol->type, pCol->pOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnCompressOrSetDefault(pCol->type, pCol->pOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnLevelOrSetDefault(pCol->type, pCol->pOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -10687,6 +10687,28 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                        SVAlterTbReq* pReq) {
+  const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+  }
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  if (NULL == pReq->colName) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  setColCompressByOption(&pReq->compress, columnEncodeVal(pStmt->pColOptions->encode),
+                         columnCompressVal(pStmt->pColOptions->compress),
+                         columnLevelVal(pStmt->pColOptions->compressLevel));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -10716,6 +10738,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
       } else {
         return buildRenameColReq(pCxt, pStmt, pTableMeta, pReq);
+      }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+      } else {
+        return buildAlterTableColumnCompress(pCxt, pStmt, pTableMeta, pReq);
       }
     default:
       break;

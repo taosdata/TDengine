@@ -2892,23 +2892,22 @@ typedef struct {
   int32_t bytes;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
-  int8_t  colModType;
-  int32_t colModBytes;
-  // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
-  char* colNewName;
-  // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
-  char*    tagName;
+  int8_t   colModType;
+  int32_t  colModBytes;
+  char*    colNewName;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
+  char*    tagName;     // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
   int8_t   isNull;
   int8_t   tagType;
   uint32_t nTagVal;
   uint8_t* pTagVal;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
-  int8_t  updateTTL;
-  int32_t newTTL;
-  int32_t newCommentLen;
-  char*   newComment;
-  int64_t ctimeMs;  // fill by vnode
-  int8_t  source;   // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t   updateTTL;
+  int32_t  newTTL;
+  int32_t  newCommentLen;
+  char*    newComment;
+  int64_t  ctimeMs;   // fill by vnode
+  int8_t   source;    // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  uint32_t compress;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
