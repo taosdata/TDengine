@@ -242,10 +242,19 @@ export default {
     // resume() {
     //   return this.$store.state.app.currentResume || "";
     // }
+    username() {
+      return localStorage.getItem("username") || ''
+    },
+    decryptPwd() {
+      return decrypt(localStorage.getItem("pwd")) || '';
+    },
     toUrl() {
+      let base_url = localStorage.getItem("base_url")
+      let splitArr = base_url.split('//')
+      let url = splitArr[0] + "//" + this.username + ':' + this.decryptPwd + '@'+ splitArr[1]
       return (
         "taos+" +
-        localStorage.getItem("base_url") +
+        url +
         (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "")
       );
     },
