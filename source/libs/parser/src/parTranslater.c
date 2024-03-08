@@ -4521,7 +4521,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (pSelect->pWhere != NULL) {
+  if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
   return code;
