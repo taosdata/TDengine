@@ -457,6 +457,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       taosMemoryFree(pItem->str);
     }
+
     taosMemoryFree(pItem->name);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
