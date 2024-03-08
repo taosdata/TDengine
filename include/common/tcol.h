@@ -78,5 +78,6 @@ bool checkColumnLevel(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]);
 void setColEncode(uint32_t* compress, uint8_t encode);
 void setColCompress(uint32_t* compress, uint16_t compressType);
 void setColLevel(uint32_t* compress, uint8_t level);
+void setColCompressByOption(uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level);
 
 #endif /*_TD_TCOL_H_*/

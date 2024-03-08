@@ -1125,6 +1125,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  // todo xsdebug
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  goto _OVER;
+
   mInfo("stb:%s, start to create", createReq.name);
   if (mndCheckCreateStbReq(&createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

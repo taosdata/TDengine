@@ -675,8 +675,16 @@ static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper
   return pDstWrapper;
 }
 
+static FORCE_INLINE void tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* pCmpr, int32_t nCols) {
+  assert(!pCmpr->pColCmpr);
+  pCmpr->pColCmpr = taosMemoryCalloc(nCols, sizeof(SColCmpr));
+  pCmpr->nCols = nCols;
+}
+
 static FORCE_INLINE void tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, SSchemaWrapper* pSchema) {
   pCmpr->nCols = pSchema->nCols;
+  assert(!pCmpr->pColCmpr);
+  pCmpr->pColCmpr = taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
   for (int32_t i = 0; i < pCmpr->nCols; i++) {
     SColCmpr* pColCmpr = &pCmpr->pColCmpr[i];
     SSchema*  pColSchema = &pSchema->pSchema[i];

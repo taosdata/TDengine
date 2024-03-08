@@ -7722,6 +7722,9 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
     }
   }
 
+  if (pReq->colCmpr.pColCmpr) taosMemoryFree(pReq->colCmpr.pColCmpr);
+  pReq->colCmpr.pColCmpr = NULL;
+
   if (pReq->sql != NULL) {
     taosMemoryFree(pReq->sql);
   }

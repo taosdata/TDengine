@@ -9870,8 +9870,15 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   }
   SNode*   pCol;
   col_id_t index = 0;
+  tInitDefaultSColCmprWrapperByCols(&req.colCmpr, req.ntb.schemaRow.nCols);
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schemaRow.pSchema + index);
+    SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
+    toSchema(pColDef, index + 1, req.ntb.schemaRow.pSchema + index);
+    if (pColDef->pOptions) {
+      req.colCmpr.pColCmpr[index].id = index + 1;
+      setColCompressByOption(&req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
+                           columnCompressVal(pColDef->pOptions->compress), columnLevelVal(pColDef->pOptions->compressLevel));
+    }
     ++index;
   }
   pBatch->info = *pVgroupInfo;
