@@ -302,7 +302,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
   }
 
   return code;
@@ -341,7 +341,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode));
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1721,7 +1721,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     pRequest->code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
+        setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;
@@ -2180,16 +2180,12 @@ void resetConnectDB(STscObj* pTscObj) {
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
-                              bool freeAfterUse) {
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4) {
   if (pResultInfo == NULL || pRsp == NULL) {
     tscError("setQueryResultFromRsp paras is null");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  if (freeAfterUse) taosMemoryFreeClear(pResultInfo->pRspMsg);
-
-  pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
@@ -2618,7 +2614,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4, true);
+      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;
