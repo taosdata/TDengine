@@ -456,7 +456,8 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
       code = pInfo->stbJoin.basic.srcScan[1] ? buildSingleTableScanOperatorParam(&pSrcParam1, 1, rightVg, rightUid) : buildExchangeOperatorParam(&pSrcParam1, 1, rightVg, rightUid);
     }
   }
-  
+
+  bool initParam = pSrcParam0 ? true : false;  
   if (TSDB_CODE_SUCCESS == code) {
     code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pPost->leftNeedCache, pSrcParam0);
     pSrcParam0 = NULL;
@@ -466,7 +467,7 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     pSrcParam1 = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildMergeJoinOperatorParam(ppParam, pSrcParam0 ? true : false, pGcParam0, pGcParam1);
+    code = buildMergeJoinOperatorParam(ppParam, initParam, pGcParam0, pGcParam1);
   }
   if (TSDB_CODE_SUCCESS != code) {
     if (pSrcParam0) {

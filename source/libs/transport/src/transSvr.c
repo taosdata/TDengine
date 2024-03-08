@@ -159,7 +159,7 @@ static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static FORCE_INLINE void destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
@@ -527,6 +527,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
+          if (conn->regArg.init) {
+            transFreeMsg(conn->regArg.msg.pCont);
+            conn->regArg.init = 0;
+          }
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
           conn->regArg.msg = msg->msg;
@@ -1350,6 +1354,11 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
       return;
     }
     transQueuePop(&conn->srvMsgs);
+
+    if (conn->regArg.init) {
+      transFreeMsg(conn->regArg.msg.pCont);
+      conn->regArg.init = 0;
+    }
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;
