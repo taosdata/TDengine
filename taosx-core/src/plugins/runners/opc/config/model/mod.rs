@@ -101,8 +101,7 @@ fn parse_point_id(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PointConfig {
-    // code is tbname
-    pub code: String,
+    pub code: String, // code is tbname
     pub stable: Option<String>,
     pub tag_values: Option<HashMap<String, String>>,
     pub value_type: Option<IpcDataType>,
@@ -339,7 +338,9 @@ fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> Vec<Colum
 
     // quality => quality_col
     let quality = parse_quality_col(header, row);
-    columns.push(quality);
+    if quality.is_some() {
+        columns.push(quality.clone().unwrap());
+    }
 
     // received_ts => received_ts_col/received_time_col
     let received_ts = parse_received_ts_col(header, row);
@@ -423,27 +424,30 @@ fn parse_value_col(header: &CsvHeader, row: &csv_async::StringRecord) -> ColumnC
     }
 }
 
-fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> ColumnConfig {
-    let col_name = header
+fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<ColumnConfig> {
+    let col = header
         .get_column("quality_col")
         .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
-            if val.is_empty() {
-                Some("quality")
-            } else {
-                Some(val)
-            }
-        })
         .flatten();
 
-    ColumnConfig {
+    if col.is_none() {
+        return None;
+    }
+
+    let quality_col = col.unwrap();
+    let quality_col = if quality_col.is_empty() {
+        "quality".to_string()
+    } else {
+        quality_col.to_string()
+    };
+
+    Some(ColumnConfig {
         name: ColumnConfig::QUALITY.to_string(),
         r#type: Some(Ty::Int),
-        alias: col_name.map(|v| v.to_string()),
+        alias: Some(quality_col),
         transform: None,
         is_primary_key: false,
-    }
+    })
 }
 
 fn parse_received_ts_col(
@@ -542,7 +546,7 @@ fn parse_original_ts_col(
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct ColumnConfig {
-    pub name: String,
+    pub name: String, // original_ts / received_ts / value / quality
     pub r#type: Option<Ty>,
     pub alias: Option<String>,
     pub transform: Option<String>,

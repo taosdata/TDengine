@@ -431,7 +431,7 @@ pub async fn generate_config_from_csv(
                         .with_context(|| format!("Config error with {value_column_name}"))?;
                         current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
-                            name: "value".to_string(),
+                            name: ColumnConfig::VALUE.to_string(),
                             r#type: None,
                             alias: Some(value_column_name.clone()),
                             transform: None,
@@ -448,7 +448,7 @@ pub async fn generate_config_from_csv(
                         )?;
                         current_columns.push(quality_col_name.clone());
                         column_config.push(ColumnConfig {
-                            name: "quality".to_string(),
+                            name: ColumnConfig::QUALITY.to_string(),
                             r#type: Some(Ty::Int),
                             alias: Some(quality_col_name.clone()),
                             transform: None,
@@ -463,7 +463,7 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        name: "received_ts".to_string(),
+                                        name: ColumnConfig::RECEIVED_TS.to_string(),
                                         r#type: Some(Ty::Timestamp),
                                         alias: Some(col_data.clone()),
                                         transform: None,
@@ -476,7 +476,7 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        name: "original_ts".to_string(),
+                                        name: ColumnConfig::ORIGINAL_TS.to_string(),
                                         r#type: Some(Ty::Timestamp),
                                         alias: Some(col_data.clone()),
                                         transform: None,
@@ -505,7 +505,7 @@ pub async fn generate_config_from_csv(
 
                         if rts_col_num == 0 && ts_col_num == 0 {
                             let col_config = ColumnConfig {
-                                name: "original_ts".to_string(),
+                                name: ColumnConfig::ORIGINAL_TS.to_string(),
                                 r#type: Some(Ty::Timestamp),
                                 alias: Some("ts".to_string()),
                                 transform: None,

@@ -12,6 +12,7 @@ use std::{
     time::Duration,
 };
 
+use crate::runners::opc::config::model::TableConfig;
 use anyhow::{bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
@@ -33,16 +34,15 @@ use taos::{
     taos_query::{common::Describe, Manager},
     Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
-use tokio::sync::{Mutex, Notify, OnceCell};
-use tokio_util::sync::CancellationToken;
-use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, Instrument, Span};
-
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
+use tokio::sync::{Mutex, Notify, OnceCell};
+use tokio_util::sync::CancellationToken;
+use tonic::{codec::CompressionEncoding, transport::Channel};
+use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::{
@@ -1098,6 +1098,114 @@ mod handle_transform_tests {
     }
 }
 
+/// 按照 stable_name > {prefix}_{raw_type} > None 的顺序生成 stable_name
+fn stable_name(
+    stable_name: &Option<String>,
+    prefix: &Option<String>,
+    raw_type: &IpcDataType,
+) -> Option<String> {
+    if stable_name.is_some() {
+        return Some(stable_name.clone().unwrap());
+    }
+
+    if prefix.is_some() {
+        let mut prefix = prefix.clone().unwrap();
+
+        let stable_name = match raw_type {
+            IpcDataType::VarChar(_len) => {
+                format!("{}_varchar", prefix)
+            }
+            IpcDataType::NChar(_len) => {
+                format!("{}_nchar", prefix)
+            }
+            _ => {
+                format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_"))
+            }
+        };
+
+        return Some(stable_name);
+    }
+
+    None
+}
+
+#[derive(Clone, Debug)]
+struct PointInsertion {
+    columns: Vec<(String, String)>,
+    value_column_config: Option<ColumnConfig>,
+    other_columns: String,
+    tags: String,
+}
+
+impl PointInsertion {
+    fn from_table_config(table_config: &TableConfig, raw_type: &IpcDataType) -> Self {
+        let mut columns: Vec<(String, String)> = Vec::new();
+        let mut value_column_config = None;
+        let mut other_columns = String::new();
+
+        for column_config in &table_config.column_configs {
+            if column_config.is_primary_key {
+                let primary_key_column_name = column_config.name.clone();
+                let primary_key_column_alias = column_config
+                    .alias
+                    .clone()
+                    .unwrap_or(primary_key_column_name.clone());
+                columns.insert(
+                    0,
+                    (primary_key_column_name, primary_key_column_alias.clone()),
+                );
+                other_columns.insert_str(
+                    0,
+                    format!("`{primary_key_column_alias}` TIMESTAMP,").as_str(),
+                );
+            } else {
+                let column_name = column_config.name.clone();
+                let column_alias = column_config.alias.clone().unwrap_or(column_name.clone());
+
+                columns.push((column_name, column_alias.clone()));
+
+                let column_type = if column_config.r#type.is_some() {
+                    column_config.r#type.unwrap().to_string()
+                } else {
+                    raw_type.sql_repr().clone()
+                };
+
+                if column_config.name == ColumnConfig::VALUE {
+                    value_column_config = Some(column_config.clone());
+                } else {
+                    other_columns.push_str(format!("`{column_alias}` {},", column_type).as_str());
+                }
+            }
+        }
+        // remove last char
+        other_columns.pop();
+
+        // tags
+        let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
+        if table_config.tag_configs.is_some() {
+            let tag_configs = table_config.tag_configs.clone().unwrap();
+            for tag in tag_configs {
+                tags.push_str(format!(" ,`{}` {}", tag.name, tag.r#type.sql_repr()).as_str());
+            }
+        }
+
+        Self {
+            columns,
+            value_column_config,
+            other_columns,
+            tags,
+        }
+    }
+}
+
+struct SqlInsertion {
+    point_insertion: PointInsertion,
+    sql: String,
+    overflow: bool,
+    value_column_type: String,
+    modify: ModifyStructForPointMessage,
+}
+
 #[instrument(skip_all, fields(target_precision = ? target_precision, trace.id = trace_id_str))]
 async fn consume_point_record(
     pool: &TaosPool,
@@ -1117,127 +1225,92 @@ async fn consume_point_record(
         let message = handle_transform(message, config)?;
 
         let cv_vec = record_batch_to_column_view(message.record(), target_precision);
+
         // process id, name, ts, value, status
         let schema = message.schema();
+        // id
         let id_index = schema.index_of("id")?;
+        let id_column_view = cv_vec.get(id_index).unwrap();
+        // name
         let name_index = schema.index_of("name")?;
-        let server_ts_index = schema.index_of("ts")?;
+        let name_column_view = cv_vec.get(name_index).unwrap();
+        // ts
+        let ts_index = schema.index_of("ts")?;
+        let ts_column_view = cv_vec.get(ts_index).unwrap();
+        // value
         let value_index = schema.index_of("value")?;
+        let value_column_view = cv_vec.get(value_index).unwrap();
         let value_field = schema.field_with_name("value")?;
+        let value_raw_type = IpcDataType::from(value_field.data_type());
+        // received
         let received_index = schema.index_of("received")?;
+        let received_column_view = cv_vec.get(received_index).unwrap();
+        // status
         let status_index = schema.index_of("status")?;
-        let id_cv = cv_vec.get(id_index).unwrap();
-        let name_cv = cv_vec.get(name_index).unwrap();
-        let server_ts_cv = cv_vec.get(server_ts_index).unwrap();
-        let received_ts_cv = cv_vec.get(received_index).unwrap();
-        let value_cv = cv_vec.get(value_index).unwrap();
-        let status_cv = cv_vec.get(status_index).unwrap();
+        let status_column_view = cv_vec.get(status_index).unwrap();
 
-        let id_code_map = &config.point_config_map;
+        let point_config_map = &config.point_config_map;
         let table_config = &config.table_config;
-        let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
+        let table_config_map = &config.table_config_map;
 
-        let stable_prefix = table_config.stable_prefix.clone();
-        // 如果 stable_prefix 存在，那么 stable_name 用 stable_prefix 拼接 value_type
-        let stable_name = if stable_prefix.is_some() {
-            let mut stable_prefix = stable_prefix.unwrap();
-            if value_type.contains("varchar") {
-                stable_prefix.push_str("_varchar");
-                Some(stable_prefix)
-            } else if value_type.contains("nchar") {
-                stable_prefix.push_str("_nchar");
-                Some(stable_prefix)
-            } else {
-                stable_prefix.push_str(&format!("_{value_type}").replace(" ", "_"));
-                Some(stable_prefix)
-            }
-        } else {
-            None
-        };
-        let mut columns = String::new();
-        let mut columns_insert: Vec<(String, String)> = Vec::new(); // first is primary key info, its type should be timestamp
-        let mut value_column = None;
-        for column_config in &table_config.column_configs {
-            if column_config.is_primary_key {
-                let primary_key_column_name = column_config.name.clone();
-                let prinmary_key_column_alias = column_config
-                    .alias
-                    .clone()
-                    .unwrap_or(primary_key_column_name.clone());
-                columns_insert.insert(
-                    0,
-                    (primary_key_column_name, prinmary_key_column_alias.clone()),
-                );
-                columns.insert_str(
-                    0,
-                    format!("`{prinmary_key_column_alias}` TIMESTAMP,").as_str(),
-                );
-            } else {
-                let primary_key_column_name = column_config.name.clone();
-                let primary_key_column_alias = column_config
-                    .alias
-                    .clone()
-                    .unwrap_or(primary_key_column_name.clone());
-                columns_insert.push((primary_key_column_name, primary_key_column_alias.clone()));
-                let column_type = if column_config.r#type.is_some() {
-                    column_config.r#type.unwrap().to_string()
-                } else {
-                    value_type.clone()
-                };
-                if column_config.name == "value" {
-                    value_column = Some(column_config.clone());
-                } else {
-                    columns.push_str(
-                        format!("`{primary_key_column_alias}` {},", column_type).as_str(),
-                    );
-                }
-            }
-        }
-        // remove last char
-        columns.pop();
-        let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
-        if table_config.tag_configs.is_some() {
-            let tag_configs = table_config.tag_configs.clone().unwrap();
-            for tag in tag_configs {
-                tags.push_str(format!(" ,`{}` {}", tag.name, tag.r#type.sql_repr()).as_str());
-            }
-        }
-        // stable, Vec<insert_sql, sql length overflow?, value_column_type>
-        let mut stable_insert_map: HashMap<
-            String,
-            Vec<(String, bool, String, ModifyStructForPointMessage)>,
-        > = HashMap::new();
+        // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
+        let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();
+        // child_table_name: create_sql
         let mut child_table_create_sql_map = HashMap::new();
 
-        for i in 0..id_cv.len() {
-            let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
-            let code = id_code_map.get(&id);
+        for i in 0..id_column_view.len() {
+            let point_id = id_column_view
+                .get(i)
+                .unwrap()
+                .into_value()
+                .to_string()
+                .unwrap();
+
+            // point_config
+            let code = point_config_map.get(&point_id);
             if code.is_none() {
-                tracing::warn!("id: {} cannot get code", id);
+                tracing::warn!("id: {} cannot get code", point_id);
                 continue;
             }
             let point_config = code.unwrap();
-            let stable_name = if stable_name.is_some() {
-                stable_name.as_ref().unwrap()
-            } else if point_config.stable.is_some() {
-                point_config.stable.as_ref().unwrap()
-            } else {
-                anyhow::bail!("id: {id} failed to get stable");
-            };
+
+            // table_config
+            let table_config = table_config_map.get(&point_id);
+            if table_config.is_none() {
+                tracing::warn!("cannot get table_config with point_id: {}", point_id);
+                continue;
+            }
+            let table_config = table_config.unwrap();
+
+            // stable_name
+            let stable_name = stable_name(
+                &point_config.stable,
+                &table_config.stable_prefix,
+                &value_raw_type,
+            )
+            .ok_or(anyhow::anyhow!(
+                "failed to get stable name, point_id: {}, point_config: {:?}, table_config: {:?}",
+                point_id,
+                point_config,
+                table_config
+            ))?;
+
+            // tbname
             let child_table_name = format!("{}", point_config.code);
 
-            // child_table_name.push_str(format!("_{}", point_config.code).as_str());
-            // let mut insert_sql = format!("insert into `{child_table_name}` ");
-            let mut values = String::new();
+            // point_insertion
+            let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
+
             let mut value_column_name = "value";
             let mut value_column_length = 128;
+            let mut values = String::new();
             let mut columns_in_insert = String::new();
-            for (temp_name, temp_alias) in &columns_insert {
+            for (temp_name, temp_alias) in &point_insertion.columns {
                 if temp_name == "received_ts" || temp_name == "received_time" {
                     values.push_str(
                         format!(
                             "{},",
-                            received_ts_cv
+                            received_column_view
                                 .slice(i..i + 1)
                                 .unwrap()
                                 .get(0)
@@ -1251,7 +1324,7 @@ async fn consume_point_record(
                     values.push_str(
                         format!(
                             "{},",
-                            server_ts_cv
+                            ts_column_view
                                 .slice(i..i + 1)
                                 .unwrap()
                                 .get(0)
@@ -1262,7 +1335,7 @@ async fn consume_point_record(
                         .as_str(),
                     );
                 } else if temp_name == "value" {
-                    let value_column = value_cv
+                    let value_column = value_column_view
                         .slice(i..i + 1)
                         .unwrap()
                         .get(0)
@@ -1277,7 +1350,7 @@ async fn consume_point_record(
                     values.push_str(
                         format!(
                             "{},",
-                            status_cv
+                            status_column_view
                                 .slice(i..i + 1)
                                 .unwrap()
                                 .get(0)
@@ -1293,7 +1366,8 @@ async fn consume_point_record(
             // remove last `,` in sql
             values.pop();
             columns_in_insert.pop();
-            let point_name = name_cv
+
+            let point_name = name_column_view
                 .slice(i..i + 1)
                 .unwrap()
                 .get(0)
@@ -1328,7 +1402,7 @@ async fn consume_point_record(
                 child_table_create_sql_map.insert(
                     child_table_name.clone(),
                     format!(
-                        "(`point_id`, `point_name`) TAGS (\"{id}\", {})",
+                        "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
                         &point_name
                     ),
                 );
@@ -1336,19 +1410,51 @@ async fn consume_point_record(
                 child_table_create_sql_map.insert(
                     child_table_name.clone(),
                     format!(
-                        "(`point_id`, `point_name`, {tag_names}) TAGS (\"{id}\", {}, {tag_values})",
+                        "(`point_id`, `point_name`, {tag_names}) TAGS (\"{point_id}\", {}, {tag_values})",
                         &point_name
                     ),
                 );
             }
-            let sql_vec = stable_insert_map.get_mut(stable_name);
+
+            let sql_vec = stable_insert_map.get_mut(&stable_name);
             let mut insert_done = false;
 
-            if sql_vec.is_some() {
-                let sql_vec = sql_vec.unwrap();
+            if sql_vec.is_none() {
+                let sql = format!(
+                    "insert into `{}` ({}) VALUES ({})",
+                    child_table_name,
+                    columns_in_insert.as_str(),
+                    values
+                );
+
+                let value_column_type = if point_config.value_type.is_some() {
+                    // maybe should replace value column type
+                    point_config.value_type.clone().unwrap().sql_repr()
+                } else {
+                    value_raw_type.sql_repr().clone()
+                };
+
+                let mut sql_vec = Vec::new();
+                sql_vec.push(SqlInsertion {
+                    point_insertion: point_insertion.clone(),
+                    sql,
+                    overflow: false,
+                    value_column_type,
+                    modify: ModifyStructForPointMessage {
+                        id: point_id,
+                        point_name,
+                        value_column_name: value_column_name.to_string(),
+                        value_column_length,
+                    },
+                });
+
+                stable_insert_map.insert(stable_name.clone(), sql_vec);
+            } else {
+                let mut sql_vec = sql_vec.unwrap();
+
                 for index in 0..sql_vec.len() {
-                    let (insert_sql, overflow, _, _) = sql_vec.get_mut(index).unwrap();
-                    if *overflow {
+                    let mut sql_insertion = sql_vec.get_mut(index).unwrap();
+                    if sql_insertion.overflow {
                         continue;
                     } else {
                         let sql_suffix = format!(
@@ -1356,70 +1462,49 @@ async fn consume_point_record(
                             columns_in_insert.as_str(),
                             values
                         );
-                        if insert_sql.len() + sql_suffix.len() > 1000 * 1000 {
-                            *overflow = true;
+                        if sql_insertion.sql.len() + sql_suffix.len() > 1000 * 1000 {
+                            sql_insertion.overflow = true;
                             continue;
                         } else {
-                            insert_sql.push_str(sql_suffix.as_str());
+                            sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
                         }
                     }
                 }
+
                 if !insert_done {
-                    // let insert_sql = ;
                     let value_column_type = if point_config.value_type.is_some() {
                         // maybe should replace value column type
                         point_config.value_type.clone().unwrap().sql_repr()
                     } else {
-                        value_type.clone()
+                        value_raw_type.sql_repr().clone()
                     };
-                    sql_vec.push((
-                        format!(
-                            "insert into `{child_table_name}` ({}) VALUES ({})",
-                            columns_in_insert.as_str(),
-                            values
-                        ),
-                        false,
+                    let sql = format!(
+                        "insert into `{}` ({}) VALUES ({})",
+                        child_table_name,
+                        columns_in_insert.as_str(),
+                        values
+                    );
+
+                    sql_vec.push(SqlInsertion {
+                        point_insertion: point_insertion.clone(),
+                        sql,
+                        overflow: false,
                         value_column_type,
-                        ModifyStructForPointMessage {
-                            id,
+                        modify: ModifyStructForPointMessage {
+                            id: point_id,
                             point_name,
                             value_column_name: value_column_name.to_string(),
                             value_column_length,
                         },
-                    ));
+                    });
                 }
-            } else {
-                let insert_sql = format!(
-                    "insert into `{child_table_name}` ({}) VALUES ({})",
-                    columns_in_insert.as_str(),
-                    values
-                );
-                let value_column_type = if point_config.value_type.is_some() {
-                    // maybe should replace value column type
-                    point_config.value_type.clone().unwrap().sql_repr()
-                } else {
-                    value_type.clone()
-                };
-                let mut sql_vec = Vec::new();
-                sql_vec.push((
-                    insert_sql,
-                    false,
-                    value_column_type,
-                    ModifyStructForPointMessage {
-                        id,
-                        point_name,
-                        value_column_name: value_column_name.to_string(),
-                        value_column_length,
-                    },
-                ));
-                stable_insert_map.insert(stable_name.clone(), sql_vec);
             }
         }
 
         for (stable_name, sql_vec) in stable_insert_map {
-            for (insert_sql, _, value_column_type, modify_message) in sql_vec {
-                debug!("point message insert sql len: {}", insert_sql.len());
+            for sql_insertion in sql_vec {
+                debug!("point message insert sql len: {}", sql_insertion.sql.len());
                 let mut retry = 0;
                 let mut break_err = Ok(());
                 'outer: loop {
@@ -1434,38 +1519,52 @@ async fn consume_point_record(
                     let sql_res = taos
                         .as_ref()
                         .unwrap()
-                        .exec_with_req_id(&insert_sql, req_id.next())
+                        .exec_with_req_id(&sql_insertion.sql, req_id.next())
                         .await;
+
+                    let value_column_type = sql_insertion.value_column_type.clone();
                     match sql_res {
                         Ok(n) => {
                             *count += n;
                             metrics.add_inserted_sqls(1);
                             metrics.add_written_rows(n as u64);
-                            metrics.add_written_points((n * columns_insert.len()) as u64);
+                            // metrics.add_written_points(
+                            //     (n * column_insert.columns_insert.len()) as u64,
+                            // );
+                            // TODO: points is wrong
+                            metrics.add_written_points(n as u64);
                             points += n;
                             break;
                         }
                         Err(err) => {
                             let errstr = format!("{err:#}");
                             tracing::warn!(
-                                sql = insert_sql,
+                                sql = sql_insertion.sql,
                                 error = errstr,
                                 "Insert point record error"
                             );
+
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                                 // stable not exists
                                 // should be some
-                                let value_column_config = value_column.as_ref().unwrap();
-                                let primary_key_column_name = value_column_config.name.clone();
-                                let prinmary_key_column_alias = value_column_config
+                                let value_column_config = sql_insertion
+                                    .point_insertion
+                                    .value_column_config
+                                    .as_ref()
+                                    .unwrap();
+                                let value_column_name = value_column_config.name.clone();
+                                let value_column_alias = value_column_config
                                     .alias
                                     .clone()
-                                    .unwrap_or(primary_key_column_name.clone());
-                                let mut temp_conlumns = columns.clone();
-                                temp_conlumns.push_str(
-                                    format!(",`{prinmary_key_column_alias}` {value_column_type}")
-                                        .as_str(),
-                                );
+                                    .unwrap_or(value_column_name.clone());
+                                let value_column_type = sql_insertion.value_column_type.clone();
+                                let mut temp_conlumns =
+                                    sql_insertion.point_insertion.other_columns.clone();
+                                let value_col =
+                                    format!(",`{}` {}", value_column_alias, value_column_type);
+                                temp_conlumns.push_str(value_col.as_str());
+
+                                let tags = sql_insertion.point_insertion.tags.clone();
                                 let stable_sql = format!(
                                     "create stable `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
@@ -1698,15 +1797,19 @@ async fn consume_point_record(
                                 tags_for_diff.push((
                                     "point_id".to_string(),
                                     IpcDataType::from_str(
-                                        format!("varchar({})", modify_message.id.len()).as_str(),
+                                        format!("varchar({})", sql_insertion.modify.id.len())
+                                            .as_str(),
                                     )
                                     .unwrap(),
                                 ));
                                 tags_for_diff.push((
                                     "point_name".to_string(),
                                     IpcDataType::from_str(
-                                        format!("varchar({})", modify_message.point_name.len())
-                                            .as_str(),
+                                        format!(
+                                            "varchar({})",
+                                            sql_insertion.modify.point_name.len()
+                                        )
+                                        .as_str(),
                                     )
                                     .unwrap(),
                                 ));
@@ -1734,14 +1837,16 @@ async fn consume_point_record(
                                 for column_meta in desc {
                                     if (column_meta.ty == Ty::VarChar
                                         || column_meta.ty == Ty::NChar)
-                                        && column_meta.field() == modify_message.value_column_name
-                                        && modify_message.value_column_length > column_meta.length()
+                                        && column_meta.field()
+                                            == sql_insertion.modify.value_column_name
+                                        && sql_insertion.modify.value_column_length
+                                            > column_meta.length()
                                     {
                                         let sql = format!(
                                             "alter table `{stable_name}` modify column `{}` {}({})",
                                             column_meta.field(),
                                             column_meta.ty(),
-                                            modify_message.value_column_length,
+                                            sql_insertion.modify.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
                                         // taos.as_ref().unwrap().exec(sql).await.context(
