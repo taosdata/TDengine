@@ -277,9 +277,10 @@ function remove_data_and_config() {
   if [ X"$log_dir" == X"" ]; then
     log_dir="/var/log/${clientName2}"
   fi
-  [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}/*
-  [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}/*
-  [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}/*
+  cd ~
+  [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}
+  [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
+  [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
 _kill_service_of() {
