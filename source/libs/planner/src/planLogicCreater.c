@@ -1016,10 +1016,6 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (!pCxt->pPlanCxt->streamQuery && tsDisableCount) {
-    return TSDB_CODE_FAILED;
-  }
-
   pWindow->winType = WINDOW_TYPE_COUNT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
   pWindow->node.requireDataOrder =

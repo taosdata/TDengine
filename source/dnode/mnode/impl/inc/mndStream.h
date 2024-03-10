@@ -111,7 +111,7 @@ STrans  *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
 void     killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo);
-int32_t  mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
+int32_t  mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
 int32_t     extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);

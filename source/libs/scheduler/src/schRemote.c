@@ -940,6 +940,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
 
+  if (isHb && persistHandle && trans->pHandle == 0) {
+    trans->pHandle = rpcAllocHandle();
+  } 
+
   if (pJob && pTask) {
     SCH_TASK_DLOG("start to send %s msg to node[%d,%s,%d], pTrans:%p, pHandle:%p", TMSG_INFO(msgType), addr->nodeId,
            epSet->eps[epSet->inUse].fqdn, epSet->eps[epSet->inUse].port, trans->pTrans, trans->pHandle);
@@ -1086,6 +1090,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.sqlLen = strlen(pJob->sql);
       req.sql = (char *)pJob->sql;
       req.msg = pTask->msg;
+      req.source = pJob->source;
       msgSize = tSerializeSVDeleteReq(NULL, 0, &req);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {

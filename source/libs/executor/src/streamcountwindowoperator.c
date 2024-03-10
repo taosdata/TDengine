@@ -390,10 +390,12 @@ void* doStreamCountDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
   buf = taosDecodeFixedI32(buf, &mapSize);
   for (int32_t i = 0; i < mapSize; i++) {
     SSessionKey       key = {0};
-    SResultWindowInfo winfo = {0};
+    SCountWindowInfo curWin = {0};
     buf = decodeSSessionKey(buf, &key);
-    buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
-    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
+    SBuffInfo buffInfo = {.rebuildWindow = false, .winBuffOp = NONE_WINDOW, .pCur = NULL};
+    setCountOutputBuf(&pInfo->streamAggSup, key.win.skey, key.groupId, &curWin, &buffInfo);
+    buf = decodeSResultWindowInfo(buf, &curWin.winInfo, pInfo->streamAggSup.resultRowSize);
+    tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
   }
 
   // 2.twAggSup
@@ -694,6 +696,8 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->recvGetAll = false;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
+  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, true,
+                  OP_NOT_OPENED, pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
   int32_t len = 0;
@@ -704,8 +708,6 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     doStreamCountDecodeOpState(buff, len, pOperator, true);
     taosMemoryFree(buff);
   }
-  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, true,
-                  OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamCountAgg, NULL, destroyStreamCountAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamCountReleaseState, streamCountReloadState);

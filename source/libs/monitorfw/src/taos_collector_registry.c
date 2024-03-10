@@ -216,7 +216,7 @@ int taos_collector_registry_validate_metric_name(taos_collector_registry_t *self
   regfree(&r);
   return 0;
 }
-
+/*
 const char *taos_collector_registry_bridge(taos_collector_registry_t *self, char *ts, char *format) {
   taos_metric_formatter_clear(self->metric_formatter);
   taos_metric_formatter_load_metrics(self->metric_formatter, self->collectors, ts, format);
@@ -229,7 +229,7 @@ const char *taos_collector_registry_bridge(taos_collector_registry_t *self, char
 
   return taos_string_builder_str(self->string_builder_batch);
 }
-
+*/
 int taos_collector_registry_clear_batch(taos_collector_registry_t *self){
   return taos_string_builder_clear(self->string_builder_batch);
 }

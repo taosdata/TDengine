@@ -856,7 +856,7 @@ taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。创�
 ```python
 import taosws
 
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
 </TabItem>
@@ -896,13 +896,13 @@ Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 flo
 
 ```python
 while True:
-    res = consumer.poll(1)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
-    val = res.value()
+    val = message.value()
 
     for block in val:
         print(block.fetchall())
@@ -911,16 +911,14 @@ while True:
 </TabItem>
 <TabItem value="websocket" label="WebSocket 连接">
 
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。
 
 ```python
 while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
-    if err is not None:
-        raise err
+    
     for block in message:
         for row in block:
             print(row)

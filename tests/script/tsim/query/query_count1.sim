@@ -9,8 +9,6 @@ print =============== create database
 sql create database test vgroups 4;
 sql use test;
 
-sql alter local 'disableCount' '0' ;
-
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
@@ -80,6 +78,28 @@ if $data22 != 4 then
   print ======data22=$data22
   goto loop3
 endi
+
+
+print step2
+print =============== create database
+sql create database test1 vgroups 1;
+sql use test1;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+#2~INT32_MAX
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(-1);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(0);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(1);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483648);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(10, 0);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(10, -1);
+sql_error select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(10, 11);
+
+sql select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2);
+sql select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483647);
 
 print query_count0 end
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
