@@ -42,7 +42,7 @@ impl OpcModelConfig {
 
         // check point_id duplicated
         if is_duplicated.is_some() {
-            bail!("found duplicated point: {} in csv row", point_id);
+            tracing::warn!("found duplicated point: {} in csv row", point_id);
         }
 
         // add table config

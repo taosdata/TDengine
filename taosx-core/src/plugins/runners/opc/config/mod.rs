@@ -36,9 +36,10 @@ pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
     connect: ConnectConfig,
+    pub report: ReportConfig,
+
     pub points: Option<PointsConfig>,
     collect: CollectConfig,
-    pub report: ReportConfig,
 
     #[serde(skip)]
     pub param_mapping: HashMap<String, PointConfig>,
@@ -57,16 +58,10 @@ impl OPCConfig {
             bail!("invalid opc driver");
         }
 
-        let config = Self {
-            opc_type: OpcType::from_dsn(dsn)?,
-            debug: Self::parse_debug(dsn)?,
-            connect: ConnectConfig::from_dsn(dsn)?,
-            points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
-            report: ReportConfig::from_dsn(dsn, ipc_port)?,
-            param_mapping: Self::build_param_mapping(dsn).await?,
-            opc_table_config: TableConfig::from_dsn(dsn).await?,
-        };
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let debug = Self::parse_debug(dsn)?;
+        let connect = ConnectConfig::from_dsn(dsn)?;
+        let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
         if csv_config_file.is_some() {
@@ -87,7 +82,16 @@ impl OPCConfig {
             }
         }
 
-        Ok(config)
+        Ok(Self {
+            opc_type,
+            debug,
+            connect,
+            report,
+            points: None,
+            collect: CollectConfig::from_dsn(dsn, id).await?,
+            param_mapping: Self::build_param_mapping(dsn).await?,
+            opc_table_config: TableConfig::from_dsn(dsn).await?,
+        })
     }
 
     pub async fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
