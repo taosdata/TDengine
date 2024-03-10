@@ -147,8 +147,21 @@ pub async fn opc_to_taos(
 
     let parser = CsvParser::from_dsn(&from).await;
     let table_config_map = match parser {
-        Ok(parser) => parser.get_model_config().table_config_map,
-        Err(_) => HashMap::new(),
+        Ok(parser) => {
+            let model_config = parser.get_model_config();
+            tracing::debug!(
+                "parse csv config success, model config: {:?}",
+                &model_config
+            );
+            model_config.table_config_map
+        }
+        Err(err) => {
+            tracing::warn!(
+                "parse csv config error: {}, use HashMap::new() instead",
+                err.to_string()
+            );
+            HashMap::new()
+        }
     };
 
     let model_config = Some(config.with_table_config_map(table_config_map).await?);

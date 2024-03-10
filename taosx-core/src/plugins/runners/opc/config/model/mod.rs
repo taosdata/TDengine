@@ -14,8 +14,7 @@ pub struct OpcModelConfig {
     /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
     pub point_config_map: HashMap<String, PointConfig>,
-    // for compatibility
-    pub table_config: TableConfig,
+    pub table_config: TableConfig, // for compatibility
     pub table_config_map: HashMap<String, TableConfig>,
 }
 
