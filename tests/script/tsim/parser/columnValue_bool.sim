@@ -31,26 +31,26 @@ if $data05 != NULL then
 endi
 sql create table st_bool_2  using mt_bool tags ('NULL')
 sql show tags from st_bool_2
-if $data05 != false then
-  print ==3== expect: false, actually: $data05
+if $data05 != NULL then
+  print ==3== expect: NULL, actually: $data05
   return -1
 endi
 sql create table st_bool_3  using mt_bool tags ('NULL')
 sql show tags from st_bool_3
-if $data05 != false then
-  print ==4== expect: false, actually: $data05
+if $data05 != NULL then
+  print ==4== expect: NULL, actually: $data05
   return -1
 endi
 sql create table st_bool_4  using mt_bool tags ("NULL")
 sql show tags from st_bool_4
-if $data05 != false then
-  print ==5== expect: false, actually: $data05
+if $data05 != NULL then
+  print ==5== expect: NULL, actually: $data05
   return -1
 endi
 sql create table st_bool_5  using mt_bool tags ("NULL")
 sql show tags from st_bool_5
-if $data05 != false then
-  print ==6== expect: false, actually: $data05
+if $data05 != NULL then
+  print ==6== expect: NULL, actually: $data05
   return -1
 endi
 sql create table st_bool_6  using mt_bool tags ("true")
@@ -581,12 +581,12 @@ endi
 
 # case 04: illegal input
 sql_error create table st_bool_e0 using mt_bool tags (123abc)
-sql create table st_bool_e1 using mt_bool tags ("123abc")
-sql create table st_bool_e2 using mt_bool tags ("123")
+sql_error create table st_bool_e1 using mt_bool tags ("123abc")
+sql_error create table st_bool_e2 using mt_bool tags ("123")
 sql_error create table st_bool_e3 using mt_bool tags (abc)
-sql create table st_bool_e4 using mt_bool tags ("abc")
-sql create table st_bool_e5 using mt_bool tags (" ")
-sql create table st_bool_e6 using mt_bool tags ('')
+sql_error create table st_bool_e4 using mt_bool tags ("abc")
+sql_error create table st_bool_e5 using mt_bool tags (" ")
+sql_error create table st_bool_e6 using mt_bool tags ('')
 
 sql create table st_bool_f0 using mt_bool tags (true)
 sql create table st_bool_f1 using mt_bool tags (true)
@@ -629,11 +629,11 @@ sql insert into st_bool_i5 using mt_bool tags (1) values (now, 1)
 sql insert into st_bool_i6 using mt_bool tags (1) values (now, 1)
 
 sql_error alter table st_bool_i0 set tag tagname=123abc
-sql alter table st_bool_i1 set tag tagname="123abc"
-sql alter table st_bool_i2 set tag tagname="123"
+sql_error alter table st_bool_i1 set tag tagname="123abc"
+sql_error alter table st_bool_i2 set tag tagname="123"
 sql_error alter table st_bool_i3 set tag tagname=abc
-sql alter table st_bool_i4 set tag tagname="abc"
-sql alter table st_bool_i5 set tag tagname=" "
-sql alter table st_bool_i6 set tag tagname=''
+sql_error alter table st_bool_i4 set tag tagname="abc"
+sql_error alter table st_bool_i5 set tag tagname=" "
+sql_error alter table st_bool_i6 set tag tagname=''
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
