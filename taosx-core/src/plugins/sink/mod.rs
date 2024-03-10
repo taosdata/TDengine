@@ -1406,6 +1406,7 @@ async fn consume_point_record(
                 tag_names.pop();
                 tag_values.pop();
             }
+
             if tag_names.is_empty() {
                 child_table_create_sql_map.insert(
                     child_table_name.clone(),
@@ -1417,10 +1418,7 @@ async fn consume_point_record(
             } else {
                 child_table_create_sql_map.insert(
                     child_table_name.clone(),
-                    format!(
-                        "(`point_id`, `point_name`, {tag_names}) TAGS (\"{point_id}\", {}, {tag_values})",
-                        &point_name
-                    ),
+                    format!("({}) TAGS ({})", tag_names, tag_values),
                 );
             }
 
