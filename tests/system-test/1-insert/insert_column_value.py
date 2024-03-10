@@ -46,6 +46,9 @@ class TDTestCase:
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, {okv})')
                 tdSql.query(f'select * from {dbname}.{stbname}')
                 tdSql.checkRows(1)
+                tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = {okv}')
+                tdSql.error(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
+                tdSql.error(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
         for _l in oklist:
             for _e in _l:
@@ -53,6 +56,8 @@ class TDTestCase:
                 tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 0s, %s, {okv})' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 1s, {okv}, %s)' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 2s, %s, %s)' %(_e, _e))
+                tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
+                tdSql.execute(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
                 tdSql.query(f'select * from {dbname}.{stbname}')
                 tdSql.checkRows(3)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')      
@@ -110,8 +115,8 @@ class TDTestCase:
         KO_VC = [RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR]
         OK_NC = []
         KO_NC = []
-        OK_TS = [STR_TSK, STR_TSKP, STR_NULL, RAW_INTEGER, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_NULL]
-        KO_TS = [STR_EMPTY, STR_INTEGER, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_BOOL, STR_VARBIN,
+        OK_TS = [STR_TSK, STR_TSKP, STR_NULL, STR_INTEGER, RAW_INTEGER, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_NULL]
+        KO_TS = [STR_EMPTY, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_BOOL, STR_VARBIN,
                  STR_JSON,STR_GEO, STR_FLOAT, RAW_FLOAT_E, RAW_MISC, RAW_OPTR, RAW_BOOL]
         OK_BO = []
         KO_BO = []
