@@ -1181,13 +1181,16 @@ impl PointInsertion {
         other_columns.pop();
 
         // tags
-        let mut tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string();
-        if table_config.tag_configs.is_some() {
+        let tags = if table_config.tag_configs.is_none() {
+            "`point_id` VARCHAR(256),`point_name` VARCHAR(256)".to_string()
+        } else {
             let tag_configs = table_config.tag_configs.clone().unwrap();
-            for tag in tag_configs {
-                tags.push_str(format!(" ,`{}` {}", tag.name, tag.r#type.sql_repr()).as_str());
-            }
-        }
+            tag_configs
+                .iter()
+                .map(|tag| format!("`{}` {}", tag.name, tag.r#type.sql_repr()))
+                .collect::<Vec<String>>()
+                .join(",")
+        };
 
         Self {
             columns,
@@ -1572,7 +1575,7 @@ async fn consume_point_record(
 
                                 let tags = sql_insertion.point_insertion.tags.clone();
                                 let stable_sql = format!(
-                                    "create stable `{}` ({}) tags ({})",
+                                    "CREATE STABLE IF NOT EXISTS `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
@@ -1612,7 +1615,7 @@ async fn consume_point_record(
                                 // batch create child table
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut child_table_counts_vec = Vec::<u32>::new();
-                                let mut sql_prefix = "create table".to_string();
+                                let mut sql_prefix = "CREATE TABLE".to_string();
                                 let mut child_table_count = 0u32;
                                 for (child_table_name, child_table_create_sql) in
                                     &child_table_create_sql_map
@@ -1620,7 +1623,7 @@ async fn consume_point_record(
                                     let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
-                                        sql_prefix = "create table".to_string();
+                                        sql_prefix = "CREATE TABLE".to_string();
                                         child_table_counts_vec.push(child_table_count);
                                         child_table_count = 0;
                                     }
