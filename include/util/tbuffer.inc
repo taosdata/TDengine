@@ -154,7 +154,8 @@ static FORCE_INLINE int32_t tBufferPutF32(SBuffer *buffer, float value) {
   union {
     float    f;
     uint32_t u;
-  } u = {.f = value};
+  } u;
+  u.f = value;
   return tBufferPutU32(buffer, u.u);
 }
 
@@ -162,7 +163,8 @@ static FORCE_INLINE int32_t tBufferPutF64(SBuffer *buffer, double value) {
   union {
     double   f;
     uint64_t u;
-  } u = {.f = value};
+  } u;
+  u.f = value;
   return tBufferPutU64(buffer, u.u);
 }
 

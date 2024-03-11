@@ -1759,7 +1759,10 @@ int32_t tsdbDataFileWriteBlockData(SDataFileWriter *writer, SBlockData *bData) {
   }
 
   if (writer->ctx->tbHasOldData) {
-    code = tsdbDataFileDoWriteTableOldData(writer, NULL /* as largest key */);
+    STsdbRowKey key;
+
+    tsdbRowGetKey(&tsdbRowFromBlockData(bData, 0), &key);
+    code = tsdbDataFileDoWriteTableOldData(writer, &key);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
