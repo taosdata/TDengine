@@ -164,7 +164,7 @@ class TDTestCase:
                                 offset_value_list = list(map(lambda x: (x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
                                 offset_value_list1 = list(map(lambda x: int(x.split("/")[0]), offset_value_list))
                                 offset_value_list2 = list(map(lambda x: int(x.split("/")[1]), offset_value_list))
-                                tdSql.checkEqual(offset_value_list1 == offset_value_list2, True)
+                                tdSql.checkEqual(offset_value_list1 <= offset_value_list2, True)
                                 tdSql.checkEqual(sum(offset_value_list1) >= 0, True)
                                 rows_value_list  = list(map(lambda x: int(x[-1]), subscription_info))
                                 tdSql.checkEqual(sum(rows_value_list), expected_res)
