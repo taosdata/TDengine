@@ -170,6 +170,12 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FIRST_STATE_MERGE,
   FUNCTION_TYPE_LAST_STATE,
   FUNCTION_TYPE_LAST_STATE_MERGE,
+  FUNCTION_TYPE_SPREAD_STATE,
+  FUNCTION_TYPE_SPREAD_STATE_MERGE,
+  FUNCTION_TYPE_STDDEV_STATE,
+  FUNCTION_TYPE_STDDEV_STATE_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -280,6 +286,7 @@ int32_t fmCreateStateFuncs(SNodeList* pFuncs);
 int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
+bool    fmIsCountLikeFunc(int32_t funcId);
 
 #ifdef __cplusplus
 }

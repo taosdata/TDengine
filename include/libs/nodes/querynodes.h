@@ -163,6 +163,8 @@ typedef struct SFunctionNode {
   int32_t    funcType;
   SNodeList* pParameterList;
   int32_t    udfBufSize;
+  bool       hasOriginalFunc;
+  int32_t    originalFuncId;
 } SFunctionNode;
 
 typedef struct STableNode {

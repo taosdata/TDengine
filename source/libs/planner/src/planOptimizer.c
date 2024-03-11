@@ -4456,8 +4456,7 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
     SFunctionNode* pQueryFunc = (SFunctionNode*)pNode;
     // TODO handle _wstart
     if (fmIsPseudoColumnFunc(pQueryFunc->funcId) || fmIsGroupKeyFunc(pQueryFunc->funcId)) continue;
-    if (1 != pQueryFunc->pParameterList->length ||
-        nodeType(pQueryFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
+    if (nodeType(pQueryFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
       failed = true;
       break;
     }

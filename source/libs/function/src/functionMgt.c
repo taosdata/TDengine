@@ -407,6 +407,8 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  (*pPartialFunc)->hasOriginalFunc = true;
+  (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
   taosCreateMD5Hash(name, len);
@@ -466,6 +468,8 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pFunc->hasOriginalFunc = true;
+    pFunc->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
     // overwrite function restype set by translate function
     if (fmIsSameInOutType(pSrcFunc->funcId)) {
       pFunc->node.resType = pSrcFunc->node.resType;
@@ -624,4 +628,8 @@ bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
   int32_t stateMergeFuncId = fmGetFuncId(pFunc->pStateFunc);
   const SBuiltinFuncDefinition* pStateMergeFunc = &funcMgtBuiltins[stateMergeFuncId];
   return strcmp(pStateFunc->name, pStateMergeFunc->pMergeFunc) == 0;
+}
+
+bool fmIsCountLikeFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_COUNT_LIKE_FUNC);
 }

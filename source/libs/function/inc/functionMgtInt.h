@@ -54,6 +54,7 @@ extern "C" {
 #define FUNC_MGT_FORBID_SYSTABLE_FUNC   FUNC_MGT_FUNC_CLASSIFICATION_MASK(25)
 #define FUNC_MGT_SKIP_SCAN_CHECK_FUNC   FUNC_MGT_FUNC_CLASSIFICATION_MASK(26)
 #define FUNC_MGT_TSMA_FUNC              FUNC_MGT_FUNC_CLASSIFICATION_MASK(27)
+#define FUNC_MGT_COUNT_LIKE_FUNC        FUNC_MGT_FUNC_CLASSIFICATION_MASK(28) // funcs that should also return 0 when no rows found
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
