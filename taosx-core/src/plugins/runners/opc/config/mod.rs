@@ -16,6 +16,7 @@ use taosx_ipc::prelude::IpcDataType;
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
+use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{
     ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
 };
@@ -64,14 +65,10 @@ impl OPCConfig {
         let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
+
         if csv_config_file.is_some() {
-            let table_to_drop =
-                generate_config_from_csv("opcua", csv_config_file.clone().unwrap().as_str())
-                    .await
-                    .map(|(_a, _b, c)| c)
-                    .map_err(|err| {
-                        anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                    })?;
+            let parser = CsvParser::from_dsn(dsn).await?;
+            let table_to_drop = parser.get_tables_to_drop();
 
             for child_table_name in table_to_drop.iter() {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -151,21 +148,18 @@ impl OPCConfig {
     }
 
     async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
-        let opc_type = OpcType::from_dsn(dsn)?;
         let csv_config_file = Self::parse_csv_config_file(dsn);
 
-        match (opc_type, csv_config_file) {
-            (OpcType::OPCUA, Some(csv)) => {
-                let (opc_table_config, _, _) =
-                    generate_config_from_csv("opcua", csv.as_str()).await?;
-                return Ok(opc_table_config.point_config_map.clone());
-            }
-            (OpcType::OPCDA, Some(csv)) => {
-                let (opc_table_config, _, _) =
-                    generate_config_from_csv("opcda", csv.as_str()).await?;
-                return Ok(opc_table_config.point_config_map.clone());
-            }
-            (OpcType::OPCUA, None) => {
+        if csv_config_file.is_some() {
+            let parser = CsvParser::from_dsn(dsn).await?;
+            let point_config_map = parser.get_model_config().point_config_map;
+            return Ok(point_config_map);
+        }
+
+        let opc_type = OpcType::from_dsn(dsn)?;
+
+        let param_mapping = match opc_type {
+            OpcType::OPCUA => {
                 let mut param_mapping = HashMap::new();
 
                 let ua_nodes =
@@ -193,9 +187,9 @@ impl OPCConfig {
                         },
                     );
                 }
-                return Ok(param_mapping);
+                param_mapping
             }
-            (OpcType::OPCDA, None) => {
+            OpcType::OPCDA => {
                 let mut param_mapping = HashMap::new();
 
                 let node_vec =
@@ -222,10 +216,12 @@ impl OPCConfig {
                         },
                     );
                 }
-                return Ok(param_mapping);
+                param_mapping
             }
-            _ => bail!("invalid opc type"),
-        }
+            _ => bail!("invalid opc type: {}", opc_type),
+        };
+
+        Ok(param_mapping)
     }
 
     pub fn parse_select_all_points(dsn: &Dsn) -> bool {
@@ -376,15 +372,16 @@ pub async fn generate_config_from_csv(
                     }
 
                     // stable
-                    let stable = if let Some(stable_name) = record_map.get("stable") {
+                    let stable = if let Some(mut stable_name) = record_map.get("stable") {
                         let val_type = record_map.get("type").unwrap();
-                        let stable = if val_type.is_empty() {
-                            None
+
+                        let stable = if !val_type.is_empty() {
+                            stable_name.to_string().replace("{type}", &val_type)
                         } else {
-                            let stable_name = stable_name.replace("{type}", &val_type);
-                            Some(stable_name.clone())
+                            stable_name.to_string()
                         };
-                        stable
+
+                        Some(stable)
                     } else {
                         None
                     };
