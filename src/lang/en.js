@@ -1368,11 +1368,11 @@ export default {
       previewmore: "Preview Result",
       more: "More",
       viewmore: "View More",
-      extract: "Extract or Split From A column",
-      filter: "2. Filter",
-      superconfig: "3. Mapping",
+      extract: "2. Extract or Split From A column",
+      filter: "3. Filter",
+      superconfig: "4. Mapping",
       target: "Target Super Table",
-      mapping: "Mapping",
+      mapping: "5. Mapping",
       createstb: "Create STable",
       payload: "Payload Format",
       upload: "Upload Sample Data",
@@ -1468,6 +1468,7 @@ export default {
     mqttparsertip:
       "Ensure that all required items for the {datasource} parser have been filled out",
     mqtttitle: "MQTT Payload Parser",
+    transformerTitle: "Payload Transformation",
     parserTip: "A Data Mapping contains at least one column and one tag",
 
     addmqtttip: "Field, Column and Column Type cannot be empty before adding",

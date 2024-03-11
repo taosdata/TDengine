@@ -69,7 +69,6 @@
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
                 :on-error="handleError"
-                accept=".csv,.json"
                 :on-exceed="handleExceed"
                 :file-list="fileList"
                 :show-file-list="false"
@@ -242,7 +241,7 @@
       </section>
       <section class="extract">
         <div
-          class="block-title sub"
+          class="block-title top"
           style="justify-content: flex-start; align-items: baseline"
         >
           <span>{{ $t("datasource.transformer.extract") }}</span>
@@ -934,10 +933,10 @@ export default {
     },
     handleSuccess(_, file, fileList) {
       Papa.parse(file.raw, {
-        header: false,
-        complete: (result) => {
-          console.log(result.data.join("\n"), "解析后的结果");
-          this.msgForm.msgbody += result.data.join("\n")
+      header: false,
+      complete: (result) => {
+      console.log(result.data.join("\n"), "解析后的结果");
+      this.msgForm.msgbody += result.data.join("\n")
           this.request = false;
         },
       });
@@ -1775,7 +1774,7 @@ export default {
               selected_db: this.$store.state.app.currentDBName,
               stable_form: this.$refs.createstb.stable_form,
             };
-            let result = await createStableReq(payload);
+                        let result = await createStableReq(payload);
             if (result?.desc) {
               Message.error(this.$t(result.desc));
               return;
