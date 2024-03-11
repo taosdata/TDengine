@@ -396,8 +396,36 @@ class TDTestCase:
         finally:
             consumer.close()
 
+    def consume_ts_4544(self):
+        tdSql.execute(f'create database if not exists d1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table stt(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into tt1 using stt tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt2 using stt tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt3 using stt tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into tt1 using stt tags(1) values(now+5s, 11) (now+10s, 12)')
+
+        tdSql.execute(f'create topic topic_in as stable stt where tbname like "t%"')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_in"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        print("consume_ts_4544 ok")
+        consumer.close()
+
     def run(self):
+
         self.consumeTest()
+        self.consume_ts_4544()
         self.consume_TS_4540_Test()
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
