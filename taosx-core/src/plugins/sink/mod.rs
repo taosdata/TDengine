@@ -1110,6 +1110,8 @@ async fn consume_point_record(
     trace_id_str: &str,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
+    tracing::debug!("consume point record, opc model config: {:?}", config);
+
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {

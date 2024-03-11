@@ -98,7 +98,7 @@ impl CsvParser {
         self.model_config.clone()
     }
 
-    pub fn get_node_config(&self) -> Vec<String> {
+    pub fn get_point_ids(&self) -> Vec<String> {
         let point_config_map = &self.model_config.point_config_map;
 
         let mut node_config = Vec::new();
@@ -178,7 +178,7 @@ mod csv_parser_tests {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
             .unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let ua_config = csv_parser.get_node_config();
+        let ua_config = csv_parser.get_point_ids();
         assert_eq!(ua_config.len(), 3);
         dbg!(ua_config);
 
@@ -186,7 +186,7 @@ mod csv_parser_tests {
             Dsn::from_str("opcda://?csv_config_file=@tests/opc/opcda-template-zh-utf8bom.csv")
                 .unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let da_config = csv_parser.get_node_config();
+        let da_config = csv_parser.get_point_ids();
         assert_eq!(da_config.len(), 3);
         dbg!(da_config);
     }
