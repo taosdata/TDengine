@@ -359,8 +359,46 @@ class TDTestCase:
         finally:
             consumer.close()
 
+    def consume_TS_4540_Test(self):
+        tdSql.execute(f'create database if not exists test')
+        tdSql.execute(f'use test')
+        tdSql.execute(f'CREATE STABLE `test`.`b` ( `time` TIMESTAMP , `task_id` NCHAR(1000) ) TAGS( `key` NCHAR(1000))')
+        tdSql.execute(f"insert into `test`.b1 using `test`.`b`(key) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(key) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(key) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
+
+        tdSql.execute(f'create topic tt as select tbname,task_id,key from b')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["tt"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                for block in val:
+                    data = block.fetchall()
+                    print(data)
+                    # if data != [('b1', '32', '1')] and data != [('b2', '43', '2')] and data != [('b3', '123456', '3')]:
+                    #     tdLog.exit(f"index = 0 table b1 error")
+
+        finally:
+            consumer.close()
+
     def run(self):
         self.consumeTest()
+        self.consume_TS_4540_Test()
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
 
