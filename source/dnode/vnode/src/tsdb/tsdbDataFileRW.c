@@ -1035,7 +1035,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
           goto _exit;
         }
 
-        if (tsdbRowKeyCmpr(key, &record.firstKey) < 0) {  // key < record->firstKey
+        if (tsdbRowKeyCmprNullAsLargest(key, &record.firstKey) < 0) {  // key < record->firstKey
           goto _exit;
         } else {
           SBrinRecord record[1];
