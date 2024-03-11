@@ -8173,7 +8173,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
-      if (tEncodeU32(pDecoder, &pReq->compress) < 0) return -1;
+      if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
       break;
     default:
       break;
