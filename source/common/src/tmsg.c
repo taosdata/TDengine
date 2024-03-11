@@ -53,7 +53,7 @@
 #define ENCODESQL()                                                        \
   do {                                                                     \
     if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;                 \
-    if (pReq->sqlLen > 0) {                                                \
+    if (pReq->sqlLen > 0) {                           \
       if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1; \
     }                                                                      \
   } while (0)
