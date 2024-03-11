@@ -36,9 +36,10 @@ pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
     connect: ConnectConfig,
+    pub report: ReportConfig,
+
     pub points: Option<PointsConfig>,
     collect: CollectConfig,
-    pub report: ReportConfig,
 
     #[serde(skip)]
     pub param_mapping: HashMap<String, PointConfig>,
@@ -57,16 +58,10 @@ impl OPCConfig {
             bail!("invalid opc driver");
         }
 
-        let config = Self {
-            opc_type: OpcType::from_dsn(dsn)?,
-            debug: Self::parse_debug(dsn)?,
-            connect: ConnectConfig::from_dsn(dsn)?,
-            points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
-            report: ReportConfig::from_dsn(dsn, ipc_port)?,
-            param_mapping: Self::build_param_mapping(dsn).await?,
-            opc_table_config: TableConfig::from_dsn(dsn).await?,
-        };
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let debug = Self::parse_debug(dsn)?;
+        let connect = ConnectConfig::from_dsn(dsn)?;
+        let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
         if csv_config_file.is_some() {
@@ -87,7 +82,16 @@ impl OPCConfig {
             }
         }
 
-        Ok(config)
+        Ok(Self {
+            opc_type,
+            debug,
+            connect,
+            report,
+            points: None,
+            collect: CollectConfig::from_dsn(dsn, id).await?,
+            param_mapping: Self::build_param_mapping(dsn).await?,
+            opc_table_config: TableConfig::from_dsn(dsn).await?,
+        })
     }
 
     pub async fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
@@ -431,7 +435,7 @@ pub async fn generate_config_from_csv(
                         .with_context(|| format!("Config error with {value_column_name}"))?;
                         current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
-                            name: "value".to_string(),
+                            name: ColumnConfig::VALUE.to_string(),
                             r#type: None,
                             alias: Some(value_column_name.clone()),
                             transform: None,
@@ -448,7 +452,7 @@ pub async fn generate_config_from_csv(
                         )?;
                         current_columns.push(quality_col_name.clone());
                         column_config.push(ColumnConfig {
-                            name: "quality".to_string(),
+                            name: ColumnConfig::QUALITY.to_string(),
                             r#type: Some(Ty::Int),
                             alias: Some(quality_col_name.clone()),
                             transform: None,
@@ -463,7 +467,7 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        name: "received_ts".to_string(),
+                                        name: ColumnConfig::RECEIVED_TS.to_string(),
                                         r#type: Some(Ty::Timestamp),
                                         alias: Some(col_data.clone()),
                                         transform: None,
@@ -476,7 +480,7 @@ pub async fn generate_config_from_csv(
 
                                     has_primary_key = !has_primary_key;
                                     let col_config = ColumnConfig {
-                                        name: "original_ts".to_string(),
+                                        name: ColumnConfig::ORIGINAL_TS.to_string(),
                                         r#type: Some(Ty::Timestamp),
                                         alias: Some(col_data.clone()),
                                         transform: None,
@@ -505,7 +509,7 @@ pub async fn generate_config_from_csv(
 
                         if rts_col_num == 0 && ts_col_num == 0 {
                             let col_config = ColumnConfig {
-                                name: "original_ts".to_string(),
+                                name: ColumnConfig::ORIGINAL_TS.to_string(),
                                 r#type: Some(Ty::Timestamp),
                                 alias: Some("ts".to_string()),
                                 transform: None,
