@@ -380,8 +380,8 @@ if $data04 != NULL then
 endi
 sql alter table st41 set tag tag_float = 'NULL'
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-if $data04 != 0.00000 then
-  print ==17== expect: 0.00000, actually : $data04
+if $data04 != NULL then
+  print ==17== expect: NULL, actually : $data04
   return -1
 endi
 sql alter table st41 set tag tag_float = '54.123456'
