@@ -455,21 +455,21 @@ class TDTestCase:
         self.consume_TS_4540_Test()
         self.consume_ts_4551()
 
-        # tdSql.prepare()
-        # self.checkWal1VgroupOnlyMeta()
-        #
-        # self.checkWal1Vgroup()
-        # self.checkSnapshot1Vgroup()
-        #
-        # self.checkWal1VgroupTable()
-        # self.checkSnapshot1VgroupTable()
-        #
-        # self.checkWalMultiVgroups()
-        # self.checkSnapshotMultiVgroups()
-        #
-        # self.checkWalMultiVgroupsWithDropTable()
-        #
-        # self.checkSnapshotMultiVgroupsWithDropTable()
+        tdSql.prepare()
+        self.checkWal1VgroupOnlyMeta()
+
+        self.checkWal1Vgroup()
+        self.checkSnapshot1Vgroup()
+
+        self.checkWal1VgroupTable()
+        self.checkSnapshot1VgroupTable()
+
+        self.checkWalMultiVgroups()
+        self.checkSnapshotMultiVgroups()
+
+        self.checkWalMultiVgroupsWithDropTable()
+
+        self.checkSnapshotMultiVgroupsWithDropTable()
 
     def stop(self):
         tdSql.close()
