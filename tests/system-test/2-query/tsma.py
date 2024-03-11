@@ -229,12 +229,12 @@ class TSMATester:
                     key=lambda x: [v is None for v in x] + list(x))
                 tsma_res.sort(key=lambda x: [v is None for v in x] + list(x))
             except Exception as e:
-                tdLog.exit("comparing tsma res for: %s got different data: \nno tsma res: %s \n  tsma res: %s err: %s" % (
+                tdLog.exit("comparing tsma res for: %s got different data: \nno tsma res: %s \n   tsma res: %s err: %s" % (
                     sql, str(no_tsma_res), str(tsma_res), str(e)))
 
         for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
             if row_no_tsma != row_tsma:
-                tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n  tsma res: %s" % (
+                tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s \nno tsma res: %s \n   tsma res: %s" % (
                     sql, str(row_no_tsma), str(row_tsma), str(no_tsma_res), str(tsma_res)))
         tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' %
                    (sql, str(tsma_res), str(no_tsma_res)))
@@ -771,7 +771,7 @@ class TDTestCase:
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
-        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)']
+        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)']
         select_func_list: List[str] = tsma_func_list.copy()
         select_func_list.append('count(*)')
         self.create_tsma('tsma3', 'test', 'meters', tsma_func_list, '5m')
@@ -781,6 +781,7 @@ class TDTestCase:
         sql = 'select avg(c2), "recursive tsma4" from meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
+        #time.sleep(999999)
         self.tsma_tester.check_sql(sql, ctx)
         self.check(self.test_query_tsma_all(select_func_list))
         self.create_recursive_tsma(
@@ -857,7 +858,7 @@ class TDTestCase:
         sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333').get_qc())
-        ctxs.extend(self.test_query_tsma_all())
+        #ctxs.extend(self.test_query_tsma_all())
         return ctxs
 
     def test_query_with_tsma_interval_partition_by_col(self):

@@ -224,6 +224,8 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(udfBufSize);
   COPY_SCALAR_FIELD(hasPk);
   COPY_SCALAR_FIELD(pkBytes);
+  COPY_SCALAR_FIELD(hasOriginalFunc);
+  COPY_SCALAR_FIELD(originalFuncId);
   return TSDB_CODE_SUCCESS;
 }
 

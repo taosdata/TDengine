@@ -177,6 +177,8 @@ typedef struct SFunctionNode {
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
+  bool       hasOriginalFunc;
+  int32_t    originalFuncId;
 } SFunctionNode;
 
 typedef struct STableNode {

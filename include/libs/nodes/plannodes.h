@@ -583,6 +583,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
   bool       groupKeyOptimized;
+  bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {

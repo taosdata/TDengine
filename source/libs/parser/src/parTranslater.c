@@ -10686,6 +10686,10 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
       nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pHead);
       nodesListPushFront(pFunc->pParameterList, (SNode*)pCol);
       snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s", pSchema->name);
+      // for first or last, the second param will be pk ts col, here we should remove it
+      if (fmIsImplicitTsFunc(pFunc->funcId) && LIST_LENGTH(pFunc->pParameterList) == 2) {
+        nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pTail);
+      }
       ++i;
     }
     // recursive tsma, create func list from base tsma
