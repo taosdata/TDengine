@@ -84,7 +84,7 @@ async fn write_data(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<u64> {
-    tracing::debug!("[{id}] start writing data");
+    tracing::debug!("Start writing data");
     metrics.add_messages_of_data(1);
     let mut has_blocks = false;
     if target_is_v3 && actions.is_empty() {
@@ -99,11 +99,20 @@ async fn write_data(
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
-                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 => {
-                    // fallback to block-by-block method.
+                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
+                    tracing::debug!("Fallback to block-by-block method due to: {err}.");
                 }
                 _ => {
                     metrics.add_write_raw_fails(1);
+                    tracing::error!("Write data error: {err}");
+                    let block = data.fetch_raw_block().await;
+                    if let Ok(Some(block)) = block {
+                        tracing::error!("Details about the failed data: {}", block.pretty_format());
+                    } else {
+                        tracing::warn!(
+                            "Failed to fetch raw block"
+                        );
+                    }
                     Err(err).context("Write raw data into target error")?;
                 }
             }
@@ -171,7 +180,7 @@ async fn write_data(
                 }
                 raw.with_table_name(&name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -179,7 +188,7 @@ async fn write_data(
             }
         } else {
             tracing::debug!(
-                "[{id}] write {} rows(total {}) with {} columns",
+                "write {} rows(total {}) with {} columns",
                 raw.nrows(),
                 rows,
                 raw.ncols()
@@ -191,10 +200,9 @@ async fn write_data(
             let with_raw_block = async {
                 if let Err(err) = taos.write_raw_block(&raw).await {
                     let code = *err.code().deref();
-                    tracing::debug!("try to recover from error: {err}");
+                    tracing::debug!("Try to recover from error: {err}");
                     match code {
                         0x0118 => {
-                            // TODO
                             // sync schema
                             let source_stable_name = source.get().await?.query_one::<_, String>("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'").await?;
                             if let Some(mut source_stable_name) = source_stable_name {
@@ -329,16 +337,14 @@ async fn write_data(
                     }
                 }
             } else {
-                tracing::warn!("[{id}] v2 target does not support delete data");
+                tracing::warn!("v2 target does not support delete data");
             }
         } else {
-            tracing::warn!(
-                "[{id}] there's older version delete message, you must delete data manually"
-            );
+            tracing::warn!("there's older version delete message, you must delete data manually");
         }
     }
     tracing::debug!(
-        "[{id}] end writing data, current records {}",
+        "End writing data, current records {}",
         metrics.written_rows()
     );
     Ok(0)
@@ -355,7 +361,7 @@ async fn write_meta(
     metrics: &TmqMetrics,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
-    tracing::debug!("[{id}] start writing meta {cur}");
+    tracing::debug!("Start writing meta {cur}");
     if actions.is_empty() {
         if target_is_v3 {
             let jm = meta.as_json_meta().await.context("Fetch json meta error");
@@ -366,6 +372,8 @@ async fn write_meta(
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
                 metrics.add_write_raw_fails(1);
+                // Print error no matter how we will deal with it, so that we can know what happened.
+                tracing::debug!("Write raw meta: {err}");
                 let code = *err.code().deref();
                 match code {
                     // Table not exist error codes.
@@ -427,7 +435,7 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
-                        tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
+                        // do nothing
                     }
                     _ => {
                         Err(err.context("Write raw meta error"))?;
@@ -446,12 +454,10 @@ async fn write_meta(
             .as_json_meta()
             .await
             .context("Fetch json meta error for transform")?;
-        // dbg!(&meta);
-
+        tracing::debug!("Meta: {:?}", meta);
         for action in actions {
             action.mutate_meta(&mut meta)?;
         }
-        // dbg!(&meta);
         let sql = meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
             metrics.add_write_raw_fails(1);
@@ -468,7 +474,7 @@ async fn write_meta(
             }
         }
     }
-    tracing::debug!("[{id}] end writing meta {cur}");
+    tracing::debug!("End writing meta {cur}");
     Ok(())
 }
 
