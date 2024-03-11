@@ -8119,13 +8119,11 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
       break;
     default:
       break;
   }
-  if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
-  // xsren
-  printf("alter table compress:%0x\n", pReq->compress);
   if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
   if (tEncodeI8(pEncoder, pReq->source) < 0) return -1;
 

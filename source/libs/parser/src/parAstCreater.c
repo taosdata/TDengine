@@ -1495,20 +1495,29 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   return (SNode*)pOptions;
 }
 
-SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal) {
+SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionType type, void* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   switch (type) {
     case COLUMN_OPTION_ENCODE:
       memset(((SColumnOptions*)pOptions)->encode, 0, TSDB_CL_COMPRESS_OPTION_LEN);
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->encode, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->encode)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
       break;
     case COLUMN_OPTION_COMPRESS:
       memset(((SColumnOptions*)pOptions)->compress, 0, TSDB_CL_COMPRESS_OPTION_LEN);
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->compress)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
       break;
     case COLUMN_OPTION_LEVEL:
       memset(((SColumnOptions*)pOptions)->compressLevel, 0, TSDB_CL_COMPRESS_OPTION_LEN);
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->compressLevel)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
       break;
     default:
       break;

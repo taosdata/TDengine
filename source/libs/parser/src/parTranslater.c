@@ -6584,6 +6584,17 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       taosArrayPush(pAlterReq->pFields, &newField);
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
+      TAOS_FIELD field = {0};
+      strcpy(field.name, pStmt->colName);
+      if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      setColCompressByOption((uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
+                             columnCompressVal(pStmt->pColOptions->compress),
+                             columnLevelVal(pStmt->pColOptions->compressLevel));
+      break;
+    }
     default:
       break;
   }
