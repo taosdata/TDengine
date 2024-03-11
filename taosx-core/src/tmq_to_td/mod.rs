@@ -109,9 +109,7 @@ async fn write_data(
                     if let Ok(Some(block)) = block {
                         tracing::error!("Details about the failed data: {}", block.pretty_format());
                     } else {
-                        tracing::warn!(
-                            "Failed to fetch raw block"
-                        );
+                        tracing::warn!("Failed to fetch raw block");
                     }
                     Err(err).context("Write raw data into target error")?;
                 }
