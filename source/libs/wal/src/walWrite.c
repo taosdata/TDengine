@@ -553,6 +553,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
+    strncpy(opts.key, pWal->cfg.cryptKey, 16);
 
     int32_t count = CBC_Encrypt(&opts);
 

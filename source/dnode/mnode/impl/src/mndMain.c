@@ -444,8 +444,16 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .retentionPeriod = 0,
       .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
-      .cryptAlgorithm = (tsiCryptScope & DND_CS_MNODE_WAL)? tsiCryptAlgorithm : 0,
+      .cryptAlgorithm = 0,
+      .cryptKey = {0}
   };
+
+#if defined(TD_ENTERPRISE)
+  if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
+    cfg.cryptAlgorithm = (tsiCryptScope & DND_CS_MNODE_WAL)? tsiCryptAlgorithm : 0;
+    strncpy(cfg.cryptKey, tsCryptKey, 16);
+  }
+#endif
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {

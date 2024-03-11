@@ -26,6 +26,7 @@ typedef struct SCryptOpts{
   char*     source;
   char*     result;
   int32_t   unitLen;
+  unsigned char  key[17];
 }SCryptOpts;
 
 int32_t CBC_Decrypt(SCryptOpts *opts);

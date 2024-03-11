@@ -373,7 +373,7 @@ int32_t walFetchBody(SWalReader *pRead) {
     return -1;
   }
 
-  decryptBody(pRead->pWal->cfg.cryptAlgorithm, pRead->pHead, plainBodyLen, __FUNCTION__);
+  decryptBody(&pRead->pWal->cfg, pRead->pHead, plainBodyLen, __FUNCTION__);
 
   if (walValidBodyCksum(pRead->pHead) != 0) {
     wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, 0x%" PRIx64, vgId, ver, id);
@@ -488,7 +488,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     return -1;
   }
 
-  decryptBody(pReader->pWal->cfg.cryptAlgorithm, pReader->pHead, plainBodyLen, __FUNCTION__);
+  decryptBody(&pReader->pWal->cfg, pReader->pHead, plainBodyLen, __FUNCTION__);
 
   code = walValidBodyCksum(pReader->pHead);
   if (code != 0) {
@@ -509,8 +509,8 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   return 0;
 }
 
-void decryptBody(int32_t cryptAlgorithm, SWalCkHead* pHead, int32_t plainBodyLen, const char* func) {
-  if (cryptAlgorithm == 1) {
+void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func) {
+  if (cfg->cryptAlgorithm == 1) {
     int32_t cryptedBodyLen = CRYPTEDLEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
 
@@ -519,6 +519,7 @@ void decryptBody(int32_t cryptAlgorithm, SWalCkHead* pHead, int32_t plainBodyLen
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
+    strncpy(opts.key, cfg->cryptKey, 16);
 
     int32_t count = CBC_Decrypt(&opts);
 

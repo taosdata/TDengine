@@ -251,9 +251,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
-  if(tsiCryptScope & DND_CS_VNODE_WAL){
-    pCfg->walCfg.cryptAlgorithm = tsiCryptAlgorithm;
+#if defined(TD_ENTERPRISE)
+  if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
+    pCfg->walCfg.cryptAlgorithm = (tsiCryptScope & DND_CS_VNODE_WAL)? tsiCryptAlgorithm : 0;
+    strncpy(pCfg->walCfg.cryptKey, tsCryptKey, 16);
   }
+#else
+  pCfg->walCfg.cryptAlgorithm = 0;
+#endif
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);

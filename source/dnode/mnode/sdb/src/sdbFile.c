@@ -278,7 +278,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
       readLen = CRYPTEDLEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -308,7 +308,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(CRYPTEDLEN(pRaw->dataLen));
@@ -318,6 +318,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
+      strncpy(opts.key, tsCryptKey, 16);
+
       count = CBC_Decrypt(&opts);
       
       mInfo("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
@@ -435,7 +437,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
         int32_t newDataLen = pRaw->dataLen;
         char* newData = pRaw->pData;
-        if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+        if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
           newDataLen = CRYPTEDLEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
@@ -445,14 +447,12 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
             break;
           }
 
-          unsigned char Key[17]="0000100001000010";
-          unsigned char IV[17]="0000100001000010";
-
           SCryptOpts opts;
           opts.len = newDataLen;
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
+          strncpy(opts.key, tsCryptKey, 16);
 
           int32_t count = CBC_Encrypt(&opts);
 
@@ -467,7 +467,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
           break;
         }
 
-        if((tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
+        if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_SDB) == DND_CS_SDB ){
           taosMemoryFree(newData);
         }
 

@@ -185,7 +185,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       logContent = (SWalCkHead*)(buf + pos);
-      decryptBody(pWal->cfg.cryptAlgorithm, logContent, logContent->head.bodyLen, __FUNCTION__);
+      decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__);
       if (walValidBodyCksum(logContent) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,

@@ -54,6 +54,8 @@ extern char     tsCryptAlgorithm[];
 extern char     tsCryptScope[];
 extern ECryptAlgor  tsiCryptAlgorithm;
 extern ECryptScope  tsiCryptScope;
+extern char     tsAuthCode[];
+extern char     tsCryptKey[];
 
 // common
 extern int32_t tsMaxShellConns;
