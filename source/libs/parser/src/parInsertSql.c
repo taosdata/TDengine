@@ -263,16 +263,16 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
       if (pToken->type != TK_NK_STRING || pToken->n == 0) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, ts)) {
-        if (IS_NOW_STR(pToken->z, pToken->n)) {
-          *isTs = true;
-          *ts = taosGetTimestamp(timePrec);
-        } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
-          *isTs = true;
-          *ts = taosGetTimestampToday(timePrec);
-        } else {
-          return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
-        }
+      if (IS_NOW_STR(pToken->z, pToken->n)) {
+        *isTs = true;
+        *ts = taosGetTimestamp(timePrec);
+      } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
+        *isTs = true;
+        *ts = taosGetTimestampToday(timePrec);
+      } else if (TSDB_CODE_SUCCESS == toInteger(pToken->z, pToken->n, 10, ts)) {
+        *isTs = true;
+      } else {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
     }
   }

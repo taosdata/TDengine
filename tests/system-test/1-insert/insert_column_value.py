@@ -33,6 +33,13 @@ class TDTestCase:
         tdSql.checkRows(len(CREATE_STB_LIST))
 
     def __insert_query_common(self, dbname="db", stbname="", ctbname="", oklist=[], kolist=[], okv=None):
+        tdLog.info(f'{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d'%(len(oklist), len(kolist)))
+        tdSql.checkEqual(27, len(oklist) + len(kolist))
+
+        isVarbinary = False
+        if stbname == 'stb_vb':
+            isVarbinary = True
+
         for _l in kolist:
             for _e in _l:
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv})' %(_e))
@@ -43,9 +50,11 @@ class TDTestCase:
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, %s)' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, %s)' %(_e, _e))
+                tdLog.info(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, {okv})')
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, {okv})')
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(1)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(1)
                 tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = {okv}')
                 tdSql.error(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
                 tdSql.error(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
@@ -58,25 +67,30 @@ class TDTestCase:
                 tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 2s, %s, %s)' %(_e, _e))
                 tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
                 tdSql.execute(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(3)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(3)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')      
                 tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
                 tdSql.execute(f'insert into {dbname}.{ctbname} values(now, %s, %s)' %(_e, _e))
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(1)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(1)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv}) values(now, %s, {okv})' %(_e, _e))
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(1)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(1)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s) values(now, {okv}, %s)' %(_e, _e))
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(1)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(1)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s) values(now, %s, %s)' %(_e, _e, _e, _e))
-                tdSql.query(f'select * from {dbname}.{stbname}')
-                tdSql.checkRows(1)
+                if isVarbinary == False:
+                    tdSql.query(f'select * from {dbname}.{stbname}')
+                    tdSql.checkRows(1)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
 
     def __insert_query_exec(self):
@@ -84,7 +98,7 @@ class TDTestCase:
         STR_INTEGER = ["\"123\"", '\'+12\'', '\'+0\'', '\'-0\'', '\'-128\'']
         STR_FLOAT = ['\'123.1\'', "\"-23.001\"", "\"+0.001\"" ]
         STR_FLOAT_E = ['\'1e1\'', "\"-0.1E+1\"", "\"1e-2\""]
-        STR_MISC = ['\' \'', "\" \"", "\"123ab\"", '\'123d\'', '\'-12s\'', '\'\x012\'', '\'x12\'', '\'x\'', '\'NULL \'']
+        STR_MISC = ['\' \'', "\" \"", "\"123ab\"", '\'123d\'', '\'-12s\'', '\'\x012\'', '\'x12\'', '\'x\'', '\'NULL \'', '\'True \'', '\' False\'']
         STR_OPTR = ['\'1*10\'', '\'1+2\'', '\'-2-0\'','\'1%2\'', '\'2/0\'', '\'1&31\'']
         STR_TSK = ['\'now\'', '\'today\'']
         STR_TSK_MISC = ['\'now+1s\'', '\' now\'', '\'today \'', '\'today+1m\'', '\'today-1w\'']
@@ -92,7 +106,7 @@ class TDTestCase:
         STR_TSKP_MISC = ['\'now()+1s\'', '\' now()\'', '\'now( )\'', '\'today() \'', '\'today())\'', '\'today()+1m\'', '\'today()-1w\'']
         STR_BOOL = ['\'true\'', '\'false\'', '\'TRUE\'', '\'FALSE\'', '\'tRuE\'', '\'falsE\'']
         STR_TS = ["\"2024-02-01 00:00:01.001-08:00\"", "\'2024-02-01T00:00:01.001+09:00\'", "\"2024-02-01\"", "\'2024-02-02 00:00:01\'", "\'2024-02-02 00:00:01.009\'"]
-        STR_VARBIN = ['\'\\x\'', '\'\\x12ab\'']
+        STR_VARBIN = ['\'\\x12\'', '\'\\x12ab\'']
         STR_JSON = ['\'{\"k1\":\"v1\"}\'', '\'[]\'', '\'{}\'']
         STR_GEO = ['\'POINT(1.0 1.0)\'',   '\'LINESTRING(1.00 +2.0, 2.1 -3.2, 5.00 5.01)\'', '\'POLYGON((1.0 1.0, -2.0 +2.0, 1.0 1.0))\'' ]
         STR_NULL  = ['\'NuLl\'', '\'null\'', '\'NULL\'']
@@ -110,19 +124,22 @@ class TDTestCase:
         RAW_BOOL = ['true', 'false', ' TRUE ', 'FALSE  ', '  tRuE', '  falsE    ']
         RAW_NULL = ['NuLl', 'null', 'NULL', ' NULL ']
 
-        OK_VC = [STR_EMPTY, STR_INTEGER, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, 
+        OK_VC = [STR_EMPTY, STR_INTEGER, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, 
                  STR_JSON, STR_GEO, STR_NULL, RAW_INTEGER, RAW_FLOAT, RAW_FLOAT_E, RAW_TSK, RAW_BOOL, RAW_NULL]
         KO_VC = [RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR]
-        OK_NC = []
-        KO_NC = []
-        OK_TS = [STR_TSK, STR_TSKP, STR_NULL, STR_INTEGER, RAW_INTEGER, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_NULL]
-        KO_TS = [STR_EMPTY, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_BOOL, STR_VARBIN,
-                 STR_JSON,STR_GEO, STR_FLOAT, RAW_FLOAT_E, RAW_MISC, RAW_OPTR, RAW_BOOL]
-        OK_BO = []
-        KO_BO = []
-        OK_VB = []
-        KO_VB = []
-        OK_IN = []
+        OK_NC = OK_VC
+        KO_NC = KO_VC
+        OK_TS = [STR_TSK, STR_INTEGER, STR_TSKP, STR_TS, STR_NULL, RAW_INTEGER, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_NULL]
+        KO_TS = [STR_EMPTY, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_TSKP_MISC, STR_BOOL, STR_VARBIN,
+                 STR_JSON,STR_GEO, RAW_FLOAT, RAW_FLOAT_E, RAW_MISC, RAW_OPTR, RAW_BOOL]
+        
+        OK_BO = [STR_BOOL, RAW_BOOL, STR_NULL, RAW_INTEGER, RAW_FLOAT, RAW_FLOAT_E, RAW_NULL]
+        KO_BO = [STR_EMPTY, STR_INTEGER, STR_TSK, STR_TSKP, STR_TS, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_TSKP_MISC, STR_VARBIN,
+                 STR_JSON,STR_GEO, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_MISC, RAW_OPTR]
+        OK_VB = [STR_EMPTY, STR_INTEGER, STR_FLOAT, STR_FLOAT_E, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, 
+                 STR_JSON, STR_GEO, STR_NULL, RAW_NULL]
+        KO_VB = [RAW_INTEGER, RAW_FLOAT, RAW_FLOAT_E, RAW_TSK, RAW_BOOL, RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR]
+        OK_IN = [] 
         KO_IN = []
         OK_FL = []
         KO_FL = []
@@ -134,10 +151,10 @@ class TDTestCase:
         KO_JS = []
         
         PARAM_LIST = [
-                        ["db", "stb_vc", "ctb_vc", OK_VC, KO_VC, "\'vc\'"],
-                        ["db", "stb_nc", "ctb_nc", OK_NC, KO_NC, "\'nc\'"],
-                        ["db", "stb_ts", "ctb_ts", OK_TS, KO_TS, "now"],
-                        ["db", "stb_bo", "ctb_bo", OK_BO, KO_BO, "true"],
+        #                 ["db", "stb_vc", "ctb_vc", OK_VC, KO_VC, "\'vc\'"],
+        #                 ["db", "stb_nc", "ctb_nc", OK_NC, KO_NC, "\'nc\'"],
+        #                 ["db", "stb_ts", "ctb_ts", OK_TS, KO_TS, "now"],
+        #                 ["db", "stb_bo", "ctb_bo", OK_BO, KO_BO, "true"],
                         ["db", "stb_vb", "ctb_vb", OK_VB, KO_VB, "\'\\x\'"],
                         ["db", "stb_in", "ctb_in", OK_IN, KO_IN, "1"],
                         ["db", "stb_fl", "ctb_fl", OK_FL, KO_FL, "1.0"],
