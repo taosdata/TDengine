@@ -642,6 +642,12 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
 _sum_over:
+  if (numOfElem == 0) {
+    if (pCtx->pExpr->pExpr->_function.pFunctNode->hasOriginalFunc &&
+        fmIsCountLikeFunc(pCtx->pExpr->pExpr->_function.pFunctNode->originalFuncId)) {
+      numOfElem = 1;
+    }
+  }
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
@@ -2520,6 +2526,12 @@ static int32_t firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput
 static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuery) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -3453,6 +3465,11 @@ static void spreadTransferInfo(SSpreadInfo* pInput, SSpreadInfo* pOutput) {
 int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }

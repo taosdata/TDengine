@@ -1821,6 +1821,28 @@ static int32_t translateFirstLastMerge(SFunctionNode* pFunc, char* pErrBuf, int3
   return translateFirstLastImpl(pFunc, pErrBuf, len, false);
 }
 
+static int32_t translateFirstLastState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
+
+  pFunc->node.resType =
+    (SDataType){.bytes = getFirstLastInfoSize(paraBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateFirstLastStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
+  uint8_t paraType = getSDataTypeFromNode(pPara)->type;
+  if (paraType != TSDB_DATA_TYPE_BINARY) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType =
+    (SDataType){.bytes = getFirstLastInfoSize(paraBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateUniqueMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isUnique) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -2408,7 +2430,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
     .translateFunc = translateCount,
     .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
@@ -2683,7 +2705,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateSpread,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSpreadFuncEnv,
@@ -2696,6 +2718,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
+    .pStateFunc = "_spread_state",
     .pMergeFunc   = "_spread_merge"
   },
   {
@@ -2727,6 +2750,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
 #endif
     .combineFunc  = spreadCombine,
+    .pPartialFunc = "_spread_state_merge",
+    .pMergeFunc = "_spread_merge",
   },
   {
     .name = "elapsed",
@@ -2909,6 +2934,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_first_partial",
+    .pStateFunc = "_first_state",
     .pMergeFunc   = "_first_merge",
     .combineFunc  = firstCombine,
   },
@@ -2936,12 +2962,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = firstFunctionMerge,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = firstCombine,
+    .pPartialFunc = "_first_state_merge",
+    .pMergeFunc = "_first_merge",
   },
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2950,6 +2978,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_last_partial",
+    .pStateFunc = "_last_state",
     .pMergeFunc   = "_last_merge",
     .combineFunc  = lastCombine,
   },
@@ -2977,6 +3006,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunctionMerge,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
+    .pPartialFunc = "_last_state_merge",
+    .pMergeFunc = "_last_merge",
   },
   {
     .name = "twa",
@@ -3039,7 +3070,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -3870,13 +3901,70 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_FIRST_STATE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateAvgState,
+    .translateFunc = translateFirstLastState,
     .getEnvFunc = getFirstLastFuncEnv,
     .initFunc = functionSetup,
     .processFunc = firstFunction,
     .finalizeFunc = firstLastPartialFinalize,
     .pPartialFunc = "_first_partial",
-    .pMergeFunc = "_avg_state_merge"
+    .pMergeFunc = "_first_state_merge"
+  },
+  {
+    .name = "_first_state_merge",
+    .type = FUNCTION_TYPE_FIRST_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastStateMerge,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = firstFunctionMerge,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_last_state",
+    .type = FUNCTION_TYPE_LAST_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastState,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = lastFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+    .pPartialFunc = "_last_partial",
+    .pMergeFunc = "_last_state_merge"
+  },
+  {
+    .name = "_last_state_merge",
+    .type = FUNCTION_TYPE_LAST_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastStateMerge,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = lastFunctionMerge,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_spread_state",
+    .type = FUNCTION_TYPE_SPREAD_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateSpreadState,
+    .getEnvFunc = getSpreadFuncEnv,
+    .initFunc = spreadFunctionSetup,
+    .processFunc = spreadFunction,
+    .finalizeFunc = spreadPartialFinalize,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc = "_last_state_merge"
+  },
+  {
+    .name = "_spread_state_merge",
+    .type = FUNCTION_TYPE_SPREAD_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateSpreadStateMerge,
+    .getEnvFunc = getSpreadFuncEnv,
+    .initFunc = spreadFunctionSetup,
+    .processFunc = spreadFunctionMerge,
+    .finalizeFunc = spreadPartialFinalize,
   },
 };
 // clang-format on
