@@ -45,8 +45,8 @@ import moment from 'moment';
 export default {
   props: {
     data: {
-      type: Array,
-      default: () => [],
+      type: Object,
+      default: () => {},
     },
     metricsDesc: {
       type: Object,
@@ -72,6 +72,7 @@ export default {
       immediate: true,
       handler(val) {
         if (val) {
+          this.handleMetricsData(this.data);
           this.connect();
         } else {
           this.disconnect();
@@ -79,8 +80,6 @@ export default {
       }
     }
   },
-  created() {},
-  mounted() {console.log('metricsDesc',this.metricsDesc);},
   methods: {
     handleValue(data) {
       if (/start_time/i.test(data.name) && !isNaN(Number(data.value))) {
@@ -132,7 +131,7 @@ export default {
 
     connect() {
       this.disconnect();
-      this.loading = true;
+      this.loading = false;
       this.activeName = 'current'
       const base_api = process.env.VUE_APP_BASE_URL
       let proto = ''
@@ -149,31 +148,34 @@ export default {
       wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`
 
       this.socket = new WebSocket(wsUri);
-      console.log("Connecting...");
+      
       let array = [];
       if (this.socket) {
         this.socket.onerror = (err) => {
           console.log('Error', err);
-          this.loading = false
+          // this.loading = false
           this.datas = []
         };
         this.socket.onmessage = (ev) => {
           let data = JSON.parse(ev.data);
-          // console.log('Received: ' + data, data.current,ev, 'message')
-          array = Object.keys(data).map((item) => ({
-            name: item,
-            value: data[item],
-          }));
-          this.datas = array.map(v => {
-            let metrics = Object.keys(v.value).map((item) => ({
-              name: item,
-              value: v.value[item],
-            }));
-            return { name: v.name, metrics }
-          })
-          this.loading = false;
+          
+          this.handleMetricsData(data);
         };
       }
+    },
+
+    handleMetricsData (metricsData) {
+      let array = Object.keys(metricsData).map((item) => ({
+        name: item,
+        value: metricsData[item],
+      }));
+      this.datas = array.map(v => {
+        let metrics = Object.keys(v.value).map((item) => ({
+          name: item,
+          value: v.value[item],
+        }));
+        return { name: v.name, metrics }
+      })
     },
 
     disconnect() {

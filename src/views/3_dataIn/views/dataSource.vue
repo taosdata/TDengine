@@ -654,11 +654,8 @@ export default {
           Message.error(result.message);
           return;
         }
-        let array = Object.entries(result).map((item) => ({
-          name: item[0],
-          value: item[1],
-        }));
-        if (Array.from(array).length == 0) {
+        
+        if (Object.keys(result).length === 0) {
           switch (status) {
             case "running":
               Message.error(this.$t("datasource.metricTips.running"));
@@ -675,7 +672,7 @@ export default {
         this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
-            data: array,
+            data: result,
             metricsDesc,
             taskId: data.id
           },
