@@ -638,12 +638,20 @@ int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
   return 0;
 }
 
-int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
+int32_t tsdbRowCompare(const void *p1, const void *p2) {
   STsdbRowKey key1, key2;
 
   tsdbRowGetKey((TSDBROW *)p1, &key1);
   tsdbRowGetKey((TSDBROW *)p2, &key2);
   return tsdbRowKeyCmpr(&key1, &key2);
+}
+
+int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2) {
+  STsdbRowKey key1, key2;
+
+  tsdbRowGetKey((TSDBROW *)p1, &key1);
+  tsdbRowGetKey((TSDBROW *)p2, &key2);
+  return tRowKeyCompare(&key1.key, &key2.key);
 }
 
 // STSDBRowIter ======================================================

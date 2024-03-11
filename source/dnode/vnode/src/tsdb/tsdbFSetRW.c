@@ -247,8 +247,9 @@ int32_t tsdbFSetWriteRow(SFSetWriter *writer, SRowInfo *row) {
 
     if (TSDBROW_VERSION(&row->row) <= writer->config->compactVersion  //
         && writer->blockData[writer->blockDataIdx].nRow > 0           //
-        && tsdbRowCmprFn(&row->row, &tsdbRowFromBlockData(&writer->blockData[writer->blockDataIdx],
-                                                          writer->blockData[writer->blockDataIdx].nRow - 1)) == 0) {
+        && tsdbRowCompareWithoutVersion(&row->row,
+                                        &tsdbRowFromBlockData(&writer->blockData[writer->blockDataIdx],
+                                                              writer->blockData[writer->blockDataIdx].nRow - 1)) == 0) {
       code = tBlockDataUpdateRow(&writer->blockData[writer->blockDataIdx], &row->row, writer->skmRow->pTSchema);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {

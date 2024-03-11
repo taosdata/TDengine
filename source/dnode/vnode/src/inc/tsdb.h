@@ -121,7 +121,8 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
   ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tsdbRowCmprFn(const void *p1, const void *p2);
+int32_t tsdbRowCompare(const void *p1, const void *p2);
+int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2);
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2);
 void    tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key);
 // STSDBRowIter

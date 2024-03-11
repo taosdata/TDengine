@@ -898,12 +898,13 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   // row to col conversion
-  if (key.version <= writer->config->compactVersion                                                            //
-      && writer->blockData->nRow > 0                                                                           //
-      && (writer->blockData->uid                                                                               //
-              ? writer->blockData->uid                                                                         //
-              : writer->blockData->aUid[writer->blockData->nRow - 1]) == row->uid                              //
-      && tsdbRowCmprFn(&row->row, &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
+  if (key.version <= writer->config->compactVersion                                //
+      && writer->blockData->nRow > 0                                               //
+      && (writer->blockData->uid                                                   //
+              ? writer->blockData->uid                                             //
+              : writer->blockData->aUid[writer->blockData->nRow - 1]) == row->uid  //
+      && tsdbRowCompareWithoutVersion(&row->row,
+                                      &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
   ) {
     code = tBlockDataUpdateRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);

@@ -896,7 +896,7 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   tsdbRowGetKey(&tsdbRowFromBlockData(bData, bData->nRow - 1), &record->lastKey);
 
   for (int32_t i = 1; i < bData->nRow; ++i) {
-    if (tsdbRowCmprFn(&tsdbRowFromBlockData(bData, i - 1), &tsdbRowFromBlockData(bData, i)) != 0) {
+    if (tsdbRowCompareWithoutVersion(&tsdbRowFromBlockData(bData, i - 1), &tsdbRowFromBlockData(bData, i)) != 0) {
       record->count++;
     }
     if (bData->aVersion[i] < record->minVer) {
@@ -966,9 +966,10 @@ static int32_t tsdbDataFileDoWriteTSRow(SDataFileWriter *writer, TSDBROW *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (TSDBROW_VERSION(row) <= writer->config->compactVersion                                             //
-      && writer->blockData->nRow > 0                                                                     //
-      && tsdbRowCmprFn(row, &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
+  if (TSDBROW_VERSION(row) <= writer->config->compactVersion  //
+      && writer->blockData->nRow > 0                          //
+      &&
+      tsdbRowCompareWithoutVersion(row, &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
   ) {
     code = tBlockDataUpdateRow(writer->blockData, row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);
