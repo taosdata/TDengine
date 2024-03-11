@@ -52,8 +52,8 @@
 
 #define ENCODESQL()                                                        \
   do {                                                                     \
-    if (pReq->sqlLen > 0 && pReq->sql != NULL) {                           \
-      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;               \
+    if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;                 \
+    if (pReq->sqlLen > 0) {                                                \
       if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1; \
     }                                                                      \
   } while (0)
@@ -7640,8 +7640,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     ASSERT(0);
   }
   // ENCODESQL
-  if (pReq->sqlLen > 0 && pReq->sql != NULL) {
-    if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
+
+  if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
+  if (pReq->sqlLen > 0) {
     if (tEncodeBinary(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
   // Encode Column Options: encode compress level
