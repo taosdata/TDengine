@@ -20,13 +20,13 @@
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcoding.h"
+#include "tcol.h"
 #include "tencode.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tname.h"
 #include "trow.h"
 #include "tuuid.h"
-#include "tcol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -154,19 +154,19 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG                  1
-#define TSDB_ALTER_TABLE_DROP_TAG                 2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME          3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL           4
-#define TSDB_ALTER_TABLE_ADD_COLUMN               5
-#define TSDB_ALTER_TABLE_DROP_COLUMN              6
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES      7
-#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES         8
-#define TSDB_ALTER_TABLE_UPDATE_OPTIONS           9
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME       10
-#define TSDB_ALTER_TABLE_ADD_TAG_INDEX            11
-#define TSDB_ALTER_TABLE_DROP_TAG_INDEX           12
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS   13
+#define TSDB_ALTER_TABLE_ADD_TAG                1
+#define TSDB_ALTER_TABLE_DROP_TAG               2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME        3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL         4
+#define TSDB_ALTER_TABLE_ADD_COLUMN             5
+#define TSDB_ALTER_TABLE_DROP_COLUMN            6
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES    7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES       8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS         9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME     10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -555,7 +555,7 @@ struct SSchemaExt {
 
 #define COMPRESS_L1_TYPE_U32(type)       (((type) >> 24) & 0xFF)
 #define COMPRESS_L2_TYPE_U32(type)       (((type) >> 8) & 0xFFFF)
-#define COMPRESS_L2_TYPE_LEVEL_U32(type) ((type) & 0xFF)
+#define COMPRESS_L2_TYPE_LEVEL_U32(type) ((type)&0xFF)
 
 // compress flag
 // |----l2lel--|----l2Alg---|---l1Alg--|
@@ -772,14 +772,14 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
 }
 
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
-  // if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
-  // if (tEncodeU32(pEncoder, pSchemaExt->compress) < 0) return -1;
+  if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
+  if (tEncodeU32(pEncoder, pSchemaExt->compress) < 0) return -1;
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pSchemaExt) {
-  // if (tDecodeI16v(pDecoder, &pSchemaExt->colId) < 0) return -1;
-  // if (tDecodeU32(pDecoder, &pSchemaExt->compress) < 0) return -1;
+  if (tDecodeI16v(pDecoder, &pSchemaExt->colId) < 0) return -1;
+  if (tDecodeU32(pDecoder, &pSchemaExt->compress) < 0) return -1;
   return 0;
 }
 
@@ -4133,8 +4133,8 @@ int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pR
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
 
-void setDefaultOptionsForField(SFieldWithOptions *field);
-void setFieldWithOptions(SFieldWithOptions *fieldWithOptions, SField* field);
+void setDefaultOptionsForField(SFieldWithOptions* field);
+void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 #pragma pack(pop)
 

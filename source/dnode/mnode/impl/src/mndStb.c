@@ -1939,6 +1939,12 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+  pRsp->pSchemaExt = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaExt));
+  if (pRsp->pSchemaExt == NULL) {
+    taosRUnLockLatch(&pStb->lock);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
   tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));
@@ -1971,6 +1977,12 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     pSchema->flags = pSrcSchema->flags;
     pSchema->colId = pSrcSchema->colId;
     pSchema->bytes = pSrcSchema->bytes;
+  }
+  for (int32_t i = 0; i < pStb->numOfColumns; i++) {
+    SCmprObj   *pCmpr = &pStb->pCmpr[i];
+    SSchemaExt *pSchEx = &pRsp->pSchemaExt[i];
+    pSchEx->colId = pCmpr->colId;
+    pSchEx->compress = pCmpr->cmprAlg;
   }
 
   taosRUnLockLatch(&pStb->lock);
@@ -2027,6 +2039,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   if (pStb->numOfFuncs > 0) {
     pRsp->pFuncs = taosArrayDup(pStb->pFuncs, NULL);
   }
+  
 
   taosRUnLockLatch(&pStb->lock);
   return 0;

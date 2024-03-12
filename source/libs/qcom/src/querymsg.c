@@ -24,7 +24,7 @@
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
-int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
                                    void *(*mallocFp)(int64_t)) = {0};
 int32_t (*queryProcessMsgRsp[TDMT_MAX])(void *output, char *msg, int32_t msgSize) = {0};
 
@@ -43,7 +43,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
   pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion, usedbRsp->stateTs);
+  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion,
+         usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -68,7 +69,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
                                   void *(*mallcFp)(int64_t)) {
   SBuildTableInput *pInput = input;
   if (NULL == input || NULL == msg || NULL == msgLen) {
@@ -205,7 +206,7 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
                                   void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -291,7 +292,7 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  SViewMetaReq  req = {0};
+  SViewMetaReq req = {0};
   strncpy(req.fullname, input, sizeof(req.fullname) - 1);
 
   int32_t bufLen = tSerializeSViewMetaReq(NULL, 0, &req);
@@ -408,7 +409,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     qError("calloc size[%d] failed", metaSize);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)pTableMeta + metaSize);
+  SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -421,15 +422,18 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
-  pTableMeta->schemaExt = pSchemaExt;
-  memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+  if (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_NORMAL_TABLE) {
+    pTableMeta->schemaExt = pSchemaExt;
+    memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+    memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+  }
 
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64 " sver %d tver %d"
+  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
+         " sver %d tver %d"
          " tagNum %d colNum %d precision %d rowSize %d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
@@ -610,7 +614,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
   memcpy(output, funcInfo, sizeof(*funcInfo));
   taosArrayDestroy(out.pFuncInfos);
   taosArrayDestroy(out.pFuncExtraInfos);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -678,7 +682,6 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;

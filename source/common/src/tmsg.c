@@ -53,7 +53,7 @@
 #define ENCODESQL()                                                        \
   do {                                                                     \
     if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;                 \
-    if (pReq->sqlLen > 0) {                           \
+    if (pReq->sqlLen > 0) {                                                \
       if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1; \
     }                                                                      \
   } while (0)
@@ -4433,9 +4433,11 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
   }
 
-  for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
-    SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
-    if (tEncodeSSchemaExt(pEncoder, pSchemaExt) < 0) return -1;
+  if (pRsp->tableType == TSDB_SUPER_TABLE || pRsp->tableType == TSDB_NORMAL_TABLE) {
+    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+      SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+      if (tEncodeSSchemaExt(pEncoder, pSchemaExt) < 0) return -1;
+    }
   }
 
   return 0;
@@ -4470,18 +4472,24 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
 
   // if (tDecodeIsEnd(pDecoder)) return 0;
-  if (pRsp->numOfColumns > 0) {
-    pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
-    if (pRsp->pSchemaExt == NULL) return -1;
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (pRsp->tableType == TSDB_SUPER_TABLE || pRsp->tableType == TSDB_NORMAL_TABLE) {
+      if (pRsp->numOfColumns > 0) {
+        pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
+        if (pRsp->pSchemaExt == NULL) return -1;
 
-    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
-      SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
-      if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
-      pSchemaExt->colId = i;
-      pSchemaExt->compress = 0x02000303;
+        for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+          SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+          if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
+          pSchemaExt->colId = i;
+          pSchemaExt->compress = 0x02000303;
+        }
+      } else {
+        pRsp->pSchemaExt = NULL;
+      }
+    } else {
+      pRsp->pSchemaExt = NULL;
     }
-  } else {
-    pRsp->pSchemaExt = NULL;
   }
 
   return 0;
