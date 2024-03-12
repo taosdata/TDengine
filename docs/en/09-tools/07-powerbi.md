@@ -12,7 +12,7 @@ Power BI Desktop has been installed and running. You can download and install th
 
 ## Install ODBC Connector
 
-1. Only supports operation system. And you need to install [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) first. If already installed, please ignore this step.
+1. Only supports Windows. And you need to install [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) first. If already installed, please ignore this step.
 2. Install the TDengine client for Windows. The client package includes the TDengine ODBC driver and other necessary libraries for connecting via ODBC.
 
 :::note IMPORTANT
@@ -36,7 +36,7 @@ Please log in [TDengine Cloud](https://cloud.tdengine.com) and select "PowerBI" 
 
 ## Import Data from TDengine to Power BI
 
-1. Open Power BI and logo. Add data source following steps "Home Page" -> "Get Data" -> "Others" -> "ODBC" -> "Connect".
+1. Open Power BI and log in. Add data source following steps "Home Page" -> "Get Data" -> "Others" -> "ODBC" -> "Connect".
 2. Choose the created data source name, such as "MyTDengine", then click "OK" button to open the "ODBC Driver" dialog. In the dialog, select "Default or Custom" left menu and then click "Connect" button to connect to the configured data source. After go to the "Nativator", browse tables of the selected database and load data.
 3. If you want to input some specific SQL, click "Advanced Options", and input your SQL in the open dialogue box and load the data.
 
