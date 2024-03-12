@@ -269,6 +269,7 @@ SSDataBlock* doNonSortMerge(SOperatorInfo* pOperator) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SNonSortMergeInfo*          pNonSortMerge = &pInfo->nsortMergeInfo;
   SSDataBlock*                pBlock = NULL;
+  SSDataBlock*                pRes = pInfo->binfo.pRes;
 
   qDebug("start to merge no sorted rows, %s", GET_TASKID(pTaskInfo));
 
@@ -278,13 +279,19 @@ SSDataBlock* doNonSortMerge(SOperatorInfo* pOperator) {
     if (NULL == pBlock) {
       TSWAP(pNonSortMerge->pSourceStatus[pNonSortMerge->sourceWorkIdx], pNonSortMerge->pSourceStatus[idx]);
       pNonSortMerge->sourceWorkIdx++;
-      idx = NON_SORT_NEXT_SRC(pNonSortMerge, idx);
+      idx = NON_SORT_NEXT_SRC(pNonSortMerge, pNonSortMerge->lastSourceIdx);
       continue;
     }
     break;
   }
 
-  return pBlock;
+  if (!pBlock) {
+    return NULL;
+  }
+  blockDataCleanup(pRes);
+  copyDataBlock(pRes, pBlock);
+
+  return pRes;
 }
 
 void destroyNonSortMergeOperatorInfo(void* param) {
@@ -491,6 +498,9 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
     }
     case MERGE_TYPE_NON_SORT: {
       SNonSortMergeInfo* pNonSortMerge = &pInfo->nsortMergeInfo;
+      pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+      initResultSizeInfo(&pOperator->resultInfo, 1024);
+      blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       break;
     }
     case MERGE_TYPE_COLUMNS: {
