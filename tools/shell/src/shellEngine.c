@@ -1152,11 +1152,11 @@ void shellSourceFile(const char *file) {
 
 // show enterprise AD
 void showAD() {
-  fprintf(stdout, "You are using the TDengine Community Edition. \
-  If you want to experience more advanced TDengine features and have professional service, \
+  fprintf(stdout, "\r\n\
+  You are using the TDengine Community Edition. \r\n\
+  If you want to experience more advanced TDengine features and have professional service,\r\n\
   please try the TDengine Enterprise Edition.\r\n\
-  https://www.taosdata.com/tdengine-enterprise
-  ");
+    https://www.taosdata.com/tdengine-enterprise\r\n\r\n");
 }
 
 bool shellGetGrantInfo() {
@@ -1175,7 +1175,7 @@ bool shellGetGrantInfo() {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
-    return;
+    return community;
   }
 
   int32_t num_fields = taos_field_count(tres);
@@ -1205,7 +1205,7 @@ bool shellGetGrantInfo() {
 
     if (strcmp(serverVersion, "community") == 0) {
       community = true;
-      showAD()
+      showAD();
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
@@ -1216,10 +1216,10 @@ bool shellGetGrantInfo() {
     }
 
     taos_free_result(tres);
-    return community;
   }
 
   fprintf(stdout, "\r\n");
+  return community;
 }
 
 #ifdef WINDOWS
