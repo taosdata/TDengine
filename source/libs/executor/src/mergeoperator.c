@@ -288,7 +288,6 @@ SSDataBlock* doNonSortMerge(SOperatorInfo* pOperator) {
   if (!pBlock) {
     return NULL;
   }
-  blockDataCleanup(pRes);
   copyDataBlock(pRes, pBlock);
 
   return pRes;
