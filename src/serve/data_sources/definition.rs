@@ -120,6 +120,11 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    #[serde(rename(serialize = "patternMsg"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_msg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub multiple: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub editable: Option<bool>,
@@ -933,6 +938,8 @@ impl DataSourceDefinition {
                 editable: Some(false),
                 placeholder: None,
                 value: Some(value),
+                pattern: None,
+                pattern_msg: None,
                 display: None,
                 requires: None,
                 hidden: None,

@@ -108,9 +108,9 @@ groups:
         display: Topics Qos Config
         required: true
         pattern: "^(?:[^:]+::[0-2],)*[^:]+::[0-2]$"
-        patternMsg: "Input format error, please refer to: `<topic name>::<QoS>`，例如： `topic1::0,topic2::1`"
+        pattern_msg: "Input format error, please refer to: `<topic name>::<QoS>`, e.g: `topic1::0,topic2::1`"
         description: |
-          Input formt: `<topic name>::<QoS>`, if there are multiple, use commas to separate them, e.g: topic1::0,topic2::1
+          Input format: `<topic name>::<QoS>`, if there are multiple, use commas to separate them, e.g: topic1::0,topic2::1
         hint:
           type: str
         placeholder: topic1::0,topic2::1
