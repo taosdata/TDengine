@@ -422,9 +422,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
+  memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
   if (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_NORMAL_TABLE) {
     pTableMeta->schemaExt = pSchemaExt;
-    memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   }
 
