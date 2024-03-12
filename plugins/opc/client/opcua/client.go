@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ type UAClient struct {
 	maxNodesPerRead          uint64
 	maxMonitoredItemsPerCall uint64
 	maxNodesPerBrowse        uint64
+	isKeepServer             bool
 	containsBad              bool
 	closeChan                chan struct{}
 	once                     sync.Once
@@ -228,6 +230,7 @@ func (c *UAClient) getServerLimit(needBrowseLimit bool) error {
 			c.maxNodesPerRead = 10000
 			c.maxMonitoredItemsPerCall = 10000
 			c.maxNodesPerBrowse = 10000
+			c.isKeepServer = true
 			return nil
 		}
 	}
@@ -843,6 +846,28 @@ type childrenResp struct {
 	children []*opcua.Node
 }
 
+type TokenBucket struct {
+	token chan struct{}
+}
+
+func NewTokenBucket(size int) *TokenBucket {
+	token := make(chan struct{}, size)
+	for i := 0; i < size; i++ {
+		token <- struct{}{}
+	}
+	return &TokenBucket{
+		token: token,
+	}
+}
+
+func (t *TokenBucket) Get() {
+	<-t.token
+}
+
+func (t *TokenBucket) Put() {
+	t.token <- struct{}{}
+}
+
 func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
 	if c.conn == nil {
 		return nil, fmt.Errorf("opc ua client is nil")
@@ -873,6 +898,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	var result []common.Point
 	m := sync.Map{}
 	wg := sync.WaitGroup{}
+	bucket := NewTokenBucket(runtime.NumCPU() * 2)
 	// bfs
 	for {
 		if len(bfsList) == 0 {
@@ -897,6 +923,8 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		for i := 0; i < operation; i++ {
 			go func(i int) {
 				defer wg.Done()
+				bucket.Get()
+				defer bucket.Put()
 				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, nsMap)
 				availablePoints[i] = points
 			}(i)
@@ -913,6 +941,8 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		for i, node := range bfsList {
 			go func(index int, n *opcua.Node) {
 				defer wg.Done()
+				bucket.Get()
+				defer bucket.Put()
 				children, err := getChildren(ctx, n)
 				if err != nil {
 					c.logger.WithError(err).Error("get children error")
@@ -940,11 +970,18 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 			select {
 			case resp := <-childrenChannels:
 				for _, child := range resp.children {
+					childID := child.String()
+					if c.isKeepServer {
+						paths := strings.Split(childID, ".")
+						if len(paths) > 1 && strings.HasPrefix(paths[len(paths)-1], "_") {
+							continue
+						}
+					}
 					//avoid nested loops
-					_, ok := m.Load(child.String())
+					_, ok := m.Load(childID)
 					if !ok {
 						bfsList = append(bfsList, child)
-						m.Store(child.String(), struct{}{})
+						m.Store(childID, struct{}{})
 					}
 				}
 			}
