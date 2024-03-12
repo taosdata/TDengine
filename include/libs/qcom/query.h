@@ -117,6 +117,7 @@ typedef struct STableMeta {
   int32_t       sversion;
   int32_t       tversion;
   STableComInfo tableInfo;
+  SSchemaExt*   schemaExt; // There is no additional memory allocation, and the pointer is fixed to the next address of the schema content.
   SSchema       schema[];
 } STableMeta;
 #pragma pack(pop)

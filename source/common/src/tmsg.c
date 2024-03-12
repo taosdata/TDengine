@@ -4433,6 +4433,11 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
   }
 
+  for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+    SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+    if (tEncodeSSchemaExt(pEncoder, pSchemaExt) < 0) return -1;
+  }
+
   return 0;
 }
 
@@ -4462,6 +4467,21 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     }
   } else {
     pRsp->pSchemas = NULL;
+  }
+
+  // if (tDecodeIsEnd(pDecoder)) return 0;
+  if (pRsp->numOfColumns > 0) {
+    pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
+    if (pRsp->pSchemaExt == NULL) return -1;
+
+    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+      SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+      if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
+      pSchemaExt->colId = i;
+      pSchemaExt->compress = 0x02000303;
+    }
+  } else {
+    pRsp->pSchemaExt = NULL;
   }
 
   return 0;
@@ -4594,6 +4614,7 @@ void tFreeSTableMetaRsp(void *pRsp) {
   }
 
   taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas);
+  taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemaExt);
 }
 
 void tFreeSTableIndexRsp(void *info) {

@@ -56,7 +56,7 @@
 #define TSDB_COLVAL_LEVEL_LOW         3
 
 #define TSDB_CL_COMMENT_LEN 1025
-#define TSDB_CL_COMPRESS_OPTION_LEN 32
+#define TSDB_CL_COMPRESS_OPTION_LEN 12
 
 extern const char* supportedEncode[4];
 extern const char* supportedCompress[6];

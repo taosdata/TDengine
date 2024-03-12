@@ -27,18 +27,19 @@
 extern "C" {
 #endif
 
-typedef struct SBuffer  SBuffer;
-typedef struct SSchema  SSchema;
-typedef struct SSchema2 SSchema2;
-typedef struct STColumn STColumn;
-typedef struct STSchema STSchema;
-typedef struct SValue   SValue;
-typedef struct SColVal  SColVal;
-typedef struct SRow     SRow;
-typedef struct SRowIter SRowIter;
-typedef struct STagVal  STagVal;
-typedef struct STag     STag;
-typedef struct SColData SColData;
+typedef struct SBuffer    SBuffer;
+typedef struct SSchema    SSchema;
+typedef struct SSchemaExt SSchemaExt;
+typedef struct SSchema2   SSchema2;
+typedef struct STColumn   STColumn;
+typedef struct STSchema   STSchema;
+typedef struct SValue     SValue;
+typedef struct SColVal    SColVal;
+typedef struct SRow       SRow;
+typedef struct SRowIter   SRowIter;
+typedef struct STagVal    STagVal;
+typedef struct STag       STag;
+typedef struct SColData   SColData;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)

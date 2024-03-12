@@ -1550,16 +1550,31 @@ static void* ctgCloneDbInfo(void* pSrc) {
 
 static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableMeta(void* pSrc) {
-  STableMeta* pMeta = pSrc;
-  int32_t size = sizeof(STableMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
-  STableMeta* pDst = taosMemoryMalloc(size);
-  if (NULL == pDst) {
-    return NULL;
-  }
-  memcpy(pDst, pSrc, size);
-  return pDst;
-}
+// static void* ctgCloneTableMeta(void* pSrc) {
+//   STableMeta* pMeta = pSrc;
+//   int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+//   STableMeta* pDst = taosMemoryMalloc(sizeof(STableMeta));
+//   if (NULL == pDst) {
+//     return NULL;
+//   }
+//   void* pSchema = taosMemoryMalloc(total * sizeof(SSchema));
+//   if (NULL == pSchema) {
+//     taosMemoryFree(pDst);
+//     return NULL;
+//   }
+//   void* pSchemaExt = taosMemoryMalloc(pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt));
+//   if (NULL == pSchemaExt) {
+//     taosMemoryFree(pSchema);
+//     taosMemoryFree(pDst);
+//     return NULL;
+//   }
+//   memcpy(pDst, pSrc, sizeof(STableMeta));
+//   pDst->schema = pSchema;
+//   pDst->schemaExt = pSchemaExt;
+//   memcpy(pDst->schema, pMeta->schema, total * sizeof(SSchema));
+//   memcpy(pDst->schemaExt, pMeta->schemaExt, pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt));
+//   return pDst;
+// }
 
 static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 

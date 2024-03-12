@@ -79,6 +79,18 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 5);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 6);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 7);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
@@ -101,6 +113,12 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
   // Note
   SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
+  // encode
+  SColumnInfoData* pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
+  // compress
+  SColumnInfoData* pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
+  // level
+  SColumnInfoData* pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
   char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
@@ -118,6 +136,21 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
+    if (i < pMeta->tableInfo.numOfColumns) {
+      STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
+      colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+      STR_TO_VARSTR(buf, columnCompressStr(COMPRESS_L2_TYPE_U32(pMeta->schemaExt[i].compress)));
+      colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+      STR_TO_VARSTR(buf, columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pMeta->schemaExt[i].compress)));
+      colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+    } else {
+      STR_TO_VARSTR(buf, "");
+      colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+      STR_TO_VARSTR(buf, "");
+      colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+      STR_TO_VARSTR(buf, "");
+      colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+    }
     ++(pBlock->info.rows);
   }
   if (pMeta->tableType == TSDB_SUPER_TABLE && biMode != 0) {

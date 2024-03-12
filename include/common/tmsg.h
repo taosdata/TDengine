@@ -543,15 +543,19 @@ struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 };
+struct SSchemaExt {
+  col_id_t colId;
+  uint32_t compress;
+};
 
 // compress flag
 
 // |----l1 compAlg----|-----l2 compAlg---|---level--|
 // |------8bit--------|------16bit-------|---8bit---|
 
-#define COMPRESS_L1_TYPE_U32(type)       ((type)&0xFF)
+#define COMPRESS_L1_TYPE_U32(type)       (((type) >> 24) & 0xFF)
 #define COMPRESS_L2_TYPE_U32(type)       (((type) >> 8) & 0xFFFF)
-#define COMPRESS_L2_TYPE_LEVEL_U32(type) (((type) >> 24) & 0xFF)
+#define COMPRESS_L2_TYPE_LEVEL_U32(type) ((type) & 0xFF)
 
 // compress flag
 // |----l2lel--|----l2Alg---|---l1Alg--|
@@ -573,21 +577,22 @@ struct SSchema2 {
 };
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int64_t  dbId;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   precision;
-  int8_t   tableType;
-  int32_t  sversion;
-  int32_t  tversion;
-  uint64_t suid;
-  uint64_t tuid;
-  int32_t  vgId;
-  int8_t   sysInfo;
-  SSchema* pSchemas;
+  char        tbName[TSDB_TABLE_NAME_LEN];
+  char        stbName[TSDB_TABLE_NAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  int64_t     dbId;
+  int32_t     numOfTags;
+  int32_t     numOfColumns;
+  int8_t      precision;
+  int8_t      tableType;
+  int32_t     sversion;
+  int32_t     tversion;
+  uint64_t    suid;
+  uint64_t    tuid;
+  int32_t     vgId;
+  int8_t      sysInfo;
+  SSchema*    pSchemas;
+  SSchemaExt* pSchemaExt;
 } STableMetaRsp;
 
 typedef struct {
@@ -763,6 +768,18 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   if (tDecodeI32v(pDecoder, &pSchema->bytes) < 0) return -1;
   if (tDecodeI16v(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
+  // if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
+  // if (tEncodeU32(pEncoder, pSchemaExt->compress) < 0) return -1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pSchemaExt) {
+  // if (tDecodeI16v(pDecoder, &pSchemaExt->colId) < 0) return -1;
+  // if (tDecodeU32(pDecoder, &pSchemaExt->compress) < 0) return -1;
   return 0;
 }
 

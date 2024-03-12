@@ -275,16 +275,22 @@ int32_t getTableTypeFromTableNode(SNode *pTable) {
   return ((SRealTableNode *)pTable)->pMeta->tableType;
 }
 
-
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
   if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
     return NULL;
   }
 
+  size_t      schemaExtSize = pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
-  STableMeta* p = taosMemoryMalloc(size);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
+
+  if (NULL == p) return NULL;
+
+  SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)p + size);
   memcpy(p, pTableMeta, size);
+  p->schemaExt = pSchemaExt;
+  memcpy(pSchemaExt, pTableMeta->schemaExt, schemaExtSize);
   return p;
 }
 

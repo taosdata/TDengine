@@ -9251,6 +9251,18 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
+  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+  strcpy((*pSchema)[4].name, "encode");
+
+    (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+  strcpy((*pSchema)[5].name, "compress");
+
+    (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+  strcpy((*pSchema)[6].name, "level");
+
   return TSDB_CODE_SUCCESS;
 }
 

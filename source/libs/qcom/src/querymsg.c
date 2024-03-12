@@ -401,12 +401,14 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
+  int32_t schemaExtSize = sizeof(SSchemaExt) * msg->numOfColumns;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)pTableMeta + metaSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -419,7 +421,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
+  pTableMeta->schemaExt = pSchemaExt;
   memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
+  memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
 
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
