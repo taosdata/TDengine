@@ -771,7 +771,7 @@ class TDTestCase:
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
-        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)']
+        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)']
         select_func_list: List[str] = tsma_func_list.copy()
         select_func_list.append('count(*)')
         self.create_tsma('tsma3', 'test', 'meters', tsma_func_list, '5m')

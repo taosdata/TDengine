@@ -852,6 +852,31 @@ static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return translateSpreadImpl(pFunc, pErrBuf, len, false);
 }
 
+static int32_t translateSpreadState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (paraType != TSDB_DATA_TYPE_BINARY) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (1 != numOfParams && 2 != numOfParams) {
@@ -3954,12 +3979,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc = spreadFunction,
     .finalizeFunc = spreadPartialFinalize,
     .pPartialFunc = "_spread_partial",
-    .pMergeFunc = "_last_state_merge"
+    .pMergeFunc = "_spread_state_merge"
   },
   {
     .name = "_spread_state_merge",
     .type = FUNCTION_TYPE_SPREAD_STATE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateSpreadStateMerge,
     .getEnvFunc = getSpreadFuncEnv,
     .initFunc = spreadFunctionSetup,
