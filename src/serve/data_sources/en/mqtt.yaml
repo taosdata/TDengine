@@ -190,7 +190,7 @@ advanced:
         type: str
 
 parser:
-  display: MQTT Payload Parser
+  display: Payload Transformation
   description: |
     MQTT will report exactly four fields of data for each data stream:<br>
 
