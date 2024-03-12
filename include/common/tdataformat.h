@@ -233,8 +233,8 @@ struct SValue {
   union {
     int64_t val;
     struct {
-      uint32_t nData;
       uint8_t *pData;
+      uint32_t nData;
     };
   };
 };
