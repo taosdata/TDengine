@@ -36,6 +36,29 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
+static int metaGetAndValidTag(SSchema *pCol, STag *pVal, void **pTagData, int32_t *nTagData) {
+  STagVal tagVal = {.cid = pCol->colId};
+  if (tTagGet((const STag *)pVal, &tagVal)) {
+    if (IS_VAR_DATA_TYPE(pCol->type)) {
+      *pTagData = tagVal.pData;
+      *nTagData = (int32_t)tagVal.nData;
+      if (pCol->bytes < ((*nTagData) + VARSTR_HEADER_SIZE)) {
+        return -1;
+      }
+    } else {
+      *pTagData = &(tagVal.i64);
+      *nTagData = tDataTypes[pCol->type].bytes;
+      if (pCol->bytes < (*nTagData)) {
+        return -1;
+      }
+    }
+  } else {
+    if (!IS_VAR_DATA_TYPE(pCol->type)) {
+      *nTagData = tDataTypes[pCol->type].bytes;
+    }
+  }
+  return 0;
+}
 static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   pInfo->uid = pEntry->uid;
   pInfo->version = pEntry->version;
@@ -605,19 +628,12 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     int32_t     nTagData = 0;
 
     SCtbIdxKey *table = (SCtbIdxKey *)pKey;
-    STagVal     tagVal = {.cid = pCol->colId};
-    if (tTagGet((const STag *)pVal, &tagVal)) {
-      if (IS_VAR_DATA_TYPE(pCol->type)) {
-        pTagData = tagVal.pData;
-        nTagData = (int32_t)tagVal.nData;
-      } else {
-        pTagData = &(tagVal.i64);
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
-    } else {
-      if (!IS_VAR_DATA_TYPE(pCol->type)) {
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
+    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData);
+    if (rc < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCtbIdxc);
+      goto _err;
     }
     rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
     tdbFree(pKey);
@@ -741,19 +757,11 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     int32_t     nTagData = 0;
 
     SCtbIdxKey *table = (SCtbIdxKey *)pKey;
-    STagVal     tagVal = {.cid = pCol->colId};
-    if (tTagGet((const STag *)pVal, &tagVal)) {
-      if (IS_VAR_DATA_TYPE(pCol->type)) {
-        pTagData = tagVal.pData;
-        nTagData = (int32_t)tagVal.nData;
-      } else {
-        pTagData = &(tagVal.i64);
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
-    } else {
-      if (!IS_VAR_DATA_TYPE(pCol->type)) {
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
+    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, (int32_t *)&nTagData);
+    if (rc < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCtbIdxc);
     }
     rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
     tdbFree(pKey);
@@ -1225,19 +1233,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
             const void *pTagData = NULL;
             int32_t     nTagData = 0;
 
-            STagVal tagVal = {.cid = pTagColumn->colId};
-            if (tTagGet((const STag *)e.ctbEntry.pTags, &tagVal)) {
-              if (IS_VAR_DATA_TYPE(pTagColumn->type)) {
-                pTagData = tagVal.pData;
-                nTagData = (int32_t)tagVal.nData;
-              } else {
-                pTagData = &(tagVal.i64);
-                nTagData = tDataTypes[pTagColumn->type].bytes;
-              }
-            } else {
-              if (!IS_VAR_DATA_TYPE(pTagColumn->type)) {
-                nTagData = tDataTypes[pTagColumn->type].bytes;
-              }
+            if (metaGetAndValidTag(pTagColumn, (STag *)e.ctbEntry.pTags, (void **)&pTagData, &nTagData) < 0) {
+              continue;
             }
 
             if (metaCreateTagIdxKey(e.ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type, uid,
@@ -1971,19 +1968,11 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     const void *pTagData = NULL;
     int32_t     nTagData = 0;
 
-    STagVal tagVal = {.cid = pCol->colId};
-    if (tTagGet((const STag *)pVal, &tagVal)) {
-      if (IS_VAR_DATA_TYPE(pCol->type)) {
-        pTagData = tagVal.pData;
-        nTagData = (int32_t)tagVal.nData;
-      } else {
-        pTagData = &(tagVal.i64);
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
-    } else {
-      if (!IS_VAR_DATA_TYPE(pCol->type)) {
-        nTagData = tDataTypes[pCol->type].bytes;
-      }
+    if (metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData) < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCtbIdxc);
+      goto _err;
     }
     if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, uid, &pTagIdxKey, &nTagIdxKey) < 0) {
       tdbFree(pKey);
@@ -2350,19 +2339,10 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
       pTagColumn = &pTagSchema->pSchema[i];
       if (!IS_IDX_ON(pTagColumn)) continue;
 
-      STagVal tagVal = {.cid = pTagColumn->colId};
-      if (tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal)) {
-        if (IS_VAR_DATA_TYPE(pTagColumn->type)) {
-          pTagData = tagVal.pData;
-          nTagData = (int32_t)tagVal.nData;
-        } else {
-          pTagData = &(tagVal.i64);
-          nTagData = tDataTypes[pTagColumn->type].bytes;
-        }
-      } else {
-        if (!IS_VAR_DATA_TYPE(pTagColumn->type)) {
-          nTagData = tDataTypes[pTagColumn->type].bytes;
-        }
+      if (metaGetAndValidTag((SSchema *)pTagColumn, (STag *)pCtbEntry->ctbEntry.pTags, (void **)&pTagData, &nTagData) <
+          0) {
+        ret = -1;
+        goto end;
       }
       if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
                               pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
