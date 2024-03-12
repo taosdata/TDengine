@@ -897,7 +897,7 @@ int32_t schCloneSMsgSendInfo(void *src, void **dst) {
     qError("malloc SMsgSendInfo for rpcCtx failed, len:%d", (int32_t)sizeof(*pSrc));
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-   if (pDst->target.dbFName != NULL) {
+   if (pSrc->target.dbFName != NULL) {
     pDst->target.dbFName = taosStrdup(pSrc->target.dbFName);
   } 
 
