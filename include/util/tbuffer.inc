@@ -171,7 +171,8 @@ static FORCE_INLINE int32_t tBufferPutF64(SBuffer *buffer, double value) {
 // reader
 // SBufferReader
 static int32_t tBufferReaderInit(SBufferReader *reader, uint32_t offset, SBuffer *buffer) {
-  (*reader) = BUFFER_READER_INITIALIZER(offset, buffer);
+  reader->offset = offset;
+  reader->buffer = buffer;
   return 0;
 }
 

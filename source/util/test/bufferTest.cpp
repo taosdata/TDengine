@@ -250,7 +250,8 @@ TEST(BufferTest, forwardWriteAndRead) {
   }
 
   // read
-  SBufferReader reader = BUFFER_READER_INITIALIZER(0, &buffer);
+  SBufferReader reader;
+  tBufferReaderInit(&reader, 0, &buffer);
 
   /* fix-len struct */
   STestStruct testStruct2 = {1, 2};

@@ -5776,7 +5776,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
       field.flags |= COL_SMA_ON;
     }
     if (pCol->is_pk) {
-      field.flags != COL_IS_KEY;
+      field.flags |= COL_IS_KEY;
     }
     taosArrayPush(*pArray, &field);
   }
@@ -6158,7 +6158,7 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
     flags |= COL_SMA_ON;
   }
   if (pCol->is_pk) {
-    flags != COL_IS_KEY;
+    flags |= COL_IS_KEY;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
