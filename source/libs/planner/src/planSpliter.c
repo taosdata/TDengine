@@ -1321,7 +1321,7 @@ static int32_t stbSplSplitScanNodeWithPartTags(SSplitContext* pCxt, SStableSplit
   int32_t     code = stbSplGetSplitNodeForScan(pInfo, &pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
     bool needSort = true;
-    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pSplitNode)) {
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pSplitNode) && !pSplitNode->pLimit && !pSplitNode->pSlimit) {
       needSort = !((SProjectLogicNode*)pSplitNode)->ignoreGroupId;
     }
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pSplitNode, NULL, pSplitNode, needSort, needSort);
