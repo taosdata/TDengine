@@ -4573,6 +4573,8 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx);
   const STableTSMAInfo*     pTsma = pUsefulTsma->pTsma;
 
+  if (pScanRange->ekey <= pScanRange->skey) return;
+
   if (!pInterval) {
     tsmaOptInitIntervalFromTsma(&interval, pTsma, pTsmaOptCtx->precision);
     pInterval = &interval;

@@ -2805,7 +2805,7 @@ static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, SHashObj* pVgHash, 
   SCtgTSMAFetch*    pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   STablesReq*       pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
-  const SName*      pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
+  const SName*      pTbName = taosArrayGet(pTbReq->pTables, pFetch->tbIdx);
   SVgroupInfo*      pVgInfo = NULL;
 
   pFetch->vgNum = taosHashGetSize(pVgHash);
@@ -2843,11 +2843,11 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   STableTSMAInfo*    pTsma = NULL;
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
   STablesReq*        pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
-  SName*             pTbName = taosArrayGet(pTbReq->pTables, pFetch->fetchIdx);
+  SName*             pTbName = taosArrayGet(pTbReq->pTables, pFetch->tbIdx);
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
-  switch (reqType) {
+ switch (reqType) {
     case TDMT_MND_GET_TABLE_TSMA: {
       STableTSMAInfoRsp* pOut = pMsgCtx->out;
       pFetch->fetchType = FETCH_TSMA_STREAM_PROGRESS;

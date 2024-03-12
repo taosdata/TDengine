@@ -203,11 +203,13 @@ typedef struct SDropTableClause {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
+  SArray*   pTsmas;
 } SDropTableClause;
 
 typedef struct SDropTableStmt {
   ENodeType  type;
   SNodeList* pTables;
+  bool       withTsma;
 } SDropTableStmt;
 
 typedef struct SDropSuperTableStmt {
