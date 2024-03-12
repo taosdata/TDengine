@@ -423,9 +423,36 @@ class TDTestCase:
 
         consumer.close()
 
+    def consume_ts_4551(self):
+        tdSql.execute(f'use d1')
+
+        tdSql.execute(f'create topic topic_stable as stable stt where tbname like "t%"')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_stable"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+        finally:
+            consumer.close()
+        print("consume_ts_4551 ok")
+
     def run(self):
         self.consumeTest()
         self.consume_ts_4544()
+        self.consume_ts_4551()
         self.consume_TS_4540_Test()
 
         tdSql.prepare()
