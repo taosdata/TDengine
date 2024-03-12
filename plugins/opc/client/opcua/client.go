@@ -203,7 +203,8 @@ func (c *UAClient) Connect() error {
 	return nil
 }
 
-func (c *UAClient) getServerLimit() error {
+func (c *UAClient) getServerLimit(needBrowseLimit bool) error {
+	productNameID, _ := ua.ParseNodeID("i=2261")
 	maxReadID, _ := ua.ParseNodeID("i=11705")         //MaxNodesPerRead
 	maxItemID, _ := ua.ParseNodeID("i=11714")         //MaxMonitoredItemsPerCall
 	maxNodesPerBrowse, _ := ua.ParseNodeID("i=11710") //MaxNodesPerBrowse
@@ -213,12 +214,22 @@ func (c *UAClient) getServerLimit() error {
 			{NodeID: maxReadID},
 			{NodeID: maxItemID},
 			{NodeID: maxNodesPerBrowse},
+			{NodeID: productNameID},
 		},
 		TimestampsToReturn: ua.TimestampsToReturnNeither,
 	}
 	resp, err := c.conn.Read(c.ctx, req)
 	if err != nil {
 		return err
+	}
+	if errors.Is(resp.Results[3].Status, ua.StatusOK) {
+		if resp.Results[3].Value.String() == "KEPServerEX" {
+			c.logger.Info("get opc ua server KEPServerEX,set max nodes per read 10000, max monitored items per call 10000, max nodes per browse 10000")
+			c.maxNodesPerRead = 10000
+			c.maxMonitoredItemsPerCall = 10000
+			c.maxNodesPerBrowse = 10000
+			return nil
+		}
 	}
 	if errors.Is(resp.Results[0].Status, ua.StatusOK) {
 		c.maxNodesPerRead = resp.Results[0].Value.Uint()
@@ -259,7 +270,9 @@ func (c *UAClient) getServerLimit() error {
 
 	if c.maxMonitoredItemsPerCall == 0 {
 		c.logger.Warn("get max monitored items per call 0")
-		c.tryGetMonitorAbility()
+		if needBrowseLimit {
+			c.tryGetMonitorAbility()
+		}
 	}
 	return nil
 }
@@ -269,7 +282,7 @@ func (c *UAClient) Collect() error {
 	if err != nil {
 		return err
 	}
-	err = c.getServerLimit()
+	err = c.getServerLimit(c.collectMode == config.OPcUaSubscribeType)
 	if err != nil {
 		return err
 	}
@@ -837,7 +850,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if c.conn.State() != opcua.Connected {
 		return nil, fmt.Errorf("opc ua client is not connected")
 	}
-	err := c.getServerLimit()
+	err := c.getServerLimit(false)
 	if err != nil {
 		return nil, fmt.Errorf("get server ability fail: %s", err.Error())
 	}
