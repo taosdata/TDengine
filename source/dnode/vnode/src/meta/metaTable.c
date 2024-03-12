@@ -762,6 +762,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCtbIdxc);
+      goto _err;
     }
     rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
     tdbFree(pKey);
