@@ -198,7 +198,7 @@ advanced:
         type: str
 
 parser:
-  display: MQTT Payload 解析
+  display: Payload 转换
   description: |
     MQTT 连接器会上传以下四列到服务端：
 
