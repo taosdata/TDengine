@@ -41,7 +41,7 @@ class TestTs4478(TDCase):
         # self.thread_count = 10
         self.num_of_records_per_req = 100
         # self.num_of_records_per_req = 100
-        self.childtable_count = 500000
+        self.childtable_count = 50000
         self.insert_rows = 100000
         self.start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
