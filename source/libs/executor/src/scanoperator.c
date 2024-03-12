@@ -2269,6 +2269,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
     if (isTaskKilled(pTaskInfo)) {
+      qInfo("===stream===stream scan is killed. task id:%s, code %s", id, tstrerror(pTaskInfo->code));
       return NULL;
     }
 
