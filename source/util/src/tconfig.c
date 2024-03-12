@@ -454,7 +454,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     SConfigItem *existItem = taosArrayGet(pCfg->array, i);
     if (existItem != NULL && strcmp(existItem->name, pItem->name) == 0) {
       taosMemoryFree(pItem->name);
-      return 0;
+      return TSDB_CODE_INVALID_CFG;
     }
   }
 
