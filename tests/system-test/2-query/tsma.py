@@ -771,7 +771,7 @@ class TDTestCase:
 
     def test_recursive_tsma(self):
         tdSql.execute('drop tsma tsma2')
-        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)']
+        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)', 'stddev(c3)', 'hyperloglog(c5)']
         select_func_list: List[str] = tsma_func_list.copy()
         select_func_list.append('count(*)')
         self.create_tsma('tsma3', 'test', 'meters', tsma_func_list, '5m')
@@ -858,7 +858,7 @@ class TDTestCase:
         sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333').get_qc())
-        #ctxs.extend(self.test_query_tsma_all())
+        ctxs.extend(self.test_query_tsma_all())
         return ctxs
 
     def test_query_with_tsma_interval_partition_by_col(self):
@@ -1000,7 +1000,7 @@ class TDTestCase:
     def run(self):
         self.init_data()
         # time.sleep(999999)
-        self.test_ddl()
+        #self.test_ddl()
         self.test_query_with_tsma()
         # time.sleep(999999)
 
