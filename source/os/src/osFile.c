@@ -1404,3 +1404,35 @@ int32_t taosLinkFile(char *src, char *dst) {
 #endif
   return 0;
 }
+
+FILE*  taosOpenCFile(const char* filename, const char* mode) {
+  return fopen(filename, mode);
+}
+
+int taosSeekCFile(FILE* file, int64_t offset, int whence) {
+#ifdef WINDOWS
+  return _fseeki64(file, offset, whence);
+#else
+  return fseeko(file, offset, whence);
+#endif  
+}
+
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream ) {
+  return fread(buffer, size, count, stream);
+}
+
+size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream) {
+  return fwrite(ptr, size, nitems, stream);
+}
+
+int	 taosCloseCFile(FILE *f) {
+  return fclose(f);
+}
+
+int taosSetAutoDelFile(char* path) {
+#ifdef WINDOWS
+  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
+#else
+  return unlink(path);
+#endif  
+}

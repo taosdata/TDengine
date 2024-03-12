@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define ALLOW_FORBID_FUNC
-
 #include "query.h"
 #include "tcommon.h"
 
@@ -33,17 +31,6 @@ struct STupleHandle {
   SSDataBlock* pBlock;
   int32_t      rowIndex;
 };
-
-typedef struct SSortMemPageEntry {
-  int32_t pageId;
-  bool  active;
-
-  void* data;
-
-  struct SSortMemPageEntry* next;
-  struct SSortMemPageEntry* prev;
-
-} SSortMemPageEntry;
 
 typedef struct SSortMemFileRegion {
   int64_t fileOffset;
@@ -68,7 +55,6 @@ typedef struct SSortMemFile {
   int32_t blockSize;
 
   FILE* pTdFile;
-  // TdFilePtr pTdFile;
   char memFilePath[PATH_MAX];
 } SSortMemFile;
 
@@ -240,21 +226,6 @@ void destroyTuple(void* t) {
   }
 }
 
-int tsortSeekFile(FILE* file, int64_t offset, int whence) {
-#ifdef WINDOWS
-  return _fseeki64(file, offset, whence);
-#else
-  return fseeko(file, offset, whence);
-#endif
-}
-
-int tsortSetAutoDelFile(char* path) {
-#ifdef WINDOWS
-  return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
-#else
-  return unlink(path);
-#endif
-}
 
 /**
  *
@@ -1038,9 +1009,9 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     if (pRegion->buf == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET);
+    taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET);
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize);
-    int ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+    int ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
@@ -1058,9 +1029,9 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     }
     int32_t szThisBlock = pRegion->bufLen - (tupleOffset - pRegion->bufRegOffset);
     memcpy(*ppRow, pRegion->buf + tupleOffset - pRegion->bufRegOffset, szThisBlock);
-    tsortSeekFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET);
+    taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET);
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize - (pRegion->bufRegOffset + pRegion->bufLen));
-    int     ret = fread(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
+    int     ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
       taosMemoryFreeClear(*ppRow);
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1085,13 +1056,13 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
   }
   if (code == TSDB_CODE_SUCCESS) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-    pMemFile->pTdFile = fopen(pMemFile->memFilePath, "w+");
+    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+");
     if (pMemFile->pTdFile == NULL) {
       code = terrno = TAOS_SYSTEM_ERROR(errno);
     }
   }
   if (code == TSDB_CODE_SUCCESS) {
-    tsortSetAutoDelFile(pMemFile->memFilePath);
+    taosSetAutoDelFile(pMemFile->memFilePath);
 
     pMemFile->currRegionId = -1;
     pMemFile->currRegionOffset = -1;
@@ -1119,7 +1090,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
       if (pMemFile->aFileRegions) taosMemoryFreeClear(pMemFile->aFileRegions);
       if (pMemFile->writeBuf) taosMemoryFreeClear(pMemFile->writeBuf);
       if (pMemFile->pTdFile) {
-        fclose(pMemFile->pTdFile);
+        taosCloseCFile(pMemFile->pTdFile);
         pMemFile->pTdFile = NULL;
       }
       taosMemoryFreeClear(pMemFile);
@@ -1142,7 +1113,7 @@ static int32_t destroySortMemFile(SSortHandle* pHandle) {
   taosMemoryFree(pMemFile->writeBuf);
   pMemFile->writeBuf = NULL;
 
-  fclose(pMemFile->pTdFile);
+  taosCloseCFile(pMemFile->pTdFile);
   pMemFile->pTdFile = NULL;
   taosRemoveFile(pMemFile->memFilePath);
   taosMemoryFree(pMemFile);
@@ -1272,8 +1243,8 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
   int32_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
   size_t nCols = taosArrayGetSize(pHandle->pDataBlock->pDataBlock);
-  pHandle->pageSize = getProperSortPageSize(rowSize, nCols);
-  pHandle->numOfPages = 2048;
+  pHandle->pageSize = 256 * 1024; // 256k
+  pHandle->numOfPages = 256;
 
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
   SBlockOrderInfo bi = {0};
