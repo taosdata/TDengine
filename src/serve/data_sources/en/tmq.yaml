@@ -1,6 +1,6 @@
 ---
 id: tmq
-name: TDengine3
+name: TDengine 3.x
 description: |
   TMQ data source is a read-only data source for TDengine.
 

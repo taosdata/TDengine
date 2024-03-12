@@ -1,6 +1,6 @@
 ---
 id: tmq
-name: TDengine3
+name: TDengine 3.x
 description: |
   使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。
 

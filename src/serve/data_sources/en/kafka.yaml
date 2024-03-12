@@ -93,7 +93,7 @@ groups:
           type: str
 
 parser:
-  display: Kafka Message Parser
+  display: Payload Transformation
   description: |
     Kafka will report exactly five fields of data for each data stream:<br>
 
