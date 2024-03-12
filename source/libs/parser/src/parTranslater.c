@@ -7944,9 +7944,25 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
   return code;
 }
 
+static int32_t doTranslateDropCtbsWithTsma(STranslateContext* pCxt, SDropTableStmt* pStmt) {
+  SNode* pNode;
+  // note that there could have normal tables
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    if (pClause->pTsmas) {
+      // generate tsma res ctb names and get it's vgInfo
+    }
+  }
+  // assemble all tbs into one req, then send to mnode
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt) {
   SDropTableClause* pClause = (SDropTableClause*)nodesListGetNode(pStmt->pTables, 0);
   SName             tableName;
+  if (pStmt->withTsma) {
+    return doTranslateDropCtbsWithTsma(pCxt, pStmt);
+  }
   return doTranslateDropSuperTable(
       pCxt, toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tableName), pClause->ignoreNotExists);
 }
@@ -12362,6 +12378,9 @@ SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap) {
 
 static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
+  bool            isSuperTable = false;
+  SNode*          pNode;
+  SArray*         pTsmas = NULL;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == pVgroupHashmap) {
@@ -12369,8 +12388,6 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
-  bool   isSuperTable = false;
-  SNode* pNode;
   FOREACH(pNode, pStmt->pTables) {
     int32_t code = buildDropTableVgroupHashmap(pCxt, (SDropTableClause*)pNode, &isSuperTable, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
@@ -12383,6 +12400,21 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   if (isSuperTable || 0 == taosHashGetSize(pVgroupHashmap)) {
+    taosHashCleanup(pVgroupHashmap);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    SName name;
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
+    getTableTsmasFromCache(pCxt->pMetaCache, &name, &pTsmas);
+    if (pTsmas && pTsmas->size > 0) {
+      pClause->pTsmas= pTsmas;
+      pStmt->withTsma = true;
+    }
+  }
+  if (pStmt->withTsma) {
     taosHashCleanup(pVgroupHashmap);
     return TSDB_CODE_SUCCESS;
   }
