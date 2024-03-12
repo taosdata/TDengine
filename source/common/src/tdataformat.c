@@ -242,7 +242,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     sinfo->kvIndexSize = sizeof(SKVIdx) + (sinfo->numOfNull + sinfo->numOfValue) * sizeof(uint32_t);
   }
   for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
-    sinfo->tupleIndices[i].offset += sinfo->kvIndexSize;
+    sinfo->kvIndices[i].offset += sinfo->kvIndexSize;
     sinfo->kvPKSize += tPutPrimaryKeyIndex(NULL, sinfo->kvIndices + i);
   }
   sinfo->kvRowSize = sizeof(SRow)             // SRow
