@@ -791,7 +791,9 @@ typedef struct SCtgCacheItemInfo {
   (CTG_FLAG_IS_UNKNOWN_STB(_flag) || (CTG_FLAG_IS_STB(_flag) && (tbType) == TSDB_SUPER_TABLE) || \
    (CTG_FLAG_IS_NOT_STB(_flag) && (tbType) != TSDB_SUPER_TABLE))
 
-#define CTG_IS_BATCH_TASK(_taskType) ((CTG_TASK_GET_TB_META_BATCH == (_taskType)) || (CTG_TASK_GET_TB_HASH_BATCH == (_taskType)) || (CTG_TASK_GET_VIEW == (_taskType)))
+#define CTG_IS_BATCH_TASK(_taskType)                                                             \
+  ((CTG_TASK_GET_TB_META_BATCH == (_taskType)) || (CTG_TASK_GET_TB_HASH_BATCH == (_taskType)) || \
+   (CTG_TASK_GET_VIEW == (_taskType)) || (CTG_TASK_GET_TB_TSMA == (_taskType)))
 
 #define CTG_GET_TASK_MSGCTX(_task, _id)                                                             \
   (CTG_IS_BATCH_TASK((_task)->type)  ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
