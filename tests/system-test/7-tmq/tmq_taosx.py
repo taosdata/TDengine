@@ -363,9 +363,9 @@ class TDTestCase:
         tdSql.execute(f'create database if not exists test')
         tdSql.execute(f'use test')
         tdSql.execute(f'CREATE STABLE `test`.`b` ( `time` TIMESTAMP , `task_id` NCHAR(1000) ) TAGS( `key` NCHAR(1000))')
-        tdSql.execute(f"insert into `test`.b1 using `test`.`b`(key) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(key) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(key) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
+        tdSql.execute(f"insert into `test`.b1 using `test`.`b`(`key`) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(`key`) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(`key`) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
 
-        tdSql.execute(f'create topic tt as select tbname,task_id,key from b')
+        tdSql.execute(f'create topic tt as select tbname,task_id,`key` from b')
 
         consumer_dict = {
             "group.id": "g1",
