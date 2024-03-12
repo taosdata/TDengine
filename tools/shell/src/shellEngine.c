@@ -56,7 +56,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static void    shellGetGrantInfo();
+static bool    shellGetGrantInfo();
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -1150,7 +1150,17 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-void shellGetGrantInfo() {
+// show enterprise AD
+void showAD() {
+  fprintf(stdout, "You are using the TDengine Community Edition. \
+  If you want to experience more advanced TDengine features and have professional service, \
+  please try the TDengine Enterprise Edition.\r\n\
+  https://www.taosdata.com/tdengine-enterprise
+  ");
+}
+
+bool shellGetGrantInfo() {
+  bool community = true;
   char sinfo[1024] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
@@ -1194,15 +1204,19 @@ void shellGetGrantInfo() {
     memcpy(expired, row[2], fields[2].bytes);
 
     if (strcmp(serverVersion, "community") == 0) {
-      fprintf(stdout, "Server is Community Edition.\r\n");
+      community = true;
+      showAD()
     } else if (strcmp(expiretime, "unlimited") == 0) {
+      community = false;
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
+      community = false;
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
     taos_free_result(tres);
+    return community;
   }
 
   fprintf(stdout, "\r\n");
@@ -1367,7 +1381,7 @@ int32_t shellExecute() {
 #ifndef WINDOWS
     printfIntroduction();
 #endif
-    shellGetGrantInfo();
+  bool community = shellGetGrantInfo();
 #ifdef WEBSOCKET
   }
 #endif
@@ -1380,6 +1394,12 @@ int32_t shellExecute() {
       break;
     }
   }
+
+  // commnuity
+  if (community) {
+    showAD();
+  }
+
   taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
