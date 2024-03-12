@@ -38,21 +38,16 @@ groups:
       - name: group.id
         display: 订阅组 ID
         description: |
-          订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。
+          订阅组 ID 是用于标识一个订阅组的任意字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。
         hint:
           type: str
       - name: client.id
         display: 客户端 ID
         description: |
-          客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。
+          客户端 ID 是一个用于标识客户端的任意字符串，最大长度为 192。
+        required: true
         hint:
           type: str
-      - name: experimental.snapshot.enable
-        display: 启用快照
-        description: |
-          启用实验性的快照以支持订阅更早的数据。
-        hint: 
-          type: bool
       - name: timeout
         display: 超时
         hint:
@@ -62,4 +57,25 @@ groups:
           可配置为：
           - `never`: 表示无超时时间，持续进行订阅。
           - 指定超时时间：`5s`, `1m` 等。
-        placeholder: 5s
+        placeholder: 5s     
+      - name: experimental.snapshot.enable
+        display: 同步已落盘数据
+        description: |
+          如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
+        hint: 
+          type: bool
+        value: true
+      - name: sync.meta.drop
+        display: 同步删表操作
+        description: |
+          如启用则会同步删表操作到目标数据库。
+        hint:
+          type: bool
+        value: true
+      - name: sync.meta.delete
+        display: 同步删数据操作
+        description: |
+          如启用则会同步删数据操作到目标数据库。
+        hint:
+          type: bool
+        value: true
