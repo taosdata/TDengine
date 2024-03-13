@@ -714,10 +714,10 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
   SSdb   *pSdb    = pMnode->pSdb;
   void   *buf     = NULL;
   while (1) {
-    sdbRelease(pSdb, pVgroup);
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
     if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
+      sdbRelease(pSdb, pVgroup);
       continue;
     }
 
@@ -737,12 +737,13 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
     action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
     code = mndTransAppendRedoAction(pTrans, &action);
     if (code != 0) {
+      taosMemoryFree(buf);
       goto end;
     }
+    sdbRelease(pSdb, pVgroup);
   }
 
 end:
-  taosMemoryFree(buf);
   sdbRelease(pSdb, pVgroup);
   sdbCancelFetch(pSdb, pIter);
   return code;
