@@ -841,6 +841,7 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
       .numRow = bData->nRow,
       .count = 1,
   }};
+  
 
   for (int32_t i = 1; i < bData->nRow; ++i) {
     if (bData->aTSKEY[i] != bData->aTSKEY[i - 1]) {

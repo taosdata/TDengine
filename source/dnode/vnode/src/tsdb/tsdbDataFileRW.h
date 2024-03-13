@@ -85,6 +85,7 @@ typedef struct SDataFileWriterConfig {
   } files[TSDB_FTYPE_MAX];
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
+  SHashObj *pColCmpr;
   uint8_t **bufArr;
 } SDataFileWriterConfig;
 

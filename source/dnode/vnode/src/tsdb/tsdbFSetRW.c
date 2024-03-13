@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFSetRW.h"
+#include "meta.h"
 
 // SFSetWriter ==================================================
 struct SFSetWriter {
@@ -32,6 +33,7 @@ struct SFSetWriter {
   int32_t          blockDataIdx;
   SDataFileWriter *dataWriter;
   SSttFileWriter  *sttWriter;
+  SHashObj        *pColCmprObj;
 };
 
 static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *tbid) {
@@ -42,6 +44,8 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   writer->ctx->tbid->uid = tbid->uid;
 
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
+
+  code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, writer->ctx->tbid->suid, &writer->pColCmprObj);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->blockDataIdx = 0;
