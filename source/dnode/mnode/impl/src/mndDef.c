@@ -302,7 +302,7 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
     pConsumer->assignedTopics = subscribe->topicNames;
     subscribe->topicNames = NULL;
   }else if (updateType == CONSUMER_UPDATE_SUB){
-    pConsumer->assignedTopics = subscribe->topicNames;;
+    pConsumer->assignedTopics = subscribe->topicNames;
     subscribe->topicNames = NULL;
   }
 
