@@ -767,6 +767,30 @@ tags_literal(A) ::= NK_MINUS(B) NK_FLOAT(C).                                    
                                                                                     t.n = (C.z + C.n) - B.z;
                                                                                     A = createRawValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t, NULL);
                                                                                   }
+
+tags_literal(A) ::= NK_BIN(B).                                                    { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
+tags_literal(A) ::= NK_PLUS(B) NK_BIN(C).                                         {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_BIN(C).                                        {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_HEX(B).                                                    { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
+tags_literal(A) ::= NK_PLUS(B) NK_HEX(C).                                         {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_HEX(C).                                        {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+
 tags_literal(A) ::= NK_STRING(B).                                                 { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B, NULL); }
 tags_literal(A) ::= NK_BOOL(B).                                                   { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B, NULL); }
 tags_literal(A) ::= NULL(B).                                                      { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B, NULL); }

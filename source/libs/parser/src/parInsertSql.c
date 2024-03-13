@@ -260,7 +260,8 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
     *isTs = true;
     if (taosParseTime(pToken->z, ts, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
-      if (pToken->type != TK_NK_STRING || pToken->n == 0) {
+      if ((pToken->n == 0) ||
+          (pToken->type != TK_NK_STRING && pToken->type != TK_NK_HEX && pToken->type != TK_NK_BIN)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       if (IS_NOW_STR(pToken->z, pToken->n)) {
@@ -269,7 +270,7 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
       } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
         *isTs = true;
         *ts = taosGetTimestampToday(timePrec);
-      } else if (TSDB_CODE_SUCCESS == toInteger(pToken->z, pToken->n, 10, ts)) {
+      } else if (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, ts)) {
         *isTs = true;
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
@@ -498,6 +499,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         *(int8_t*)(&val->i64) = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if (pToken->type == TK_NK_FLOAT) {
         *(int8_t*)(&val->i64) = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+      } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
+                 (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, &iv))) {
+        *(int8_t*)(&val->i64) = (iv == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }
@@ -1438,6 +1442,9 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         pVal->value.val = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if (pToken->type == TK_NK_FLOAT) {
         pVal->value.val = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+      } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
+                 (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, &pVal->value.val))) {
+        *(int8_t*)(&pVal->value.val) = (pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
       }
