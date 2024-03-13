@@ -327,6 +327,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
       }
     }
     pNewPos = getNewRowPosForWrite(pFileState);
+    memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
     pNewPos->needFree = true;
     pNewPos->beFlushed = true;
   }
