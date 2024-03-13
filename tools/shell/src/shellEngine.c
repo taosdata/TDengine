@@ -1150,15 +1150,6 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-// show enterprise AD
-void showAD() {
-  fprintf(stdout, "\r\n\
-  You are using the TDengine Community Edition. \r\n\
-  If you want to experience more advanced TDengine features and have professional service,\r\n\
-  please try the TDengine Enterprise Edition.\r\n\
-    https://www.taosdata.com/tdengine-enterprise\r\n\r\n");
-}
-
 bool shellGetGrantInfo() {
   bool community = true;
   char sinfo[1024] = {0};
@@ -1205,7 +1196,6 @@ bool shellGetGrantInfo() {
 
     if (strcmp(serverVersion, "community") == 0) {
       community = true;
-      showAD();
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
@@ -1378,10 +1368,15 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
+bool community = shellGetGrantInfo();
 #ifndef WINDOWS
-    printfIntroduction();
+    printfIntroduction(community);
+#else
+  if(community) {
+    showAD(false)
+  }
 #endif
-  bool community = shellGetGrantInfo();
+
 #ifdef WEBSOCKET
   }
 #endif
@@ -1397,7 +1392,7 @@ int32_t shellExecute() {
 
   // commnuity
   if (community) {
-    showAD();
+    showAD(true);
   }
 
   taosThreadJoin(spid, NULL);

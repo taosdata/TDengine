@@ -41,6 +41,9 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 // introduction
 void printfIntroduction();
 
+// show enterprise AD at start or end
+void showAD(bool end);
+
 // show all commands help
 void showHelp();
 
