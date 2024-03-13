@@ -226,4 +226,135 @@ print =============== clear
 #  return -1
 #endi
 
+print ================= step12
+
+sql create database test2 vgroups 4;
+sql use test2;
+sql create stable stb (ts timestamp, c1 int) tags (t1 int);
+sql create table t1 using stb tags (1);
+sql create table t2 using stb tags (2);
+sql create table t3 using stb tags (3);
+sql create table t4 using stb tags (4);
+sql create table t5 using stb tags (4);
+sql create table t6 using stb tags (4);
+sql insert into t1 values ("2024-03-01 14:29:07.051", 11);
+sql insert into t2 values ("2024-03-01 14:29:07.051", 21);
+sql insert into t3 values ("2024-03-01 14:29:07.051", 31);
+sql insert into t4 values ("2024-03-01 14:29:07.051", 41);
+sql insert into t5 values ("2024-03-01 14:29:07.051", 51);
+sql insert into t6 values ("2024-03-01 14:29:07.051", 61);
+sql insert into t1 values ("2024-03-01 14:30:07.051", 12);
+sql insert into t2 values ("2024-03-01 14:30:07.051", 22);
+sql insert into t3 values ("2024-03-01 14:30:07.051", 32);
+sql insert into t4 values ("2024-03-01 14:30:07.051", 42);
+sql insert into t5 values ("2024-03-01 14:30:07.051", 52);
+sql insert into t6 values ("2024-03-01 14:30:07.051", 62);
+sql insert into t1 values ("2024-03-01 14:31:07.051", 13);
+sql insert into t2 values ("2024-03-01 14:31:07.051", 23);
+sql insert into t3 values ("2024-03-01 14:31:07.051", 33);
+sql insert into t4 values ("2024-03-01 14:31:07.051", 43);
+sql insert into t5 values ("2024-03-01 14:31:07.051", 53);
+sql insert into t6 values ("2024-03-01 14:31:07.051", 63);
+sql insert into t1 values ("2024-03-01 14:32:07.051", 14);
+sql insert into t2 values ("2024-03-01 14:32:07.051", 24);
+sql insert into t3 values ("2024-03-01 14:32:07.051", 34);
+sql insert into t4 values ("2024-03-01 14:32:07.051", 44);
+sql insert into t5 values ("2024-03-01 14:32:07.051", 54);
+sql insert into t6 values ("2024-03-01 14:32:07.051", 64);
+sql insert into t1 values ("2024-03-01 14:33:07.051", 15);
+sql insert into t2 values ("2024-03-01 14:33:07.051", 25);
+sql insert into t3 values ("2024-03-01 14:33:07.051", 35);
+sql insert into t4 values ("2024-03-01 14:33:07.051", 45);
+sql insert into t5 values ("2024-03-01 14:33:07.051", 55);
+sql insert into t6 values ("2024-03-01 14:33:07.051", 65);
+sql insert into t1 values ("2024-03-01 14:34:07.051", 16);
+sql insert into t2 values ("2024-03-01 14:34:07.051", 26);
+sql insert into t3 values ("2024-03-01 14:34:07.051", 36);
+sql insert into t4 values ("2024-03-01 14:34:07.051", 46);
+sql insert into t5 values ("2024-03-01 14:34:07.051", 56);
+sql insert into t6 values ("2024-03-01 14:34:07.051", 66);
+
+sleep 300
+
+sql select _wstart, count(*) from (select * from stb partition by tbname) interval(2s);
+
+print $data00,$data01
+print $data10,$data11
+print $data20,$data21
+print $data30,$data31
+print $data40,$data41
+print $data50,$data51
+print $data60,$data61
+print $data70,$data71
+
+if $rows != 6 then
+  print $rows
+  return -1
+endi
+
+if $data01 != 6 then
+  print $data01
+endi
+
+if $data11 != 6 then
+  print $data11
+endi
+
+if $data21 != 6 then
+  print $data21
+endi
+
+if $data31 != 6 then
+  print $data31
+endi
+
+if $data41 != 6 then
+  print $data41
+endi
+
+if $data51 != 6 then
+  print $data51
+endi
+
+
+sql select _wstart, count(*) from (select * from stb partition by tbname slimit 2) interval(2s);
+
+print $data00,$data01
+print $data10,$data11
+print $data20,$data21
+print $data30,$data31
+print $data40,$data41
+print $data50,$data51
+print $data60,$data61
+print $data70,$data71
+
+if $rows != 6 then
+  print $rows then
+  return -1
+endi
+
+if $data01 != 2 then
+  print $data01
+endi
+
+if $data11 != 2 then
+  print $data11
+endi
+
+if $data21 != 2 then
+  print $data21
+endi
+
+if $data31 != 2 then
+  print $data31
+endi
+
+if $data41 != 2 then
+  print $data41
+endi
+
+if $data51 != 2 then
+  print $data51
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

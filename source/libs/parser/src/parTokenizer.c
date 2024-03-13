@@ -215,6 +215,7 @@ static SKeyword keywordTable[] = {
     {"SLIDING",              TK_SLIDING},
     {"SLIMIT",               TK_SLIMIT},
     {"SMA",                  TK_SMA},
+    {"SMALLDATA_TS_SORT",    TK_SMALLDATA_TS_SORT},
     {"SMALLINT",             TK_SMALLINT},
     {"SNODE",                TK_SNODE},
     {"SNODES",               TK_SNODES},
