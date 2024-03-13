@@ -132,7 +132,9 @@ impl Parse for Json {
                     }
                     JsonValue::Array(array) => {
                         if !self.flatten {
-                            return Err(super::ParseError::UnsupportedJsonValue(JsonValue::Array(array)));
+                            return Err(super::ParseError::UnsupportedJsonValue(JsonValue::Array(
+                                array,
+                            )));
                         } else {
                             for value in array {
                                 if value.is_null() {
