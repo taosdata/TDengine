@@ -17,6 +17,9 @@
 
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
+  if (tEncodeI32v(pCoder, pw->nCols) < 0) return -1;
+  if (tEncodeI32v(pCoder, pw->version) < 0) return -1;
+
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColCmpr *p = &pw->pColCmpr[i];
     if (tEncodeI16v(pCoder, p->id) < 0) return -1;

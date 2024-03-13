@@ -33,6 +33,20 @@ void vnodeQueryPreClose(SVnode *pVnode) { qWorkerStopAllTasks((void *)pVnode->pQ
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
+int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
+  int8_t tblType = reader->me.type;
+  if (useCompress(tblType)) {
+    SColCmprWrapper *p = &(reader->me.colCmpr);
+    ASSERT(numOfCol == p->nCols);
+    for (int i = 0; i < p->nCols; i++) {
+      SColCmpr *pCmpr = &p->pColCmpr[i];
+      pExt[i].colId = pCmpr->id;
+      pExt[i].compress = pCmpr->alg;
+    }
+  }
+  return 0;
+}
+
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -99,10 +113,21 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.sversion = schema.version;
   metaRsp.tversion = schemaTag.version;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SSchemaExt));
 
   memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
   if (schemaTag.nCols) {
     memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  }
+  if (metaRsp.pSchemaExt) {
+    code = fillTableColCmpr(&mer1, metaRsp.pSchemaExt, metaRsp.numOfColumns);
+    if (code < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  } else {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
   // encode and send response
@@ -126,6 +151,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
 _exit:
   taosMemoryFree(metaRsp.pSchemas);
+  taosMemoryFree(metaRsp.pSchemaExt);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:

@@ -426,6 +426,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   if (useCompress(msg->tableType)) {
     pTableMeta->schemaExt = pSchemaExt;
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
+  } else {
+    pTableMeta->schemaExt = NULL;
   }
 
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
