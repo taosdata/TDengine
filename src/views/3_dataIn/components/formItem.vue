@@ -238,8 +238,8 @@ export default {
       const patternRule = [
         {
           pattern: this.config.pattern,
-          trigger: 'change',
-          message: this.config.patternMsg
+          message: this.config.patternMsg,
+          trigger: 'blur',
         }
       ]
 

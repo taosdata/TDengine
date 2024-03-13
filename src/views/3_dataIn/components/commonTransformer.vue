@@ -569,14 +569,11 @@ import FilterExpression from "./filterExpression.vue";
 import { getParser, getHistorianMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData } from "../utils.js";
-import Papa from "papaparse";
 import JsonEditor from "./jsonEditor.vue";
-import JSONbig from "json-bigint";
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -932,14 +929,16 @@ export default {
       this.request = false;
     },
     handleSuccess(_, file, fileList) {
-      Papa.parse(file.raw, {
-      header: false,
-      complete: (result) => {
-      console.log(result.data.join("\n"), "解析后的结果");
-      this.msgForm.msgbody += result.data.join("\n")
-          this.request = false;
-        },
-      });
+      const reader = new FileReader();
+      const _this = this;
+    
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        _this.msgForm.msgbody += contents + "\n";
+        _this.request = false;
+      };
+    
+      reader.readAsText(file.raw); // 读取文本文件
     },
     beforeRemove(file, fileList) {
       return this.$confirm(`确定移除 ${file.name}？`);
