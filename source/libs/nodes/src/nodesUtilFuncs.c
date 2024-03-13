@@ -683,6 +683,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosArrayDestroy(pCfg->pFuncs);
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);
+  taosMemoryFree(pCfg->pSchemaExt);
   taosMemoryFree(pCfg->pTags);
   taosMemoryFree(pCfg);
 }

@@ -295,3 +295,7 @@ void setColCompressByOption(uint32_t* compress, uint8_t encode, uint16_t compres
   setColLevel(compress, level);
   return;
 }
+
+bool useCompress(uint8_t tableType) {
+  return  TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType;
+}

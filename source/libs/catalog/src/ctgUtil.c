@@ -1630,14 +1630,14 @@ static void* ctgCloneQnodeList(void* pSrc) { return taosArrayDup((const SArray*)
 
 static void ctgFreeQnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableCfg(void* pSrc) {
-  STableCfg* pDst = taosMemoryMalloc(sizeof(STableCfg));
-  if (NULL == pDst) {
-    return NULL;
-  }
-  memcpy(pDst, pSrc, sizeof(STableCfg));
-  return pDst;
-}
+// static void* ctgCloneTableCfg(void* pSrc) {
+//   STableCfg* pDst = taosMemoryMalloc(sizeof(STableCfg));
+//   if (NULL == pDst) {
+//     return NULL;
+//   }
+//   memcpy(pDst, pSrc, sizeof(STableCfg));
+//   return pDst;
+// }
 
 static void ctgFreeTableCfg(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 

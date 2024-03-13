@@ -2904,6 +2904,11 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->tagsLen) < 0) return -1;
   if (tEncodeBinary(&encoder, pRsp->pTags, pRsp->tagsLen) < 0) return -1;
 
+  for (int32_t i = 0; i < pRsp->numOfColumns; ++i)
+  {
+    SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+    if (tEncodeSSchemaExt(&encoder, pSchemaExt) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2962,6 +2967,21 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   if (tDecodeI32(&decoder, &pRsp->tagsLen) < 0) return -1;
   if (tDecodeBinaryAlloc(&decoder, (void **)&pRsp->pTags, NULL) < 0) return -1;
 
+  if (1 /*!tDecodeIsEnd(&decoder)*/) {
+    if (pRsp->numOfColumns > 0) {
+      pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
+      if (pRsp->pSchemaExt == NULL) return -1;
+
+      for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+        SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+        if (tDecodeSSchemaExt(&decoder, pSchemaExt) < 0) return -1;
+        pSchemaExt->colId = i;
+        pSchemaExt->compress = 0x02000303;
+      }
+    } else {
+      pRsp->pSchemaExt = NULL;
+    }
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -2975,6 +2995,7 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
 
   taosMemoryFreeClear(pRsp->pComment);
   taosMemoryFreeClear(pRsp->pSchemas);
+  taosMemoryFreeClear(pRsp->pSchemaExt);
   taosMemoryFreeClear(pRsp->pTags);
 
   taosArrayDestroy(pRsp->pFuncs);

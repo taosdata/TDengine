@@ -1182,23 +1182,24 @@ typedef struct {
 } STableCfgReq;
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   tableType;
-  int64_t  delay1;
-  int64_t  delay2;
-  int64_t  watermark1;
-  int64_t  watermark2;
-  int32_t  ttl;
-  SArray*  pFuncs;
-  int32_t  commentLen;
-  char*    pComment;
-  SSchema* pSchemas;
-  int32_t  tagsLen;
-  char*    pTags;
+  char        tbName[TSDB_TABLE_NAME_LEN];
+  char        stbName[TSDB_TABLE_NAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  int32_t     numOfTags;
+  int32_t     numOfColumns;
+  int8_t      tableType;
+  int64_t     delay1;
+  int64_t     delay2;
+  int64_t     watermark1;
+  int64_t     watermark2;
+  int32_t     ttl;
+  SArray*     pFuncs;
+  int32_t     commentLen;
+  char*       pComment;
+  SSchema*    pSchemas;
+  int32_t     tagsLen;
+  char*       pTags;
+  SSchemaExt* pSchemaExt;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
