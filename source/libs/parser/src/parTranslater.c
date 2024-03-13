@@ -10878,19 +10878,17 @@ typedef struct SVgroupDropTableBatch {
   char             dbName[TSDB_DB_NAME_LEN];
 } SVgroupDropTableBatch;
 
-static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* pClause, SVgroupInfo* pVgInfo,
-                                   uint64_t suid) {
-  SVDropTbReq            req = {.name = pClause->tableName, .suid = suid, .igNotExists = pClause->ignoreNotExists};
+static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SVgroupInfo* pVgInfo, SVDropTbReq* pReq) {
   SVgroupDropTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (NULL == pTableBatch) {
     SVgroupDropTableBatch tBatch = {0};
     tBatch.info = *pVgInfo;
     tBatch.req.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVDropTbReq));
-    taosArrayPush(tBatch.req.pArray, &req);
+    taosArrayPush(tBatch.req.pArray, pReq);
 
     taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
   } else {  // add to the correct vgroup
-    taosArrayPush(pTableBatch->req.pArray, &req);
+    taosArrayPush(pTableBatch->req.pArray, pReq);
   }
 }
 
@@ -10921,7 +10919,8 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
     code = getTableHashVgroup(pCxt, pClause->dbName, pClause->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addDropTbReqIntoVgroup(pVgroupHashmap, pClause, &info, pTableMeta->suid);
+    SVDropTbReq req = {.name = pClause->tableName, .suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists};
+    addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
   }
 
 over:
@@ -10995,7 +10994,7 @@ static int32_t dropTableAddTsmaResTb(STranslateContext* pCxt, SHashObj* pVgMap, 
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     if (pClause->pTsmas) {
-      for (int32_t i = 0; pClause->pTsmas->size; ++i) {
+      for (int32_t i = 0; i < pClause->pTsmas->size; ++i) {
         const STableTSMAInfo* pTsma = taosArrayGetP(pClause->pTsmas, i);
 
         int32_t len = sprintf(tsmaResTbName, "%s.%s", pTsma->dbFName, pTsma->name);
@@ -11003,19 +11002,22 @@ static int32_t dropTableAddTsmaResTb(STranslateContext* pCxt, SHashObj* pVgMap, 
         sprintf(tsmaResTbName + len, "_%s", pClause->tableName);
 
         toName(pCxt->pParseCxt->acctId, pClause->dbName, tsmaResTbName, &tbName);
-        code = getTargetMeta(pCxt, &tbName, &pTableMeta, false);
+        /*code = getTargetMeta(pCxt, &tbName, &pTableMeta, false);
         if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           code = TSDB_CODE_SUCCESS;
           continue;
         }
-        if (code) break;
+        if (code) break; */
         collectUseTable(&tbName, pCxt->pTargetTables);
         SVgroupInfo info = {0};
+        bool exists = false;
         if (TSDB_CODE_SUCCESS == code) {
-          code = getTableHashVgroup(pCxt, pClause->dbName, tsmaResTbName, &info);
+          //code = getTableHashVgroup(pCxt, pClause->dbName, tsmaResTbName, &info);
+          code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &tbName, &info, &exists);
         }
-        if (TSDB_CODE_SUCCESS == code) {
-          addDropTbReqIntoVgroup(pVgMap, pClause, &info, pTableMeta->suid);
+        if (TSDB_CODE_SUCCESS == code && exists) {
+          SVDropTbReq req = {.name = tsmaResTbName, .suid = pTsma->destTbUid, .igNotExists = true};
+          addDropTbReqIntoVgroup(pVgMap, &info, &req);
         }
       }
     }
