@@ -100,7 +100,8 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
-static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta, int8_t biMode) {
+static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta,
+                                          int8_t biMode) {
   int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
   blockDataEnsureCapacity(pBlock, blockCap);
   pBlock->info.rows = 0;
@@ -114,12 +115,18 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   // Note
   SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
   // encode
-  SColumnInfoData* pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
+  SColumnInfoData* pCol5 = NULL;
   // compress
-  SColumnInfoData* pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
+  SColumnInfoData* pCol6 = NULL;
   // level
-  SColumnInfoData* pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
-  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
+  SColumnInfoData* pCol7 = NULL;
+  if (useCompress(pMeta->tableType)) {
+    pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
+    pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
+    pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
+  }
+
+  char buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
       continue;
@@ -136,21 +143,24 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
-    if (i < pMeta->tableInfo.numOfColumns) {
-      STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
-      colDataSetVal(pCol5, pBlock->info.rows, buf, false);
-      STR_TO_VARSTR(buf, columnCompressStr(COMPRESS_L2_TYPE_U32(pMeta->schemaExt[i].compress)));
-      colDataSetVal(pCol6, pBlock->info.rows, buf, false);
-      STR_TO_VARSTR(buf, columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pMeta->schemaExt[i].compress)));
-      colDataSetVal(pCol7, pBlock->info.rows, buf, false);
-    } else {
-      STR_TO_VARSTR(buf, "");
-      colDataSetVal(pCol5, pBlock->info.rows, buf, false);
-      STR_TO_VARSTR(buf, "");
-      colDataSetVal(pCol6, pBlock->info.rows, buf, false);
-      STR_TO_VARSTR(buf, "");
-      colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+    if (useCompress(pMeta->tableType)) {
+      if (i < pMeta->tableInfo.numOfColumns) {
+        STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, columnCompressStr(COMPRESS_L2_TYPE_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+      } else {
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+      }
     }
+
     ++(pBlock->info.rows);
   }
   if (pMeta->tableType == TSDB_SUPER_TABLE && biMode != 0) {
@@ -181,7 +191,11 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType)) {
+      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
+    } else {
+      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+    }
   }
   blockDataDestroy(pBlock);
   return code;

@@ -9228,8 +9228,9 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = DESCRIBE_RESULT_COLS;
+  if (pMeta && useCompress(pMeta->tableType)) *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -9251,17 +9252,19 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
 
-  (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-  strcpy((*pSchema)[4].name, "encode");
+  if (pMeta && useCompress(pMeta->tableType)) {
+    (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+    (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[4].name, "encode");
 
     (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-  strcpy((*pSchema)[5].name, "compress");
+    (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[5].name, "compress");
 
     (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-  strcpy((*pSchema)[6].name, "level");
+    (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[6].name, "level");
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -9391,7 +9394,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_EXPLAIN_STMT:
       return extractExplainResultSchema(numOfCols, pSchema);
     case QUERY_NODE_DESCRIBE_STMT:
-      return extractDescribeResultSchema(numOfCols, pSchema);
+      SDescribeStmt* pNode = (SDescribeStmt*)pRoot;
+      return extractDescribeResultSchema(pNode->pMeta, numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:

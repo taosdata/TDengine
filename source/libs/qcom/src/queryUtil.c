@@ -463,14 +463,19 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
 
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
-  int32_t schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  int32_t schemaExtSize = 0;
+  if (useCompress(pSrc->tableType)) {
+    schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  }
   *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
   if (NULL == *pDst) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
-  (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
-  memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
+  if (useCompress(pSrc->tableType)) {
+    (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
+    memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
+  }
 
   return TSDB_CODE_SUCCESS;
 }

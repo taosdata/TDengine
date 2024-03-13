@@ -23,7 +23,8 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
-#define DESCRIBE_RESULT_COLS               7
+#define DESCRIBE_RESULT_COLS               4
+#define DESCRIBE_RESULT_COLS_COMPRESS      7
 #define DESCRIBE_RESULT_FIELD_LEN          (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)

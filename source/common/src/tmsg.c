@@ -2904,11 +2904,13 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->tagsLen) < 0) return -1;
   if (tEncodeBinary(&encoder, pRsp->pTags, pRsp->tagsLen) < 0) return -1;
 
-  for (int32_t i = 0; i < pRsp->numOfColumns; ++i)
-  {
-    SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
-    if (tEncodeSSchemaExt(&encoder, pSchemaExt) < 0) return -1;
+  if (useCompress(pRsp->tableType)) {
+    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+      SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+      if (tEncodeSSchemaExt(&encoder, pSchemaExt) < 0) return -1;
+    }
   }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2967,8 +2969,8 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   if (tDecodeI32(&decoder, &pRsp->tagsLen) < 0) return -1;
   if (tDecodeBinaryAlloc(&decoder, (void **)&pRsp->pTags, NULL) < 0) return -1;
 
-  if (1 /*!tDecodeIsEnd(&decoder)*/) {
-    if (pRsp->numOfColumns > 0) {
+  if (!tDecodeIsEnd(&decoder)) {
+    if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
       if (pRsp->pSchemaExt == NULL) return -1;
 
@@ -4454,7 +4456,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
   }
 
-  if (pRsp->tableType == TSDB_SUPER_TABLE || pRsp->tableType == TSDB_NORMAL_TABLE) {
+  if (useCompress(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
       SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
       if (tEncodeSSchemaExt(pEncoder, pSchemaExt) < 0) return -1;
@@ -4492,10 +4494,8 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     pRsp->pSchemas = NULL;
   }
 
-  // if (tDecodeIsEnd(pDecoder)) return 0;
   if (!tDecodeIsEnd(pDecoder)) {
-    if (pRsp->tableType == TSDB_SUPER_TABLE || pRsp->tableType == TSDB_NORMAL_TABLE) {
-      if (pRsp->numOfColumns > 0) {
+    if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
         pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
         if (pRsp->pSchemaExt == NULL) return -1;
 
@@ -4505,9 +4505,6 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
           pSchemaExt->colId = i;
           pSchemaExt->compress = 0x02000303;
         }
-      } else {
-        pRsp->pSchemaExt = NULL;
-      }
     } else {
       pRsp->pSchemaExt = NULL;
     }

@@ -282,16 +282,21 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     return NULL;
   }
 
-  size_t      schemaExtSize = pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  size_t schemaExtSize = 0;
+  if (useCompress(pTableMeta->tableType)) {
+    schemaExtSize = pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  }
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
   STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
 
   if (NULL == p) return NULL;
 
-  SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)p + size);
   memcpy(p, pTableMeta, size);
-  p->schemaExt = pSchemaExt;
-  memcpy(pSchemaExt, pTableMeta->schemaExt, schemaExtSize);
+  if (useCompress(pTableMeta->tableType)) {
+    SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)p + size);
+    p->schemaExt = pSchemaExt;
+    memcpy(pSchemaExt, pTableMeta->schemaExt, schemaExtSize);
+  }
   return p;
 }
 
@@ -1145,10 +1150,12 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
-
-  int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
-  SSchemaExt* pSchemaExt = taosMemoryMalloc(schemaExtSize);
-  memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);
+  SSchemaExt* pSchemaExt = NULL;
+  if (useCompress(pCfg->tableType)) {
+    int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
+    pSchemaExt = taosMemoryMalloc(schemaExtSize);
+    memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);
+  }
 
   pNew->pSchemas = pSchema;
   pNew->pSchemaExt = pSchemaExt;
