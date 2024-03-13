@@ -204,6 +204,7 @@ typedef struct {
   STableMeta  *currSTableMeta;
   STableDataCxt *currTableDataCtx;
   bool         needModifySchema;
+  char        *tbnameKey;
 } SSmlHandle;
 
 extern int64_t smlFactorNS[];
