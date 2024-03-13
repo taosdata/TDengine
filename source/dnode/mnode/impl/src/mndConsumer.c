@@ -642,6 +642,7 @@ static SMqConsumerObj* buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscri
       goto _over;
     }
   }
+  mndReleaseConsumer(pMnode, pExistedConsumer);
   return pConsumerNew;
 
 _over:
