@@ -227,7 +227,7 @@ export default {
         let res = await addReplicationData(id, params);
         console.log(res);
         if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
-          Message.error(res.message);
+          this.$error(res.message);
           return;
         }
         Message.success(this.$t('createSucc'));
@@ -235,7 +235,7 @@ export default {
         this.dialog = false;
       } catch (err) {
         console.error(err);
-        Message.error(err?.message);
+        this.$error(err?.message);
       }
     },
     edit(data) {

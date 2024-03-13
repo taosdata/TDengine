@@ -1000,7 +1000,7 @@ export default {
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           this.isbreak = true;
           return;
         }
@@ -1558,7 +1558,7 @@ export default {
       try {
         let result = await getParser(data);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           this.isbreak = true;
           return;
         }
@@ -1626,7 +1626,7 @@ export default {
       //     : [].concat(JSON.stringify(this.jsoneditorcont));
       // } else {
       //   if (/^{|\[/.test(this.msgForm.msgbody)) {
-      //     // Message.error(this.$t("datasource.transformer.texttip"));
+      //     // this.$error(this.$t("datasource.transformer.texttip"));
       //     this.istext = false;
       //     return;
       //   }
@@ -1657,7 +1657,7 @@ export default {
               resultMsgbody = [].concat(this.msgForm.msgbody);
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 
@@ -1695,11 +1695,11 @@ export default {
     },
     submitSuper(data) {
       if (!this.msgForm.msgbody) {
-        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        this.$error(this.$t("datasource.transformer.msgbodytip"));
         return;
       }
       if (!this.tableData[0]["Expression"]) {
-        Message.error(this.$t("datasource.transformer.tablenametip"));
+        this.$error(this.$t("datasource.transformer.tablenametip"));
         return;
       }
       this.currentCol = data["Name"];
@@ -1775,7 +1775,7 @@ export default {
             };
                         let result = await createStableReq(payload);
             if (result?.desc) {
-              Message.error(this.$t(result.desc));
+              this.$error(this.$t(result.desc));
               return;
             }
             Message.success(this.$t("operateSucc"));
@@ -1784,7 +1784,7 @@ export default {
             this.getSTbaleList();
             this.closeDialog();
           } catch (error) {
-            error.desc ? Message.error(error.desc) : "";
+            error.desc ? this.$error(error.desc) : "";
             console.log(error);
           }
         }
@@ -1859,7 +1859,7 @@ export default {
         select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
         `);
         if (res.desc) {
-          Message.error(res.desc);
+          this.$error(res.desc);
           return;
         }
         if (this.extractArr.length > 0) {

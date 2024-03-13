@@ -184,7 +184,7 @@ export default {
       );
       this.csvColumns = result.file_header.column_names;
       if (result && !result.sample_values) {
-        Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        this.$error(this.$t('datasource.transformer.emptySampleValues'))
         return
       }
       this.sample_values = result.sample_values ?? [];
@@ -353,12 +353,12 @@ export default {
             );
             this.loading = false
             if (result && result.message) {
-              Message.error(result.message);
+              this.$error(result.message);
               return;
             }
             this.csvColumns = result.file_header.column_names;
             if (result && !result.sample_values) {
-              Message.error(this.$t('datasource.transformer.emptySampleValues'))
+              this.$error(this.$t('datasource.transformer.emptySampleValues'))
               return
             }
             this.sample_values = result.sample_values ?? [];
@@ -371,12 +371,12 @@ export default {
           );
           this.loading = false
           if (result && result.message) {
-            Message.error(result.message);
+            this.$error(result.message);
             return;
           }
           this.csvColumns = result.file_header.column_names;
           if (result && !result.sample_values) {
-            Message.error(this.$t('datasource.transformer.emptySampleValues'))
+            this.$error(this.$t('datasource.transformer.emptySampleValues'))
             return
           }
           this.sample_values = result.sample_values ?? [];
@@ -387,7 +387,7 @@ export default {
         //   let apiColumns = result.file_header.column_names;
         //   let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
         //   if (localcolumns.length != apiColumns.length) {
-        //     Message.error(this.$t("datasource.transformer.csvtip"));
+        //     this.$error(this.$t("datasource.transformer.csvtip"));
         //     return;
         //   }
         //   this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
@@ -402,7 +402,7 @@ export default {
         this.loading = false
       } catch (error) {
         this.loading = false
-        error && error.message && Message.error(error.message);
+        error && error.message && this.$error(error.message);
       }
     },
     //组合CSV的transfomrer页面需要的数据
@@ -496,7 +496,7 @@ export default {
         );
       } catch (error) {
         console.log("表不存在则创建");
-        // error&&error.desc&&Message.error(error.desc)
+        // error&&error.desc&&this.$error(error.desc)
       }
     },
     //获取 csv 解析需要的参数

@@ -625,7 +625,7 @@ export default {
         let id = localStorage.getItem("local_clusterID");
         let result = await getTask(id, "datain");
         if (result.desc || result.message) {
-          Message.error(result.desc || result.message);
+          this.$error(result.desc || result.message);
           return;
         }
         if (result) {
@@ -651,20 +651,20 @@ export default {
       try {
         let result = await getMetrics(data.id);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
         
         if (Object.keys(result).length === 0) {
           switch (status) {
             case "running":
-              Message.error(this.$t("datasource.metricTips.running"));
+              this.$error(this.$t("datasource.metricTips.running"));
               return;
             case "completed":
-              Message.error(this.$t("datasource.metricTips.completed"));
+              this.$error(this.$t("datasource.metricTips.completed"));
               return;
             case "stopped":
-              Message.error(this.$t("datasource.metricTips.stopped"));
+              this.$error(this.$t("datasource.metricTips.stopped"));
               return;
           }
         }
@@ -763,7 +763,7 @@ export default {
       try {
         let result = await refreshTask(data.taskid);
         if (result && (result.message || result.desc)) {
-          Message.error(result.message || result.desc);
+          this.$error(result.message || result.desc);
           return;
         }
         let activitList = await this.getCurrentActivities(data.taskid)

@@ -495,7 +495,7 @@ export default {
             let result = await EditSource(params, this.editId);
             this.loading = false;
             if (result.message) {
-              Message.error(result.message);
+              this.$error(result.message);
               return;
             }
             this.$parent.changeEditable(false);
@@ -505,7 +505,7 @@ export default {
             let result = await AddSource(params);
             this.loading = false;
             if (result.message) {
-              Message.error(result.message);
+              this.$error(result.message);
               return;
             }
             this.$refs.form.resetFields();

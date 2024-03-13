@@ -188,13 +188,13 @@ export default {
         } else {
           this.loading = false;
           if (res && res.code == 11) {
-            Message.error(this.$t("login.servTaosdTip"));
+            this.$error(this.$t("login.servTaosdTip"));
           } else {
-            Message.error(res.desc || this.$t("login.errorTip"));
+            this.$error(res.desc || this.$t("login.errorTip"));
           }
         }
       } catch (error) {
-        Message.error(this.$t("login.servExceptionTip"));
+        this.$error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
       }
@@ -223,7 +223,7 @@ export default {
           this.taosxStatus = false;
         }
       } catch (error) {
-        Message.error(error);
+        this.$error(error);
       }
     },
     //获取登录用户权限
@@ -233,7 +233,7 @@ export default {
           `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         )
         if(res?.desc){
-          Message.error(res.desc)
+          this.$error(res.desc)
           return
         }
         if(res&&res.data){
@@ -252,7 +252,7 @@ export default {
                 path: "/explorer",
               });
             } else {
-              Message.error(this.$t("login.versiontip"));
+              this.$error(this.$t("login.versiontip"));
             }
         }
         
@@ -260,11 +260,11 @@ export default {
         this.loading = false;
 
         if (err && err.code == 11) {
-          Message.error(this.$t("login.servTaosdTip"));
+          this.$error(this.$t("login.servTaosdTip"));
           return;
         }
         console.log(err,'登陆错误提示')
-        Message.error(err?.desc);
+        this.$error(err?.desc);
       }
     },
   },

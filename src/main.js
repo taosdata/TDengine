@@ -39,6 +39,15 @@ ELEMENT.Tooltip.props.openDelay = {type: Number, default: 1000};
 Vue.use(ELEMENT);
 Vue.prototype.$bus = $bus;
 Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
+Vue.prototype.$error = function (msg) {
+  this.$message({
+    showClose: true,
+    message: msg,
+    type: 'error',
+    duration: 30000
+  });
+}
+
 export function getBrowserLang() {
   const nav = window.navigator;
   const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();

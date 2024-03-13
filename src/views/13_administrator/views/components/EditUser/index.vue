@@ -231,7 +231,7 @@ export default {
       } catch (error) {
         console.log(error);
         this.$emit("close");
-        // Message.error(error.desc);
+        // this.$error(error.desc);
       }
     },
     async getUserPrivileges() {

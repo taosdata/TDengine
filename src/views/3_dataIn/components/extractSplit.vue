@@ -257,7 +257,7 @@ export default {
       try {
         let result = await getParser(data);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
 
@@ -413,7 +413,7 @@ export default {
               this.isJson = true;
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 

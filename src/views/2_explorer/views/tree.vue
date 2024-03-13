@@ -745,13 +745,13 @@ export default {
                     this.$message.success(this.$t("delSucc"));
                   })
                   .catch((err) => {
-                    err.desc && Message.error(err.desc);
+                    err.desc && this.$error(err.desc);
                   })
                   .finally(() => {
                     this.requesting = false;
                   })
                   .catch((res) => {
-                    this.$message.error(res?.desc);
+                    this.$error(res?.desc);
                   });
               })
               .catch(() => {
@@ -779,13 +779,13 @@ export default {
                 this.$message.success(this.$t("delSucc"));
               })
               .catch((err) => {
-                err.desc && Message.error(err.desc);
+                err.desc && this.$error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
               })
               .catch((res) => {
-                this.$message.error(res?.desc);
+                this.$error(res?.desc);
               });
           });
           break;
@@ -811,13 +811,13 @@ export default {
                 this.$message.success(this.$t("delSucc"));
               })
               .catch((err) => {
-                err.desc && Message.error(err.desc);
+                err.desc && this.$error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
               })
               .catch((res) => {
-                this.$message.error(res?.desc);
+                this.$error(res?.desc);
               });
           });
           break;
