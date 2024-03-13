@@ -118,25 +118,39 @@ impl Parse for Json {
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
 
-        let json_data: Vec<_> = (0..string.len())
-            .filter_map(|index| {
-                if string.is_null(index) {
-                    None
-                } else {
-                    let value = string.value(index);
-                    let value: serde_json::Value = serde_json::from_str(&value).ok()?;
-
-                    if value.is_array() && self.flatten {
-                        let values = value.as_array().unwrap();
-                        Some(values.clone())
-                    } else {
-                        Some(vec![value])
+        let mut json_data = Vec::with_capacity(num_rows);
+        for i in 0..num_rows {
+            if !string.is_null(i) {
+                let s = string.value(i);
+                let value = serde_json::from_str::<serde_json::Value>(&s).map_err(|source| {
+                    super::ParseError::JsonDeserializeError(s.to_string(), source)
+                })?;
+                match value {
+                    JsonValue::Null => (),
+                    JsonValue::Object(object) => {
+                        json_data.push(Ok(JsonValue::Object(object)));
+                    }
+                    JsonValue::Array(array) => {
+                        if !self.flatten {
+                            return Err(super::ParseError::UnsupportedJsonValue(JsonValue::Array(array)));
+                        } else {
+                            for value in array {
+                                if value.is_null() {
+                                    continue;
+                                } else if value.is_object() {
+                                    json_data.push(Ok(value));
+                                } else {
+                                    return Err(super::ParseError::UnsupportedJsonValue(value));
+                                }
+                            }
+                        }
+                    }
+                    v => {
+                        return Err(super::ParseError::UnsupportedJsonValue(v));
                     }
                 }
-            })
-            .flatten()
-            .map(Ok)
-            .collect();
+            }
+        }
         if json_data.len() == 0 {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
