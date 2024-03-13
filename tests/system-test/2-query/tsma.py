@@ -751,6 +751,7 @@ class TDTestCase:
         self.create_tsma('tsma5', 'test', 'norm_tb', [
                          'avg(c1)', 'avg(c2)'], '10m')
 
+        time.sleep(999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
@@ -1000,7 +1001,7 @@ class TDTestCase:
     def run(self):
         self.init_data()
         # time.sleep(999999)
-        #self.test_ddl()
+        self.test_ddl()
         self.test_query_with_tsma()
         # time.sleep(999999)
 

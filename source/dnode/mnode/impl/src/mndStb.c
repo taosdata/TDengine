@@ -63,6 +63,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
 
 static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq);
+static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -91,6 +92,8 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP, mndProcessDropStbReqFromMNode);
   mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA, mndProcessDropTbWithTsma);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA_RSP, mndTransProcessRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -3702,4 +3705,8 @@ static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq) {
     pReq->code = code;
   }
   return code;
+}
+
+static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq) {
+
 }
