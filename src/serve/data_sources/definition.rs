@@ -57,6 +57,11 @@ pub struct OptionDef {
     pub placeholder: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    #[serde(rename(serialize = "patternMsg"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_msg: Option<String>,
 }
 
 impl OptionDef {
