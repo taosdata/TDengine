@@ -2937,10 +2937,10 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         ctgRemoveTbMetaFromCache(pCtg, pTbName, false);
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
-
+      // TODO add tb meta to cache
       if (META_TYPE_BOTH_TABLE == pOut->metaType) {
         // rewrite tsma fetch table with it's super table name
-        snprintf(pFetch->tsmaSourceTbName.tname, TMIN(TSDB_TABLE_NAME_LEN, strlen(pOut->tbName) + 1), "%s", pOut->tbName);
+        sprintf(pFetch->tsmaSourceTbName.tname, "%s", pOut->tbName);
       }
       CTG_ERR_JRET(ctgGetTbTSMAFromMnode(pCtg, pConn, &pFetch->tsmaSourceTbName, NULL, tReq, TDMT_MND_GET_TABLE_TSMA));
     } break;

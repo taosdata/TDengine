@@ -3666,5 +3666,54 @@ static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq) {
+  int32_t             code = -1;
+  SMnode             *pMnode = pReq->info.node;
+  SDbObj             *pDb = NULL;
+  SStbObj            *pStb = NULL;
+  SMDropTbWithTsmaReq dropReq = {0};
+  bool                locked = false;
+  if (tDeserializeDropCtbWithTsmaReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  SHashObj* pTsmaHashSet = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  SHashObj* pSourceTbHashSet = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  for (int32_t i = 0; i < dropReq.pVgReqs->size; ++i) {
+    const SMDropCtbWithTsmaSingleVgReq* pVgReq = taosArrayGet(dropReq.pVgReqs, i);
+    for (int32_t j = 0; j < pVgReq->pTbs->size; ++j) {
+      const SMDropCtbWithTsmaSingleTbReq* pTbReq = taosArrayGet(pVgReq->pTbs, j);
+      if (pTbReq->isTsmaResTb) {
+        taosHashPut(pTsmaHashSet, &pTbReq->tsmaUid, sizeof(pTbReq->tsmaUid), NULL, 0);
+        taosHashPut(pSourceTbHashSet, &pTbReq->req.suid, sizeof(pTbReq->req.suid), NULL, 0);
+      } else {
+        taosHashPut(pSourceTbHashSet, &pTbReq->stbUid, sizeof(pTbReq->stbUid), NULL, 0);
+      }
+    }
+  }
+  sdbReadLock(pMnode->pSdb, SDB_SMA);
+  locked = true;
 
+  void    *pIter = NULL;
+  SSmaObj *pSma = NULL;
+
+  while(1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+    if (!pIter) break;
+    if (taosHashGet(pSourceTbHashSet, &pSma->stbUid, sizeof(pSma->stbUid))) {
+      if (!taosHashGet(pTsmaHashSet, &pSma->uid, sizeof(pSma->uid))) {
+        // TODO should retry
+        terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
+      }
+    }
+    sdbRelease(pMnode->pSdb, pSma);
+  }
+  // start transaction
+
+
+  code = 0;
+_OVER:
+  if (locked) sdbUnLock(pMnode->pSdb, SDB_SMA);
+  taosHashCleanup(pTsmaHashSet);
+  taosHashCleanup(pSourceTbHashSet);
+  return code;
 }

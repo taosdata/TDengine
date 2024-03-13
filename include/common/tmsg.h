@@ -4226,6 +4226,25 @@ typedef struct SStreamProgressRsp {
 int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
 int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
 
+typedef struct SDropCtbWithTsmaSingleTbReq {
+  SVDropTbReq req;
+  bool        isTsmaResTb;
+  int64_t     tsmaUid;
+  int64_t     stbUid; // stable uid
+} SMDropCtbWithTsmaSingleTbReq;
+
+typedef struct SDropCtbWithTsmaSingleVgReq {
+  SVgroupInfo vgInfo;
+  SArray*     pTbs;
+} SMDropCtbWithTsmaSingleVgReq;
+
+typedef struct SDropCtbWithTsmaReq {
+  SArray* pVgReqs;
+} SMDropTbWithTsmaReq;
+
+int32_t tSerializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, const SMDropTbWithTsmaReq* pReq);
+int32_t tDeserializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, SMDropTbWithTsmaReq* pReq);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
