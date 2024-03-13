@@ -1845,11 +1845,6 @@ int32_t releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
-  pAPI->streamStateReleaseBuf(pState, pPos, true);
-  return TSDB_CODE_SUCCESS;
-}
-
 void removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey) {
   SSessionKey key = {0};
   getSessionHashKey(pKey, &key);
@@ -2495,7 +2490,7 @@ void getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
     return;
   }
   SResultWindowInfo* pWinInfo = taosArrayGet(pAllWins, size - 1);
-  SSessionKey*       pSeKey = pWinInfo->pStatePos->pKey;
+  SSessionKey*       pSeKey = &pWinInfo->sessionWin;
   taosArrayPush(pMaxWins, pSeKey);
   if (pSeKey->groupId == 0) {
     return;
@@ -2503,7 +2498,7 @@ void getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
   uint64_t preGpId = pSeKey->groupId;
   for (int32_t i = size - 2; i >= 0; i--) {
     pWinInfo = taosArrayGet(pAllWins, i);
-    pSeKey = pWinInfo->pStatePos->pKey;
+    pSeKey = &pWinInfo->sessionWin;
     if (preGpId != pSeKey->groupId) {
       taosArrayPush(pMaxWins, pSeKey);
       preGpId = pSeKey->groupId;

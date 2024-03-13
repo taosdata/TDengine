@@ -310,7 +310,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
   int32_t size = taosArrayGetSize(pWinStates);
   if (pCur->buffIndex >= 0) {
     if (pCur->buffIndex >= size) {
-      pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, size);
+      pNewPos = addNewSessionWindow(pFileState, pWinStates, pWinKey);
       goto _end;
     }
     pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, pCur->buffIndex);
@@ -332,7 +332,6 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
   }
 
 _end:
-  memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
   (*ppVal) = pNewPos;
   return TSDB_CODE_SUCCESS;
 }
