@@ -3153,7 +3153,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
         SName tsmaTargetTbName = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name);
+        int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO what if tsma name is too long
         len = taosCreateMD5Hash(tsmaTargetTbName.tname, len);
         sprintf(tsmaTargetTbName.tname + len, "_%s", pRealTable->table.tableName);
         collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
@@ -6703,6 +6703,9 @@ static int32_t doTranslateDropCtbsWithTsma(STranslateContext* pCxt, SDropTableSt
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
     if (pClause->pTsmas) {
+      for (int32_t i = 0; i < pClause->pTsmas->size; ++i) {
+
+      }
       // generate tsma res ctb names and get it's vgInfo
     }
   }
@@ -10983,6 +10986,44 @@ SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap) {
   return pBufArray;
 }
 
+static int32_t dropTableAddTsmaResTb(STranslateContext* pCxt, SHashObj* pVgMap, SDropTableStmt* pStmt) {
+  char        tsmaResTbName[TSDB_TABLE_NAME_LEN + TSDB_DB_FNAME_LEN + 1];
+  SName       tbName = {0};
+  SNode*      pNode;
+  int32_t     code = 0;
+  STableMeta* pTableMeta = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    if (pClause->pTsmas) {
+      for (int32_t i = 0; pClause->pTsmas->size; ++i) {
+        const STableTSMAInfo* pTsma = taosArrayGetP(pClause->pTsmas, i);
+
+        int32_t len = sprintf(tsmaResTbName, "%s.%s", pTsma->dbFName, pTsma->name);
+        len = taosCreateMD5Hash(tsmaResTbName, len);
+        sprintf(tsmaResTbName + len, "_%s", pClause->tableName);
+
+        toName(pCxt->pParseCxt->acctId, pClause->dbName, tsmaResTbName, &tbName);
+        code = getTargetMeta(pCxt, &tbName, &pTableMeta, false);
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
+        if (code) break;
+        collectUseTable(&tbName, pCxt->pTargetTables);
+        SVgroupInfo info = {0};
+        if (TSDB_CODE_SUCCESS == code) {
+          code = getTableHashVgroup(pCxt, pClause->dbName, tsmaResTbName, &info);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          addDropTbReqIntoVgroup(pVgMap, pClause, &info, pTableMeta->suid);
+        }
+      }
+    }
+    if (code) break;
+  }
+  return code;
+}
+
 static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   SDropTableStmt* pStmt = (SDropTableStmt*)pQuery->pRoot;
   bool            isSuperTable = false;
@@ -11022,8 +11063,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
   if (pStmt->withTsma) {
-    taosHashCleanup(pVgroupHashmap);
-    return TSDB_CODE_SUCCESS;
+    dropTableAddTsmaResTb(pCxt, pVgroupHashmap, pStmt);
   }
 
   SArray* pBufArray = serializeVgroupsDropTableBatch(pVgroupHashmap);
