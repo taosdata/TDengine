@@ -1379,7 +1379,7 @@ bool community = shellGetGrantInfo(buf);
 #endif
 // printf version
 if(!community) {
-  printf("%s", buf);
+  printf("%s\n", buf);
 }
 
 #ifdef WEBSOCKET
