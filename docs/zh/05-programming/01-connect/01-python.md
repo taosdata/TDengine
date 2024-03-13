@@ -95,7 +95,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 对于如何写入数据和查询输入，请参考\<https://docs.taosdata.com/cloud/programming/insert/>和 \<https://docs.taosdata.com/cloud/programming/query/>。
 
-想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/connector/rest-api/).
+想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
 
 ## Jupyter
 

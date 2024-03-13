@@ -12,7 +12,7 @@ TDengine Cloud 在数据写入方面提供了三种数据写入的方式把外�
 
 第三种是通过 CSV 文件的方式导入到 TDengine Cloud 实例中的某个数据库的某一张子表。特别注意，CSV文件每次只能上传一个。
 
-除了本章描述的往 TDengine Cloud 实例里面写入数据的三种方式，用户还可以直接使用 TDengine SQL 往 TDengine Cloud 里面写入数据，也可以通过编程的方式使用 TDengine 提供的[连接器（Connector）](../programming/connector)往 TDengine Cloud 里面实例写入数据。TDengine 还提供压力测试工具 [taosBenchmark](../tools/taosbenchmark)往 TDengine Cloud 里面实例写入数据。
+除了本章描述的往 TDengine Cloud 实例里面写入数据的三种方式，用户还可以直接使用 TDengine SQL 往 TDengine Cloud 里面写入数据，也可以通过编程的方式使用 TDengine 提供的[连接器（Connector）](../programming/client-libraries)往 TDengine Cloud 里面实例写入数据。TDengine 还提供压力测试工具 [taosBenchmark](../tools/taosbenchmark)往 TDengine Cloud 里面实例写入数据。
 
 :::注意
 由于权限的限制，必须首先在云服务的数据浏览器里面创建数据库，然后才能往这个数据库里面写入数据。这个限制是所有写入方式必须首先做的。
