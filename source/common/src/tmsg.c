@@ -4494,13 +4494,13 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
 
   if (!tDecodeIsEnd(pDecoder)) {
     if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
-        pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
-        if (pRsp->pSchemaExt == NULL) return -1;
+      pRsp->pSchemaExt = taosMemoryMalloc(sizeof(SSchemaExt) * pRsp->numOfColumns);
+      if (pRsp->pSchemaExt == NULL) return -1;
 
-        for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
-          SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
-          if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
-        }
+      for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+        SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
+        if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
+      }
     } else {
       pRsp->pSchemaExt = NULL;
     }
@@ -7852,6 +7852,7 @@ void tFreeSVCreateTbRsp(void *param) {
   SVCreateTbRsp *pRsp = (SVCreateTbRsp *)param;
   if (pRsp->pMeta) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta->pSchemaExt);
     taosMemoryFree(pRsp->pMeta);
   }
 }

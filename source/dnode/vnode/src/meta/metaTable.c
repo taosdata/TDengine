@@ -55,10 +55,13 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
 
 static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
+
   if (NULL == pMetaRsp->pSchemas) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  pMetaRsp->pSchemaExt = taosMemoryMalloc(pSchema->nCols * sizeof(SSchemaExt));
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
@@ -943,6 +946,11 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         strcpy((*pMetaRsp)->tbName, pReq->name);
       } else {
         metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+        for (int32_t i = 0; i < pReq->colCmpr.nCols; i++) {
+          SColCmpr *p = &pReq->colCmpr.pColCmpr[i];
+          (*pMetaRsp)->pSchemaExt[i].colId = p->id;
+          (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
+        }
       }
     }
   }
