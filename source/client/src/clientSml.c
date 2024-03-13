@@ -349,7 +349,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements){
       if (kv->valueEscaped) kv->value = NULL;
     }
 
-    smlSetCTableName(tinfo);
+    smlSetCTableName(tinfo, info->tbnameKey);
     getTableUid(info, elements, tinfo);
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
@@ -418,10 +418,10 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs){
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseTableName(SArray *tags, char *childTableName) {
+static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnameKey) {
   bool autoChildName = false;
   size_t delimiter = strlen(tsSmlAutoChildTableNameDelimiter);
-  if(delimiter > 0){
+  if(delimiter > 0 && tbnameKey == NULL){
     size_t totalNameLen = delimiter * (taosArrayGetSize(tags) - 1);
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
       SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
@@ -444,13 +444,16 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
       smlStrReplace(childTableName, strlen(childTableName));
     }
   }else{
-    size_t childTableNameLen = strlen(tsSmlChildTableName);
+    if (tbnameKey == NULL){
+      tbnameKey = tsSmlChildTableName;
+    }
+    size_t childTableNameLen = strlen(tbnameKey);
     if (childTableNameLen <= 0) return TSDB_CODE_SUCCESS;
 
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
       SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
       // handle child table name
-      if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
+      if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
         strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
         if(tsSmlDot2Underline){
@@ -465,8 +468,8 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
-  smlParseTableName(oneTable->tags, oneTable->childTableName);
+int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
+  smlParseTableName(oneTable->tags, oneTable->childTableName, tbnameKey);
 
   if (strlen(oneTable->childTableName) == 0) {
     SArray       *dst = taosArrayDup(oneTable->tags, NULL);

@@ -222,7 +222,7 @@ bool          smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
 SSmlTableInfo*    smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen);
 SSmlSTableMeta*   smlBuildSTableMeta(bool isDataFormat);
-int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
+int32_t           smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey);
 void              getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
 STableMeta*       smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen);
 int32_t           is_same_child_table_telnet(const void *a, const void *b);
