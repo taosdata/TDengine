@@ -36,17 +36,17 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
-static int metaGetAndValidTag(SSchema *pCol, STag *pVal, void **pTagData, int32_t *nTagData) {
-  STagVal tagVal = {.cid = pCol->colId};
-  if (tTagGet((const STag *)pVal, &tagVal)) {
+static int metaGetAndValidTag(SSchema *pCol, STag *pVal, void **pTagData, int32_t *nTagData, STagVal *tagval) {
+  tagval->cid = pCol->colId;
+  if (tTagGet((const STag *)pVal, tagval)) {
     if (IS_VAR_DATA_TYPE(pCol->type)) {
-      *pTagData = tagVal.pData;
-      *nTagData = (int32_t)tagVal.nData;
+      *pTagData = tagval->pData;
+      *nTagData = (int32_t)tagval->nData;
       if (pCol->bytes < ((*nTagData) + VARSTR_HEADER_SIZE)) {
         return -1;
       }
     } else {
-      *pTagData = &(tagVal.i64);
+      *pTagData = &(tagval->i64);
       *nTagData = tDataTypes[pCol->type].bytes;
       if (pCol->bytes < (*nTagData)) {
         return -1;
@@ -628,7 +628,8 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     int32_t     nTagData = 0;
 
     SCtbIdxKey *table = (SCtbIdxKey *)pKey;
-    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData);
+    STagVal     tagVal;
+    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData, &tagVal);
     if (rc < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -757,7 +758,9 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     int32_t     nTagData = 0;
 
     SCtbIdxKey *table = (SCtbIdxKey *)pKey;
-    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, (int32_t *)&nTagData);
+
+    STagVal tagVal;
+    rc = metaGetAndValidTag(pCol, pVal, (void **)&pTagData, (int32_t *)&nTagData, &tagVal);
     if (rc < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -1234,7 +1237,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
             const void *pTagData = NULL;
             int32_t     nTagData = 0;
 
-            if (metaGetAndValidTag(pTagColumn, (STag *)e.ctbEntry.pTags, (void **)&pTagData, &nTagData) < 0) {
+            STagVal tagVal;
+            if (metaGetAndValidTag(pTagColumn, (STag *)e.ctbEntry.pTags, (void **)&pTagData, &nTagData, &tagVal) < 0) {
               continue;
             }
 
@@ -1969,7 +1973,8 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     const void *pTagData = NULL;
     int32_t     nTagData = 0;
 
-    if (metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData) < 0) {
+    STagVal tagVal;
+    if (metaGetAndValidTag(pCol, pVal, (void **)&pTagData, &nTagData, &tagVal) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCtbIdxc);
@@ -2340,8 +2345,9 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
       pTagColumn = &pTagSchema->pSchema[i];
       if (!IS_IDX_ON(pTagColumn)) continue;
 
-      if (metaGetAndValidTag((SSchema *)pTagColumn, (STag *)pCtbEntry->ctbEntry.pTags, (void **)&pTagData, &nTagData) <
-          0) {
+      STagVal tagVal;
+      if (metaGetAndValidTag((SSchema *)pTagColumn, (STag *)pCtbEntry->ctbEntry.pTags, (void **)&pTagData, &nTagData,
+                             &tagVal) < 0) {
         ret = -1;
         goto end;
       }
