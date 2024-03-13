@@ -247,10 +247,21 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.numOfTags = schemaTag.nCols;
   cfgRsp.numOfColumns = schema.nCols;
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
+  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
 
   memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
   if (schemaTag.nCols) {
     memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  }
+
+  if (useCompress(cfgRsp.tableType)) {
+    SColCmprWrapper *pColCmpr = &mer1.me.colCmpr;
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
+      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+      pSchExt->colId = pCmpr->id;
+      pSchExt->compress = pCmpr->alg;
+    }
   }
 
   // encode and send response

@@ -2039,7 +2039,15 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   if (pStb->numOfFuncs > 0) {
     pRsp->pFuncs = taosArrayDup(pStb->pFuncs, NULL);
   }
-  
+
+  pRsp->pSchemaExt = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchemaExt));
+  for (int32_t i = 0; i < pStb->numOfColumns; i++) {
+    SCmprObj *pCmpr = &pStb->pCmpr[i];
+
+    SSchemaExt *pSchExt = &pRsp->pSchemaExt[i];
+    pSchExt->colId = pCmpr->colId;
+    pSchExt->compress = pCmpr->cmprAlg;
+  }
 
   taosRUnLockLatch(&pStb->lock);
   return 0;
