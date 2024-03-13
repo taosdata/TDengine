@@ -2977,8 +2977,6 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
         SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
         if (tDecodeSSchemaExt(&decoder, pSchemaExt) < 0) return -1;
-        pSchemaExt->colId = i;
-        pSchemaExt->compress = 0x02000303;
       }
     } else {
       pRsp->pSchemaExt = NULL;
@@ -4502,8 +4500,6 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
         for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
           SSchemaExt *pSchemaExt = &pRsp->pSchemaExt[i];
           if (tDecodeSSchemaExt(pDecoder, pSchemaExt) < 0) return -1;
-          pSchemaExt->colId = i;
-          pSchemaExt->compress = 0x02000303;
         }
     } else {
       pRsp->pSchemaExt = NULL;
