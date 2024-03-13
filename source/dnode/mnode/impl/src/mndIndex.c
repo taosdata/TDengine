@@ -598,8 +598,6 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
 
   pNew->pTags = NULL;
   pNew->pColumns = NULL;
-
-  pNew->pTags = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 
