@@ -39,7 +39,7 @@ type UAClient struct {
 	maxNodesPerRead          uint64
 	maxMonitoredItemsPerCall uint64
 	maxNodesPerBrowse        uint64
-	isKeepServer             bool
+	isKepServer              bool
 	containsBad              bool
 	closeChan                chan struct{}
 	once                     sync.Once
@@ -205,7 +205,7 @@ func (c *UAClient) Connect() error {
 	return nil
 }
 
-func (c *UAClient) getServerLimit(needBrowseLimit bool) error {
+func (c *UAClient) getServerLimit(needMonitorLimit bool) error {
 	productNameID, _ := ua.ParseNodeID("i=2261")
 	maxReadID, _ := ua.ParseNodeID("i=11705")         //MaxNodesPerRead
 	maxItemID, _ := ua.ParseNodeID("i=11714")         //MaxMonitoredItemsPerCall
@@ -230,7 +230,7 @@ func (c *UAClient) getServerLimit(needBrowseLimit bool) error {
 			c.maxNodesPerRead = 10000
 			c.maxMonitoredItemsPerCall = 10000
 			c.maxNodesPerBrowse = 10000
-			c.isKeepServer = true
+			c.isKepServer = true
 			return nil
 		}
 	}
@@ -273,7 +273,7 @@ func (c *UAClient) getServerLimit(needBrowseLimit bool) error {
 
 	if c.maxMonitoredItemsPerCall == 0 {
 		c.logger.Warn("get max monitored items per call 0")
-		if needBrowseLimit {
+		if needMonitorLimit {
 			c.tryGetMonitorAbility()
 		}
 	}
@@ -971,7 +971,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 			case resp := <-childrenChannels:
 				for _, child := range resp.children {
 					childID := child.String()
-					if c.isKeepServer {
+					if c.isKepServer {
 						paths := strings.Split(childID, ".")
 						if len(paths) > 1 && strings.HasPrefix(paths[len(paths)-1], "_") {
 							continue
