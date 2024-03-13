@@ -940,6 +940,7 @@ static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgro
       int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
       if (code != 0) {
         sdbRelease(pMnode->pSdb, pConsumer);
+        sdbCancelFetch(pMnode->pSdb, pIter);
         return code;
       }
     }

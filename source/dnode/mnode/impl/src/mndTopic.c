@@ -618,7 +618,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname, 
+  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
               createTopicReq.sql, strlen(createTopicReq.sql));
 
 _OVER:
@@ -670,7 +670,6 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
   while (1) {
-    sdbRelease(pSdb, pConsumer);
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
       break;
@@ -683,6 +682,7 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
         if (code != 0) {
           goto end;
         }
+        sdbRelease(pSdb, pConsumer);
         continue;
       }
       mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
@@ -697,7 +697,7 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
              topicName, pConsumer->consumerId, pConsumer->cgroup);
       goto end;
     }
-
+    sdbRelease(pSdb, pConsumer);
   }
 
 end:
