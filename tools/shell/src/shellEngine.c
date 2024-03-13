@@ -1198,10 +1198,10 @@ bool shellGetGrantInfo(char* buf) {
       community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
-      fprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      fprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      sprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
@@ -1379,7 +1379,7 @@ bool community = shellGetGrantInfo(buf);
 #endif
 // printf version
 if(!community) {
-  printf(buf);
+  printf("%s", buf);
 }
 
 #ifdef WEBSOCKET
