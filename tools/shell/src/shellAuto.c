@@ -421,21 +421,20 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                        *\n");
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                       *\n");
   if(community) {
-  printf("  *    -----------------------------------------------------------------------------   *\n");
-  printf("  *    You are using TDengine OSS. To experience more advanced TDengine features and   *\n");
-  printf("  *    receive professional technical support, try TDengine Enterprise:                *\n");
-  printf("  *    http://www.tdengine.com                                                         *\n");
+  printf("  * ---------------------------------------------------------------------------------- *\n");
+  printf("  *    You are using TDengine OSS. To experience more advanced features and receive    *\n");
+  printf("  *    professional technical support, try TDengine Enterprise or Cloud,               *\n");
+  printf("  *    learn more at https://tdengine.com                                              *\n");
   }
   printf("  **************************************************************************************\n\n");
 }
 
 // show enterprise AD
 void showAD(bool end) {
-  printf("\n");
-  printf("  You are using TDengine OSS. To experience more advanced TDengine features and   \n");
-  printf("  receive professional technical support, try TDengine Enterprise:                \n");
-  printf("  http://www.tdengine.com                                                         \n");
-  printf("\n");
+  printf("  You are using TDengine OSS. To experience more advanced features and receive    \n");
+  printf("  professional technical support, try TDengine Enterprise or Cloud,               \n");
+  printf("  learn more at https://tdengine.com                                              \n");
+  printf("  \n");
 }
 
 void showHelp() {

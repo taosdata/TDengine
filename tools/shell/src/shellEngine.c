@@ -1150,7 +1150,7 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-bool shellGetGrantInfo() {
+bool shellGetGrantInfo(char* buf) {
   bool community = true;
   char sinfo[1024] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
@@ -1198,10 +1198,10 @@ bool shellGetGrantInfo() {
       community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      fprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      fprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
@@ -1368,7 +1368,8 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
-bool community = shellGetGrantInfo();
+char buf[512] = "";
+bool community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
     printfIntroduction(community);
 #else
@@ -1376,6 +1377,10 @@ bool community = shellGetGrantInfo();
     showAD(false)
   }
 #endif
+// printf version
+if(!community) {
+  printf(buf);
+}
 
 #ifdef WEBSOCKET
   }

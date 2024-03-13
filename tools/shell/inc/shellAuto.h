@@ -39,7 +39,7 @@ void shellAutoExit();
 void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 
 // introduction
-void printfIntroduction();
+void printfIntroduction(bool community);
 
 // show enterprise AD at start or end
 void showAD(bool end);
