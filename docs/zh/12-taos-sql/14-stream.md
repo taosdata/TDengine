@@ -49,10 +49,14 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
+EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+COUNT_WINDOW 是计数窗口,按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于2，小于2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
 
@@ -61,6 +65,12 @@ window_clause: {
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+
+CREATE STREAM streams0 INTO streamt0 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WINDOW START WITH voltage < 0 END WITH voltage > 9;
+
+CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
 ## 流式计算的 partition

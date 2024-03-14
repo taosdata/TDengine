@@ -128,12 +128,12 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
   pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
-  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
+//  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+//  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;

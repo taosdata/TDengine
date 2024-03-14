@@ -316,7 +316,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 3. Try to Recycle a page
-  if (!pPage && !pCache->lru.pLruPrev->isAnchor) {
+  if (!pPageH && !pPage && !pCache->lru.pLruPrev->isAnchor) {
     pPage = pCache->lru.pLruPrev;
     tdbPCacheRemovePageFromHash(pCache, pPage);
     tdbPCachePinPage(pCache, pPage);

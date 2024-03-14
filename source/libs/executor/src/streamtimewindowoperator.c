@@ -1281,8 +1281,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
         tSimpleHashCleanup(pInfo->pUpdatedMap);
         pInfo->pUpdatedMap = NULL;
       }
-      qInfo("%s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      return NULL;
     }
 
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
@@ -2533,7 +2533,6 @@ int32_t encodeSResultWindowInfo(void** buf, SResultWindowInfo* key, int32_t outL
 
 void* decodeSResultWindowInfo(void* buf, SResultWindowInfo* key, int32_t outLen) {
   buf = taosDecodeFixedBool(buf, &key->isOutput);
-  key->pStatePos->pRowBuff = NULL;
   buf = decodeSSessionKey(buf, &key->sessionWin);
   return buf;
 }
@@ -2591,6 +2590,7 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   if (!pInfo) {
     return buf;
   }
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
   // 5.checksum
   if (isParent) {
@@ -2609,6 +2609,8 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
     SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
     buf = decodeSSessionKey(buf, &key);
+    pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &winfo.sessionWin, pAggSup->gap,
+                                                        (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
@@ -2992,6 +2994,8 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->recvGetAll = false;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
+  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
+                  OP_NOT_OPENED, pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
   int32_t len = 0;
@@ -3002,8 +3006,6 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
     doStreamSessionDecodeOpState(buff, len, pOperator, true);
     taosMemoryFree(buff);
   }
-  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
-                  OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamSessionAgg, NULL, destroyStreamSessionAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
@@ -3538,6 +3540,7 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
   if (!pInfo) {
     return buf;
   }
+  SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
   // 5.checksum
   if (isParent) {
@@ -3556,6 +3559,9 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
     SSessionKey       key = {0};
     SResultWindowInfo winfo = {0};
     buf = decodeSSessionKey(buf, &key);
+    pAggSup->stateStore.streamStateStateAddIfNotExist(pAggSup->pState, &winfo.sessionWin, NULL,
+                                                      pAggSup->stateKeySize, compareStateKey,
+                                                      (void**)&winfo.pStatePos, &pAggSup->resultRowSize);
     buf = decodeSResultWindowInfo(buf, &winfo, pInfo->streamAggSup.resultRowSize);
     tSimpleHashPut(pInfo->streamAggSup.pResultRows, &key, sizeof(SSessionKey), &winfo, sizeof(SResultWindowInfo));
   }
@@ -3873,6 +3879,8 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->recvGetAll = false;
 
+  setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
+                  pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
   int32_t len = 0;
@@ -3884,8 +3892,6 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
     taosMemoryFree(buff);
   }
 
-  setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
-                  pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAgg, NULL, destroyStreamStateOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
@@ -4326,7 +4332,8 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
         pInfo->pUpdatedMap = NULL;
       }
 
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      return NULL;
     }
 
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);

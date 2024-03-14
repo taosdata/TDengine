@@ -386,3 +386,5 @@ if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
+sql alter table tbn add column c1 int;
+sql alter table tbn drop column c1;

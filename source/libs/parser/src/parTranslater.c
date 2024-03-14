@@ -4010,6 +4010,26 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
 }
 
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
+  if (pCountWin->windowCount <= 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must exceed 1.");
+  }
+
+  if (pCountWin->windowSliding <= 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must exceed 0.");
+  }
+
+  if (pCountWin->windowSliding > pCountWin->windowCount) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "sliding value no larger than the count value.");
+  }
+
+  if (pCountWin->windowCount > INT32_MAX) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must less than 2147483647(INT32_MAX).");
+  }
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
@@ -4528,7 +4548,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (pSelect->pWhere != NULL) {
+  if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
   return code;
@@ -5788,6 +5808,9 @@ static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray) {
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
+    if (pCol->is_pk) {
+      field.flags |= COL_IS_KEY;
+    }
     taosArrayPush(*pArray, &field);
   }
   return TSDB_CODE_SUCCESS;
@@ -5887,6 +5910,9 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     if (NULL != taosHashGet(pHash, pTag->colName, len)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
+    if (TSDB_CODE_SUCCESS == code && pTag->is_pk) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY, pTag->colName);
+    }
     if (TSDB_CODE_SUCCESS == code && pTag->dataType.type == TSDB_DATA_TYPE_JSON && ntags > 1) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
     }
@@ -5942,6 +5968,9 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code && pCol->is_pk && colIndex != 1) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
@@ -6163,6 +6192,9 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   int8_t flags = 0;
   if (pCol->sma) {
     flags |= COL_SMA_ON;
+  }
+  if (pCol->is_pk) {
+    flags |= COL_IS_KEY;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
@@ -7875,29 +7907,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     if (pStmt->pOptions->ignoreExpired != 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                     "Ignore expired data of Count window must be 1.");
-    }    
-
-    SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
-    if (pCountWin->windowCount <= 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must exceed 1.");
     }
-
-    if (pCountWin->windowSliding <= 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must exceed 0.");
-    }
-
-    if (pCountWin->windowSliding > pCountWin->windowCount) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "sliding value no larger than the count value.");
-    }
-
-    if (pCountWin->windowCount > INT32_MAX) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must less than 2147483647(INT32_MAX).");
-    }
-
   }
 
   return TSDB_CODE_SUCCESS;
@@ -8184,7 +8194,9 @@ static int32_t adjustTagsForCreateTable(STranslateContext* pCxt, SCreateStreamSt
     SColumnDefNode* pDef = (SColumnDefNode*)pTagDef;
     if (!dataTypeEqual(&pDef->dataType, &((SExprNode*)pTagExpr)->resType)) {
       SNode*  pFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pTagExpr, pDef->dataType, &pFunc);
+      SDataType defType = pDef->dataType;
+      defType.bytes = calcTypeBytes(defType);
+      int32_t code = createCastFunc(pCxt, pTagExpr, defType, &pFunc);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }

@@ -17,9 +17,13 @@
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
 #include "rocksdb/c.h"
-//#include "streamInt.h"
+// #include "streamInt.h"
 #include "streamState.h"
 #include "tcommon.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct SCfComparator {
   rocksdb_comparator_t** comp;
@@ -244,11 +248,6 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 
-// int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
-
-// STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
-// void            taskDbDestroy(void* pDb, bool flush);
-
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
 SBkdMgt* bkdMgtCreate(char* path);
@@ -258,4 +257,10 @@ int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
 void     bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list);
+
+uint32_t nextPow2(uint32_t x); 
+#ifdef __cplusplus
+}
+#endif
+
 #endif

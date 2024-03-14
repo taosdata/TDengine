@@ -219,6 +219,8 @@ static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq,
 /// NULL,cliHandleUpdate};
 
 static FORCE_INLINE void destroyCmsg(void* cmsg);
+
+static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param);
 static FORCE_INLINE void destroyCmsgAndAhandle(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
 static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
@@ -320,7 +322,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
       if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
         conn->ctx.freeFunc(msg->ctx->ahandle);
-      } else if (msg->ctx->ahandle != NULL && pThrd->destroyAhandleFp != NULL) {
+      } else if (msg->msg.info.notFreeAhandle == 0 && msg->ctx->ahandle != NULL && pThrd->destroyAhandleFp != NULL) {
         tDebug("%s conn %p destroy unfinished ahandle %p", CONN_GET_INST_LABEL(conn), conn, msg->ctx->ahandle);
         pThrd->destroyAhandleFp(msg->ctx->ahandle);
       }
@@ -582,8 +584,8 @@ void* destroyConnPool(SCliThrd* pThrd) {
 
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   void*      pool = pThrd->pool;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
   STrans*    pTranInst = pThrd->pTransInst;
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
   if (plist == NULL) {
     SConnList list = {0};
     taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
@@ -865,17 +867,18 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_INIT(&conn->q);
 
   conn->broken = true;
+  if (conn->list == NULL) {
+    conn->list = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
+  }
 
-  if (conn->list != NULL) {
-    SConnList* connList = conn->list;
-    connList->list->numOfConn--;
-    connList->size--;
-  } else {
-    if (pThrd->pool) {
-      SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr) + 1);
-      if (connList != NULL) connList->list->numOfConn--;
+  if (conn->list) {
+    SConnList* list = conn->list;
+    list->list->numOfConn--;
+    if (conn->status == ConnInPool) {
+      list->size--;
     }
   }
+
   conn->list = NULL;
   pThrd->newConnCount--;
 
@@ -1963,7 +1966,17 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   transFreeMsg(pMsg->msg.pCont);
   taosMemoryFree(pMsg);
 }
-
+static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param) {
+  SCliMsg* pMsg = arg;
+  if (pMsg == NULL) {
+    return;
+  }
+  if (param != NULL) {
+    SCliThrd* pThrd = param;
+    if (pThrd->destroyAhandleFp) (*pThrd->destroyAhandleFp)(pMsg->msg.info.ahandle);
+  }
+  destroyCmsg(pMsg);
+}
 static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   if (param == NULL) return;
 
@@ -2057,7 +2070,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
-  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsgWrapper, (void*)pThrd);
   transAsyncPoolDestroy(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue, destroyCmsgAndAhandle);

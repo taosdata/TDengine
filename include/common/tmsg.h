@@ -615,13 +615,14 @@ typedef struct {
   };
 } SSubmitRsp;
 
-int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
-int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+// int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
+// int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 // void    tFreeSSubmitBlkRsp(void* param);
 void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
+#define COL_IS_KEY     ((int8_t)0x4)
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
@@ -979,8 +980,8 @@ typedef struct {
   int64_t maxStorage;
 } SCreateAcctReq, SAlterAcctReq;
 
-int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
-int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
+// int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
+// int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
 
 typedef struct {
   char    user[TSDB_USER_LEN];
@@ -3543,7 +3544,7 @@ int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexR
 
 typedef SMDropSmaReq SDropTagIndexReq;
 
-int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
+// int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 
 typedef struct {
@@ -3664,8 +3665,8 @@ typedef struct {
   int8_t igNotExists;
 } SMDropFullTextReq;
 
-int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
-int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+// int32_t tSerializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
+// int32_t tDeserializeSMDropFullTextReq(void* buf, int32_t bufLen, SMDropFullTextReq* pReq);
 
 typedef struct {
   char indexFName[TSDB_INDEX_FNAME_LEN];
@@ -3917,6 +3918,7 @@ typedef struct {
   uint32_t phyLen;
   char*    sql;
   char*    msg;
+  int8_t   source;
 } SVDeleteReq;
 
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
@@ -3938,6 +3940,7 @@ typedef struct SDeleteRes {
   char     tableFName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
   int64_t  ctimeMs;  // fill by vnode
+  int8_t   source;
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);

@@ -82,6 +82,7 @@ typedef enum EColumnOptionType {
   COLUMN_OPTION_ENCODE,
   COLUMN_OPTION_COMPRESS,
   COLUMN_OPTION_LEVEL,
+  COLUMN_OPTION_PRIMARYKEY,
 } EColumnOptionType;
 
 typedef struct SAlterOption {
@@ -179,7 +180,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
-SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions, bool bPrimaryKey);
 SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionType type, void* pVal);
 SNode* createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,

@@ -842,12 +842,12 @@ consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 
 In addition to native connections, the client library also supports subscriptions via websockets.
 
-The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/#create-a-consumer).
+The syntax for creating a consumer is "consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/#create-a-consumer).
 
 ```python
 import taosws
 
-consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
 ```
 
 </TabItem>
@@ -887,13 +887,13 @@ The `poll` function is used to consume data in tmq. The parameter of the `poll` 
 
 ```python
 while True:
-    res = consumer.poll(1)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
+    err = message.error()
     if err is not None:
         raise err
-    val = res.value()
+    val = message.value()
 
     for block in val:
         print(block.fetchall())
@@ -902,16 +902,14 @@ while True:
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
 
-The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. You have to handle error messages in response data.
+The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. 
 
 ```python
 while True:
-    res = consumer.poll(timeout=1.0)
-    if not res:
+    message = consumer.poll(1)
+    if not message:
         continue
-    err = res.error()
-    if err is not None:
-        raise err
+    
     for block in message:
         for row in block:
             print(row)

@@ -22,7 +22,7 @@
 #define DEFAULT_MAP_CAPACITY     131072
 #define DEFAULT_MAP_SIZE         (DEFAULT_MAP_CAPACITY * 100)
 #define ROWS_PER_MILLISECOND     1
-#define MAX_NUM_SCALABLE_BF      100000
+#define MAX_NUM_SCALABLE_BF      64
 #define MIN_NUM_SCALABLE_BF      10
 #define DEFAULT_PREADD_BUCKET    1
 #define MAX_INTERVAL             MILLISECOND_PER_MINUTE
@@ -81,7 +81,9 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
 static int64_t adjustWatermark(int64_t adjInterval, int64_t originInt, int64_t watermark) {
   if (watermark <= adjInterval) {
     watermark = TMAX(originInt / adjInterval, 1) * adjInterval;
-  } else if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
+  }
+
+  if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
     watermark = MAX_NUM_SCALABLE_BF * adjInterval;
   }
   return watermark;

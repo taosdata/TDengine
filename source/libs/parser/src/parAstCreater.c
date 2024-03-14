@@ -404,6 +404,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_PARA_TABLES_SORT:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
       break;
+    case HINT_SMALLDATA_TS_SORT:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
+      break;
     default:
       return true;
   }
@@ -489,6 +492,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_PARA_TABLES_SORT;
+        break;
+      case TK_SMALLDATA_TS_SORT:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SMALLDATA_TS_SORT;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1492,6 +1503,7 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   SColumnOptions* pOptions = (SColumnOptions*)nodesMakeNode(QUERY_NODE_COLUMN_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->commentNull = true;
+  pOptions->bPrimaryKey = false;
   return (SNode*)pOptions;
 }
 
@@ -1519,6 +1531,9 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
         pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       }
       break;
+      case COLUMN_OPTION_PRIMARYKEY:
+      ((SColumnOptions*)pOptions)->bPrimaryKey = true;
+      break;
     default:
       break;
   }
@@ -1540,6 +1555,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   pCol->dataType = dataType;
   pCol->pOptions = (SColumnOptions*)pNode;
   pCol->sma = true;
+  pCol->is_pk = ((SColumnOptions*)pNode)->bPrimaryKey;
   return (SNode*)pCol;
 }
 
