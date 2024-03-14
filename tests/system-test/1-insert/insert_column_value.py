@@ -120,7 +120,7 @@ class TDTestCase:
                 if check_result == False and (nv[0:1] == '\'' or nv[0:1] == '\"'):
                     if check_item == nv[1:-1].strip().lower():
                         check_result = True
-                if check_result == False and (nv.find('1') != -1 or nv.find('2') != -1):
+                if check_result == False and (nv.find('1') != -1 or nv.find('2') != -1): # char 1 or 2 exist for non-zero values
                     if check_item == "true":
                         check_result = True
                 else:
@@ -161,7 +161,7 @@ class TDTestCase:
         elif dtype == TDDataType.BOOL:
             self._query_check_bool(result, okv, nv, nRows, 4)
         elif dtype == TDDataType.VARBINARY:
-            pass # TODO
+            pass
         elif dtype == TDDataType.INT:
             self._query_check_int(result, okv, nv, nRows, 4)
         elif dtype == TDDataType.UINT:
@@ -169,7 +169,7 @@ class TDTestCase:
         elif dtype == TDDataType.FLOAT or dtype == TDDataType.DOUBLE:
             self._query_check_int(result, okv, nv, nRows, 4)
         elif dtype == TDDataType.GEOMETRY: 
-            pass # TODO
+            pass
         else:
             tdLog.info(f"unknown data type %s" % (dtype))
     
@@ -318,8 +318,6 @@ class TDTestCase:
         KO_JS = [STR_JSON_A, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_GEO, STR_VARBIN, RAW_TSK, RAW_BOOL, RAW_MISC, RAW_OPTR, 
                  RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, RAW_INTEGER_P, RAW_INTEGER_M, 
                  RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M]
-        
-
         
         PARAM_LIST = [
                         ["db", "stb_vc", "ctb_vc", OK_VC, KO_VC, "\'vc\'", TDDataType.VARCHAR],

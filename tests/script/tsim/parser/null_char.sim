@@ -139,7 +139,7 @@ if $data03 != 0 then
 endi
 
 ### bool:
-sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
+sql create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
 sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
 sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
 sql insert into st4 (ts, col1) values(now, 1)
@@ -182,7 +182,7 @@ endi
 
 #### case 2: dynamic create table using super table when insert into
 sql create table mt3 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
-sql_error insert into st31 using mt3 tags (NULL, 'NULL', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
+sql insert into st31 using mt3 tags (NULL, 'NULL', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
 sql_error insert into st32 using mt3 tags (NULL, 'ABC', 103, 'FALSE')     values (now+2s, 32, 32.12345, 'bin_32', 'abc', 'nchar_32')
 sql_error insert into st33 using mt3 tags ('NULL', '123aBc', 104, 'NULL') values (now+3s, 33, 33, 'bin_33', 'false123', 'nchar_33')
 sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values (now+4s, 34, 34.12345, 'bin_34', 'true123', 'nchar_34')
@@ -343,7 +343,7 @@ if $data03 != NULL then
   return -1
 endi
 
-sql_error alter table st41 set tag tag_bool = '123'
+sql alter table st41 set tag tag_bool = '123'
 sql_error alter table st41 set tag tag_bool = ''
 sql_error alter table st41 set tag tag_bool = abc379
 

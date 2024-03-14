@@ -582,7 +582,7 @@ endi
 # case 04: illegal input
 sql_error create table st_bool_e0 using mt_bool tags (123abc)
 sql_error create table st_bool_e1 using mt_bool tags ("123abc")
-sql_error create table st_bool_e2 using mt_bool tags ("123")
+sql create table st_bool_e2 using mt_bool tags ("123")
 sql_error create table st_bool_e3 using mt_bool tags (abc)
 sql_error create table st_bool_e4 using mt_bool tags ("abc")
 sql_error create table st_bool_e5 using mt_bool tags (" ")
@@ -606,7 +606,7 @@ sql_error insert into st_bool_g6 values (now, '')
 
 sql_error insert into st_bool_h0 using mt_bool tags (123abc)   values (now, 1)
 sql_error insert into st_bool_h1 using mt_bool tags ("123abc") values (now, 1)
-sql_error insert into st_bool_h2 using mt_bool tags ("123")    values (now, 1)
+sql       insert into st_bool_h2 using mt_bool tags ("123")    values (now, 1)
 sql_error insert into st_bool_h3 using mt_bool tags (abc)      values (now, 1)
 sql_error insert into st_bool_h4 using mt_bool tags ("abc")    values (now, 1)
 sql_error insert into st_bool_h5 using mt_bool tags (" ")      values (now, 1)
@@ -614,7 +614,7 @@ sql_error insert into st_bool_h6 using mt_bool tags ('')       values (now, 1)
 
 sql_error insert into st_bool_h0 using mt_bool tags (1) values (now, 123abc)
 sql_error insert into st_bool_h1 using mt_bool tags (1) values (now, "123abc")
-sql_error insert into st_bool_h2 using mt_bool tags (1) values (now, "123")
+sql       insert into st_bool_h2 using mt_bool tags (1) values (now, "123")
 sql_error insert into st_bool_h3 using mt_bool tags (1) values (now, abc)
 sql_error insert into st_bool_h4 using mt_bool tags (1) values (now, "abc")
 sql_error insert into st_bool_h5 using mt_bool tags (1) values (now, " ")
@@ -630,7 +630,7 @@ sql insert into st_bool_i6 using mt_bool tags (1) values (now, 1)
 
 sql_error alter table st_bool_i0 set tag tagname=123abc
 sql_error alter table st_bool_i1 set tag tagname="123abc"
-sql_error alter table st_bool_i2 set tag tagname="123"
+sql        alter table st_bool_i2 set tag tagname="123"
 sql_error alter table st_bool_i3 set tag tagname=abc
 sql_error alter table st_bool_i4 set tag tagname="abc"
 sql_error alter table st_bool_i5 set tag tagname=" "

@@ -65,8 +65,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
   }
 
   errno = 0;
-  char  *endPtr = NULL;
-  bool parsed = false;
+  char *endPtr = NULL;
   if (z[0] == '0' && n > 2) {
     if (z[1] == 'b' || z[1] == 'B') {
       // paring as binary
@@ -76,25 +75,28 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     if (z[1] == 'x' || z[1] == 'X') {
       // parsing as hex
       *value = taosStr2UInt64(z, &endPtr, 16);
-      parsed = true;
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
     }
   }
 
-  if (!parsed && parseFloat) {
+  if (parseFloat) {
     // parsing as double
     double val = taosStr2Double(z, &endPtr);
+    if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      return TSDB_CODE_FAILED;
+    }
     if (val > UINT64_MAX) {
+      errno == ERANGE;
       return TSDB_CODE_FAILED;
     }
     *value = round(val);
   }
 
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    return TSDB_CODE_FAILED;
-  }
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
   if (n == 0) {
@@ -104,12 +106,11 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
 
   errno = 0;
   char *endPtr = NULL;
-  *value = taosStr2Double(z, &endPtr);
-  if (errno != ERANGE && errno != EINVAL && endPtr - z == n) {
-    return TSDB_CODE_SUCCESS;
-  }
+  *value = taosStr2Double(z, &endPtr);  // 0x already converted here
+  if (errno == ERANGE || errno == EINVAL) return TSDB_CODE_FAILED;
+  if (endPtr - z == n) return TSDB_CODE_SUCCESS;
 
-  if (type == TK_NK_BIN || type == TK_NK_STRING) {
+  if (type == TK_NK_BIN) {
     bool     is_neg = false;
     uint64_t uv = 0;
     if (TSDB_CODE_SUCCESS == parseSignAndUInteger(z, n, &is_neg, &uv, false)) {
