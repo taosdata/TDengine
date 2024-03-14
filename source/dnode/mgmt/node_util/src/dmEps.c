@@ -141,6 +141,7 @@ int32_t dmReadEps(SDnodeData *pData) {
         goto _OVER;
       }
 
+      dInfo("start to parse encryptScope:%s", tsEncryptScope);
       int32_t scopeLen = strlen(tsEncryptScope);
       if(scopeLen == 0){
         terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
