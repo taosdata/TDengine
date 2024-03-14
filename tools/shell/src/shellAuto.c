@@ -401,12 +401,12 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction(bool community) {
-  printf("  ********************************  Tab Completion  ************************************\n");
+  printf("  *********************************  Tab Completion  *************************************\n");
   char secondLine[160] = "\0";
   sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
   printf("%s", secondLine);
   int secondLineLen = strlen(secondLine);
-  while (87 - (secondLineLen++) > 0) {
+  while (89 - (secondLineLen++) > 0) {
     printf(" ");
   }
   printf("*\n");
@@ -422,18 +422,18 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
   if(community) {
   printf("  * -----------------------------------------------------------------------------------  *\n");
-  printf("  *    You are using TDengine OSS. To experience advanced features, like backup/restore, *\n");
+  printf("  *    You are using TDengine OSS. To experience advanced features, like backup/restore  *\n");
   printf("  *    privilege control and more, or receive 7x24 technical support, try TDengine       *\n");
   printf("  *    Enterprise or Free Cloud Trial. Learn more at https://tdengine.com                *\n");
   }
-  printf("  **************************************************************************************\n\n");
+  printf("  ****************************************************************************************\n\n");
 }
 
 // show enterprise AD
 void showAD(bool end) {
-  printf("  You are using TDengine OSS. To experience advanced features, like backup/restore, \n");
-  printf("  privilege control and more, or receive 7x24 technical support, try TDengine       \n");
-  printf("  Enterprise or Free Cloud Trial. Learn more at https://tdengine.com                \n");
+  printf("  You are using TDengine OSS. To experience advanced features, like backup/restore  \n");
+  printf("  privilege control and more, or receive 7x24 technical support, try TDengine Enterprise \n");
+  printf("  or Free Cloud Trial. Learn more at https://tdengine.com   \n");
   printf("  \n");
 }
 
