@@ -1375,7 +1375,7 @@ bool community = shellGetGrantInfo(buf);
 #else
 #ifndef WEBSOCKET
   if(community) {
-    showAD(false)
+    showAD(false);
   }
 #endif  
 #endif
