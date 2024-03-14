@@ -857,6 +857,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
         pTask->info.selfChildId, pTask->info.taskLevel, p, pNext, pTask->info.fillHistory,
         (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam, nextProcessVer);
+
+    ASSERT(pChkInfo->checkpointVer <= pChkInfo->nextProcessVer);
   }
 
   return 0;
