@@ -2688,6 +2688,20 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
   return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
 }
 
+static bool isTbnameFuction(SNode* pNode) {
+  return QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType;
+}
+
+static bool hasTbnameFunction(SNodeList* pPartitionByList) {
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPartitionByList) {
+    if (isTbnameFuction(pPartKey)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -2699,13 +2713,23 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
-    if (nodesEqualNode(getGroupByNode(pGroupNode), *pNode)) {
+    SNode* pActualNode = getGroupByNode(pGroupNode);
+    if (nodesEqualNode(pActualNode, *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
+    }
+    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
   SNode* pPartKey = NULL;
+  bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+    if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
@@ -2771,8 +2795,13 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
+  bool   partionByTbname = hasTbnameFunction(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList);
   FOREACH(pPartKey, ((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+    }
+    if (partionByTbname && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
       return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
@@ -3946,22 +3975,12 @@ static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool hasPartitionByTbname(SNodeList* pPartitionByList) {
-  SNode* pPartKey = NULL;
-  FOREACH(pPartKey, pPartitionByList) {
-    if (QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!pCxt->createStream) {
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-      !hasPartitionByTbname(pSelect->pPartitionByList)) {
+      !hasTbnameFunction(pSelect->pPartitionByList)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   return TSDB_CODE_SUCCESS;
@@ -7539,12 +7558,12 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
 static bool crossTableWithoutAggOper(SSelectStmt* pSelect) {
   return NULL == pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc &&
          !pSelect->hasInterpFunc && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-         !hasPartitionByTbname(pSelect->pPartitionByList);
+         !hasTbnameFunction(pSelect->pPartitionByList);
 }
 
 static bool crossTableWithUdaf(SSelectStmt* pSelect) {
   return pSelect->hasUdaf && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-         !hasPartitionByTbname(pSelect->pPartitionByList);
+         !hasTbnameFunction(pSelect->pPartitionByList);
 }
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
@@ -7802,7 +7821,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if ( (SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta
     && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType
-    && !hasPartitionByTbname(pSelect->pPartitionByList)
+    && !hasTbnameFunction(pSelect->pPartitionByList)
     && pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Event window for stream on super table must patitioned by table name");
@@ -7830,7 +7849,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   if (pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_COUNT_WINDOW) {
     if ( (SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta
       && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType
-      && !hasPartitionByTbname(pSelect->pPartitionByList) ) {
+      && !hasTbnameFunction(pSelect->pPartitionByList) ) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                     "Count window for stream on super table must patitioned by table name");
     }

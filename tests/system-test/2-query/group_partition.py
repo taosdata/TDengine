@@ -100,6 +100,12 @@ class TDTestCase:
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by tbname")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by tbname")
+        tdSql.checkRows(check_num)
+
         # multi tag + col
         tdSql.query(f"select t1, t2, c1, count(*) from {self.dbname}.{self.stable} partition by t1, t2, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
