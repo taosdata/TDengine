@@ -1503,6 +1503,7 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   SColumnOptions* pOptions = (SColumnOptions*)nodesMakeNode(QUERY_NODE_COLUMN_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->commentNull = true;
+  pOptions->bPrimaryKey = false;
   return (SNode*)pOptions;
 }
 
@@ -1530,6 +1531,9 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
         pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       }
       break;
+      case COLUMN_OPTION_PRIMARYKEY:
+      ((SColumnOptions*)pOptions)->bPrimaryKey = true;
+      break;
     default:
       break;
   }
@@ -1551,6 +1555,8 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   pCol->dataType = dataType;
   pCol->pOptions = (SColumnOptions*)pNode;
   pCol->sma = true;
+  // pNode equals to NULL means that the column is a tag.
+  pCol->is_pk = (SColumnOptions*)pNode ? ((SColumnOptions*)pNode)->bPrimaryKey : false;
   return (SNode*)pCol;
 }
 

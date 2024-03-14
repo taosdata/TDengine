@@ -195,6 +195,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "ORDER BY \"%s\" is ambiguous";
     case TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT:
       return "Operator not supported multi result: %s";
+    case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
+      return "tag %s can not be primary key";
+    case TSDB_CODE_PAR_SECOND_COL_PK:
+      return "primary key column must be second column";
     default:
       return "Unknown error";
   }

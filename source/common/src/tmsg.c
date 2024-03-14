@@ -573,8 +573,6 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
     if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
-    // XSDEBUG
-    printf("column: %s, compress: %0x.\n", pField->name, pField->compress);
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {

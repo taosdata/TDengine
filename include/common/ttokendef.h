@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_TOKEN_H_
 #define _TD_COMMON_TOKEN_H_
 
-
 #define TK_OR                               1
 #define TK_AND                              2
 #define TK_UNION                            3
@@ -367,9 +366,10 @@
 #define TK_VALUES                         348
 #define TK_VARIABLE                       349
 #define TK_WAL                            350
-#define TK_ENCODE                         351
-#define TK_COMPRESS                       352
-#define TK_LEVEL                          353
+#define TK_PRIMARY                        351
+#define TK_ENCODE                         352
+#define TK_COMPRESS                       353
+#define TK_LEVEL                          354
 
 #define TK_NK_SPACE         600
 #define TK_NK_COMMENT       601

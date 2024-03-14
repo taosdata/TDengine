@@ -82,6 +82,7 @@ typedef enum EColumnOptionType {
   COLUMN_OPTION_ENCODE,
   COLUMN_OPTION_COMPRESS,
   COLUMN_OPTION_LEVEL,
+  COLUMN_OPTION_PRIMARYKEY,
 } EColumnOptionType;
 
 typedef struct SAlterOption {

@@ -329,7 +329,7 @@ static SLastCol *tsdbCacheDeserialize(char const *value) {
 
   SLastCol *pLastCol = (SLastCol *)value;
   SColVal  *pColVal = &pLastCol->colVal;
-  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     if (pColVal->value.nData > 0) {
       pColVal->value.pData = (char *)value + sizeof(*pLastCol);
     } else {
@@ -343,13 +343,13 @@ static SLastCol *tsdbCacheDeserialize(char const *value) {
 static void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   SColVal *pColVal = &pLastCol->colVal;
   size_t   length = sizeof(*pLastCol);
-  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     length += pColVal->value.nData;
   }
   *value = taosMemoryMalloc(length);
 
   *(SLastCol *)(*value) = *pLastCol;
-  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     uint8_t *pVal = pColVal->value.pData;
     SColVal *pDColVal = &((SLastCol *)(*value))->colVal;
     pDColVal->value.pData = *value + sizeof(*pLastCol);
@@ -434,7 +434,7 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
 }
 
 static void reallocVarData(SColVal *pColVal) {
-  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     uint8_t *pVal = pColVal->value.pData;
     if (pColVal->value.nData > 0) {
       pColVal->value.pData = taosMemoryMalloc(pColVal->value.nData);
@@ -452,7 +452,7 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
     tsdbCachePutBatch(pLastCol, key, klen, (SCacheFlushState *)ud);
   }
 
-  if (IS_VAR_DATA_TYPE(pLastCol->colVal.type) /* && pLastCol->colVal.value.nData > 0*/) {
+  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
 
@@ -473,7 +473,7 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
 
   reallocVarData(&pLastCol->colVal);
   size_t charge = sizeof(*pLastCol);
-  if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     charge += pLastCol->colVal.value.nData;
   }
 
@@ -839,12 +839,12 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       if (pLastCol->ts <= keyTs) {
         uint8_t *pVal = NULL;
         int      nData = pLastCol->colVal.value.nData;
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
           pVal = pLastCol->colVal.value.pData;
         }
         pLastCol->ts = keyTs;
         pLastCol->colVal = *pColVal;
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
           if (nData < pColVal->value.nData) {
             taosMemoryFree(pVal);
             pLastCol->colVal.value.pData = taosMemoryCalloc(1, pColVal->value.nData);
@@ -878,12 +878,12 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         if (pLastCol->ts <= keyTs) {
           uint8_t *pVal = NULL;
           int      nData = pLastCol->colVal.value.nData;
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             pVal = pLastCol->colVal.value.pData;
           }
           pLastCol->ts = keyTs;
           pLastCol->colVal = *pColVal;
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             if (nData < pColVal->value.nData) {
               taosMemoryFree(pVal);
               pLastCol->colVal.value.pData = taosMemoryCalloc(1, pColVal->value.nData);
@@ -962,7 +962,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
 
           reallocVarData(&pLastCol->colVal);
           size_t charge = sizeof(*pLastCol);
-          if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+          if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
             charge += pLastCol->colVal.value.nData;
           }
 
@@ -994,7 +994,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
 
             reallocVarData(&pLastCol->colVal);
             size_t charge = sizeof(*pLastCol);
-            if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+            if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
               charge += pLastCol->colVal.value.nData;
             }
 
@@ -1310,7 +1310,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
     reallocVarData(&pLastCol->colVal);
     size_t charge = sizeof(*pLastCol);
-    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+    if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
       charge += pLastCol->colVal.value.nData;
     }
 
@@ -1394,7 +1394,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
       reallocVarData(&pLastCol->colVal);
       size_t charge = sizeof(*pLastCol);
-      if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+      if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
         charge += pLastCol->colVal.value.nData;
       }
 
@@ -2175,7 +2175,7 @@ static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsRea
 
     STombRecord record = {0};
     bool        finished = false;
-    for (int32_t k = 0; k < TARRAY2_SIZE(block.suid); ++k) {
+    for (int32_t k = 0; k < TOMB_BLOCK_SIZE(&block); ++k) {
       code = tTombBlockGet(&block, k, &record);
       if (code != TSDB_CODE_SUCCESS) {
         finished = true;
@@ -2551,7 +2551,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       goto _err;
     }
 
-    state->iBrinRecord = BRIN_BLOCK_SIZE(&state->brinBlock) - 1;
+    state->iBrinRecord = state->brinBlock.numOfRecords - 1;
     state->state = SFSNEXTROW_BRINBLOCK;
   }
 
@@ -3185,14 +3185,14 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         if (slotIds[iCol] == 0) {
           STColumn *pTColumn = &pTSchema->columns[0];
 
-          *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = rowTs});
+          *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowTs}));
           taosArraySet(pColArray, 0, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
           continue;
         }
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
         *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type) /*&& pColVal->value.nData > 0*/) {
+        if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
           if (pColVal->value.nData > 0) {
             pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
             if (pCol->colVal.value.pData == NULL) {
@@ -3242,7 +3242,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
       if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
         SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type) /* && pColVal->value.nData > 0 */) {
+        if (IS_VAR_DATA_TYPE(pColVal->value.type) /* && pColVal->value.nData > 0 */) {
           SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
           taosMemoryFree(pLastCol->colVal.value.pData);
 
@@ -3364,14 +3364,14 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
       if (slotIds[iCol] == 0) {
         STColumn *pTColumn = &pTSchema->columns[0];
 
-        *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = rowTs});
+        *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowTs}));
         taosArraySet(pColArray, 0, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
         continue;
       }
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
       *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
-      if (IS_VAR_DATA_TYPE(pColVal->type) /*&& pColVal->value.nData > 0*/) {
+      if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
         if (pColVal->value.nData > 0) {
           pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
           if (pCol->colVal.value.pData == NULL) {

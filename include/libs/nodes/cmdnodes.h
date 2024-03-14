@@ -171,6 +171,7 @@ typedef struct SColumnOptions {
   char       encode[TSDB_CL_COMPRESS_OPTION_LEN];
   char       compress[TSDB_CL_COMPRESS_OPTION_LEN];
   char       compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
+  bool       bPrimaryKey;
 } SColumnOptions;
 typedef struct SColumnDefNode {
   ENodeType       type;
@@ -179,6 +180,7 @@ typedef struct SColumnDefNode {
   char            comments[TSDB_TB_COMMENT_LEN];
   SColumnOptions* pOptions;
   bool            sma;
+  bool            is_pk;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
