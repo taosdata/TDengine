@@ -4032,7 +4032,8 @@ int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
       return code;
     }
   } else {
-    return tBufferPut(&valCol->data, &value->val, tDataTypes[value->type].bytes);
+    code = tBufferPut(&valCol->data, &value->val, tDataTypes[value->type].bytes);
+    if (code) return code;
   }
   valCol->numOfValues++;
 
