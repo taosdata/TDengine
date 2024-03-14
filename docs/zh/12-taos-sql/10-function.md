@@ -1154,7 +1154,7 @@ UNIQUE(expr)
 CSUM(expr)
 ```
 
-**功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
+**功能说明**：累加和（Cumulative sum），忽略 NULL 值。
 
 **返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
