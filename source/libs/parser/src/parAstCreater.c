@@ -1555,7 +1555,8 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   pCol->dataType = dataType;
   pCol->pOptions = (SColumnOptions*)pNode;
   pCol->sma = true;
-  pCol->is_pk = ((SColumnOptions*)pNode)->bPrimaryKey;
+  // pNode equals to NULL means that the column is a tag.
+  pCol->is_pk = (SColumnOptions*)pNode ? ((SColumnOptions*)pNode)->bPrimaryKey : false;
   return (SNode*)pCol;
 }
 
