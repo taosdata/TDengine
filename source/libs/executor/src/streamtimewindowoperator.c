@@ -1273,16 +1273,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-      if (pInfo->pUpdated != NULL) {
-        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
-      }
-
-      if (pInfo->pUpdatedMap != NULL) {
-        tSimpleHashCleanup(pInfo->pUpdatedMap);
-        pInfo->pUpdatedMap = NULL;
-      }
-      qInfo("%s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      return NULL;
     }
 
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
@@ -4323,16 +4315,8 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-      if (pInfo->pUpdated != NULL) {
-        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
-      }
-
-      if (pInfo->pUpdatedMap != NULL) {
-        tSimpleHashCleanup(pInfo->pUpdatedMap);
-        pInfo->pUpdatedMap = NULL;
-      }
-
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      return NULL;
     }
 
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
