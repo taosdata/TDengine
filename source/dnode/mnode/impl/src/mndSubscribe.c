@@ -935,8 +935,7 @@ static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgro
       break;
     }
 
-    if (strcmp(cgroup, pConsumer->cgroup) == 0 && taosArrayGetSize(pConsumer->assignedTopics) == 1 &&
-        strcmp(topic, taosArrayGetP(pConsumer->assignedTopics, 0)) == 0) {
+    if (strcmp(cgroup, pConsumer->cgroup) == 0 && taosArrayGetSize(pConsumer->currentTopics) == 0) {
       int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
       if (code != 0) {
         sdbRelease(pMnode->pSdb, pConsumer);
