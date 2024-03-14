@@ -939,6 +939,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       if (exist) {
         if (tagType == TSDB_DATA_TYPE_GEOMETRY) {
           sysTableGetGeomText(tagVal.pData, tagVal.nData, &tagData, &tagLen);
+        } else if (tagType == TSDB_DATA_TYPE_VARBINARY) {
+          if (taosAscii2Hex(tagVal.pData, tagVal.nData, (void**)&tagData, &tagLen) < 0) {
+            qError("varbinary for systable failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+          }
         } else if (IS_VAR_DATA_TYPE(tagType)) {
           tagData = (char*)tagVal.pData;
           tagLen = tagVal.nData;
@@ -969,7 +973,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     colDataSetVal(pColInfoData, numOfRows, tagVarChar,
                   (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
-    if (tagType == TSDB_DATA_TYPE_GEOMETRY) taosMemoryFreeClear(tagData);
+    if (tagType == TSDB_DATA_TYPE_GEOMETRY || tagType == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(tagData);
     taosMemoryFree(tagVarChar);
     ++numOfRows;
   }
