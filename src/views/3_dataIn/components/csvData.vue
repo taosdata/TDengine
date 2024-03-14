@@ -284,6 +284,8 @@ export default {
       this.fileList = [].concat(file);
       this.showfiletip = false;
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
+
+      this.getCsvColumnsData();
     },
     submitUpload() {
       let isbreak=true
@@ -351,17 +353,8 @@ export default {
               "csv",
               parseParam
             );
-            this.loading = false
-            if (result && result.message) {
-              this.$error(result.message);
-              return;
-            }
-            this.csvColumns = result.file_header.column_names;
-            if (result && !result.sample_values) {
-              this.$error(this.$t('datasource.transformer.emptySampleValues'))
-              return
-            }
-            this.sample_values = result.sample_values ?? [];
+          } else {
+            return;
           }
         } else {
           result = await getCSVColumns(
@@ -369,18 +362,42 @@ export default {
             "csv",
             parseParam
           );
-          this.loading = false
-          if (result && result.message) {
-            this.$error(result.message);
-            return;
-          }
-          this.csvColumns = result.file_header.column_names;
-          if (result && !result.sample_values) {
-            this.$error(this.$t('datasource.transformer.emptySampleValues'))
+        }
+
+        this.loading = false
+        if (result && result.message) {
+          this.$error(result.message);
+          return;
+        }
+        
+        const columns = result.file_header.column_names;
+        const columnInObj = {};
+        const columnRegexPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+        for (let i = 0; i < columns.length; i++) {
+          if (columns[i] === "") {
+            this.$error(this.$t('datasource.transformer.emptyColumnName') + columns.join(", "));
             return
           }
-          this.sample_values = result.sample_values ?? [];
+          if (!columnRegexPattern.test(columns[i])) {
+            this.$error(this.$t('datasource.transformer.invalidColumnName') + columns[i]);
+            return
+          }
+          if (columnInObj[columns[i]]) {
+            this.$error(this.$t('datasource.transformer.duplicateColumnName') + columns[i]);
+            return
+          }
+          columnInObj[columns[i]] = true;
         }
+
+        if (result && !result.sample_values) {
+          this.$error(this.$t('datasource.transformer.emptySampleValues'));
+          return
+        }
+
+        this.csvColumns = result.file_header.column_names;
+        this.sample_values = result.sample_values ?? [];
+
+
         
         // 去掉自定义列
         // if (this.$refs.param.ruleForm.customcol) {
@@ -578,7 +595,6 @@ export default {
   }
   .nextbtn {
     width: 100%;
-    margin-bottom: 20px;
   }
   .csv-config {
     margin-bottom: 20px;

@@ -244,8 +244,8 @@ export default {
             "app/SET_TRANS_RESULT_NAME",
             this.itemData.columnname
           );
-          await this.submitExtract();
-          await this.submitExtract(true);
+                      await this.submitExtract();
+                    await this.submitExtract(true);
 
           return true;
         } else {
@@ -437,17 +437,17 @@ export default {
         this.indentifiedColumns
           .filter((val) => !hiddenCols.includes(val.name))
           .forEach((item) => {
-            if (this.$store.state.app.currentDBType == "mqtt") {
+                        if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                inputobj["payload"] = isall
+                                inputobj["payload"] = isall
                   ? msg
                   : this.isJson
-                  ? JSON.stringify({
-                      [`${this.itemData.columnname}`]:
-                        JSON.parse(msg)[this.itemData.columnname],
-                    })
-                  : msg;
-              } else {
+                    ? JSON.stringify({
+                        [`${this.itemData.columnname}`]:
+                          JSON.parse(msg)[this.itemData.columnname],
+                      })
+                    : msg;
+                                } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
                     ? parsinginZone(new Date())
@@ -510,7 +510,7 @@ export default {
           Object.assign(this.extractParseData["extract"], val);
         });
       let topparse = deepClone(this.$store.state.app.topParse);
-      let extractlist = {};
+      // let extractlist = {};
       // topparse["parser"]["mutate"] = isall
       //   ? this.$store.state.app.transformerFilterParseData
       //     ? []
@@ -621,7 +621,6 @@ export default {
   }
 }
 .extract-split {
-  margin-top: 20px;
   // &.active{
   //   padding: 20px;
   //   border-radius:6px;
@@ -665,7 +664,6 @@ export default {
   margin-bottom: 10px;
 }
 .col-list {
-  margin-top: 10px;
   margin-bottom: 25px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;

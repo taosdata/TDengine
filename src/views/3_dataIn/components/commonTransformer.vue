@@ -62,7 +62,8 @@
             >
               <el-upload
                 class="upload-demo"
-                action="https://jsonplaceholder.typicode.com/posts/"
+                :action="uploadUrl"
+                :data="{req_id: 'taosx-demo-file'}"
                 :on-preview="handlePreview"
                 :on-remove="handleRemove"
                 :before-remove="beforeRemove"
@@ -309,7 +310,7 @@
           {{ $t("datasource.transformer.addfilter") }}
         </el-button>
       </section>
-      <section style="margin-bottom: 20px">
+      <section>
         <div class="block-title">
           <span>{{ $t("datasource.transformer.superconfig") }}</span>
         </div>
@@ -327,10 +328,8 @@
                     default-first-option
                     size="small"
                     @change="getSTbaleList"
-                    :disabled="
-                      $store.state.app.currentDBName == '' ||
-                      columnsArr.length == 0
-                    "
+                    :placeholder = "$store.state.app.currentDBName ? $t('datasource.transformer.stableSelectOrCreateTip') : $t('datasource.transformer.databaseSelectTip')"
+                    :disabled="!$store.state.app.currentDBName || columnsArr.length === 0"
                   >
                     <el-option
                       v-for="(item, index) in stableLists"
@@ -344,7 +343,9 @@
             </div>
             <el-button
               type="primary"
+              class="btn-create-stable"
               size="small"
+              icon="el-icon-plus"
               @click="createStable"
               :disabled="$store.state.app.currentDBName == ''"
             >
@@ -531,11 +532,11 @@
               </el-pagination>
 
               <el-button
-                type="primary"
-                @click="caculateMappingResult"
                 size="small"
-                >{{ $t("datasource.transformer.calculate") }}</el-button
-              >
+                icon="el-icon-PREVIEW"
+                @click="caculateMappingResult"
+              ></el-button>
+              
             </div>
           </div>
         </div>
@@ -2172,6 +2173,10 @@ export default {
 ::v-deep i {
   font-size: 16px;
 }
+::v-deep .btn-create-stable i {
+  font-size: 12px;
+}
+
 .mapping {
   font-size: 16px;
   font-weight: 600;
@@ -2410,10 +2415,11 @@ export default {
       height: 14px !important;
     }
 }
+
 .msg_sec {
   ::v-deep {
     .el-input-number--small {
-      width: 100px;
+      width: 86px;
     }
   }
 }
