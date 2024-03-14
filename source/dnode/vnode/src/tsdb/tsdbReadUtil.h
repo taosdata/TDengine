@@ -87,7 +87,7 @@ typedef struct SSttKeyInfo {
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t    uid;
-  TSKEY       lastProcKey;
+  TSKEY       lastProcKey;       // todo: refactor: add primary key
   SSttKeyInfo sttKeyInfo;
   SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
   SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
