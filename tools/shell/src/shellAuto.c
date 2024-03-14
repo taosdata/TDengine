@@ -422,7 +422,7 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
   if(community) {
   printf("  * -----------------------------------------------------------------------------------  *\n");
-  printf("  *    You are using TDengine OSS. To experience advanced features, like backup/restore  *\n");
+  printf("  *    You are using TDengine OSS. To experience advanced features, like backup/restore, *\n");
   printf("  *    privilege control and more, or receive 7x24 technical support, try TDengine       *\n");
   printf("  *    Enterprise or Free Cloud Trial. Learn more at https://tdengine.com                *\n");
   }
@@ -431,7 +431,7 @@ void printfIntroduction(bool community) {
 
 // show enterprise AD
 void showAD(bool end) {
-  printf("  You are using TDengine OSS. To experience advanced features, like backup/restore  \n");
+  printf("  You are using TDengine OSS. To experience advanced features, like backup/restore,  \n");
   printf("  privilege control and more, or receive 7x24 technical support, try TDengine Enterprise \n");
   printf("  or Free Cloud Trial. Learn more at https://tdengine.com   \n");
   printf("  \n");
