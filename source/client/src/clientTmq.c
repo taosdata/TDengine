@@ -876,12 +876,13 @@ int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
   STaosQall* qall = taosAllocateQall();
   taosReadAllQitems(pTmq->delayedTask, qall);
 
-  if (qall->numOfItems == 0) {
+  int32_t numOfItems = taosQallItemSize(qall);
+  if (numOfItems == 0) {
     taosFreeQall(qall);
     return TSDB_CODE_SUCCESS;
   }
 
-  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, numOfItems);
   int8_t* pTaskType = NULL;
   taosGetQitem(qall, (void**)&pTaskType);
 
@@ -1009,19 +1010,8 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   }
   taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
-  int32_t     rsp;
-  int32_t     retryCnt = 0;
   tmq_list_t* lst = tmq_list_new();
-  while (1) {
-    rsp = tmq_subscribe(tmq, lst);
-    if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-      break;
-    } else {
-      retryCnt++;
-      taosMsleep(500);
-    }
-  }
-
+  int32_t rsp = tmq_subscribe(tmq, lst);
   tmq_list_destroy(lst);
   return rsp;
 }
@@ -1271,10 +1261,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while (syncAskEp(tmq) != 0) {
-    if (retryCnt++ > MAX_RETRY_COUNT) {
+  while ((code = syncAskEp(tmq)) != 0) {
+    if (retryCnt++ > MAX_RETRY_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes", tmq->consumerId);
-      code = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto FAIL;
     }
 
@@ -1839,7 +1828,7 @@ static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal
 }
 
 static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
-  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, tmq->qall->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQallItemSize(tmq->qall));
 
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
@@ -2147,26 +2136,19 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
     // if auto commit is set, commit before close consumer. Otherwise, do nothing.
     if (tmq->autoCommit) {
-      int32_t rsp = tmq_commit_sync(tmq, NULL);
-      if (rsp != 0) {
-        return rsp;
+      int32_t code = tmq_commit_sync(tmq, NULL);
+      if (code != 0) {
+        return code;
       }
     }
     taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
-    int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
-    while (1) {
-      int32_t rsp = tmq_subscribe(tmq, lst);
-      if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
-        break;
-      } else {
-        retryCnt++;
-        taosMsleep(500);
-      }
-    }
-
+    int32_t code = tmq_subscribe(tmq, lst);
     tmq_list_destroy(lst);
+    if (code != 0) {
+      return code;
+    }
   } else {
     tscInfo("consumer:0x%" PRIx64 " not in ready state, close it directly", tmq->consumerId);
   }
@@ -2646,13 +2628,9 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
     SRetrieveTableRspForTmq* pRetrieveTmq =
         (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
     if (pRspObj->rsp.withSchema) {
+      doFreeReqResultInfo(&pRspObj->resInfo);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
       setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
-      taosMemoryFreeClear(pRspObj->resInfo.row);
-      taosMemoryFreeClear(pRspObj->resInfo.pCol);
-      taosMemoryFreeClear(pRspObj->resInfo.length);
-      taosMemoryFreeClear(pRspObj->resInfo.convertBuf);
-      taosMemoryFreeClear(pRspObj->resInfo.convertJson);
     }
 
     pRspObj->resInfo.pData = (void*)pRetrieveTmq->data;

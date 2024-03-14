@@ -502,7 +502,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-  pScan->paraTablesSort = getparaTablesSortOptHint(pSelect->pHint);
+  pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
+  pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
   pCxt->hasScan = true;
 
   return code;
@@ -1014,10 +1015,6 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   SWindowLogicNode* pWindow = (SWindowLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
   if (NULL == pWindow) {
     return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  if (!pCxt->pPlanCxt->streamQuery && tsDisableCount) {
-    return TSDB_CODE_FAILED;
   }
 
   pWindow->winType = WINDOW_TYPE_COUNT;

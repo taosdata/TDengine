@@ -94,10 +94,10 @@ int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                   code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pBlock->info.rows;) {
-    int32_t             step = pInfo->windowSliding;
     SCountWindowResult* pBuffInfo = setCountWindowOutputBuff(pExprSup, &pInfo->countSup, &pInfo->pRow);
     int32_t prevRows = pBuffInfo->winRows;
     int32_t num = updateCountWindowInfo(i, pBlock->info.rows, pInfo->windowCount, &pBuffInfo->winRows);
+    int32_t step = num;
     if (prevRows == 0) {
       pInfo->pRow->win.skey = tsCols[i];
     }
@@ -118,6 +118,8 @@ int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       if (prevRows <= pInfo->windowSliding) {
         if (pBuffInfo->winRows > pInfo->windowSliding) {
           step = pInfo->windowSliding - prevRows;
+        } else {
+          step = pInfo->windowSliding;
         }
       } else {
         step = 0;

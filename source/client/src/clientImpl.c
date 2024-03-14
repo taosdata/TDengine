@@ -302,7 +302,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
   }
 
   return code;
@@ -341,7 +341,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode));
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -743,6 +743,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .chkKillFp = chkRequestKilled,
          .chkKillParam = (void*)pRequest->self,
          .pExecRes = &res,
+         .source = pRequest->source,
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1212,6 +1213,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
            .chkKillFp = chkRequestKilled,
            .chkKillParam = (void*)pRequest->self,
            .pExecRes = NULL,
+           .source = pRequest->source,
     };
     code = schedulerExecJob(&req, &pRequest->body.queryJob);
     taosArrayDestroy(pNodeList);
@@ -1719,7 +1721,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     pRequest->code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
+        setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;
@@ -2178,15 +2180,13 @@ void resetConnectDB(STscObj* pTscObj) {
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
-                              bool freeAfterUse) {
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4) {
   if (pResultInfo == NULL || pRsp == NULL) {
     tscError("setQueryResultFromRsp paras is null");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  if (freeAfterUse) taosMemoryFreeClear(pResultInfo->pRspMsg);
-
+  taosMemoryFreeClear(pResultInfo->pRspMsg);
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
@@ -2475,7 +2475,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   tsem_post(&pParam->sem);
 }
 
-void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly, int8_t source) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (fp) {
@@ -2501,6 +2501,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
+  pRequest->source = source;
   pRequest->body.queryFp = fp;
   doAsyncQuery(pRequest, false);
 }
@@ -2535,7 +2536,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -2550,7 +2551,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   }
   tsem_init(&param->sem, 0, 0);
 
-  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
+  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
   tsem_wait(&param->sem);
 
   SRequestObj* pRequest = NULL;
@@ -2615,7 +2616,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4, true);
+      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;
