@@ -130,7 +130,7 @@ int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
 const char*       streamQueueItemGetTypeStr(int32_t type);
 SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
-int32_t           streamTransferStateToStreamTask(SStreamTask* pTask);
+int32_t           streamTransferStatePrepare(SStreamTask* pTask);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);

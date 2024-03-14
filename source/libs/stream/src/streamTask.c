@@ -791,8 +791,10 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
     CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
 
     if (resetRelHalt) {
+      stDebug("s-task:0x%" PRIx64 " set the persistent status attr to be ready, prev:%s, status in sm:%s",
+              sTaskId.taskId, streamTaskGetStatusStr((*ppStreamTask)->status.taskStatus),
+              streamTaskGetStatus(*ppStreamTask)->name);
       (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
-      stDebug("s-task:0x%" PRIx64 " set the status to be ready", sTaskId.taskId);
     }
 
     streamMetaSaveTask(pMeta, *ppStreamTask);
