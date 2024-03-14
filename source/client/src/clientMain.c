@@ -350,7 +350,6 @@ void taos_free_result(TAOS_RES *res) {
     taosArrayDestroy(pRsp->rsp.createTableLen);
     taosArrayDestroyP(pRsp->rsp.createTableReq, taosMemoryFree);
 
-    pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
@@ -359,7 +358,6 @@ void taos_free_result(TAOS_RES *res) {
     taosArrayDestroy(pRsp->rsp.blockDataLen);
     taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
     taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
-    pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
@@ -402,7 +400,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false); }
+TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP); }
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
   return taosQueryImplWithReqid(taos, sql, false, reqid);
 }
@@ -828,7 +826,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) {
-  TAOS_RES *pObj = taosQueryImpl(taos, sql, true);
+  TAOS_RES *pObj = taosQueryImpl(taos, sql, true, TD_REQ_FROM_APP);
 
   int code = taos_errno(pObj);
 
@@ -1126,7 +1124,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
   tscDebug("taos_query_a start with sql:%s", sql);
-  taosAsyncQueryImpl(connId, sql, fp, param, false);
+  taosAsyncQueryImpl(connId, sql, fp, param, false, TD_REQ_FROM_APP);
   tscDebug("taos_query_a end with sql:%s", sql);
 }
 
@@ -1254,54 +1252,34 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
-  int32_t      reqIdx = 0;
-  SRequestObj *pReqList[16] = {NULL};
-  SRequestObj *pUserReq = NULL;
-  pReqList[0] = pRequest;
-  uint64_t     tmpRefId = 0;
-  SRequestObj *pTmp = pRequest;
-  while (pTmp->relation.prevRefId) {
-    tmpRefId = pTmp->relation.prevRefId;
-    pTmp = acquireRequest(tmpRefId);
-    if (pTmp) {
-      pReqList[++reqIdx] = pTmp;
-      releaseRequest(tmpRefId);
-    } else {
-      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
+  tscInfo("restart request: %s p: %p", pRequest->sqlstr, pRequest);
+  SRequestObj* pUserReq = pRequest;
+  acquireRequest(pRequest->self);
+  while (pUserReq) {
+    if (pUserReq->self == pUserReq->relation.userRefId || pUserReq->relation.userRefId == 0) {
       break;
-    }
-  }
-
-  tmpRefId = pRequest->relation.nextRefId;
-  while (tmpRefId) {
-    pTmp = acquireRequest(tmpRefId);
-    if (pTmp) {
-      tmpRefId = pTmp->relation.nextRefId;
-      removeRequest(pTmp->self);
-      releaseRequest(pTmp->self);
     } else {
-      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
-      break;
+      int64_t nextRefId = pUserReq->relation.nextRefId;
+      releaseRequest(pUserReq->self);
+      if (nextRefId) {
+        pUserReq = acquireRequest(nextRefId);
+      }
     }
   }
-
-  for (int32_t i = reqIdx; i >= 0; i--) {
-    destroyCtxInRequest(pReqList[i]);
-    if (pReqList[i]->relation.userRefId == pReqList[i]->self || 0 == pReqList[i]->relation.userRefId) {
-      pUserReq = pReqList[i];
-    } else {
-      removeRequest(pReqList[i]->self);
-    }
-  }
-
+  bool hasSubRequest = pUserReq != pRequest || pRequest->relation.prevRefId != 0;
   if (pUserReq) {
+    destroyCtxInRequest(pUserReq);
     pUserReq->prevCode = code;
     memset(&pUserReq->relation, 0, sizeof(pUserReq->relation));
   } else {
-    tscError("user req is missing");
+    tscError("User req is missing");
+    removeFromMostPrevReq(pRequest);
     return;
   }
-
+  if (hasSubRequest)
+    removeFromMostPrevReq(pRequest);
+  else
+    releaseRequest(pUserReq->self);
   doAsyncQuery(pUserReq, true);
 }
 

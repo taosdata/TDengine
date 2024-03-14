@@ -352,6 +352,8 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*     nextDurationBlocks[2];
   bool             rtnNextDurationBlocks;
   int32_t          nextDurationBlocksIdx;
+  
+  bool             bSortRowId;
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
 } STableMergeScanInfo;

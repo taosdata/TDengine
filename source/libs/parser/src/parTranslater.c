@@ -4009,6 +4009,26 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
 }
 
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
+  if (pCountWin->windowCount <= 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must exceed 1.");
+  }
+
+  if (pCountWin->windowSliding <= 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must exceed 0.");
+  }
+
+  if (pCountWin->windowSliding > pCountWin->windowCount) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "sliding value no larger than the count value.");
+  }
+
+  if (pCountWin->windowCount > INT32_MAX) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Size of Count window must less than 2147483647(INT32_MAX).");
+  }
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
@@ -4527,7 +4547,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (pSelect->pWhere != NULL) {
+  if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
   return code;
@@ -7828,29 +7848,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     if (pStmt->pOptions->ignoreExpired != 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                     "Ignore expired data of Count window must be 1.");
-    }    
-
-    SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
-    if (pCountWin->windowCount <= 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must exceed 1.");
     }
-
-    if (pCountWin->windowSliding <= 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must exceed 0.");
-    }
-
-    if (pCountWin->windowSliding > pCountWin->windowCount) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "sliding value no larger than the count value.");
-    }
-
-    if (pCountWin->windowCount > INT32_MAX) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "Size of Count window must less than 2147483647(INT32_MAX).");
-    }
-
   }
 
   return TSDB_CODE_SUCCESS;
@@ -8137,7 +8135,9 @@ static int32_t adjustTagsForCreateTable(STranslateContext* pCxt, SCreateStreamSt
     SColumnDefNode* pDef = (SColumnDefNode*)pTagDef;
     if (!dataTypeEqual(&pDef->dataType, &((SExprNode*)pTagExpr)->resType)) {
       SNode*  pFunc = NULL;
-      int32_t code = createCastFunc(pCxt, pTagExpr, pDef->dataType, &pFunc);
+      SDataType defType = pDef->dataType;
+      defType.bytes = calcTypeBytes(defType);
+      int32_t code = createCastFunc(pCxt, pTagExpr, defType, &pFunc);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }

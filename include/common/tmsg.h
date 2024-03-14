@@ -3820,6 +3820,7 @@ typedef struct {
   uint32_t phyLen;
   char*    sql;
   char*    msg;
+  int8_t   source;
 } SVDeleteReq;
 
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
@@ -3841,6 +3842,7 @@ typedef struct SDeleteRes {
   char     tableFName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
   int64_t  ctimeMs;  // fill by vnode
+  int8_t   source;
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);

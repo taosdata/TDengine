@@ -274,7 +274,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
     }
   }
 
-  if (WINDOW_TYPE_STATE == pWindow->winType) {
+  if (WINDOW_TYPE_STATE == pWindow->winType || WINDOW_TYPE_COUNT == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
     } else {
@@ -1320,7 +1320,11 @@ static int32_t stbSplSplitScanNodeWithPartTags(SSplitContext* pCxt, SStableSplit
   SLogicNode* pSplitNode = NULL;
   int32_t     code = stbSplGetSplitNodeForScan(pInfo, &pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pSplitNode, NULL, pSplitNode, true, true);
+    bool needSort = true;
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pSplitNode) && !pSplitNode->pLimit && !pSplitNode->pSlimit) {
+      needSort = !((SProjectLogicNode*)pSplitNode)->ignoreGroupId;
+    }
+    code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pSplitNode, NULL, pSplitNode, needSort, needSort);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,

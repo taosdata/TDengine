@@ -2188,6 +2188,9 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->paraTablesSort);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->smallDataTsSort);
+  }
   return code;
 }
 
@@ -2274,6 +2277,9 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->paraTablesSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->smallDataTsSort);
   }
   return code;
 }
