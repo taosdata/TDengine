@@ -3,7 +3,7 @@ aux_source_directory(src EXECUTOR_SRC)
 add_library(executor STATIC ${EXECUTOR_SRC})
 
 target_link_libraries(executor
-        PRIVATE os util common function parser planner qcom scalar nodes index wal tdb
+        PRIVATE os util common function parser planner qcom scalar nodes index wal tdb geometry
         )
 
 target_include_directories(

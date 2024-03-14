@@ -1057,6 +1057,9 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_nchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varbinary.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
 ,,y,script,./test.sh -f tsim/parser/condition_scl.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim

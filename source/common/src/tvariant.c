@@ -93,9 +93,10 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
       return TSDB_CODE_FAILED;
     }
     *value = round(val);
+    return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return TSDB_CODE_FAILED;
 }
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
@@ -110,11 +111,11 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
   if (errno == ERANGE || errno == EINVAL) return TSDB_CODE_FAILED;
   if (endPtr - z == n) return TSDB_CODE_SUCCESS;
 
-  if (type == TK_NK_BIN) {
+  if (type == TK_NK_BIN || type == TK_NK_STRING) {
     bool     is_neg = false;
     uint64_t uv = 0;
     if (TSDB_CODE_SUCCESS == parseSignAndUInteger(z, n, &is_neg, &uv, false)) {
-      *value = is_neg ? -uv : uv;
+      *value = is_neg ? -(double)uv : uv;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -239,7 +240,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
         *value = INT64_MIN;
         return TSDB_CODE_FAILED;
       } else {
-        *value = -uv;
+        *value = -(int64_t)uv;
       }
     } else {
       if (uv > INT64_MAX) {

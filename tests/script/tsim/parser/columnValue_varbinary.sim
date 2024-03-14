@@ -1,0 +1,34 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== columnValues.sim
+
+sql drop database if exists db
+sql create database db
+sql use db
+
+#### test the value of all data types in four cases: static create table, insert column value, synamic create table, alter tag value
+
+######## case 0: varbinary
+print ========== varbinary
+sql create table mt_varbinary (ts timestamp, c varbinary(50)) tags (tagname varbinary(50))
+
+## case 00: static create table for test tag values
+sql create table st_varbinary_0  using mt_varbinary tags (NULL)
+sql show create table st_varbinary_0
+sql show tags from st_varbinary_0
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_varbinary_1  using mt_varbinary tags (NULL)
+sql show tags from st_varbinary_1
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_varbinary_2  using mt_varbinary tags ('NULL')
+sql show tags from st_varbinary_2
+if $data05 != NULL then
+  return -1
+endi

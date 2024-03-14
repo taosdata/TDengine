@@ -502,8 +502,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       } else if (pToken->type == TK_NK_FLOAT) {
         *(int8_t*)(&val->i64) = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
-                 (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, &iv))) {
-        *(int8_t*)(&val->i64) = (iv == 0 ? FALSE_VALUE : TRUE_VALUE);
+                 (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&iv))) {
+        *(int8_t*)(&val->i64) = ((double)iv == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }
@@ -1447,8 +1447,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       } else if (pToken->type == TK_NK_FLOAT) {
         pVal->value.val = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
-                 (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, &pVal->value.val))) {
-        *(int8_t*)(&pVal->value.val) = (pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
+                 (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val))) {
+        *(int8_t*)(&pVal->value.val) = ((double)pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
       }

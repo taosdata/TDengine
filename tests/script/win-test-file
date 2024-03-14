@@ -113,6 +113,9 @@
 ./test.sh -f tsim/parser/columnValue_smallint.sim
 ./test.sh -f tsim/parser/columnValue_tinyint.sim
 ./test.sh -f tsim/parser/columnValue_unsign.sim
+./test.sh -f tsim/parser/columnValue_varchar.sim
+./test.sh -f tsim/parser/columnValue_nchar.sim
+./test.sh -f tsim/parser/columnValue_varbinary.sim
 ./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/condition_scl.sim
 ./test.sh -f tsim/parser/constCol.sim
