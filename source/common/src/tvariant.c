@@ -89,7 +89,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
       return TSDB_CODE_FAILED;
     }
     if (val > UINT64_MAX) {
-      errno == ERANGE;
+      errno = ERANGE;
       return TSDB_CODE_FAILED;
     }
     *value = round(val);
