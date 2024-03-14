@@ -246,10 +246,10 @@ class TDTestCase:
         STR_EMPTY = ['\'\'', "\"\"", '\' \'', "\"    \""]
         STR_INTEGER_P = ["\"42\"", '\'+42\'', '\'+0\'', '\'-0\'', '\'0x2A\'', '\'-0X0\'', '\'+0x0\'', '\'0B00101010\'', '\'-0b00\'']
         STR_INTEGER_M = ['\'-128\'', '\'-0X1\'', '\"-0x34\"', '\'-0b01\'', '\'-0B00101010\'']
-        STR_FLOAT_P = ['\'42.1\'', "\"+0.001\"", "\'-0.0\'"]
+        STR_FLOAT_P = ['\'42.1\'', "\"+0.003\"", "\'-0.0\'"]
         STR_FLOAT_M = ["\"-32.001\""]
-        STR_FLOAT_E_P = ['\'1e1\'', "\"1e-2\"", "\"-1e-5\""]
-        STR_FLOAT_E_M = ["\"-0.1E+1\""]
+        STR_FLOAT_E_P = ['\'1e1\'', "\"3e-2\"", "\"-3e-5\""]
+        STR_FLOAT_E_M = ["\"-0.3E+1\""]
         STR_MISC = ["\"123ab\"", '\'123d\'', '\'-12s\'', '\'\x012\'', '\'x12\'',  '\'x\'', '\'NULL \'', '\' NULL\'', '\'True \'', '\' False\'', 
                     '\'0B0101 \'', '\' 0B0101\'', '\' -0x01 \'', '\'-0x02 \'']
         STR_OPTR = ['\'1*10\'', '\'1+2\'', '\'-2-0\'','\'1%2\'', '\'2/0\'', '\'1&31\'']
@@ -271,7 +271,7 @@ class TDTestCase:
         RAW_FLOAT_M = ['-128.001 ']
         RAW_FLOAT_E_P = [' 1e-100', ' +0.1E+2', ' -0.1E-10']
         RAW_FLOAT_E_M = [" -1E2 "]
-        RAW_MISC = ['123abc', "123c", '-123d', '+', '-', ' *', ' /', '% ', '&', "|", "^", "&&", "||", "!", " =", 'now+1 s', 'now-1','now-1y','now+2 d',
+        RAW_MISC = ['123abc', "123c", '-123d', '+', '-', ' *', ' /', '% ', '&', "|", "^", "&&", "||", "!", " =", ' None ', 'NONE', 'now+1 s', 'now-1','now-1y','now+2 d',
                     'today+1 s', 'today-1','today-1y','today+2 d', 'now()+1 s', 'now()-1','now()-1y','now()+2 d', 'today()+1 s', 'today()-1','today()-1y','today()+2 d']
         RAW_OPTR = ['1*10', '1+2', '-2-0','1%2', '2/0', '1&31']
         RAW_TSK = [' now ', 'today ']
@@ -290,10 +290,10 @@ class TDTestCase:
         OK_TS = [STR_TSK, STR_INTEGER_P, STR_INTEGER_M, STR_TSKP, STR_TS, STR_NULL, RAW_INTEGER_P, RAW_INTEGER_M, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_NULL]
         KO_TS = [STR_EMPTY, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, STR_MISC, STR_OPTR, STR_TSK_MISC, STR_TSKP_MISC, STR_BOOL, STR_VARBIN,
                  STR_JSON_O, STR_JSON_A, STR_GEO, RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_MISC, RAW_OPTR, RAW_BOOL]
-        
-        OK_BO = [STR_BOOL, RAW_BOOL, STR_NULL, RAW_INTEGER_P, RAW_INTEGER_M, RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_NULL]
-        KO_BO = [STR_EMPTY, STR_INTEGER_P, STR_INTEGER_M, STR_TSK, STR_TSKP, STR_TS, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, STR_MISC, STR_OPTR, 
-                 STR_TSK_MISC, STR_TSKP_MISC, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_MISC, RAW_OPTR]
+        OK_BO = [STR_BOOL, STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M,RAW_BOOL, STR_NULL, RAW_INTEGER_P, RAW_INTEGER_M, 
+                 RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_NULL]
+        KO_BO = [STR_EMPTY,  STR_TSK, STR_TSKP, STR_TS,  STR_MISC, STR_OPTR, STR_TSK_MISC, STR_TSKP_MISC, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK, 
+                 RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, RAW_MISC, RAW_OPTR]
         OK_VB = [STR_EMPTY, STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, 
                  STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, STR_NULL, RAW_NULL]
         KO_VB = [RAW_INTEGER_P, RAW_INTEGER_M, RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_TSK, RAW_BOOL, RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR]

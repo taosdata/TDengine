@@ -492,6 +492,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           *(int8_t*)(&val->i64) = TRUE_VALUE;
         } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           *(int8_t*)(&val->i64) = FALSE_VALUE;
+        } else if (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&iv)) {
+          *(int8_t*)(&val->i64) = ((double)iv == 0 ? FALSE_VALUE : TRUE_VALUE);
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
@@ -1435,6 +1437,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
           pVal->value.val = TRUE_VALUE;
         } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           pVal->value.val = FALSE_VALUE;
+        } else if (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val)) {
+          *(int8_t*)(&pVal->value.val) = ((double)pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
         } else {
           return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
         }
