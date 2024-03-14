@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
@@ -573,10 +574,9 @@ fn main() -> Result<()> {
 
     // Set a panic hook
     std::panic::set_hook(Box::new(|info| {
-        tracing::error!(
-            message = "panic occurred",
-            error = ?info,
-        );
+        // 如果没有正常打印 backttrace, 需要设置环境变量: RUST_BACKTRACE=1
+        let backtrace = Backtrace::capture();
+        tracing::error!("panic occurred. {} {}", info, backtrace);
     }));
     // Initialize tracing layers
     let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
