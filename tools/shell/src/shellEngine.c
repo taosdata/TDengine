@@ -1373,9 +1373,11 @@ bool community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
     printfIntroduction(community);
 #else
+#ifndef WEBSOCKET
   if(community) {
     showAD(false)
   }
+#endif  
 #endif
 // printf version
 if(!community) {
@@ -1394,11 +1396,12 @@ if(!community) {
       break;
     }
   }
-
+#ifndef WEBSOCKET
   // commnuity
   if (community) {
     showAD(true);
   }
+#endif  
 
   taosThreadJoin(spid, NULL);
 
