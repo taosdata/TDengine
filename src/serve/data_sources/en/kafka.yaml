@@ -15,6 +15,40 @@ options:
     placeholder: 127.0.0.1:9092
     required: true
 groups:
+  - name: SASL Authentication
+    display_order: 1
+    description: Simple Authentication and Security Layer.
+    collapsible: true
+    params:
+      - name: use_sasl
+        display: Enable
+        description: Whether to enable SASL authentication.
+        required: true
+        value: false
+        hint:
+          type: bool
+      - name: sasl_mechanism
+        display: Mechanism
+        description: SASL authentication mechanism.
+        required: true
+        value: PLAIN
+        hint:
+          type: str
+          choices:
+            - PLAIN
+            - SCRAM-SHA-256
+      - name: sasl_username
+        display: Username
+        description: The username for SASL authentication mechanism.
+        required: true
+        hint:
+          type: str
+      - name: sasl_password
+        display: Password
+        description: The password for SASL authentication mechanism.
+        required: true
+        hint:
+          type: str
   - name: Enable SSL
     display_order: 1
     description: Use self-signed certificate file and private key.

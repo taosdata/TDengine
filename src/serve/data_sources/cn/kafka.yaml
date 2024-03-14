@@ -15,8 +15,42 @@ options:
     placeholder: 127.0.0.1:9092
     required: true
 groups:
-  - name: SSL 证书
+  - name: SASL 认证机制
     display_order: 1
+    description: 用来认证服务器与客户端的一种认证机制。
+    collapsible: true
+    params:
+      - name: use_sasl
+        display: 启用
+        description: 是否启用 SASL 认证机制
+        required: true
+        value: false
+        hint:
+          type: bool
+      - name: sasl_mechanism
+        display: 认证机制
+        description: SASL 的认证机制
+        required: true
+        value: PLAIN
+        hint:
+          type: str
+          choices:
+            - PLAIN
+            - SCRAM-SHA-256
+      - name: sasl_username
+        display: 用户名
+        description: 用于 SASL 认证机制的用户名
+        required: true
+        hint:
+          type: str
+      - name: sasl_password
+        display: 密码
+        description: 用于 SASL 认证机制的密码
+        required: true
+        hint:
+          type: str
+  - name: SSL 证书
+    display_order: 2
     description: 使用证书和私钥建立连接以启用 SSL。
     collapsible: true
     connection_option: true

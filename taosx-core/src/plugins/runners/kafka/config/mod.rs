@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use kafka::consumer::{FetchOffset, GroupOffsetStorage};
+use kafka::consumer::GroupOffsetStorage;
 use taos::Dsn;
 
 use crate::plugins::config::AdvancedOptions;
@@ -16,13 +16,13 @@ pub struct KafkaTaskConfig {
     pub group: String,
     pub topics: Vec<String>,
 
-    pub fallback_offset: FetchOffset,
+    pub fallback_offset: String,
     pub fetch_max_wait_time: Option<Duration>,
     pub fetch_min_bytes: Option<i32>,
     pub fetch_max_bytes_per_partition: Option<i32>,
     pub fetch_crc_validation: Option<bool>,
-    pub offset_storage: Option<GroupOffsetStorage>,
-    pub retry_max_bytes_limit: Option<i32>,
+    // pub offset_storage: Option<GroupOffsetStorage>,
+    // pub retry_max_bytes_limit: Option<i32>,
     pub connection_idle_timeout: Option<Duration>,
     pub client_id: Option<String>,
 
@@ -42,8 +42,8 @@ impl KafkaTaskConfig {
             fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
             fetch_max_bytes_per_partition: Self::parse_fetch_max_bytes_per_partition(dsn)?,
             fetch_crc_validation: Self::parse_fetch_crc_validation(dsn)?,
-            offset_storage: Self::parse_offset_storage(dsn)?,
-            retry_max_bytes_limit: Self::parse_retry_max_bytes_limit(dsn)?,
+            // offset_storage: Self::parse_offset_storage(dsn)?,
+            // retry_max_bytes_limit: Self::parse_retry_max_bytes_limit(dsn)?,
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
 
@@ -107,16 +107,24 @@ impl KafkaTaskConfig {
             Ok(Some(topic_map))
         }
     */
-    fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<FetchOffset> {
+    fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
         let fallback_offset = dsn.params.get("fallback_offset").map(String::as_str);
 
         match fallback_offset {
-            Some("Earliest") | None => Ok(FetchOffset::Earliest),
-            Some("Latest") => Ok(FetchOffset::Latest),
-            Some(s) => s
-                .parse::<i64>()
-                .map(FetchOffset::ByTime)
-                .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
+            // Some("Earliest") | None => Ok(FetchOffset::Earliest),
+            // Some("Latest") => Ok(FetchOffset::Latest),
+            // Some(s) => s
+            //     .parse::<i64>()
+            //     .map(FetchOffset::ByTime)
+            //     .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
+            Some("Smallest") => Ok(String::from("smallest")),
+            Some("Earliest") => Ok(String::from("earliest")),
+            Some("Beginning") => Ok(String::from("beginning")),
+            Some("Largest") => Ok(String::from("largest")),
+            Some("Latest") => Ok(String::from("latest")),
+            Some("End") => Ok(String::from("end")),
+            Some("Error") => Ok(String::from("error")),
+            Some(_) | None => Ok(String::from("largest")),
         }
     }
 
@@ -192,38 +200,38 @@ impl KafkaTaskConfig {
             .unwrap_or(Ok(None))
     }
 
-    fn parse_offset_storage(dsn: &Dsn) -> anyhow::Result<Option<GroupOffsetStorage>> {
-        dsn.params.get("offset_storage").map(String::as_str).map(|s| {
-            match s {
-                "Zookeeper" => Ok(Some(GroupOffsetStorage::Zookeeper)),
-                "Kafka" => Ok(Some(GroupOffsetStorage::Kafka)),
-                _ => {
-                    Err(anyhow::anyhow!(
-                        "invalid offset_storage: {}, cause: provided string was not `Zookeeper` or `Kafka`",
-                        s
-                    ))
-                }
-            }
-        }).unwrap_or(Ok(None))
-    }
+    // fn parse_offset_storage(dsn: &Dsn) -> anyhow::Result<Option<GroupOffsetStorage>> {
+    //     dsn.params.get("offset_storage").map(String::as_str).map(|s| {
+    //         match s {
+    //             "Zookeeper" => Ok(Some(GroupOffsetStorage::Zookeeper)),
+    //             "Kafka" => Ok(Some(GroupOffsetStorage::Kafka)),
+    //             _ => {
+    //                 Err(anyhow::anyhow!(
+    //                     "invalid offset_storage: {}, cause: provided string was not `Zookeeper` or `Kafka`",
+    //                     s
+    //                 ))
+    //             }
+    //         }
+    //     }).unwrap_or(Ok(None))
+    // }
 
-    fn parse_retry_max_bytes_limit(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
-        dsn.params
-            .get("retry_max_bytes_limit")
-            .map(String::as_str)
-            .map(|s| {
-                let result = s.parse::<i32>();
-                match result {
-                    Ok(d) => Ok(Some(d)),
-                    Err(e) => Err(anyhow::anyhow!(
-                        "invalid retry_max_bytes_limit: {}, cause: {}",
-                        s,
-                        e
-                    )),
-                }
-            })
-            .unwrap_or(Ok(None))
-    }
+    // fn parse_retry_max_bytes_limit(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
+    //     dsn.params
+    //         .get("retry_max_bytes_limit")
+    //         .map(String::as_str)
+    //         .map(|s| {
+    //             let result = s.parse::<i32>();
+    //             match result {
+    //                 Ok(d) => Ok(Some(d)),
+    //                 Err(e) => Err(anyhow::anyhow!(
+    //                     "invalid retry_max_bytes_limit: {}, cause: {}",
+    //                     s,
+    //                     e
+    //                 )),
+    //             }
+    //         })
+    //         .unwrap_or(Ok(None))
+    // }
 
     fn parse_connection_idle_timeout(dsn: &Dsn) -> anyhow::Result<Option<Duration>> {
         dsn.params
@@ -315,29 +323,50 @@ mod tests {
 
     #[test]
     fn test_parse_fallback_offset() {
+        // Smallest
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=Smallest").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("smallest", result);
+
         // Earliest
         let dsn = Dsn::from_str("kafka://:?fallback_offset=Earliest").unwrap();
         let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
-        assert_eq!("Earliest", format!("{result:?}"));
+        assert_eq!("earliest", result);
+
+        // Beginning
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=Beginning").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("beginning", result);
+
+        // Largest
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=Largest").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("largest", result);
 
         // Latest
         let dsn = Dsn::from_str("kafka://:?fallback_offset=Latest").unwrap();
         let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
-        assert_eq!("Latest", format!("{result:?}"));
+        assert_eq!("latest", result);
 
-        // ByTime
-        let dsn = Dsn::from_str("kafka://:?fallback_offset=1600000000000").unwrap();
+        // End
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=End").unwrap();
         let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
-        assert_eq!("ByTime(1600000000000)", format!("{result:?}"));
+        assert_eq!("end", result);
 
-        // invalid
-        let dsn = Dsn::from_str("kafka://:?fallback_offset=invalid").unwrap();
-        let result = KafkaTaskConfig::parse_fallback_offset(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "invalid fallback_offset: invalid, cause: invalid digit found in string",
-            result.unwrap_err().to_string()
-        );
+        // Error
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=Error").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("error", result);
+
+        // default 1
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("largest", result);
+
+        // default 2
+        let dsn = Dsn::from_str("kafka://:?fallback_offset=xx").unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
+        assert_eq!("largest", result);
     }
 
     #[test]
@@ -415,42 +444,42 @@ mod tests {
         assert_eq!("invalid fetch_crc_validation: invalid, cause: provided string was not `true` or `false`", result.unwrap_err().to_string());
     }
 
-    #[test]
-    fn test_parse_offset_storage() {
-        let dsn = Dsn::from_str("kafka://?offset_storage=Kafka").unwrap();
-        let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
-        assert!(config.is_some());
-        assert_eq!("Kafka", format!("{:?}", config.unwrap()));
+    // #[test]
+    // fn test_parse_offset_storage() {
+    //     let dsn = Dsn::from_str("kafka://?offset_storage=Kafka").unwrap();
+    //     let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
+    //     assert!(config.is_some());
+    //     assert_eq!("Kafka", format!("{:?}", config.unwrap()));
 
-        let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
-        assert!(config.is_none());
+    //     let dsn = Dsn::from_str("kafka://").unwrap();
+    //     let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
+    //     assert!(config.is_none());
 
-        let dsn = Dsn::from_str("kafka://?offset_storage=invalid").unwrap();
-        let result = KafkaTaskConfig::parse_offset_storage(&dsn);
-        assert!(result.is_err());
-        assert_eq!("invalid offset_storage: invalid, cause: provided string was not `Zookeeper` or `Kafka`", result.unwrap_err().to_string());
-    }
+    //     let dsn = Dsn::from_str("kafka://?offset_storage=invalid").unwrap();
+    //     let result = KafkaTaskConfig::parse_offset_storage(&dsn);
+    //     assert!(result.is_err());
+    //     assert_eq!("invalid offset_storage: invalid, cause: provided string was not `Zookeeper` or `Kafka`", result.unwrap_err().to_string());
+    // }
 
-    #[test]
-    fn test_parse_retry_max_bytes_limit() {
-        let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=100").unwrap();
-        let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
-        assert!(config.is_some());
-        assert_eq!(100, config.unwrap());
+    // #[test]
+    // fn test_parse_retry_max_bytes_limit() {
+    //     let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=100").unwrap();
+    //     let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+    //     assert!(config.is_some());
+    //     assert_eq!(100, config.unwrap());
 
-        let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
-        assert!(config.is_none());
+    //     let dsn = Dsn::from_str("kafka://").unwrap();
+    //     let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+    //     assert!(config.is_none());
 
-        let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=invalid").unwrap();
-        let result = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "invalid retry_max_bytes_limit: invalid, cause: invalid digit found in string",
-            result.unwrap_err().to_string()
-        );
-    }
+    //     let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=invalid").unwrap();
+    //     let result = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn);
+    //     assert!(result.is_err());
+    //     assert_eq!(
+    //         "invalid retry_max_bytes_limit: invalid, cause: invalid digit found in string",
+    //         result.unwrap_err().to_string()
+    //     );
+    // }
 
     #[test]
     fn test_parse_connection_idle_timeout() {
