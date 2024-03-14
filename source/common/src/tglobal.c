@@ -41,12 +41,12 @@ uint16_t tsServerPort = 6030;
 int32_t  tsVersion = 30000000;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfSupportVnodes = 256;
-char     tsCryptAlgorithm[16] = {0};
-char     tsCryptScope[100] = {0};
-ECryptAlgor  tsiCryptAlgorithm = 0;
-ECryptScope  tsiCryptScope = 0;
+char     tsEncryptAlgorithm[16] = {0};
+char     tsEncryptScope[100] = {0};
+EEncryptAlgor  tsiEncryptAlgorithm = 0;
+EEncryptScope  tsiEncryptScope = 0;
 char     tsAuthCode[500] = {0};
-char     tsCryptKey[17] = {0};
+char     tsEncryptKey[17] = {0};
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -594,8 +594,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
   if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
-  if (cfgAddString(pCfg, "cryptAlgorithm", tsCryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddString(pCfg, "cryptScope", tsCryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddString(pCfg, "authCode", tsAuthCode, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1149,8 +1149,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
   tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
-  tstrncpy(tsCryptAlgorithm, cfgGetItem(pCfg, "cryptAlgorithm")->str, 16);
-  tstrncpy(tsCryptScope, cfgGetItem(pCfg, "cryptScope")->str, 100);
+  tstrncpy(tsEncryptAlgorithm, cfgGetItem(pCfg, "encryptAlgorithm")->str, 16);
+  tstrncpy(tsEncryptScope, cfgGetItem(pCfg, "encryptScope")->str, 100);
   tstrncpy(tsAuthCode, cfgGetItem(pCfg, "authCode")->str, 100);
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;

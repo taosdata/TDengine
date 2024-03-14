@@ -449,9 +449,9 @@ static int32_t mndInitWal(SMnode *pMnode) {
   };
 
 #if defined(TD_ENTERPRISE)
-  if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
-    cfg.cryptAlgorithm = (tsiCryptScope & DND_CS_MNODE_WAL)? tsiCryptAlgorithm : 0;
-    strncpy(cfg.cryptKey, tsCryptKey, 16);
+  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
+    cfg.cryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
+    strncpy(cfg.cryptKey, tsEncryptKey, 16);
   }
 #endif
 

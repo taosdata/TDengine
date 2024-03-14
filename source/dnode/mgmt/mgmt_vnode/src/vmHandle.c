@@ -149,9 +149,9 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
 #if defined(TD_ENTERPRISE)
-  if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
-    pCfg->walCfg.cryptAlgorithm = (tsiCryptScope & DND_CS_VNODE_WAL)? tsiCryptAlgorithm : 0;
-    strncpy(pCfg->walCfg.cryptKey, tsCryptKey, 16);
+  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
+    pCfg->walCfg.cryptAlgorithm = (tsiEncryptScope & DND_CS_VNODE_WAL)? tsiEncryptAlgorithm : 0;
+    strncpy(pCfg->walCfg.cryptKey, tsEncryptKey, 16);
   }
 #else
   pCfg->walCfg.cryptAlgorithm = 0;

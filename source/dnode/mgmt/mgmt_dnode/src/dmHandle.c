@@ -418,8 +418,8 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t dmProcessCryptReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg){
   SCryptRsp cryptRsp = {0};
 
-  cryptRsp.cryptAlgorithm = tsiCryptAlgorithm;
-  cryptRsp.cryptScope = tsiCryptScope;
+  cryptRsp.cryptAlgorithm = tsiEncryptAlgorithm;
+  cryptRsp.cryptScope = tsiEncryptScope;
   cryptRsp.dnodeid = pMgmt->pData->dnodeId;
 
   SRpcMsg rspMsg = {.info = pMsg->info};

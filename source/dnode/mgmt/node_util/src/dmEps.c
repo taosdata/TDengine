@@ -64,9 +64,9 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
   if (code < 0) return -1;
 #ifdef TD_ENTERPRISE
-  tjsonGetInt32ValueFromDouble(pJson, "cryptAlgor", pData->cryptAlgorigthm, code);
+  tjsonGetInt32ValueFromDouble(pJson, "encryptAlgor", pData->encryptAlgorigthm, code);
   if (code < 0) return -1;
-  tjsonGetInt32ValueFromDouble(pJson, "cryptScope", pData->cryptScope, code);
+  tjsonGetInt32ValueFromDouble(pJson, "encryptScope", pData->encryptScope, code);
   if (code < 0) return -1;
 #endif
   SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
@@ -131,36 +131,70 @@ int32_t dmReadEps(SDnodeData *pData) {
     dInfo("dnode file:%s not exist", file);
 
 #ifdef TD_ENTERPRISE
-    if(strcmp(tsCryptAlgorithm, "sm4") == 0) {
-      pData->cryptAlgorigthm = DND_CA_SM4;
+    if(strlen(tsEncryptAlgorithm) > 0){
+      if(strcmp(tsEncryptAlgorithm, "sm4") == 0) {
+        pData->encryptAlgorigthm = DND_CA_SM4;
+      }
+      else{
+        terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+        dError("invalid tsEncryptAlgorithm:%s", tsEncryptAlgorithm);
+        goto _OVER;
+      }
+
+      int32_t scopeLen = strlen(tsEncryptScope);
+      if(scopeLen == 0){
+        terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+        dError("invalid tsEncryptScope:%s", tsEncryptScope);
+        goto _OVER;
+      }
+
+      char* tmp = taosMemoryMalloc(scopeLen + 1);
+      memset(tmp, 0, scopeLen + 1);
+      memcpy(tmp, tsEncryptScope, scopeLen);
+
+      int32_t count = dmOccurrences(tmp, ",");
+
+      char** array = taosMemoryMalloc(sizeof(char*) * (count + 1));
+      memset(array, 0, sizeof(char*) * (count + 1));
+      dmSplitStr(array, tmp, ",");
+
+      for(int32_t i = 0; i < count + 1; i++){
+        char* str = *(array + i);
+
+        bool success = false;
+
+        if(strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0){
+          pData->encryptScope |= DND_CS_TSDB;
+          success = true;
+        }
+        if(strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0){
+          pData->encryptScope |= DND_CS_VNODE_WAL;
+          success = true;
+        }
+        if(strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0){
+          pData->encryptScope |= DND_CS_SDB;
+          success = true;
+        }
+        if(strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0){
+          pData->encryptScope |= DND_CS_MNODE_WAL;
+          success = true;
+        }
+
+        if(!success){
+          terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+          taosMemoryFree(tmp);
+          taosMemoryFree(array);
+          dError("invalid tsEncryptScope:%s", tsEncryptScope);
+          goto _OVER;
+        }
+      }
+
+      taosMemoryFree(tmp);
+      taosMemoryFree(array);
+
+      dInfo("set tsCryptAlgorithm:%s, tsCryptScope:%s from cfg", tsEncryptAlgorithm, tsEncryptScope);
     }
-
-    int32_t count = dmOccurrences(tsCryptScope, ",");
-
-    char** array = taosMemoryMalloc(sizeof(char*) * (count + 1));
-    memset(array, 0, sizeof(char*) * (count + 1));
-    dmSplitStr(array, tsCryptScope, ",");
-
-    for(int32_t i = 0; i < count + 1; i++){
-      char* str = *(array + i);
-
-      if(strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0){
-        pData->cryptScope |= DND_CS_TSDB;
-      }
-      if(strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0){
-        pData->cryptScope |= DND_CS_VNODE_WAL;
-      }
-      if(strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0){
-        pData->cryptScope |= DND_CS_SDB;
-      }
-      if(strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0){
-        pData->cryptScope |= DND_CS_MNODE_WAL;
-      }
-    }
-
-    taosMemoryFree(array);
-
-    dInfo("set tsCryptAlgorithm:%s, tsCryptScope:%s from cfg", tsCryptAlgorithm, tsCryptScope);
+    
 #endif
     code = 0;
     goto _OVER;
@@ -248,8 +282,8 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
 #ifdef TD_ENTERPRISE
-  if (tjsonAddDoubleToObject(pJson, "cryptAlgor", pData->cryptAlgorigthm) < 0) return -1;
-  if (tjsonAddDoubleToObject(pJson, "cryptScope", pData->cryptScope) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "encryptAlgor", pData->encryptAlgorigthm) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "encryptScope", pData->encryptScope) < 0) return -1;
 #endif
   SJson *dnodes = tjsonCreateArray();
   if (dnodes == NULL) return -1;

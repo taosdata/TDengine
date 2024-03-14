@@ -155,7 +155,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
 
     taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
     
-    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
       unsigned char		PacketData[128];
       int		NewLen;
       int32_t count = 0;
@@ -165,7 +165,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
         opts.source = pFD->pBuf + count;
         opts.result = PacketData;
         opts.unitLen = 128;
-        strncpy(opts.key, tsCryptKey, 16);
+        strncpy(opts.key, tsEncryptKey, 16);
 
         NewLen = CBC_Encrypt(&opts);
 
@@ -241,7 +241,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
       goto _exit;
     }
 
-    if(tsiCryptAlgorithm == DND_CA_SM4 && (tsiCryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
       unsigned char		PacketData[128];
       int		NewLen;
 
@@ -253,7 +253,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
         opts.source = pFD->pBuf + count;
         opts.result = PacketData;
         opts.unitLen = 128;
-        strncpy(opts.key, tsCryptKey, 16);
+        strncpy(opts.key, tsEncryptKey, 16);
 
         NewLen = CBC_Decrypt(&opts);
 

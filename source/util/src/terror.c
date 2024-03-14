@@ -348,7 +348,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ONLY_TWO_MNODE,         "Only two mnodes exist
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NO_NEED_RESTORE,        "No need to restore on this dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE,  "Please use this command when the dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_MACHINE_CODE,        "Dnode can not get machine code")
-TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_CRYPT_KEY,           "Dnode can not get crypt key")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_ENCRYPT_KEY,         "Dnode can not get encryption key")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG, "invalid encryption configuration")
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INIT_FAILED,              "Vnode init failure")

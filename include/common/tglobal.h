@@ -31,14 +31,14 @@ extern "C" {
 
 typedef enum {
   DND_CA_SM4 = 1,
-} ECryptAlgor;
+} EEncryptAlgor;
 
 typedef enum {
   DND_CS_TSDB = 1,
   DND_CS_VNODE_WAL = 2,
   DND_CS_SDB = 4,
   DND_CS_MNODE_WAL = 8,
-} ECryptScope;
+} EEncryptScope;
 
 // cluster
 extern char     tsFirst[];
@@ -50,12 +50,12 @@ extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfSupportVnodes;
-extern char     tsCryptAlgorithm[];
-extern char     tsCryptScope[];
-extern ECryptAlgor  tsiCryptAlgorithm;
-extern ECryptScope  tsiCryptScope;
+extern char     tsEncryptAlgorithm[];
+extern char     tsEncryptScope[];
+extern EEncryptAlgor  tsiEncryptAlgorithm;
+extern EEncryptScope  tsiEncryptScope;
 extern char     tsAuthCode[];
-extern char     tsCryptKey[];
+extern char     tsEncryptKey[];
 
 // common
 extern int32_t tsMaxShellConns;
