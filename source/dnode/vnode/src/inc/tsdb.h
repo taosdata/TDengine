@@ -94,7 +94,7 @@ typedef struct STsdbRowKey      STsdbRowKey;
 #define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
 #define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
   ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
-#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE) * PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
+#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
 #define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
 #define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
 
@@ -143,8 +143,8 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 #define MIN_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) < 0) ? (KEY1) : (KEY2))
 #define MAX_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) > 0) ? (KEY1) : (KEY2))
 // SBlockCol
-int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol);
-int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol);
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver);
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
 // SDataBlk
 void    tDataBlkReset(SDataBlk *pBlock);
@@ -441,15 +441,16 @@ struct SMapData {
 };
 
 struct SBlockCol {
-  int16_t cid;
-  int8_t  type;
-  int8_t  cflag;
-  int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
-  int32_t szOrigin;  // original column value size (only save for variant data type)
-  int32_t szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
-  int32_t szOffset;  // offset size, 0 only for non-variant-length type
-  int32_t szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
-  int32_t offset;
+  int16_t  cid;
+  int8_t   type;
+  int8_t   cflag;
+  int8_t   flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
+  int32_t  szOrigin;  // original column value size (only save for variant data type)
+  int32_t  szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
+  int32_t  szOffset;  // offset size, 0 only for non-variant-length type
+  int32_t  szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
+  int32_t  offset;
+  uint32_t alg;
 };
 
 struct SBlockInfo {

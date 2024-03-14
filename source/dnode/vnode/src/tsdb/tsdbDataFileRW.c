@@ -361,7 +361,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
         break;
       }
 
-      code = tGetBlockCol(&br, &blockCol);
+      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -891,7 +891,6 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
       .numRow = bData->nRow,
       .count = 1,
   }};
-  
 
   tsdbRowGetKey(&tsdbRowFromBlockData(bData, 0), &record->firstKey);
   tsdbRowGetKey(&tsdbRowFromBlockData(bData, bData->nRow - 1), &record->lastKey);

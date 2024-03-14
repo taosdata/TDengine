@@ -264,7 +264,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
         break;
       }
 
-      code = tGetBlockCol(&br, &blockCol);
+      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

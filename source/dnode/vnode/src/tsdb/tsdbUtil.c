@@ -382,7 +382,10 @@ int32_t tGetSttBlk(uint8_t *p, void *ph) {
 }
 
 // SBlockCol ======================================================
-int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol) {
+
+static const int32_t BLOCK_WITH_ALG_VER = 1;
+
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver) {
   int32_t code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
@@ -408,11 +411,13 @@ int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol) {
 
     if ((code = tBufferPutI32v(buffer, pBlockCol->offset))) return code;
   }
-
+  if (ver >= BLOCK_WITH_ALG_VER) {
+    if ((code = tBufferPutU32(buffer, pBlockCol->alg))) return code;
+  }
   return 0;
 }
 
-int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol) {
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver) {
   int32_t code;
 
   if ((code = tBufferGetI16v(br, &pBlockCol->cid))) return code;
@@ -442,6 +447,10 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol) {
     }
 
     if ((code = tBufferGetI32v(br, &pBlockCol->offset))) return code;
+  }
+
+  if (ver >= BLOCK_WITH_ALG_VER) {
+    if ((code = tBufferGetU32(br, &pBlockCol->alg))) return code;
   }
 
   return 0;
@@ -1449,7 +1458,7 @@ int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, 
         .offset = offset,
     };
 
-    code = tPutBlockCol(&buffers[2], &blockCol);
+    code = tPutBlockCol(&buffers[2], &blockCol, hdr.fmtVer);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   hdr.szBlkCol = buffers[2].size;
@@ -1488,7 +1497,7 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
   for (uint32_t startOffset = br2.offset; br2.offset - startOffset < hdr.szBlkCol;) {
     SBlockCol blockCol;
 
-    code = tGetBlockCol(&br2, &blockCol);
+    code = tGetBlockCol(&br2, &blockCol, hdr.fmtVer);
     TSDB_CHECK_CODE(code, lino, _exit);
     code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1515,7 +1524,7 @@ int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr) {
   if (pHdr->fmtVer == 1) {
     if ((code = tBufferPutI8(buffer, pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
-      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i]))) return code;
+      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i], pHdr->fmtVer))) return code;
     }
   }
 
@@ -1538,7 +1547,7 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   if (pHdr->fmtVer == 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
-      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i]))) return code;
+      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i], pHdr->fmtVer))) return code;
     }
   } else {
     pHdr->numOfPKs = 0;
