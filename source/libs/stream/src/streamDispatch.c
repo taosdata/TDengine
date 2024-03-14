@@ -1114,10 +1114,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
       // trans-state msg has been sent to downstream successfully. let's transfer the fill-history task state
       if (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__TRANS_STATE) {
-        stDebug("s-task:%s dispatch transtate msgId:%d to downstream successfully, start to transfer state", id, msgId);
+        stDebug("s-task:%s dispatch transtate msgId:%d to downstream successfully, start to prepare transfer state", id, msgId);
         ASSERT(pTask->info.fillHistory == 1);
 
-        code = streamTransferStateToStreamTask(pTask);
+        code = streamTransferStatePrepare(pTask);
         if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
         }
 
