@@ -1462,8 +1462,18 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttB
   bool hasVal = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, &pReader->info.verRange);
   doUnpinSttBlock(pSttBlockReader);
   if (hasVal) {
-    int64_t next1 = getCurrentKeyInSttBlock(pSttBlockReader);
-    if (next1 != ts) {
+    STsdbRowKey key, nextKey;
+    tsdbRowGetKey(fRow, &key);
+
+    TSDBROW* pNextRow = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
+    tsdbRowGetKey(pNextRow, &nextKey);
+
+    if (!pReader->pkChecked) {
+      pReader->pkComparFn = getComparFunc(key.key.pks[0].type, 0);
+      pReader->pkChecked = true;
+    }
+
+    if (nextKey.key.ts != ts || (pkComp(pReader, fRow, pNextRow) != 0)) {
       code = doAppendRowFromFileBlock(pReader->resBlockInfo.pResBlock, pReader, fRow->pBlockData, fRow->iRow);
       if (code) {
         return code;
