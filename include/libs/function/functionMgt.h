@@ -240,8 +240,9 @@ bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
+bool fmIsPrimaryKeyFunc(int32_t funcId);
 
-void getLastCacheDataType(SDataType* pType);
+void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);

@@ -198,6 +198,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "tag %s can not be primary key";
     case TSDB_CODE_PAR_SECOND_COL_PK:
       return "primary key column must be second column";
+    case TSDB_CODE_PAR_COL_PK_TYPE:
+      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";  
     default:
       return "Unknown error";
   }

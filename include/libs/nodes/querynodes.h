@@ -75,6 +75,7 @@ typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
   uint64_t    tableId;
   int8_t      tableType;
+  bool        tableHasPk;
   col_id_t    colId;
   uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
@@ -163,6 +164,8 @@ typedef struct SFunctionNode {
   int32_t    funcType;
   SNodeList* pParameterList;
   int32_t    udfBufSize;
+  bool       hasPk;
+  int32_t    pkBytes;
 } SFunctionNode;
 
 typedef struct STableNode {

@@ -2747,6 +2747,7 @@ typedef struct SLastRowScanOptSetColDataTypeCxt {
   SNodeList* pLastCols;
   SNodeList* pOtherCols;
   int32_t    funcType;
+  int32_t    pkBytes;
 } SLastRowScanOptSetColDataTypeCxt;
 
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
@@ -2754,12 +2755,12 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
     SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
     if (pCxt->doAgg) {
       nodesListMakeAppend(&pCxt->pLastCols, pNode);
-      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
     } else {
       SNode* pCol = NULL;
       FOREACH(pCol, pCxt->pLastCols) {
         if (nodesEqualNode(pCol, pNode)) {
-          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
           break;
         }
       }
@@ -2769,14 +2770,14 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase) {
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase, int32_t pkBytes) {
   SNode* pTarget = NULL;
   WHERE_EACH(pTarget, pTargets) {
     bool   found = false;
     SNode* pCol = NULL;
     FOREACH(pCol, pLastCols) {
       if (nodesEqualNode(pCol, pTarget)) {
-        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType));
+        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType), pkBytes);
         found = true;
         break;
       }
@@ -2883,6 +2884,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         return code;
       }
       cxt.funcType = pFunc->funcType;
+      cxt.pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
       // add duplicate cols which be removed for both last_row, last
       if (pAgg->hasLast && pAgg->hasLastRow) {
         if (QUERY_NODE_COLUMN == nodeType(pParamNode)) {
@@ -2961,9 +2963,9 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     cxt.funcType = FUNCTION_TYPE_CACHE_LAST;
-    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, pLastRowCols, true);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, pLastRowCols, true, cxt.pkBytes);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
-    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
     if (pPKTsCol && pScan->node.pTargets->length == 1) {
       // when select last(ts),ts from ..., we add another ts to targets
