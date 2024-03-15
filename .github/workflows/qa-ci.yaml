@@ -155,41 +155,40 @@ jobs:
           ssh root@$RELEASE_HOST "nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &"
 
   test:
-    runs-on: [self-hosted, linux, x64, qa]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     needs: deploy
     steps:
       - name: Update Repo
         run: |
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+          cd /data/github/TestNG_taosX && git pull
       
       - name: Run Test
         run: |
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity connectivity_test.py"
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity connectivity_test.py
 
       - name: Stop taosx-agent & taosx
         if: always()
         run: |
-          ssh root@$RELEASE_HOST 'pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi'
-          ssh root@$RELEASE_HOST 'pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi'
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
 
       - name: Generate Report
         run: |
           # taosx report
-          # 这里之所以使用 /root/.cargo/bin/grcov 而不是 grcov 是因为直接使用 grcov 会报 command not found，但是 echo $PATH 可以看到 /root/.cargo/bin
-          # 具体原因不清楚，暂时使用全路径解决
-          ssh root@$RELEASE_HOST "/root/.cargo/bin/grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx"
+
+          grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx
           # taosx-agent report
-          ssh root@$RELEASE_HOST "/root/.cargo/bin/grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx-agent"
+          grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx-agent
 
           # taosx merged report
-          ssh root@$RELEASE_HOST "/root/.cargo/bin/grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx.info"
-          ssh root@$RELEASE_HOST "/root/.cargo/bin/grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info"
+          grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx.info
+          /root/.cargo/bin/grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info
           # merge filter report
-          ssh root@$RELEASE_HOST "lcov -a /data/artifacts/${{ github.event.number }}/lcov_taosx.info -a /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info -o /data/artifacts/${{ github.event.number }}/lcov_combined.info"
-          ssh root@$RELEASE_HOST "lcov --remove /data/artifacts/${{ github.event.number }}/lcov_combined.info '*/.cargo/*' '*/report/*' -o /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info"
+          lcov -a /data/artifacts/${{ github.event.number }}/lcov_taosx.info -a /data/artifacts/${{ github.event.number }}/lcov_taosx-agent.info -o /data/artifacts/${{ github.event.number }}/lcov_combined.info
+          lcov --remove /data/artifacts/${{ github.event.number }}/lcov_combined.info '*/.cargo/*' '*/report/*' -o /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info
 
-          ssh root@$RELEASE_HOST "genhtml -o /data/coverage/${{ github.event.number }}/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info"
+          genhtml -o /data/coverage/${{ github.event.number }}/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info
 
           # go report
           
