@@ -144,7 +144,7 @@ int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value) {
         *value = INT64_MIN;
         return TSDB_CODE_FAILED;
       } else {
-        *value = -uv;
+        *value = -(int64_t)uv;
       }
     } else {
       if (uv > INT64_MAX) {
