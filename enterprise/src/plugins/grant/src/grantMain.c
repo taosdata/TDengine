@@ -125,7 +125,7 @@
     } else if ((from) == GRANT_UNIQ_UNLIMITED) {   \
       (to) = (from);                               \
     } else {                                       \
-      (to) = (from) * (factor);                    \
+      (to) = (int64_t)(from) * (factor);           \
     }                                              \
   } while (0)
 
@@ -136,7 +136,7 @@
     } else if ((from) == GRANT_UNIQ_UNLIMITED) {                      \
       (to) = revoked ? gStatus.revokedExpireSec : (from);             \
     } else {                                                          \
-      int64_t tmp = (from) * (factor);                                \
+      int64_t tmp = (int64_t)(from) * (factor);                       \
       (to) = revoked ? TMIN(tmp, gStatus.revokedExpireSec) : tmp;     \
     }                                                                 \
   } while (0)
@@ -1692,7 +1692,7 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
     goto _exit;
   }
 
-  int64_t basicExpireSec = basicExpireDay * 86400;
+  int64_t basicExpireSec = (int64_t)basicExpireDay * 86400;
   int64_t defaultExpireSec = 0;
   if (upgradeTime > 0) {
     defaultExpireSec = upgradeTime + GRANT_DEFAULT;
