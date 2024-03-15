@@ -1152,7 +1152,6 @@ export default {
       filter: "3. 过滤",
       superconfig: "4. 映射",
       target: "目标超级表",
-      mapping: "4. 映射",
       createstb: "创建超级表",
       payload: "负载格式",
       upload: "上传样本数据",

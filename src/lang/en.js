@@ -1372,7 +1372,6 @@ export default {
       filter: "3. Filter",
       superconfig: "4. Mapping",
       target: "Target Super Table",
-      mapping: "5. Mapping",
       createstb: "Create STable",
       payload: "Payload Format",
       upload: "Upload Sample Data",
