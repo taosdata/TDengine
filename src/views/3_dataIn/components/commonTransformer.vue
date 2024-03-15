@@ -105,12 +105,7 @@
       </section>
       <section class="extract">
         <div class="block-title top">
-          <span>{{
-            $store.state.app.currentDBType == "csv" ||
-            $store.state.app.currentDBType == "avevaHistorian"
-              ? $t("datasource.transformer.identified")
-              : $t("datasource.transformer.parse")
-          }}</span>
+          <span>{{ $t("datasource.transformer.parse") }}</span>
         </div>
         <div
           v-if="
@@ -151,17 +146,12 @@
                 v-model="parseruleForm.expression"
                 :placeholder="
                   parseruleForm.type == 'json'
-                    ? $t('datasource.transformer.expre_input')
+                    ? 'key1,key2,key3=key3_alias'
                     : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
                 "
                 size="small"
               ></el-input>
-              <!-- :disabled="$parent.$parent.$parent.isEditable" -->
             </el-form-item>
-            <!-- <span style="color: red; font-size: 24px"
-              >{{ isjson
-              }}{{ activeName == "first" && radio == "1" && isjson }}</span
-            > -->
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -169,13 +159,6 @@
               style="display: flex"
               :disabled="msgForm.msgbody == ''"
             ></el-button>
-              <!-- :disabled="
-                (activeName == 'first' &&
-                  radio == '2' &&
-                  msgForm.msgbody == '') ||
-                (activeName == 'first' && radio == '1' && !isjson)
-              " -->
-            <!-- || $parent.$parent.$parent.isEditable -->
           </el-form>
         </div>
       </section>
