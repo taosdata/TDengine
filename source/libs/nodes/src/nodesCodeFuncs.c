@@ -4704,7 +4704,7 @@ static const char* jkColumnDefColName = "ColName";
 static const char* jkColumnDefDataType = "DataType";
 static const char* jkColumnDefComments = "Comments";
 static const char* jkColumnDefSma = "Sma";
-static const char* jkColumnDefIsPK = "IsPK";
+static const char* jkColumnDefOptions = "ColumnOptions";
 
 static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnDefNode* pNode = (const SColumnDefNode*)pObj;
@@ -4714,13 +4714,10 @@ static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkColumnDefDataType, dataTypeToJson, &pNode->dataType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkColumnDefComments, pNode->comments);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkColumnDefSma, pNode->sma);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkColumnDefIsPK, pNode->is_pk);
+    code = tjsonAddObject(pJson, jkColumnDefOptions, nodeToJson, pNode->pOptions);
   }
 
   return code;
@@ -4734,13 +4731,10 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
     code = tjsonToObject(pJson, jkColumnDefDataType, jsonToDataType, &pNode->dataType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkColumnDefComments, pNode->comments);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnDefSma, &pNode->sma);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkColumnDefIsPK, &pNode->is_pk);
+    code = jsonToNodeObject(pJson, jkColumnDefOptions,  (SNode**)&pNode->pOptions);
   }
   return code;
 }
