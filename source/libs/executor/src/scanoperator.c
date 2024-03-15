@@ -2079,11 +2079,11 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
 
       if (hasResult) {
-        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
-               pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
         STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
         setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        qDebug("doQueueScan get data from log %" PRId64 " rows, after filter rows: %" PRId64 ", version:%" PRId64,
+               pRes->info.rows,pInfo->pRes->info.rows,pTaskInfo->streamInfo.currentOffset.version);
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
