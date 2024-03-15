@@ -2820,7 +2820,7 @@ typedef struct {
   char*    tagName;
   int8_t   isNull;
   int8_t   tagType;
-  int8_t   nullToken;
+  int8_t   tagFree;
   uint32_t nTagVal;
   uint8_t* pTagVal;
   SArray*  pTagArray;

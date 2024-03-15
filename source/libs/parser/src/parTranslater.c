@@ -10443,7 +10443,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
                          pReq->pTagArray, &pTag);
     if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
-      pReq->nullToken = true;
+      pReq->tagFree = true;
     }
   }
   if (TSDB_CODE_SUCCESS == code && tagStr) {
@@ -10706,7 +10706,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
     }
   }
   taosArrayDestroy(pReq->pTagArray);
-  if(pReq->nullToken) tTagFree((STag*)pReq->pTagVal);
+  if(pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
