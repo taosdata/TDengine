@@ -114,6 +114,8 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
   group.assignedLeader.dnodeId = dnodeId;
   strncpy(group.assignedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
 
+  taosThreadMutexInit(&group.mutex, NULL);
+
   // --------------------------------------------------------------------------------
   {  // expired hb => skip
     SVArbHbRspMember rspMember = {0};
@@ -164,6 +166,8 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     EXPECT_EQ(newGroup.assignedLeader.dnodeId, 0);
     EXPECT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
   }
+
+  taosThreadMutexDestroy(&group.mutex);
 }
 
 TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
@@ -183,6 +187,8 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
   generateArbToken(2, vgId, group.members[1].state.token);
 
   group.isSync = 0;
+
+  taosThreadMutexInit(&group.mutex, NULL);
 
   // --------------------------------------------------------------------------------
   {  // token mismatch => skip
@@ -211,6 +217,8 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     EXPECT_TRUE(updateIsSync);
     EXPECT_TRUE(newGroup.isSync);
   }
+
+  taosThreadMutexDestroy(&group.mutex);
 }
 
 TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
@@ -232,6 +240,8 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
   group.isSync = 1;
   group.assignedLeader.dnodeId = dnodeId;
   strncpy(group.assignedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
+
+  taosThreadMutexInit(&group.mutex, NULL);
 
   // --------------------------------------------------------------------------------
   {  // token mismatch => skip
@@ -269,6 +279,8 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     EXPECT_TRUE(updateAssigned);
     EXPECT_FALSE(newGroup.isSync);
   }
+
+  taosThreadMutexDestroy(&group.mutex);
 }
 
 #pragma GCC diagnostic pop
