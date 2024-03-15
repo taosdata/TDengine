@@ -66,13 +66,13 @@
     }                                                                                                              \
   } while (0)
 
-#define GRANT_ITEM_EXPIRE_CHECK(val, now, expired) \
-  do {                                             \
-    if ((val) > (now)) {                           \
-      if ((expired)) (expired) = 0;                \
-    } else {                                       \
-      if (!(expired)) (expired) = 1;               \
-    }                                              \
+#define GRANT_ITEM_EXPIRE_CHECK(val, now, expired)            \
+  do {                                                        \
+    if (((val) == GRANT_UNIQ_UNLIMITED) || ((val) > (now))) { \
+      if ((expired)) (expired) = 0;                           \
+    } else {                                                  \
+      if (!(expired)) (expired) = 1;                          \
+    }                                                         \
   } while (0)
 
 #define GRANT_ITEM_TO_DATAIN(inField, iField, iLimits, iUndef) \
