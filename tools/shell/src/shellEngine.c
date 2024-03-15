@@ -1368,7 +1368,7 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
-char buf[512] = "";
+char buf[2048] = "";
 bool community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
     printfIntroduction(community);
