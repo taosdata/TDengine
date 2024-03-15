@@ -1749,6 +1749,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    pBlock->info.rows = numOfRows;
+
     // unlock
     taosRUnLockLatch(&pStream->lock);
     sdbRelease(pSdb, pStream);
