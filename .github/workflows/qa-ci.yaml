@@ -139,6 +139,7 @@ jobs:
           ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
           ssh root@$RELEASE_HOST "export GOCOVERDIR==/data/artifacts/${{ github.event.number }}/go_cover/"
           ssh root@$RELEASE_HOST "export PLUGINS_HOME==/data/artifacts/${{ github.event.number }}/bin/"
+          ssh root@$RELEASE_HOST "export ENABLE_COVERAGE=true"
           ssh root@$RELEASE_HOST "nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &"
           
       - name: Deploy taosx-agent
@@ -149,6 +150,7 @@ jobs:
           ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
           ssh root@$RELEASE_HOST "export GOCOVERDIR==/data/artifacts/${{ github.event.number }}/go_cover/"
           ssh root@$RELEASE_HOST "export PLUGINS_HOME==/data/artifacts/${{ github.event.number }}/bin/"
+          ssh root@$RELEASE_HOST "export ENABLE_COVERAGE=true"
           ssh root@$RELEASE_HOST "export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
           ssh root@$RELEASE_HOST "nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &"
 
