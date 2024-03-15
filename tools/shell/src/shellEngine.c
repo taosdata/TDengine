@@ -1152,7 +1152,7 @@ void shellSourceFile(const char *file) {
 
 bool shellGetGrantInfo(char* buf) {
   bool community = true;
-  char sinfo[1024] = {0};
+  char sinfo[128] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
 
@@ -1368,7 +1368,7 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
-char buf[2048] = "";
+char buf[356] = "";
 bool community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
     printfIntroduction(community);
