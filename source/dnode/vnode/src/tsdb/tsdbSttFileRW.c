@@ -14,6 +14,7 @@
  */
 
 #include "tsdbSttFileRW.h"
+#include "meta.h"
 #include "tsdbDataFileRW.h"
 
 // SSttFReader ============================================================
@@ -464,7 +465,9 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, i
 
   tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
 
-  code = tBlockDataCompress(blockData, cmprAlg, buffers, buffers + 4);
+  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = cmprAlg};
+  code = tBlockDataCompress(blockData, &cmprInfo, buffers, buffers + 4);
+
   if (code) return code;
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
@@ -491,6 +494,10 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
 
   int32_t code = 0;
   int32_t lino = 0;
+
+  // SHashObj *colCmpr = NULL;
+  // tb_uid_t  uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
+  // code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &colCmpr);
 
   code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
                                      writer->sttBlkArray, writer->buffers, &writer->ctx->range);

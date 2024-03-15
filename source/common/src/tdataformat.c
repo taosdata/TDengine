@@ -4183,7 +4183,7 @@ int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *info, SBu
   uint8_t fmtVer = 0;
 
   if ((code = tBufferPutU8(buffer, fmtVer))) return code;
-  if ((code = tBufferPutI8(buffer, info->cmprAlg))) return code;
+  if ((code = tBufferPutU32(buffer, info->cmprAlg))) return code;
   if ((code = tBufferPutI8(buffer, info->type))) return code;
   if (IS_VAR_DATA_TYPE(info->type)) {
     if ((code = tBufferPutI32v(buffer, info->offsetOriginalSize))) return code;
@@ -4201,7 +4201,7 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 
   if ((code = tBufferGetU8(reader, &fmtVer))) return code;
   if (fmtVer == 0) {
-    if ((code = tBufferGetI8(reader, &info->cmprAlg))) return code;
+    if ((code = tBufferGetU32(reader, &info->cmprAlg))) return code;
     if ((code = tBufferGetI8(reader, &info->type))) return code;
     if (IS_VAR_DATA_TYPE(info->type)) {
       if ((code = tBufferGetI32v(reader, &info->offsetOriginalSize))) return code;
@@ -4234,7 +4234,7 @@ int32_t tCompressData(void          *input,       // input
   if (info->cmprAlg == NO_COMPRESSION) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
-  } else {
+  } else if (info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
 
     tBufferInit(&local);
@@ -4266,6 +4266,8 @@ int32_t tCompressData(void          *input,       // input
     }
 
     tBufferDestroy(&local);
+  } else {
+    // new col compress
   }
 
   return 0;
@@ -4284,7 +4286,7 @@ int32_t tDecompressData(void                *input,       // input
   if (info->cmprAlg == NO_COMPRESSION) {
     ASSERT(info->compressedSize == info->originalSize);
     memcpy(output, input, info->compressedSize);
-  } else {
+  } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
 
     tBufferInit(&local);
@@ -4292,6 +4294,38 @@ int32_t tDecompressData(void                *input,       // input
       buffer = &local;
     }
 
+    if (info->cmprAlg == TWO_STAGE_COMP) {
+      code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
+      if (code) {
+        tBufferDestroy(&local);
+        return code;
+      }
+    }
+
+    int32_t decompressedSize = tDataTypes[info->dataType].decompFunc(
+        input,                                                  // input
+        info->compressedSize,                                   // inputSize
+        info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements
+        output,                                                 // output
+        outputSize,                                             // output size
+        info->cmprAlg,                                          // compression algorithm
+        buffer->data,                                           // helper buffer
+        buffer->capacity                                        // extra buffer size
+    );
+    if (decompressedSize < 0) {
+      tBufferDestroy(&local);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+
+    ASSERT(decompressedSize == info->originalSize);
+    tBufferDestroy(&local);
+  } else {
+    SBuffer local;
+
+    tBufferInit(&local);
+    if (buffer == NULL) {
+      buffer = &local;
+    }
     if (info->cmprAlg == TWO_STAGE_COMP) {
       code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
       if (code) {

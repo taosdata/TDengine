@@ -14,6 +14,7 @@
  */
 
 #include "tsdbDataFileRW.h"
+#include "meta.h"
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -878,6 +879,8 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   SBuffer *buffers = writer->buffers;
   SBuffer *assist = writer->buffers + 4;
 
+  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = writer->config->cmprAlg};
+
   SBrinRecord record[1] = {{
       .suid = bData->suid,
       .uid = bData->uid,
@@ -909,8 +912,10 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
 
   tsdbWriterUpdVerRange(&writer->ctx->range, record->minVer, record->maxVer);
 
-  // to .data file
-  code = tBlockDataCompress(bData, writer->config->cmprAlg, buffers, assist);
+  code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
+                        &cmprInfo.pColCmpr);
+
+  code = tBlockDataCompress(bData, &cmprInfo, buffers, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   record->blockKeySize = buffers[0].size + buffers[1].size;
@@ -953,6 +958,8 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
+  taosHashCleanup(cmprInfo.pColCmpr);
+
   return code;
 }
 

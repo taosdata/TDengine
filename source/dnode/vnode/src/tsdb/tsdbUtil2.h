@@ -169,7 +169,7 @@ typedef struct {
   int64_t   maxVer;
   int32_t   numRec;
   int32_t   size[15];
-  int8_t    cmprAlg;
+  uint32_t  cmprAlg;
   int8_t    numOfPKs;  // number of primary keys
   int8_t    rsvd[6];
 } SBrinBlk;

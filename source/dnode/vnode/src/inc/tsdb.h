@@ -176,7 +176,7 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid);
 int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
 void    tBlockDataClear(SBlockData *pBlockData);
-int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, SBuffer *assist);
+int32_t tBlockDataCompress(SBlockData *bData, void *pCmprInfo, SBuffer *buffers, SBuffer *assist);
 int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist);
 int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData, SBuffer *assist);
 int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,

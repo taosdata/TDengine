@@ -299,3 +299,15 @@ _exit:
   }
   return code;
 }
+// int32_t tsdbGetCompressByUid(SFSetWriter *writer, tb_uid_t uid, struct SColCompressInfo *info) {
+//   SHashObj *p = NULL;
+//   int32_t   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &p);
+//   if (code < 0) {
+//     ASSERT(0);
+//     taosHashCleanup(p);
+//     p = NULL;
+//   } else {
+//   }
+//   info->pColCmpr = p;
+//   return code;
+// }

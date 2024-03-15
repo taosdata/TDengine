@@ -15,8 +15,12 @@
 
 #include "tdataformat.h"
 #include "tsdb.h"
+#include "tsdbDef.h"
 
-static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist);
+int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg);
+
+static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist,
+                                         SColCompressInfo *pCompressExt);
 
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
@@ -1403,9 +1407,11 @@ SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
  * buffers[2]: SBlockCol part
  * buffers[3]: regular column part
  */
-int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, SBuffer *assist) {
+int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SBuffer *assist) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  SColCompressInfo *pInfo = pCompr;
 
   SDiskDataHdr hdr = {
       .delimiter = TSDB_FILE_DLMT,
@@ -1417,13 +1423,12 @@ int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, 
       .szKey = 0,     // filled by compress key
       .szBlkCol = 0,  // filled by this func
       .nRow = bData->nRow,
-      .cmprAlg = cmprAlg,
+      .cmprAlg = pInfo->defaultCmprAlg,
       .numOfPKs = 0,  // filled by compress key
   };
-
   // Key part
   tBufferClear(&buffers[1]);
-  code = tBlockDataCompressKeyPart(bData, &hdr, &buffers[1], assist);
+  code = tBlockDataCompressKeyPart(bData, &hdr, &buffers[1], assist, (SColCompressInfo *)pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // Regulart column part
@@ -1440,23 +1445,27 @@ int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, 
     }
 
     SColDataCompressInfo cinfo = {
-        .cmprAlg = cmprAlg,
+        .cmprAlg = pInfo->defaultCmprAlg,
     };
+    code = tsdbGetColCmprAlgFromSet(pInfo->pColCmpr, colData->cid, &cinfo.cmprAlg);
+    if (code < 0) {
+      //
+    }
+
     int32_t offset = buffers[3].size;
     code = tColDataCompress(colData, &cinfo, &buffers[3], assist);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    SBlockCol blockCol = (SBlockCol){
-        .cid = cinfo.columnId,
-        .type = cinfo.dataType,
-        .cflag = cinfo.columnFlag,
-        .flag = cinfo.flag,
-        .szOrigin = cinfo.dataOriginalSize,
-        .szBitmap = cinfo.bitmapCompressedSize,
-        .szOffset = cinfo.offsetCompressedSize,
-        .szValue = cinfo.dataCompressedSize,
-        .offset = offset,
-    };
+    SBlockCol blockCol = (SBlockCol){.cid = cinfo.columnId,
+                                     .type = cinfo.dataType,
+                                     .cflag = cinfo.columnFlag,
+                                     .flag = cinfo.flag,
+                                     .szOrigin = cinfo.dataOriginalSize,
+                                     .szBitmap = cinfo.bitmapCompressedSize,
+                                     .szOffset = cinfo.offsetCompressedSize,
+                                     .szValue = cinfo.dataCompressedSize,
+                                     .offset = offset,
+                                     .alg = cinfo.cmprAlg};
 
     code = tPutBlockCol(&buffers[2], &blockCol, hdr.fmtVer);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1581,7 +1590,8 @@ int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
   return 0;
 }
 
-static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist) {
+static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist,
+                                         SColCompressInfo *compressInfo) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SCompressInfo cinfo;
@@ -1632,6 +1642,12 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
     SColDataCompressInfo info = {
         .cmprAlg = hdr->cmprAlg,
     };
+    code = tsdbGetColCmprAlgFromSet(compressInfo->pColCmpr, colData->cid, &info.cmprAlg);
+    if (code < 0) {
+      // do nothing
+    } else {
+    }
+
     code = tColDataCompress(colData, &info, buffer, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1645,6 +1661,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
         .szOffset = info.offsetCompressedSize,
         .szValue = info.dataCompressedSize,
         .offset = 0,
+        .alg = info.cmprAlg,
     };
   }
 
@@ -1665,7 +1682,7 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
   // ASSERT(blockCol->flag != HAS_NONE);
 
   SColDataCompressInfo info = {
-      .cmprAlg = hdr->cmprAlg,
+      .cmprAlg = blockCol->alg,
       .columnFlag = blockCol->cflag,
       .flag = blockCol->flag,
       .dataType = blockCol->type,
@@ -1759,4 +1776,14 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
 
 _exit:
   return code;
+}
+
+int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg) {
+  if (set == NULL) return -1;
+
+  uint32_t *ret = taosHashGet(set, &colId, sizeof(colId));
+  if (ret == NULL) return -1;
+
+  *alg = *ret;
+  return 0;
 }
