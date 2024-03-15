@@ -10302,3 +10302,51 @@ int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgres
   tDecoderClear(&decoder);
   return 0;
 }
+
+int32_t tSerializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, const SMDropTbWithTsmaReq* pReq){ return 0;}
+int32_t tDeserializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, SMDropTbWithTsmaReq* pReq) { return 0;}
+
+int32_t tEncodeTtlExpiredTb(SEncoder* pEncoder, const SVTtlExpiredTb* pTb) {
+  if (tEncodeI64(pEncoder, pTb->uid) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTb->name) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTb->suid) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeTtlExpiredTb(SDecoder* pDecoder, SVTtlExpiredTb* pTb) {
+  if (tDecodeI64(pDecoder, &pTb->uid) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTb->name) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTb->suid) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeVFetchTtlExpiredTbsRsp(SEncoder* pCoder, const SVFetchTtlExpiredTbsRsp* pRsp) {
+  if (tEncodeI32(pCoder, pRsp->vgId) < 0) return -1;
+  int32_t size = pRsp->pExpiredTbs ? pRsp->pExpiredTbs->size : 0;
+  if (tEncodeI32(pCoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    if (tEncodeTtlExpiredTb(pCoder, taosArrayGet(pRsp->pExpiredTbs, i)) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeVFetchTtlExpiredTbsRsp(SDecoder* pCoder, SVFetchTtlExpiredTbsRsp* pRsp) {
+  if (tDecodeI32(pclose, &pRsp->vgId) < 0) return -1;
+  int32_t size = 0;
+  if (tDecodeI32(pCoder, &size) < 0) return -1;
+  if (size > 0) {
+    pRsp->pExpiredTbs = taosArrayInit(size, sizeof(SVTtlExpiredTb));
+    if (!pRsp->pExpiredTbs) return TSDB_CODE_OUT_OF_MEMORY;
+    SVTtlExpiredTb tb;
+    for (int32_t i = 0; i < size; ++i) {
+      if (tDecodeTtlExpiredTb(pCoder, &tb) < 0) return -1;
+      taosArrayPush(pRsp->pExpiredTbs, &tb);
+    }
+  }
+  return 0;
+}
+
+void tFreeFetchTtlExpiredTbsRsp(void* p) {
+  SVFetchTtlExpiredTbsRsp* pRsp = p;
+  taosArrayDestroy(pRsp->pExpiredTbs);
+}
