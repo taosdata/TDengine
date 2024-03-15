@@ -1109,7 +1109,7 @@ fn stable_name(
     }
 
     if prefix.is_some() {
-        let mut prefix = prefix.clone().unwrap();
+        let prefix = prefix.clone().unwrap();
 
         let stable_name = match raw_type {
             IpcDataType::VarChar(_len) => {
@@ -1461,10 +1461,10 @@ async fn consume_point_record(
 
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
-                let mut sql_vec = sql_vec.unwrap();
+                let sql_vec = sql_vec.unwrap();
 
                 for index in 0..sql_vec.len() {
-                    let mut sql_insertion = sql_vec.get_mut(index).unwrap();
+                    let sql_insertion = sql_vec.get_mut(index).unwrap();
                     if sql_insertion.overflow {
                         continue;
                     } else {
@@ -1533,7 +1533,6 @@ async fn consume_point_record(
                         .exec_with_req_id(&sql_insertion.sql, req_id.next())
                         .await;
 
-                    let value_column_type = sql_insertion.value_column_type.clone();
                     match sql_res {
                         Ok(n) => {
                             *count += n;
