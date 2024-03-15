@@ -231,23 +231,12 @@ async fn validate_connector_license(
         return Ok(LicenseKind::Good);
     }
 
-    let endpoint = match (
-        from.addresses[0].host.as_deref(),
-        from.addresses[0].port.as_ref(),
-    ) {
-        (Some(host), Some(port)) => format!("{host}:{port}"),
-        (Some(host), None) => format!("{host}"),
-        (None, Some(port)) => format!(":{port}"),
-        (None, None) => format!(""),
-    };
     let cluster_id: i64 = taos
         .query_one("select id from information_schema.ins_cluster")
         .await
         .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
         .unwrap();
 
-    // These lines disable the connector license check.
-    let _ = endpoint;
     // let license = taos.query_one(sql)
     let connector = match from.driver.as_str() {
         "opcua" => "opc_ua",
