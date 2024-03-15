@@ -2084,6 +2084,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         blockDataCleanup(pInfo->pRes);
         STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
         setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        qDebug("doQueueScan after filter get data from log %" PRId64 " rows, version:%" PRId64, pInfo->pRes->info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
