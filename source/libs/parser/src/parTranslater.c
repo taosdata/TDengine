@@ -897,14 +897,14 @@ static bool isTimeLineAlignedQuery(SNode* pStmt) {
   return false;
 }
 
-static bool isPrimaryKeyImpl(SNode* pExpr) {
+bool isPrimaryKeyImpl(SNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
+    return ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) && ((SColumnNode*)pExpr)->isPrimTs);
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
         FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType ||
-        FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
+        FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
                FUNCTION_TYPE_IROWTS == pFunc->funcType) {
@@ -969,7 +969,8 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
   taosArrayPush(pExpr->pAssociation, &assNode);
   
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
-  pCol->colId = isPrimaryKey(pTable, (SNode*)pExpr) ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
+  pCol->isPrimTs = isPrimaryKey(pTable, (SNode*)pExpr);
+  pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   strcpy(pCol->colName, pExpr->aliasName);
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pCol->colName);
@@ -1019,10 +1020,73 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
          (0 == strcmp(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME) || 0 == strcmp(pCol->colName, C0_PSEUDO_COLUMN_NAME));
 }
 
-static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, const STableNode* pTable,
-                                bool* pFound) {
+
+static void setColumnPrimTs(STranslateContext* pCxt, SColumnNode* pCol, STableNode* pTable) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+    return;
+  }
+  
+  bool joinQuery = false;
+  SJoinTableNode* pJoinTable = NULL;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) && 
+     NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable && 
+     QUERY_NODE_JOIN_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    joinQuery = true;
+    pJoinTable = (SJoinTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+  }
+
+  pCol->isPrimTs = true;
+
+  if (!joinQuery) {
+    return;
+  }
+  
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_INNER:
+      pCol->isPrimTs = true;
+      break;
+    case JOIN_TYPE_LEFT:
+      if (!IS_SEMI_JOIN(pJoinTable->subType) && 0 != strcmp(pTable->tableAlias, ((STableNode*)pJoinTable->pLeft)->tableAlias)) {
+        pCol->isPrimTs = false;
+      }
+      break;
+    case JOIN_TYPE_RIGHT:
+      if (!IS_SEMI_JOIN(pJoinTable->subType) && 0 != strcmp(pTable->tableAlias, ((STableNode*)pJoinTable->pRight)->tableAlias)) {
+        pCol->isPrimTs = false;
+      }
+      break;
+    default:
+      pCol->isPrimTs = false;
+      break;
+  }
+}
+
+static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
+                                bool* pFound, bool keepOriginTable) {
   SColumnNode* pCol = *pColRef;
   *pFound = false;
+  bool joinQuery = false;
+  SJoinTableNode* pJoinTable = NULL;
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) && 
+     NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable && 
+     QUERY_NODE_JOIN_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    joinQuery = true;
+    pJoinTable = (SJoinTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+    if (isInternalPrimaryKey(pCol) && (!IS_WINDOW_JOIN(pJoinTable->subType) || !keepOriginTable)) {
+      switch (pJoinTable->joinType) {
+        case JOIN_TYPE_LEFT:
+          pTable = (STableNode*)pJoinTable->pLeft;
+          break;
+        case JOIN_TYPE_RIGHT:
+          pTable = (STableNode*)pJoinTable->pRight;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     if (isInternalPrimaryKey(pCol)) {
@@ -1031,6 +1095,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       }
 
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol);
+      pCol->isPrimTs = true;
       *pFound = true;
       return TSDB_CODE_SUCCESS;
     }
@@ -1039,6 +1104,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
           !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol);
+        setColumnPrimTs(pCxt, pCol, pTable);
         *pFound = true;
         break;
       }
@@ -1057,6 +1123,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
         *pFound = true;
       } else if (isPrimaryKey(pTempTable, pNode) && isInternalPrimaryKey(pCol)) {
         setColumnInfoByExpr(pTempTable, pExpr, pColRef);
+        pCol->isPrimTs = true;
         *pFound = true;
       }
     }
@@ -1073,7 +1140,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
     if (belongTable((*pCol), pTable)) {
       foundTable = true;
       bool foundCol = false;
-      pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
+      pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol, false);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
         return DEAL_RES_ERROR;
       }
@@ -1097,7 +1164,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     bool        foundCol = false;
-    pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
+    pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol, false);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
@@ -1988,6 +2055,8 @@ static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   return TSDB_CODE_SUCCESS;
 }
 
+
+
 static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsTimelineFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1997,12 +2066,15 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
                                    "%s function must be used in select statements", pFunc->functionName);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+  if ((NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
-      !isTimeLineAlignedQuery(pCxt->pCurrStmt)) {
+      !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
+      (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
+      (TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function requires valid time series input", pFunc->functionName);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2826,7 +2898,7 @@ static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pList) {
-  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow && (!isWindowJoinStmt(pSelect) || !pSelect->hasAggFuncs)) {
+  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow && (!isWindowJoinStmt(pSelect) || (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc))) {
     return TSDB_CODE_SUCCESS;
   }
   nodesRewriteExprs(pList, doCheckExprForGroupBy, pCxt);
@@ -3331,19 +3403,68 @@ static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SReal
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
-  if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
-       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
-      (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
-       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                   "Join requires valid time series input");
+
+static bool getJoinContais(SNode* pNode) {
+  if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
+    return false;
   }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pNode)) {
+    return true;
+  }
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
+    pNode = ((STempTableNode*)pNode)->pSubquery;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_REAL_TABLE:
+      return false;
+    case QUERY_NODE_JOIN_TABLE:
+      return true;
+    case QUERY_NODE_TEMP_TABLE:
+      pNode = ((STempTableNode*)pNode)->pSubquery;
+      break;
+    default:
+      break;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->joinContains;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->joinContains;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
+static bool getBothJoinContais(SNode* pLeft, SNode* pRight) {
+  bool joinContains = false;
   
+  if (NULL != pLeft) {
+    joinContains= getJoinContais(pLeft);
+  }
+
+  if (NULL != pRight && !joinContains) {
+    joinContains= getJoinContais(pRight);
+  }
+
+  return joinContains;
+}
+
+static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  if (JOIN_STYPE_NONE != pJoinTable->subType && getBothJoinContais(pJoinTable->pLeft, pJoinTable->pRight)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, "Nested join not supported now");
+  }
+
   if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
     if (QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pLeft) || QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pRight)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                     "Only support ASOF/WINDOW join between tables");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN, "Only support ASOF/WINDOW join between tables");
     }
 
     SRealTableNode* pLeft = (SRealTableNode*)pJoinTable->pLeft;
@@ -3358,7 +3479,26 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
                                      "Unsupported ASOF/WINDOW join table type");
     }    
 
-    return addPrimJoinEqCond(&pJoinTable->addPrimCond, pLeft, pRight, pJoinTable->joinType, pJoinTable->subType);
+    int32_t code = addPrimJoinEqCond(&pJoinTable->addPrimCond, pLeft, pRight, pJoinTable->joinType, pJoinTable->subType);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  if (IS_WINDOW_JOIN(pJoinTable->subType)) {
+    SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
+    if (NULL != pCurrSmt->pWindow || NULL != pCurrSmt->pPartitionByList || NULL != pCurrSmt->pGroupByList) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "No WINDOW/GROUP BY/PARTITION BY allowed in WINDOW join");
+    }
+  }
+
+  if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
+      (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                   "Join requires valid time series input");
   }
   
   return TSDB_CODE_SUCCESS;
@@ -3368,6 +3508,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
   int32_t code = TSDB_CODE_SUCCESS;
   EJoinType type = pJoinTable->joinType;
   EJoinSubType* pSType = &pJoinTable->subType;
+  SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
 
   switch (type) {
     case JOIN_TYPE_INNER:
@@ -3495,6 +3636,7 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   return code;
 }
 
+
 static int32_t translateAudit(STranslateContext* pCxt, SRealTableNode* pRealTable, SName* pName) {
   if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) {
     if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_STB_NAME(pName->tname)) {
@@ -3508,7 +3650,170 @@ static int32_t translateAudit(STranslateContext* pCxt, SRealTableNode* pRealTabl
   return 0;
 }
 
+static bool isJoinTagEqualOnCond(SNode* pCond, char* leftTableAlias, char* rightTableAlias) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || NULL == pOper->pRight || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
+    return false;
+  }
+  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
+  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
+
+  if ((COLUMN_TYPE_TAG != pLeft->colType) || (COLUMN_TYPE_TAG != pRight->colType)) {
+    return false;
+  }
+
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return false;
+  }
+
+  if (pLeft->node.resType.type != pRight->node.resType.type ||
+      pLeft->node.resType.bytes != pRight->node.resType.bytes) {
+    return false;
+  }
+  bool isEqual = false;
+  if (0 == strcmp(pLeft->tableAlias, leftTableAlias)) {
+    isEqual = (0 == strcmp(pRight->tableAlias, rightTableAlias));
+  } else if (0 == strcmp(pLeft->tableAlias, rightTableAlias)) {
+    isEqual = (0 == strcmp(pRight->tableAlias, leftTableAlias));
+  }
+
+  return isEqual;
+}
+
+static bool joinTagEqCondContains(SNode* pCond, char* leftTableAlias, char* rightTableAlias) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+      return false;
+    }
+
+    FOREACH(pCond, pLogic->pParameterList) {
+      if (isJoinTagEqualOnCond(pCond, leftTableAlias, rightTableAlias)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
+    return isJoinTagEqualOnCond(pCond, leftTableAlias, rightTableAlias);
+  }
+
+  return false;
+}
+
+static bool innerJoinTagEqCondContains(SJoinTableNode* pJoinTable, SNode* pWhere) {
+  bool condContains = false;
+  SRealTableNode *pLeftTable = (SRealTableNode*)pJoinTable->pLeft;
+  SRealTableNode *pRightTable = (SRealTableNode*)pJoinTable->pRight;
+
+  if (NULL != pJoinTable->pOnCond) {
+    condContains = joinTagEqCondContains(pJoinTable->pOnCond, pLeftTable->table.tableAlias, pRightTable->table.tableAlias);
+  }
+  if (NULL != pWhere && !condContains) {
+    condContains = joinTagEqCondContains(pWhere, pLeftTable->table.tableAlias, pRightTable->table.tableAlias);
+  }
+
+  return condContains;
+}
+
+static bool joinNonPrimColCondContains(SJoinTableNode* pJoinTable) {
+  if (NULL == pJoinTable->pOnCond) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoinTable->pOnCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pJoinTable->pOnCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+      return false;
+    }
+
+    SNode* pNode = NULL;
+    FOREACH(pNode, pLogic->pParameterList) {
+      if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+        continue;
+      }
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if (OP_TYPE_EQUAL != pOp->opType) {
+        continue;
+      }
+      if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || NULL == pOp->pRight || QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+        continue;
+      }
+      if (isPrimaryKeyImpl(pOp->pLeft) || isPrimaryKeyImpl(pOp->pRight)) {
+        continue;
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pJoinTable->pOnCond)) {
+    SOperatorNode* pOp = (SOperatorNode*)pJoinTable->pOnCond;
+    if (OP_TYPE_EQUAL != pOp->opType) {
+      return false;
+    }
+    if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || NULL == pOp->pRight || QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+      return false;
+    }
+    if (isPrimaryKeyImpl(pOp->pLeft) || isPrimaryKeyImpl(pOp->pRight)) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  return false;  
+}
+
+static int32_t setJoinTimeLineResMode(STranslateContext* pCxt) {
+  SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
+  if (QUERY_NODE_JOIN_TABLE != nodeType(pCurrSmt->pFromTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pCurrSmt->pFromTable;
+  if (JOIN_TYPE_FULL == pJoinTable->joinType) {
+    pCurrSmt->timeLineResMode = TIME_LINE_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TIME_LINE_NONE == pCurrSmt->timeLineResMode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pJoinTable->table.singleTable || pJoinTable->hasSubQuery || pJoinTable->isLowLevelJoin) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (pJoinTable->subType) {
+    case JOIN_STYPE_NONE: {
+      if (innerJoinTagEqCondContains(pJoinTable, pCurrSmt->pWhere)) {
+        pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+      }
+      break;
+    }
+    case JOIN_STYPE_ASOF:
+    case JOIN_STYPE_WIN: {
+      if (joinNonPrimColCondContains(pJoinTable)) {
+        pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent) {
+  SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(*pTable)) {
     case QUERY_NODE_REAL_TABLE: {
@@ -3561,10 +3866,12 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
         }
         if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
+          pCurrSmt->joinContains = ((SSelectStmt*)pTempTable->pSubquery)->joinContains;
           SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
-          SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
           pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
         }
+        
+        pCurrSmt->joinContains = (getJoinContais(pTempTable->pSubquery) ? true : false);
         pTempTable->table.precision = getStmtPrecision(pTempTable->pSubquery);
         pTempTable->table.singleTable = stmtIsSingleTable(pTempTable->pSubquery);
         code = addNamespace(pCxt, pTempTable);
@@ -3599,7 +3906,8 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           ((SJoinTableNode*)pJoinTable->pRight)->isLowLevelJoin = true;
         }
         code = validateJoinConds(pCxt, pJoinTable);
-      }
+      }      
+      pCurrSmt->joinContains = true;
       break;
     }
     default:
@@ -4333,7 +4641,7 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSel
   if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP);
   }
-  if (PRIMARYKEY_TIMESTAMP_COL_ID != pSession->pCol->colId) {
+  if (!isPrimaryKeyImpl((SNode*)pSession->pCol)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL);
   }
   return TSDB_CODE_SUCCESS;
@@ -4439,6 +4747,14 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
       ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType == TSDB_SYSTEM_TABLE) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, "WINDOW");
   }
+  if ((NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+      !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
+      (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
+      ((QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) && TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode) || (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) && TIME_LINE_NONE == pSelect->timeLineResMode)))) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+  }
+  
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   int32_t code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
@@ -4919,9 +5235,9 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
   bool    found = false;
-  int32_t code = findAndSetColumn(pCxt, &pCol, pTable, &found);
+  int32_t code = findAndSetColumn(pCxt, &pCol, pTable, &found, true);
   if (TSDB_CODE_SUCCESS != code || !found) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_FUNC);
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED);
   }
   *pPrimaryKey = (SNode*)pCol;
   return TSDB_CODE_SUCCESS;
@@ -5077,75 +5393,15 @@ static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* 
   return translateExprList(pCxt, pSelect->pProjectionList);
 }
 
-static int32_t translateWinJoin(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (QUERY_NODE_JOIN_TABLE != nodeType(pSelect->pFromTable) || !pSelect->hasAggFuncs) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
-  if (JOIN_STYPE_WIN != pJoinTable->subType) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pSelect->pGroupByList || pSelect->pPartitionByList || pSelect->pWindow) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GRP_WINDOW_NOT_ALLOWED);
-  }
-
-/*
-  SRealTableNode* pProbeTable = NULL;
-  switch (pJoinTable->joinType) {
-    case JOIN_TYPE_LEFT:
-      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
-      break;
-    case JOIN_TYPE_RIGHT:
-      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
-      break;
-    default:
-      return TSDB_CODE_PAR_INTERNAL_ERROR;
-  }
-
-  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-  if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  SSchema* pColSchema = &pProbeTable->pMeta->schema[0];
-  strcpy(pCol->dbName, pProbeTable->table.dbName);
-  strcpy(pCol->tableAlias, pProbeTable->table.tableAlias);
-  strcpy(pCol->tableName, pProbeTable->table.tableName);
-  strcpy(pCol->colName, pColSchema->name);
-  strcpy(pCol->node.aliasName, pColSchema->name);
-  strcpy(pCol->node.userAlias, pColSchema->name);
-  pCol->tableId = pProbeTable->pMeta->uid;
-  pCol->tableType = pProbeTable->pMeta->tableType;
-  pCol->colId = pColSchema->colId;
-  pCol->colType = COLUMN_TYPE_COLUMN;
-  pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
-  pCol->node.resType.type = pColSchema->type;
-  pCol->node.resType.bytes = pColSchema->bytes;
-  pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;
-  
-  SGroupingSetNode* groupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
-  if (NULL == groupingSet) {
-    nodesDestroyNode((SNode*)pCol);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  groupingSet->groupingSetType = GP_TYPE_NORMAL;
-  groupingSet->pParameterList = nodesMakeList();
-  nodesListAppend(groupingSet->pParameterList, (SNode*)pCol);
-
-  pSelect->pGroupByList = nodesMakeList();
-  nodesListAppend(pSelect->pGroupByList, (SNode*)groupingSet);
-*/
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
     code = translateWhere(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setJoinTimeLineResMode(pCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect);
@@ -5173,9 +5429,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkIsEmptyResult(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateWinJoin(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     resetSelectFuncNumWithoutDup(pSelect);
@@ -5326,6 +5579,9 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(pCxt, pSetOperator->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSetOperator->joinContains = getBothJoinContais(pSetOperator->pLeft, pSetOperator->pRight);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);

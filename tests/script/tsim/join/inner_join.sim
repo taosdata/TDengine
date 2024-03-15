@@ -168,5 +168,20 @@ if $data11 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
-
+sql select a.ts, b.ts from sta a join sta b on a.ts=b.ts order by a.ts desc, b.ts;
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data01 != @23-11-17 16:29:05.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+if $data11 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
 

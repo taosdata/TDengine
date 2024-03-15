@@ -799,7 +799,7 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
 
   pCtx->truncateUnit = pUnit->typeData;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    pCtx->timezoneUnit = offsetFromTz(pTimeZone->datum.p, TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+    pCtx->timezoneUnit = offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
   }
 
   pCtx->targetSlotId = pTarget->slotId;

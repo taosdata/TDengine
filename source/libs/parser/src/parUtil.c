@@ -153,7 +153,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions are allowed only in the SELECT list of a query. "
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
-      return "Window query not supported, since the result of subquery not include valid timestamp column";
+      return "Window query not supported, since not valid primary timestamp column as input";
     case TSDB_CODE_PAR_INVALID_DROP_COL:
       return "No columns can be dropped";
     case TSDB_CODE_PAR_INVALID_COL_JSON:
@@ -198,6 +198,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not supported window join having expr";
     case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
       return "Invalid WINDOW_OFFSET unit \"%s\"";
+    case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
+      return "Valid primary timestamp required";
     default:
       return "Unknown error";
   }

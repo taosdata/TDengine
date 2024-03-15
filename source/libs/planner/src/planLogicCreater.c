@@ -17,6 +17,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "tglobal.h"
+#include "parser.h"
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
@@ -57,12 +58,14 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
         pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       }
       pCol->colType = COLUMN_TYPE_WINDOW_START;
+      pCol->isPrimTs = true;
       break;
     case FUNCTION_TYPE_WEND:
       if (!isPartitionBy) {
         pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       }
       pCol->colType = COLUMN_TYPE_WINDOW_END;
+      pCol->isPrimTs = true;
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
@@ -551,7 +554,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
   pJoin->addPrimEqCond = nodesCloneNode(pJoinTable->addPrimCond);
   pJoin->node.pChildren = nodesMakeList();
-  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && pSelect->hasAggFuncs;
+  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1250,7 +1253,7 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
   if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
     return false;
   }
-  return PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId;
+  return isPrimaryKeyImpl(pExpr);
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {

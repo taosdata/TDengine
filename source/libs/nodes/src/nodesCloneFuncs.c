@@ -113,6 +113,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(colType);
   COPY_SCALAR_FIELD(hasIndex);
+  COPY_SCALAR_FIELD(isPrimTs);
   COPY_CHAR_ARRAY_FIELD(dbName);
   COPY_CHAR_ARRAY_FIELD(tableName);
   COPY_CHAR_ARRAY_FIELD(tableAlias);

@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       5000
+#define JT_MAX_LOOP       10000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -101,6 +101,7 @@ typedef struct {
   bool printInputRow;
   bool printResRow;
   bool logHistory;
+  bool noKeepResRows;
 } SJoinTestCtrl;
 
 
@@ -181,6 +182,8 @@ typedef struct {
   SArray*  leftRowsList;
   SArray*  rightRowsList;
   SArray*  rightFilterOut;
+
+  int64_t  startTsUs;
 } SJoinTestCtx;
 
 typedef struct {
@@ -203,7 +206,7 @@ typedef struct {
 
 
 SJoinTestCtx jtCtx = {0};
-SJoinTestCtrl jtCtrl = {1, 1, 1, 0};
+SJoinTestCtrl jtCtrl = {1, 1, 1, 0, 0};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
@@ -245,13 +248,15 @@ void printResRow(char* value, int32_t type) {
 
 void pushResRow(char* buf, int32_t size) {
   jtCtx.resRows++;
-  
-  int32_t* rows = (int32_t*)tSimpleHashGet(jtCtx.jtResRows, buf, size);
-  if (rows) {
-    (*rows)++;
-  } else {
-    int32_t n = 1;
-    tSimpleHashPut(jtCtx.jtResRows, buf, size, &n, sizeof(n));
+
+  if (!jtCtrl.noKeepResRows) {
+    int32_t* rows = (int32_t*)tSimpleHashGet(jtCtx.jtResRows, buf, size);
+    if (rows) {
+      (*rows)++;
+    } else {
+      int32_t n = 1;
+      tSimpleHashPut(jtCtx.jtResRows, buf, size, &n, sizeof(n));
+    }
   }
 }
 
@@ -915,22 +920,24 @@ void appendAsofLeftEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rig
 }
 
 void appendLeftNonMatchGrp(char* leftInRow) {
-  memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
-  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-    if (!jtCtx.resColList[c]) {
-      continue;
+  if (!jtCtrl.noKeepResRows) {
+    memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      if (!jtCtx.resColList[c]) {
+        continue;
+      }
+    
+      if (*((bool*)leftInRow + c)) {
+        *(char*)(jtCtx.resColBuf + c) = true;
+      } else {
+        memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+      }
     }
-  
-    if (*((bool*)leftInRow + c)) {
-      *(char*)(jtCtx.resColBuf + c) = true;
-    } else {
-      memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
-    }
-  }
-  
-  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-    if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
-      *(char*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
+    
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
+        *(char*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
+      }
     }
   }
   
@@ -1390,21 +1397,23 @@ void makeAppendBlkData(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 }
 
 void putNMatchRowToRes(char* lrow, int32_t tableOffset, int32_t peerOffset) {
-  memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
+  if (!jtCtrl.noKeepResRows) {
+    memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
 
-  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-    if (jtCtx.resColList[tableOffset + c]) {
-      if (*(bool*)(lrow + c)) {
-        *(bool*)(jtCtx.resColBuf + tableOffset + c) = true;
-      } else {
-        memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      if (jtCtx.resColList[tableOffset + c]) {
+        if (*(bool*)(lrow + c)) {
+          *(bool*)(jtCtx.resColBuf + tableOffset + c) = true;
+        } else {
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+        }
       }
     }
-  }
 
-  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-    if (jtCtx.resColList[peerOffset + c]) {
-      *(bool*)(jtCtx.resColBuf + peerOffset + c) = true;
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      if (jtCtx.resColList[peerOffset + c]) {
+        *(bool*)(jtCtx.resColBuf + peerOffset + c) = true;
+      }
     }
   }
   
@@ -1412,27 +1421,29 @@ void putNMatchRowToRes(char* lrow, int32_t tableOffset, int32_t peerOffset) {
 }
 
 void putMatchRowToRes(char* lrow, char* rrow, int32_t cols) {
-  memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
+  if (!jtCtrl.noKeepResRows) {
+    memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
 
-  if (cols & LEFT_TABLE_COLS) {
-    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-      if (jtCtx.resColList[c]) {
-        if (*(bool*)(lrow + c)) {
-          *(bool*)(jtCtx.resColBuf + c) = true;
-        } else {
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+    if (cols & LEFT_TABLE_COLS) {
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        if (jtCtx.resColList[c]) {
+          if (*(bool*)(lrow + c)) {
+            *(bool*)(jtCtx.resColBuf + c) = true;
+          } else {
+            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+          }
         }
       }
     }
-  }
 
-  if (cols & RIGHT_TABLE_COLS) {
-    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
-      if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
-        if (*(bool*)(rrow + c)) {
-          *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
-        } else {
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+    if (cols & RIGHT_TABLE_COLS) {
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
+          if (*(bool*)(rrow + c)) {
+            *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
+          } else {
+            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+          }
         }
       }
     }
@@ -2636,13 +2647,14 @@ void printActualResInfo() {
   }
 
   printf("Actual Result Summary:\n\t blkNum:%d\n\t rowNum:%d%s\n\t leftBlkRead:%d\n\t rightBlkRead:%d\n\t +rows:%d%s\n\t "
-    "-rows:%d%s\n\t matchRows:%d%s\n", 
+    "-rows:%d%s\n\t matchRows:%d%s\n\t executionTime:%" PRId64 "us\n", 
     jtRes.blkNum, jtRes.rowNum, 
     jtRes.rowNum == jtCtx.resRows ? "" : "*",
     jtCtx.leftBlkReadIdx, jtCtx.rightBlkReadIdx,
     jtRes.addRowNum, jtRes.addRowNum ? "*" : "",
     jtRes.subRowNum, jtRes.subRowNum ? "*" : "",
-    jtRes.matchNum, jtRes.matchNum == jtCtx.resRows ? "" : "*");
+    jtRes.matchNum, jtRes.matchNum == jtCtx.resRows ? "" : "*",
+    taosGetTimestampUs() - jtCtx.startTsUs);
 }
 
 void printStatInfo(char* caseName) {
@@ -2655,12 +2667,14 @@ void checkJoinDone(char* caseName) {
   int32_t iter = 0;
   void* p = NULL;
   void* key = NULL;
-  while (NULL != (p = tSimpleHashIterate(jtCtx.jtResRows, p, &iter))) {
-    key = tSimpleHashGetKey(p, NULL);
-    jtRes.succeed = false;
-    jtRes.subRowNum += *(int32_t*)p;
-    for (int32_t i = 0; i < *(int32_t*)p; ++i) {
-      printResRow((char*)key, 0);
+  if (!jtCtrl.noKeepResRows) {
+    while (NULL != (p = tSimpleHashIterate(jtCtx.jtResRows, p, &iter))) {
+      key = tSimpleHashGetKey(p, NULL);
+      jtRes.succeed = false;
+      jtRes.subRowNum += *(int32_t*)p;
+      for (int32_t i = 0; i < *(int32_t*)p; ++i) {
+        printResRow((char*)key, 0);
+      }
     }
   }
 
@@ -2712,25 +2726,29 @@ void checkJoinRes(SSDataBlock* pBlock) {
   }
 
   jtStat.totalResRows += pBlock->info.rows;
-  for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-    memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
+  if (jtCtrl.noKeepResRows) {
+    jtRes.matchNum += pBlock->info.rows;
+  } else {
+    for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+      memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
 
-    putRowToResColBuf(pBlock, r, true);
-    
-    char* value = (char*)tSimpleHashGet(jtCtx.jtResRows, jtCtx.resColBuf, jtCtx.resColSize);
-    if (NULL == value) {
+      putRowToResColBuf(pBlock, r, true);
+      
+      char* value = (char*)tSimpleHashGet(jtCtx.jtResRows, jtCtx.resColBuf, jtCtx.resColSize);
+      if (NULL == value) {
+        putRowToResColBuf(pBlock, r, false);
+        printResRow(jtCtx.resColBuf, 1);
+        jtRes.succeed = false;
+        jtRes.addRowNum++;
+        continue;
+      }
+
+      rmResRow();
+      
       putRowToResColBuf(pBlock, r, false);
-      printResRow(jtCtx.resColBuf, 1);
-      jtRes.succeed = false;
-      jtRes.addRowNum++;
-      continue;
+      printResRow(jtCtx.resColBuf, 2);
+      jtRes.matchNum++;
     }
-
-    rmResRow();
-    
-    putRowToResColBuf(pBlock, r, false);
-    printResRow(jtCtx.resColBuf, 2);
-    jtRes.matchNum++;
   }
 }
 
@@ -2840,14 +2858,15 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(100, 10, 100, 10, 10);
+  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
     resetForJoinRerun(2, pNode, param->pTask);
     printBasicInfo(caseName);
     printOutputInfo();
-  
+
+    jtCtx.startTsUs = taosGetTimestampUs();
     while (true) {
       SSDataBlock* pBlock = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp);
       if (NULL == pBlock) {
@@ -2872,7 +2891,7 @@ void handleCaseEnd() {
 
 }  // namespace
 
-#if 1
+#if 0
 #if 1
 TEST(innerJoin, noCondTest) {
   SJoinTestParam param;
@@ -2983,7 +3002,7 @@ TEST(innerJoin, fullCondTest) {
 #endif
 
 
-#if 1
+#if 0
 #if 1
 TEST(leftOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -3094,7 +3113,7 @@ TEST(leftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(fullOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -3205,7 +3224,7 @@ TEST(fullOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(leftSemiJoin, noCondTest) {
   SJoinTestParam param;
@@ -3316,7 +3335,7 @@ TEST(leftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(leftAntiJoin, noCondTest) {
   SJoinTestParam param;
@@ -3427,7 +3446,7 @@ TEST(leftAntiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(leftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;

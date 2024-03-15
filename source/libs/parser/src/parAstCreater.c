@@ -761,6 +761,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   } else {
     strncpy(pCol->colName, pFuncName->z, pFuncName->n);
   }
+  pCol->isPrimTs = true;
   return (SNode*)pCol;
 }
 

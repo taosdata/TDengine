@@ -1,0 +1,110 @@
+sql connect
+sql use test0;
+
+sql select a.ts from sta a ,(select TIMETRUNCATE(ts,1d) ts from sta) b where timetruncate(a.ts, 1d) = b.ts;
+if $rows != 64 then
+  return -1
+endi
+
+sql select a.*,b.* from (select * from sta partition by tbname) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;
+sql select a.*,b.* from (select * from sta partition by tbname order by ts) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;
+
+
+
+
+sql select sum(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 30 then
+  return -1
+endi
+
+sql select sum(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 42 then
+  return -1
+endi
+
+sql select diff(c1) from (select a.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts where b.t1 > 1);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+
+sql select diff(c1) from (select b.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 where a.t1 > 1 order by a.ts);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+
+sql select count(c1) from (select a.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) interval(1s);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+if $data30 != 1 then
+  return -1
+endi
+
+sql select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) c session(c.ts1, 1s);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+sql select count(c1) from (select b.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts) c session(c.ts, 1s);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+sql select count(c1) from (select b.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts partition by a.col1 order by a.ts) c session(c.ts, 1s);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+sql_error select diff(c1) from (select a.ts, a.col1 c1 from sta a join sta b on a.ts = b.ts);
+sql_error select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);
+sql_error select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts);
+sql_error select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);
+sql_error select diff(c1) from (select a.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);
+sql_error select count(c1) from (select a.col1 c1 from tba1 a join sta b on a.ts = b.ts) interval(1s);
+sql_error select count(c1) from (select b.ts, a.col1 c1 from tba1 a join sta b on a.ts = b.ts partition by a.col1) c session(c.ts, 1s);
+

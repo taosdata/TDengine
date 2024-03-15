@@ -62,6 +62,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
 #define CLONE_SLIMIT 1 << 1
 #define CLONE_LIMIT_SLIMIT (CLONE_LIMIT | CLONE_SLIMIT)
 bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat);
+int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
+                                                   bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);
 
 #ifdef __cplusplus
 }

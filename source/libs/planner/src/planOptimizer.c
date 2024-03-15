@@ -19,6 +19,7 @@
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "parser.h"
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
 
@@ -1634,7 +1635,7 @@ static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
     return false;
   }
   SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
-  return (QUERY_NODE_COLUMN == nodeType(pNode) ? (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) : false);
+  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
 }
 
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
@@ -1646,7 +1647,14 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
       1 != LIST_LENGTH(pSort->node.pChildren)) {
     return false;
   }
-  SNode* pChild;
+  SNode* pChild = nodesListGetNode(pSort->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)pChild;
+    if (JOIN_TYPE_FULL == pJoin->joinType) {
+      return false;
+    }
+  }
+  
   FOREACH(pChild, pSort->node.pChildren) {
     SLogicNode* pSortDescendent = optFindPossibleNode((SLogicNode*)pChild, sortPriKeyOptMayBeOptimized);
     if (pSortDescendent != NULL) {
@@ -1656,13 +1664,124 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
-static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, EOrder sortOrder,
-                                                   bool* pNotOptimize, SNodeList** pSequencingNodes) {
+static int32_t sortPriKeyOptHandleLeftRightJoinSort(SJoinLogicNode* pJoin, SSortLogicNode* pSort, bool* pNotOptimize, bool* keepSort) {
+  if (JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_NONE == pJoin->subType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  bool sortByLeft = true, sortByRight = true, sortByProbe = false;
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+
+  SOrderByExprNode* pExprNode = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+  SColumnNode* pSortCol = (SColumnNode*)pExprNode->pExpr;
+  if (NULL == tSimpleHashGet(pLeftTables, pSortCol->tableAlias, strlen(pSortCol->tableAlias))) {
+    sortByLeft = false;
+  }
+  if (NULL == tSimpleHashGet(pRightTables, pSortCol->tableAlias, strlen(pSortCol->tableAlias))) {
+    sortByRight = false;
+  }
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+
+  if (!sortByLeft && !sortByRight) {
+    planError("sort by primary key not in any join subtable, tableAlias: %s", pSortCol->tableAlias);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  if (sortByLeft && sortByRight) {
+    planError("sort by primary key in both join subtables, tableAlias: %s", pSortCol->tableAlias);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  if ((JOIN_TYPE_LEFT == pJoin->joinType && sortByLeft) || (JOIN_TYPE_RIGHT == pJoin->joinType && sortByRight)) {
+    sortByProbe = true;
+  }
+
+  switch (pJoin->subType) {
+    case JOIN_STYPE_OUTER: {
+      if (sortByProbe) {
+        return TSDB_CODE_SUCCESS;
+      }
+      
+      *pNotOptimize = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    case JOIN_STYPE_ANTI: {
+      if (sortByProbe) {
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *keepSort = false;
+      return TSDB_CODE_SUCCESS;
+    }
+    case JOIN_STYPE_ASOF: 
+    case JOIN_STYPE_WIN: {
+      if (sortByProbe) {
+        if (NULL != pJoin->pLeftEqNodes && pJoin->pLeftEqNodes->length > 0) {
+          *pNotOptimize = true;
+        }
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *pNotOptimize = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t sortPriKeyOptHandleJoinSort(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
+                                                   bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_LEFT:
+    case JOIN_TYPE_RIGHT: {
+      code = sortPriKeyOptHandleLeftRightJoinSort(pJoin, pSort, pNotOptimize, keepSort);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      if (*pNotOptimize || !(*keepSort)) {
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort,
+                                                     pSort, pNotOptimize, pSequencingNodes, keepSort);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), groupSort,
+                                               pSort, pNotOptimize, pSequencingNodes, keepSort);
+  }
+
+  return code;
+}
+
+                                                   
+static EOrder sortPriKeyOptGetPriKeyOrder(SSortLogicNode* pSort) {
+ return ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
+}
+
+int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
+                                                   bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort) {
   if (NULL != pNode->pLimit || NULL != pNode->pSlimit) {
     *pNotOptimize = false;
     return TSDB_CODE_SUCCESS;
   }
 
+  EOrder sortOrder = sortPriKeyOptGetPriKeyOrder(pSort);
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -1673,13 +1792,7 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool group
       return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
-      int32_t code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort,
-                                                         sortOrder, pNotOptimize, pSequencingNodes);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), groupSort,
-                                                   sortOrder, pNotOptimize, pSequencingNodes);
-      }
-      return code;
+      return sortPriKeyOptHandleJoinSort(pNode, groupSort, pSort, pNotOptimize, pSequencingNodes, keepSort);
     }
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
       SWindowLogicNode* pWindowLogicNode = (SWindowLogicNode*)pNode;
@@ -1703,19 +1816,16 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool group
     return TSDB_CODE_SUCCESS;
   }
 
-  return sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort, sortOrder,
-                                             pNotOptimize, pSequencingNodes);
+  return sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort, pSort,
+                                             pNotOptimize, pSequencingNodes, keepSort);
 }
 
-static EOrder sortPriKeyOptGetPriKeyOrder(SSortLogicNode* pSort) {
-  return ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
-}
 
-static int32_t sortPriKeyOptGetSequencingNodes(SSortLogicNode* pSort, bool groupSort, SNodeList** pSequencingNodes) {
+static int32_t sortPriKeyOptGetSequencingNodes(SSortLogicNode* pSort, bool groupSort, SNodeList** pSequencingNodes, bool* keepSort) {
   bool    notOptimize = false;
   int32_t code =
       sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0), groupSort,
-                                          sortPriKeyOptGetPriKeyOrder(pSort), &notOptimize, pSequencingNodes);
+                                          pSort, &notOptimize, pSequencingNodes, keepSort);
   if (TSDB_CODE_SUCCESS != code || notOptimize) {
     NODES_CLEAR_LIST(*pSequencingNodes);
   }
@@ -1761,10 +1871,22 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
 static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort) {
   SNodeList* pSequencingNodes = NULL;
-  int32_t    code = sortPriKeyOptGetSequencingNodes(pSort, pSort->groupSort, &pSequencingNodes);
+  bool keepSort = true;
+  int32_t    code = sortPriKeyOptGetSequencingNodes(pSort, pSort->groupSort, &pSequencingNodes, &keepSort);
   if (TSDB_CODE_SUCCESS == code) {
     if (pSequencingNodes != NULL) {
       code = sortPriKeyOptApply(pCxt, pLogicSubplan, pSort, pSequencingNodes);
+    } else if (!keepSort) {
+      SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+      if (NULL == pSort->node.pParent) {
+        TSWAP(pSort->node.pTargets, pChild->pTargets);
+      }
+      int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pSort, pChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        NODES_CLEAR_LIST(pSort->node.pChildren);
+        nodesDestroyNode((SNode*)pSort);
+      }
+      pCxt->optimized = true;
     } else {
       // if we decided not to push down sort info to children, we should propagate output ts order to parents of pSort
       optSetParentOrder(pSort->node.pParent, sortPriKeyOptGetPriKeyOrder(pSort), 0);

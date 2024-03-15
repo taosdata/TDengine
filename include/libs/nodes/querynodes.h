@@ -80,6 +80,7 @@ typedef struct SColumnNode {
   uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
+  bool        isPrimTs;
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
@@ -210,6 +211,7 @@ typedef struct SViewNode {
 #define JOIN_JLIMIT_MAX_VALUE  1024
 
 #define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
+#define IS_SEMI_JOIN(_stype) ((_stype) == JOIN_STYPE_SEMI)
 #define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
 #define IS_ASOF_JOIN(_stype) ((_stype) == JOIN_STYPE_ASOF)
 
@@ -329,6 +331,7 @@ typedef enum EFillMode {
 
 typedef enum ETimeLineMode {
   TIME_LINE_NONE = 1,
+  TIME_LINE_BLOCK,
   TIME_LINE_MULTI,
   TIME_LINE_GLOBAL,
 } ETimeLineMode;
@@ -416,6 +419,7 @@ typedef struct SSelectStmt {
   bool          onlyHasKeepOrderFunc;
   bool          groupSort;
   bool          tagScan;
+  bool          joinContains;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -431,6 +435,7 @@ typedef struct SSetOperator {
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
   ETimeLineMode    timeLineResMode;  
+  bool             joinContains;
 } SSetOperator;
 
 typedef enum ESqlClause {

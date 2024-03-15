@@ -108,6 +108,40 @@ if $data11 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
+sql select a.ts, b.ts from tba1 a left semi join tba2 b on a.ts = b.ts order by b.ts desc;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data01 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data11 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+
+sql select a.ts, b.ts from tba1 a left semi join tba2 b on a.ts = b.ts order by b.ts desc, a.ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data01 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+if $data10 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+if $data11 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+
 
 sql_error select a.ts, b.ts from sta a left semi join sta b jlimit 3 where a.ts > b.ts;
 sql_error select a.ts, b.ts from sta a left semi join sta b where a.ts > b.ts;
