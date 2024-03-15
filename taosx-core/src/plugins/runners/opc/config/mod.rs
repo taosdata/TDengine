@@ -372,7 +372,7 @@ pub async fn generate_config_from_csv(
                     }
 
                     // stable
-                    let stable = if let Some(mut stable_name) = record_map.get("stable") {
+                    let stable = if let Some(stable_name) = record_map.get("stable") {
                         let val_type = record_map.get("type").unwrap();
 
                         let stable = if !val_type.is_empty() {
