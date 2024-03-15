@@ -12,14 +12,23 @@ import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustSml from "../07-develop/03-insert-data/_rust_schemaless.mdx"
 import RustQuery from "../07-develop/04-query-data/_rust.mdx"
+import RequestId from "./_request_id.mdx";
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
 
-`taos` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。另外一种是 **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。Websocket 连接支持任何平台，原生连接支持所有 TDengine 客户端能运行的平台。
-
 该 Rust 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-rust)。
+
+## 连接方式
+
+`taos` 提供两种建立连接的方式。一般我们推荐使用 **Websocket 连接**。
+- **原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。
+- **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。
+
+你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。
+
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
 ## 支持的平台
 
@@ -68,7 +77,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对�
 | SMALLINT          | i16               |
 | TINYINT           | i8                |
 | BOOL              | bool              |
-| BINARY            | Vec<u8\>          |
+| BINARY            | Vec\<u8>          |
 | NCHAR             | String            |
 | JSON              | serde_json::Value |
 
@@ -316,7 +325,7 @@ async fn main() -> anyhow::Result<()> {
 
 ### 执行带有 req_id 的 SQL
 
-此 req_id 可用于请求链路追踪。
+<RequestId />
 
 ```rust
 let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
@@ -655,7 +664,7 @@ stmt.execute()?;
 一个可运行的示例请见 [GitHub 上的示例](https://github.com/taosdata/taos-connector-rust/blob/main/examples/bind.rs)。
 
 
-其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/taos>。
+其他相关结构体 API 使用说明请移步 Rust 文档托管网页：\<https://docs.rs/taos>。
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [deadpool]: https://crates.io/crates/deadpool

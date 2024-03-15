@@ -33,7 +33,7 @@ import PhpStmt from "./_php_stmt.mdx";
 INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31);
 ```
 
-这里的`ts1`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](/taos-sql/insert)
+这里的`ts1`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](../../../taos-sql/insert)
 
 ### 一次写入多条
 
@@ -43,7 +43,7 @@ TDengine 支持一次写入多条记录，比如下面这条命令就将两条�
 INSERT INTO d1001 VALUES (ts1, 10.2, 220, 0.23) (ts2, 10.3, 218, 0.25);
 ```
 
-这里的`ts1`和`ts2`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](/taos-sql/insert)
+这里的`ts1`和`ts2`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](../../../taos-sql/insert)
 
 ### 一次写入多表
 
@@ -53,9 +53,9 @@ TDengine 也支持一次向多个表写入数据，比如下面这条命令就�
 INSERT INTO d1001 VALUES (ts1, 10.3, 219, 0.31) (ts2, 12.6, 218, 0.33) d1002 VALUES (ts3, 12.3, 221, 0.31);
 ```
 
-这里的`ts1`、`ts2`和`ts3`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](/taos-sql/insert)
+这里的`ts1`、`ts2`和`ts3`为Unix时间戳(Unix timestamp)，允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的 KEEP 值。时间戳详情规则参考 [TDengine SQL数据写入 关于时间戳一节](../../../taos-sql/insert)
 
-详细的 SQL INSERT 语法规则参考 [TDengine SQL 的数据写入](/taos-sql/insert)。
+详细的 SQL INSERT 语法规则参考 [TDengine SQL 的数据写入](../../../taos-sql/insert)。
 
 :::info
 

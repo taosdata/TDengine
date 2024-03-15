@@ -93,7 +93,7 @@ curl http://localhost:8083/connectors
 
 TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
 
-TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../connector/cpp#无模式写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](/develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](/develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)。
+TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../connector/cpp#无模式写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](../../develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](../../develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)。
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 
@@ -212,7 +212,7 @@ Query OK, 4 row(s) in set (0.004208s)
 
 TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
-TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](../../develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)， 然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-test-meters。
 
@@ -344,7 +344,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 ### TDengine Sink Connector 特有的配置
 
 1. `connection.database`： 目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
-2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '${topic}'。 比如 kafka_${topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
+2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '$\{topic}'。 比如 kafka_$\{topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
 3. `batch.size`: 分批写入每批记录数。当 Sink Connector 一次接收到的数据大于这个值时将分批写入。
 4. `max.retries`: 发生错误时的最大重试次数。默认为 1。
 5. `retry.backoff.ms`: 发送错误时重试的时间间隔。单位毫秒，默认为 3000。
@@ -375,12 +375,12 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ## 其他说明
 
-1. 关于如何在独立安装的 Kafka 环境使用 Kafka Connect 插件， 请参考官方文档：<https://kafka.apache.org/documentation/#connect>。
+1. 关于如何在独立安装的 Kafka 环境使用 Kafka Connect 插件， 请参考官方文档：\<https://kafka.apache.org/documentation/#connect>。
 
 ## 问题反馈
 
-无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：<https://github.com/taosdata/kafka-connect-tdengine/issues>。
+无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈：\<https://github.com/taosdata/kafka-connect-tdengine/issues>。
 
 ## 参考
 
-1. <https://kafka.apache.org/documentation/>
+1. \<https://kafka.apache.org/documentation/>

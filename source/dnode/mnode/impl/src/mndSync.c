@@ -77,29 +77,16 @@ static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   SSdbRaw *pRaw = pAction->pRaw;
   SSdb    *pSdb = pMnode->pSdb;
-  SSdbRow *pRow = NULL;
-  void    *pObj = NULL;
-  int      code = -1;
+  int      code = 0;
 
   if (pRaw->status != SDB_STATUS_CREATING) goto _OUT;
 
-  pRow = (pSdb->decodeFps[pRaw->type])(pRaw);
-  if (pRow == NULL) goto _OUT;
-  pObj = sdbGetRowObj(pRow);
-  if (pObj == NULL) goto _OUT;
-
   SdbValidateFp validateFp = pSdb->validateFps[pRaw->type];
-  code = 0;
   if (validateFp) {
-    code = validateFp(pMnode, pTrans, pObj);
+    code = validateFp(pMnode, pTrans, pRaw);
   }
 
 _OUT:
-  if (pRow) {
-    SdbDeleteFp deleteFp = pSdb->deleteFps[pRaw->type];
-    if (deleteFp) (*deleteFp)(pSdb, pRow->pObj, false);
-    taosMemoryFreeClear(pRow);
-  }
   return code;
 }
 
@@ -180,7 +167,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
     goto _OUT;
   }
 
-  mInfo("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
+  mInfo("trans:%d, process sync proposal, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
         " role:%s raw:%p sec:%d seq:%" PRId64,
         transId, pMgmt->transId, pMeta->code, pMeta->index, pMeta->term, pMeta->lastConfigIndex, syncStr(pMeta->state),
         pRaw, pMgmt->transSec, pMgmt->transSeq);
@@ -208,15 +195,11 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   }
 
   if (pTrans->stage == TRN_STAGE_PREPARE) {
-    bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans);
+    bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans, false);
     if (!continueExec) goto _OUT;
   }
 
-  if (pTrans->id != pMgmt->transId) {
-    mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
-          pTrans->id, pTrans->createdTime, pMgmt->transId);
-    mndTransRefresh(pMnode, pTrans);
-  }
+  mndTransRefresh(pMnode, pTrans);
 
   sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
@@ -234,6 +217,7 @@ static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
     goto _OUT;
   }
 
+  int32_t transId = pMgmt->transId;
   pMgmt->transId = 0;
   pMgmt->transSec = 0;
   pMgmt->transSeq = 0;
@@ -241,9 +225,9 @@ static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
   tsem_post(&pMgmt->syncSem);
 
   if (pMgmt->errCode != 0) {
-    mError("trans:%d, failed to propose since %s, post sem", pMgmt->transId, tstrerror(pMgmt->errCode));
+    mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
   } else {
-    mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, pMgmt->transId, pMgmt->transSeq);
+    mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, transId, pMgmt->transSeq);
   }
 
 _OUT:
@@ -542,7 +526,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   taosThreadMutexLock(&pMgmt->lock);
   pMgmt->errCode = 0;
 
-  if (pMgmt->transId != 0 /* && pMgmt->transId != transId*/) {
+  if (pMgmt->transId != 0) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);

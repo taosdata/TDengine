@@ -54,6 +54,8 @@ typedef struct SSessionKey {
   uint64_t    groupId;
 } SSessionKey;
 
+typedef int64_t COUNT_TYPE;
+
 typedef struct SVersionRange {
   int64_t minVer;
   int64_t maxVer;
@@ -171,6 +173,7 @@ typedef enum EStreamType {
   STREAM_CHECKPOINT,
   STREAM_CREATE_CHILD_TABLE,
   STREAM_TRANS_STATE,
+  STREAM_MID_RETRIEVE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -206,6 +209,7 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
+  bool        blankFill;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization

@@ -70,10 +70,9 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", applied index:%" PRId64,
+  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
-  if (fetchVer > appliedVer){
+  if (fetchVer > appliedVer) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
@@ -86,10 +85,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     int32_t type = pReader->pHead->head.msgType;
     if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
         (IS_META_MSG(type) && pReader->cond.scanMeta)) {
-      if (walFetchBody(pReader) < 0) {
-        return -1;
-      }
-      return 0;
+      int32_t code = walFetchBody(pReader);
+      return (code == TSDB_CODE_SUCCESS)? 0:-1;
     } else {
       if (walSkipFetchBody(pReader) < 0) {
         return -1;
@@ -259,11 +256,6 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   int64_t contLen;
   bool    seeked = false;
 
-  wDebug("vgId:%d, try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64", 0x%"PRIx64,
-         pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
-         pRead->pWal->vers.appliedVer, pRead->readerId);
-
   // TODO: valid ver
   if (ver > pRead->pWal->vers.commitVer) {
     return -1;
@@ -310,8 +302,8 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
 }
 
 int32_t walSkipFetchBody(SWalReader *pRead) {
-  wDebug("vgId:%d, skip fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64", 0x%"PRIx64,
+  wDebug("vgId:%d, skip:%" PRId64 ", first:%" PRId64 ", commit:%" PRId64 ", last:%" PRId64
+         ", applied:%" PRId64 ", 0x%" PRIx64,
          pRead->pWal->cfg.vgId, pRead->pHead->head.version, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer,
          pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer, pRead->readerId);
 
@@ -330,11 +322,11 @@ int32_t walFetchBody(SWalReader *pRead) {
   int64_t   ver = pReadHead->version;
   int32_t   vgId = pRead->pWal->cfg.vgId;
   int64_t   id = pRead->readerId;
+  SWalVer  *pVer = &pRead->pWal->vers;
 
-  wDebug("vgId:%d, fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64 ", 0x%" PRIx64,
-         vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
-         pRead->pWal->vers.appliedVer, id);
+  wDebug("vgId:%d, fetch body:%" PRId64 ", first:%" PRId64 ", commit:%" PRId64 ", last:%" PRId64 ", applied:%" PRId64
+         ", 0x%" PRIx64,
+         vgId, ver, pVer->firstVer, pVer->commitVer, pVer->lastVer, pVer->appliedVer, id);
 
   if (pRead->capacity < pReadHead->bodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);

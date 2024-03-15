@@ -52,6 +52,9 @@ extern "C" {
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS   "ins_compact_details"
+#define TSDB_INS_TABLE_GRANTS_FULL       "ins_grants_full"
+#define TSDB_INS_TABLE_GRANTS_LOGS       "ins_grants_logs"
+#define TSDB_INS_TABLE_MACHINES          "ins_machines"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"
@@ -61,6 +64,11 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS     "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS       "perf_trans"
 #define TSDB_PERFS_TABLE_APPS        "perf_apps"
+
+#define TSDB_AUDIT_DB                "audit"
+#define TSDB_AUDIT_STB_OPERATION     "operations"
+#define TSDB_AUDIT_CTB_OPERATION     "t_operations_"
+#define TSDB_AUDIT_CTB_OPERATION_LEN 13
 
 typedef struct SSysDbTableSchema {
   const char*   name;

@@ -1,0 +1,181 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database
+sql create database test vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(4, 2);
+sleep 1000
+
+sql insert into t1 values(1648791213000,0,1,1,1.0);
+sleep 100
+sql insert into t1 values(1648791213001,9,2,2,1.1);
+sleep 100
+sql insert into t1 values(1648791213002,0,3,3,1.0);
+sleep 100
+sql insert into t1 values(1648791213009,0,3,3,1.0);
+sleep 100
+sql insert into t1 values(1648791223000,0,1,1,1.0);
+sleep 100
+sql insert into t1 values(1648791223001,9,2,2,1.1);
+sleep 100
+sql insert into t1 values(1648791223002,9,2,2,1.1);
+sleep 100
+sql insert into t1 values(1648791223009,0,3,3,1.0);
+
+$loop_count = 0
+loop0:
+
+sleep 300
+print 1 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop0
+endi
+
+# row 0
+if $data01 != 4 then
+  print ======data01=$data01
+  goto loop0
+endi
+
+# row 1
+if $data11 != 4 then
+  print ======data11=$data11
+  goto loop0
+endi
+
+# row 2
+if $data21 != 4 then
+  print ======data21=$data21
+  goto loop0
+endi
+
+# row 3
+if $data31 != 2 then
+  print ======data31=$data31
+  goto loop0
+endi
+
+sql insert into t1 values(1648791213000,0,1,1,1.0);
+
+
+$loop_count = 0
+loop1:
+
+sleep 300
+print 1 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 4 then
+  print ======data01=$data01
+  goto loop1
+endi
+
+# row 1
+if $data11 != 4 then
+  print ======data11=$data11
+  goto loop1
+endi
+
+# row 2
+if $data21 != 4 then
+  print ======data21=$data21
+  goto loop1
+endi
+
+# row 3
+if $data31 != 2 then
+  print ======data31=$data31
+  goto loop1
+endi
+
+sleep 500
+sql insert into t1 values(1648791223002,9,2,2,1.1);
+
+
+$loop_count = 0
+loop2:
+
+sleep 300
+print 1 sql select * from streamt;
+sql select * from streamt;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+# row 0
+if $data01 != 4 then
+  print ======data01=$data01
+  goto loop2
+endi
+
+# row 1
+if $data11 != 4 then
+  print ======data11=$data11
+  goto loop2
+endi
+
+# row 2
+if $data21 != 4 then
+  print ======data21=$data21
+  goto loop2
+endi
+
+# row 3
+if $data31 != 2 then
+  print ======data31=$data31
+  goto loop2
+endi
+
+print count sliding 1 end
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

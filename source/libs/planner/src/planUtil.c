@@ -237,6 +237,15 @@ static int32_t adjustEventDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustCountDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -247,6 +256,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustStateDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_EVENT:
       return adjustEventDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_COUNT:
+      return adjustCountDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -432,10 +443,35 @@ bool getBatchScanOptionFromHint(SNodeList* pList) {
 }
 
 bool getSortForGroupOptHint(SNodeList* pList) {
+  if (!pList) return false;
   SNode* pNode;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
     if (pHint->option == HINT_SORT_FOR_GROUP) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getOptHint(SNodeList* pList, EHintOption hint) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == hint) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getparaTablesSortOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_PARA_TABLES_SORT) {
       return true;
     }
   }

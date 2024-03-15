@@ -13,15 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_STATE_H_
+#define _STREAM_STATE_H_
+
 #include "tdatablock.h"
 
 #include "rocksdb/c.h"
 #include "tdbInt.h"
 #include "tsimplehash.h"
 #include "tstreamFileState.h"
-
-#ifndef _STREAM_STATE_H_
-#define _STREAM_STATE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,13 +55,16 @@ int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen);
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key);
+int32_t streamStateSessionReset(SStreamState* pState, void* pVal);
 int32_t streamStateSessionClear(SStreamState* pState);
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
+int32_t streamStateCountGetKeyByRange(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
 int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStreamStateCur* pCur,
                                                      const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key);
+SStreamStateCur* streamStateCountSeekKeyPrev(SStreamState* pState, const SSessionKey* pKey, COUNT_TYPE count);
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key);
 
@@ -78,6 +81,10 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 int32_t streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used);
 int32_t streamStateClearBuff(SStreamState* pState, void* pVal);
 void    streamStateFreeVal(void* val);
+
+// count window
+int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
 SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);
@@ -128,10 +135,6 @@ int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2);
 int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2);
-#if 0
-char* streamStateSessionDump(SStreamState* pState);
-char* streamStateIntervalDump(SStreamState* pState);
-#endif
 
 #ifdef __cplusplus
 }

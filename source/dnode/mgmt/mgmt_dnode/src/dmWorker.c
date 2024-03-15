@@ -47,7 +47,7 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-static void *   dmNotifyThreadFp(void *param) {
+static void *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   setThreadName("dnode-notify");
 
@@ -74,27 +74,36 @@ static void *   dmNotifyThreadFp(void *param) {
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
+  int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
 
-  const static int16_t TRIM_FREQ = 3600;
-  int16_t              trimCount = 0;
+  static int32_t TRIM_FREQ = 20;
+  int32_t        trimCount = 0;
 
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
+
     if (curTime < lastTime) lastTime = curTime;
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
 
-      // cron time = TRIM_FREQ * tsMonitorInterval,
-      // opt later
       trimCount = (trimCount + 1) % TRIM_FREQ;
       if (trimCount == 0) {
         taosMemoryTrim(0);
+      }
+    }
+    
+    if(tsMonitorForceV2){
+      if (curTime < lastTimeForBasic) lastTimeForBasic = curTime;
+      float intervalForBasic = (curTime - lastTimeForBasic) / 1000.0f;
+      if (intervalForBasic >= tsMonitorIntervalForBasic) {
+        (*pMgmt->sendMonitorReportFpBasic)();
+        lastTimeForBasic = curTime;
       }
     }
   }
@@ -129,7 +138,7 @@ static void *dmCrashReportThreadFp(void *param) {
   setThreadName("dnode-crashReport");
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
-  char *    pMsg = NULL;
+  char     *pMsg = NULL;
   int64_t   msgLen = 0;
   TdFilePtr pFile = NULL;
   bool      truncateFile = false;

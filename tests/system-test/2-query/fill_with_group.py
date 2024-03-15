@@ -23,7 +23,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -144,10 +144,61 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(6)
 
+    def test_fill_with_order_by2(self):
+        ## window size: 5 minutes, with 6 rows in meters every 10 minutes
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart asc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(2, 1, 10)
+        tdSql.checkData(3, 1, 10)
+        tdSql.checkData(4, 1, 10)
+        tdSql.checkData(5, 1, 10)
+        tdSql.checkData(6, 1, 10)
+        tdSql.checkData(7, 1, 10)
+        tdSql.checkData(8, 1, 10)
+        tdSql.checkData(9, 1, 10)
+        tdSql.checkData(10, 1, 10)
+        tdSql.checkData(11, 1, 10)
+
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(2, 1, 10)
+        tdSql.checkData(3, 1, 10)
+        tdSql.checkData(4, 1, 10)
+        tdSql.checkData(5, 1, 10)
+        tdSql.checkData(6, 1, 10)
+        tdSql.checkData(7, 1, 10)
+        tdSql.checkData(8, 1, 10)
+        tdSql.checkData(9, 1, 10)
+        tdSql.checkData(10, 1, 10)
+        tdSql.checkData(11, 1, 10)
+
+        sql = "select _wstart, count(*) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(linear) order by _wstart desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(2, 1, 10)
+        tdSql.checkData(3, 1, 10)
+        tdSql.checkData(4, 1, 10)
+        tdSql.checkData(5, 1, 10)
+        tdSql.checkData(6, 1, 10)
+        tdSql.checkData(7, 1, 10)
+        tdSql.checkData(8, 1, 10)
+        tdSql.checkData(9, 1, 10)
+        tdSql.checkData(10, 1, 10)
+        tdSql.checkData(11, 1, 10)
+
     def run(self):
         self.prepareTestEnv()
         self.test_partition_by_with_interval_fill_prev_new_group_fill_error()
         self.test_fill_with_order_by()
+        self.test_fill_with_order_by2()
 
     def stop(self):
         tdSql.close()

@@ -117,6 +117,10 @@ class TDTestCase:
             ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
             ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
             ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            '''
+        )
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
@@ -179,6 +183,10 @@ class TDTestCase:
             ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
             ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
             ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            '''
+        )
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
@@ -435,7 +443,7 @@ class TDTestCase:
         tdSql.checkData(1,0,'ct4')
         tdSql.checkData(1,1,None)
 
-        tdSql.query(f"select t1 ,count(c1) from {dbname}.stb1 partition by t1 ")
+        tdSql.query(f"select t1 ,count(c1) from {dbname}.stb1 partition by t1 having count(c1)>0")
         tdSql.checkRows(2)
 
         # filter by tbname
@@ -861,10 +869,55 @@ class TDTestCase:
 
         self.support_super_table_test()
 
+    def initLastRowDelayTest(self, dbname="db"):
+        tdSql.execute(f"drop database if exists {dbname} ")
+        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel 'NONE' REPLICA 1"
+        tdSql.execute(create_db_sql)
+
+        time.sleep(3)
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute(f'create stable {dbname}.st(ts timestamp, v_int int, v_float float) TAGS (ctname varchar(32))')
+
+        tdSql.execute(f"create table {dbname}.ct1 using {dbname}.st tags('ct1')")
+        tdSql.execute(f"create table {dbname}.ct2 using {dbname}.st tags('ct2')")
+
+        tdSql.execute(f"insert into {dbname}.st(tbname,ts,v_float, v_int) values('ct1',1630000000000,86,86)")
+        tdSql.execute(f"insert into {dbname}.st(tbname,ts,v_float, v_int) values('ct1',1630000021255,59,59)")
+        tdSql.execute(f'flush database {dbname}')
+        tdSql.execute(f'select last(*) from {dbname}.st')
+        tdSql.execute(f'select last_row(*) from {dbname}.st')
+        tdSql.execute(f"insert into {dbname}.st(tbname,ts) values('ct1',1630000091255)")
+        tdSql.execute(f'flush database {dbname}')
+        tdSql.execute(f'select last(*) from {dbname}.st')
+        tdSql.execute(f'select last_row(*) from {dbname}.st')
+        tdSql.execute(f'alter database {dbname} cachemodel "both"')
+        tdSql.query(f'select last(*) from {dbname}.st')
+        tdSql.checkData(0 , 1 , 59)
+
+        tdSql.query(f'select last_row(*) from {dbname}.st')
+        tdSql.checkData(0 , 1 , None)
+        tdSql.checkData(0 , 2 , None)
+
+        tdLog.printNoPrefix("========== delay test init success ==============")
+
+    def lastRowDelayTest(self, dbname="db"):
+        tdLog.printNoPrefix("========== delay test start ==============")
+
+        tdSql.execute(f"use {dbname}")
+
+        tdSql.query(f'select last(*) from {dbname}.st')
+        tdSql.checkData(0 , 1 , 59)
+
+        tdSql.query(f'select last_row(*) from {dbname}.st')
+        tdSql.checkData(0 , 1 , None)
+        tdSql.checkData(0 , 2 , None)
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         # tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
+
+        self.initLastRowDelayTest("DELAYTEST")
 
         # cache_last 0
         self.prepare_datas("'NONE' ")
@@ -889,6 +942,8 @@ class TDTestCase:
         self.prepare_tag_datas("'BOTH'")
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'BOTH'")
         self.basic_query()
+
+        self.lastRowDelayTest("DELAYTEST")
 
 
     def stop(self):

@@ -195,7 +195,7 @@ typedef struct SUdfInterBuf {
 ```
 数据结构说明如下：
 
-- SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 <= i <= numCols-1)表示每一列数据，类型为SUdfColumn*。
+- SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 \<= i \<= numCols-1)表示每一列数据，类型为SUdfColumn*。
 - SUdfColumn 包含列的数据类型定义 colMeta 和列的数据 colData。
 - SUdfColumnMeta 成员定义同 taos.h 数据类型定义。
 - SUdfColumnData 数据可以变长，varLenCol 定义变长数据，fixLenCol 定义定长数据。 

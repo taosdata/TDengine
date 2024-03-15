@@ -287,7 +287,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   terrno = TSDB_CODE_SUCCESS;
 
   int32_t num = 0;
-  uint64_t groupId = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
@@ -478,20 +477,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
 
-#if 0
-  if(pOperator->fpSet.encodeResultRow){
-    char *result = NULL;
-    int32_t length = 0;
-    pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
-    SAggSupporter* pSup = &pInfo->aggSup;
-    taosHashClear(pSup->pResultRowHashTable);
-    pInfo->binfo.resultRowInfo.size = 0;
-    pOperator->fpSet.decodeResultRow(pOperator, result);
-    if(result){
-      taosMemoryFree(result);
-    }
-  }
-#endif
   // initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);

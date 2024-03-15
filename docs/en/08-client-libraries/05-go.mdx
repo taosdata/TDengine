@@ -13,14 +13,23 @@ import GoInfluxLine from "../07-develop/03-insert-data/_go_line.mdx"
 import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
 import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../07-develop/04-query-data/_go.mdx"
+import RequestId from "./_request_id.mdx";
 
 `driver-go` is the official Go language client library for TDengine. It implements the [database/sql](https://golang.org/pkg/database/sql/) package, the generic Go language interface to SQL databases. Go developers can use it to develop applications that access TDengine cluster data.
 
-`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from those implemented by the native connection.
+## Connection types
 
-This article describes how to install `driver-go` and connect to TDengine clusters and perform basic operations such as data query and data writing through `driver-go`.
+`driver-go` provides 3 connection types.
 
-The source code of `driver-go` is hosted on [GitHub](https://github.com/taosdata/driver-go).
+* **Native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
+* **REST connection**, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported.
+* **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+
+## Compatibility
+
+Supports minimum Go version 1.14, it is recommended to use the latest Go version
 
 ## Supported platforms
 
@@ -259,7 +268,7 @@ if err != nil {
 
 ### execute SQL with reqId
 
-This reqId can be used to request link tracing.
+<RequestId />
 
 ```go
 db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")

@@ -58,6 +58,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 
 - -a AUTHSTR: 连接服务端的授权信息
 - -A: 通过用户名和密码计算授权信息
+- -B: 设置 BI 工具显示模式，设置后所有输出都遵循 BI 工具的格式进行输出
 - -c CONFIGDIR: 指定配置文件目录，Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`
 - -C: 打印 -c 指定的目录中 `taos.cfg` 的配置参数
 - -d DATABASE: 指定连接到服务端时使用的数据库
