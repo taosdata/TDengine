@@ -401,7 +401,7 @@ export default {
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
         })
-        .catch((err) => this.$message.error(err?.desc));
+        .catch((err) => this.$error(err?.desc));
       this.loading = false;
       // 修改tag的value时只获取当前value的值
       if (tag) {
@@ -431,14 +431,14 @@ export default {
           .then(async () => {
             this.$message.success(this.$t('data.modifyColumn') + this.$t("operateSucc"));
           })
-          .catch((err) => this.$message.error(err?.desc));
+          .catch((err) => this.$error(err?.desc));
       }
       if(rename_params) {
         await changeTableStruct(rename_params,second_params)
           .then(async () => {
             this.$message.success(this.$t('data.renameColumn') + this.$t("operateSucc"));
           })
-          .catch((err) => this.$message.error(err?.desc));
+          .catch((err) => this.$error(err?.desc));
       }
       this.loading = false;
       this.$store
@@ -506,7 +506,7 @@ export default {
     },
     add() {
       if (!this.currentData.field || !this.currentData.type) {
-        return this.$message.error(this.$t("data.checkFail"));
+        return this.$error(this.$t("data.checkFail"));
       }
       let params = {
         operation: "add column",

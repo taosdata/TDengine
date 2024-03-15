@@ -192,7 +192,7 @@
           })
           .catch(err => {
             this.stableList = [];
-            err.desc && this.$message.error(err.desc);
+            err.desc && this.$error(err.desc);
           })
           .finally(() => {
             this.requestIng = false;
@@ -207,7 +207,7 @@
           })
           .catch(err => {
             this.tableList = [];
-            err.desc && this.$message.error(err.desc);
+            err.desc && this.$error(err.desc);
           })
           .finally(() => {
             this.requestIng = false;

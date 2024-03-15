@@ -342,11 +342,11 @@ export default {
             this.dialog = false;
             this.refresh();
           } else {
-            this.$message.error(res?.desc);
+            this.$error(res?.desc);
           }
         });
       } catch (error) {
-        this.$message.error(error);
+        this.$error(error);
       }
     },
     expireTime(data) {

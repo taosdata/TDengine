@@ -348,7 +348,7 @@ function handleOptions(options, paramsConfig) {
   const children = paramsConfig[0]?.children ?? [];
   const keys = Object.keys(options);
   keys.forEach(key => {
-    const { display, description, placeholder, required, value } = options[key];
+    const { display, description, placeholder, required, value, pattern, patternMsg } = options[key];
     if (!display) return;
     const config = {
       label: display,
@@ -356,6 +356,8 @@ function handleOptions(options, paramsConfig) {
       field: key,
       placeholder,
       required,
+      pattern: pattern || null,
+      patternMsg,
       defaultValue: value ?? '',
       if: currentData => {
         if (!currentData.system_configuration || key == 'host') return true;
@@ -689,7 +691,7 @@ function handleGroups(groups, paramsConfig) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple, pattern, patternMsg } = param;
       const paramConfig = {
         label: display,
         description: short_description ?? description,
@@ -711,7 +713,9 @@ function handleGroups(groups, paramsConfig) {
         placeholder,
         defaultValue: multiple ? value?.split(',') : value,
         required,
-        multiple
+        multiple,
+        pattern: pattern || null,
+        patternMsg,
       };
       handleHintType(paramConfig, hint, value);
       if (isArray(conflicts_with)) {

@@ -462,11 +462,11 @@ export default {
             this.getBackData();
             this.dialog = false;
           } else {
-            Message.error(res?.message)
+            this.$error(res?.message)
           }
         });
       } catch (err) {
-        Message.error(err);
+        this.$error(err);
         return Promise.reject(err);
       }
     },
@@ -523,11 +523,11 @@ export default {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
           } else {
-            Message.error(res?.message)
+            this.$error(res?.message)
           }
         });
       } catch (err) {
-        Message.error(err);
+        this.$error(err);
         return Promise.reject(err);
       }
     },

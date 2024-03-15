@@ -380,18 +380,18 @@ export default {
         try {
           deleteAgent(data.id)
             .then((res) => {
-              res && res.message && Message.error(res.message);
+              res && res.message && this.$error(res.message);
               this.getAgents();
             })
             .catch((err) => {
               err.response.data &&
                 err.response.data.message &&
-                Message.error(err.response.data.message);
+                this.$error(err.response.data.message);
             });
         } catch (err) {
           err.response.data &&
             err.response.data.message &&
-            Message.error(err.response.data.message);
+            this.$error(err.response.data.message);
         }
       });
     },
@@ -465,7 +465,7 @@ export default {
         let result = await editAgent(this.currentRow.id, params);
         this.dialog = false;
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
         this.getAgents();
@@ -494,7 +494,7 @@ export default {
         this.requestIng = false;
       } catch (err) {
         this.requestIng = false;
-        err.response.data.message && Message.error(err.response.data.message);
+        err.response.data.message && this.$error(err.response.data.message);
       }
     },
     async getConnectorTypes() {
@@ -526,7 +526,7 @@ export default {
         let result = await addNewAgent(params);
         this.dialog = false;
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
         await this.getAgents();
@@ -552,7 +552,7 @@ export default {
           this.copyDialog = true;
         }
       } catch (err) {
-        err.response.data.message && Message.error(err.response.data.message);
+        err.response.data.message && this.$error(err.response.data.message);
       }
     },
     async expandChange(row, expandedRows) {

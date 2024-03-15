@@ -6,7 +6,6 @@
           class="block-wrapper"
           :id="item.field"
           v-if="!item.hide"
-          :class="{ 'block-wrapper': level }"
           :key="item.label"
         >
           <div 

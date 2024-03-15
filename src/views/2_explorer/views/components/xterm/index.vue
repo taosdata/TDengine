@@ -107,7 +107,7 @@
           })
           .catch(() => {
             this.wsFailed = true;
-            this.$message.error("webscocket connect error");
+            this.$error("webscocket connect error");
           })
           .finally(() => {
             this.initTerm();

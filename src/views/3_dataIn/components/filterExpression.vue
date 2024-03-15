@@ -123,7 +123,7 @@ export default {
         let result = await getParser(data);
         this.tableColumns = result[0].fields.map((item) => item.name);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
         this.$emit(
@@ -217,7 +217,7 @@ export default {
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 

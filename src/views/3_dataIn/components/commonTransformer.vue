@@ -62,14 +62,14 @@
             >
               <el-upload
                 class="upload-demo"
-                action="https://jsonplaceholder.typicode.com/posts/"
+                :action="uploadUrl"
+                :data="{req_id: 'taosx-demo-file'}"
                 :on-preview="handlePreview"
                 :on-remove="handleRemove"
                 :before-remove="beforeRemove"
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
                 :on-error="handleError"
-                accept=".csv,.json"
                 :on-exceed="handleExceed"
                 :file-list="fileList"
                 :show-file-list="false"
@@ -105,12 +105,7 @@
       </section>
       <section class="extract">
         <div class="block-title top">
-          <span>{{
-            $store.state.app.currentDBType == "csv" ||
-            $store.state.app.currentDBType == "avevaHistorian"
-              ? $t("datasource.transformer.identified")
-              : $t("datasource.transformer.parse")
-          }}</span>
+          <span>{{ $t("datasource.transformer.parse") }}</span>
         </div>
         <div
           v-if="
@@ -151,17 +146,12 @@
                 v-model="parseruleForm.expression"
                 :placeholder="
                   parseruleForm.type == 'json'
-                    ? $t('datasource.transformer.expre_input')
+                    ? 'key1,key2,key3=key3_alias'
                     : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
                 "
                 size="small"
               ></el-input>
-              <!-- :disabled="$parent.$parent.$parent.isEditable" -->
             </el-form-item>
-            <!-- <span style="color: red; font-size: 24px"
-              >{{ isjson
-              }}{{ activeName == "first" && radio == "1" && isjson }}</span
-            > -->
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -169,13 +159,6 @@
               style="display: flex"
               :disabled="msgForm.msgbody == ''"
             ></el-button>
-              <!-- :disabled="
-                (activeName == 'first' &&
-                  radio == '2' &&
-                  msgForm.msgbody == '') ||
-                (activeName == 'first' && radio == '1' && !isjson)
-              " -->
-            <!-- || $parent.$parent.$parent.isEditable -->
           </el-form>
         </div>
       </section>
@@ -242,7 +225,7 @@
       </section>
       <section class="extract">
         <div
-          class="block-title sub"
+          class="block-title top"
           style="justify-content: flex-start; align-items: baseline"
         >
           <span>{{ $t("datasource.transformer.extract") }}</span>
@@ -310,7 +293,7 @@
           {{ $t("datasource.transformer.addfilter") }}
         </el-button>
       </section>
-      <section style="margin-bottom: 20px">
+      <section>
         <div class="block-title">
           <span>{{ $t("datasource.transformer.superconfig") }}</span>
         </div>
@@ -328,10 +311,8 @@
                     default-first-option
                     size="small"
                     @change="getSTbaleList"
-                    :disabled="
-                      $store.state.app.currentDBName == '' ||
-                      columnsArr.length == 0
-                    "
+                    :placeholder = "$store.state.app.currentDBName ? $t('datasource.transformer.stableSelectOrCreateTip') : $t('datasource.transformer.databaseSelectTip')"
+                    :disabled="!$store.state.app.currentDBName || columnsArr.length === 0"
                   >
                     <el-option
                       v-for="(item, index) in stableLists"
@@ -345,7 +326,9 @@
             </div>
             <el-button
               type="primary"
+              class="btn-create-stable"
               size="small"
+              icon="el-icon-plus"
               @click="createStable"
               :disabled="$store.state.app.currentDBName == ''"
             >
@@ -532,11 +515,11 @@
               </el-pagination>
 
               <el-button
-                type="primary"
-                @click="caculateMappingResult"
                 size="small"
-                >{{ $t("datasource.transformer.calculate") }}</el-button
-              >
+                icon="el-icon-PREVIEW"
+                @click="caculateMappingResult"
+              ></el-button>
+              
             </div>
           </div>
         </div>
@@ -570,14 +553,11 @@ import FilterExpression from "./filterExpression.vue";
 import { getParser, getHistorianMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData } from "../utils.js";
-import Papa from "papaparse";
 import JsonEditor from "./jsonEditor.vue";
-import JSONbig from "json-bigint";
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -933,14 +913,16 @@ export default {
       this.request = false;
     },
     handleSuccess(_, file, fileList) {
-      Papa.parse(file.raw, {
-        header: false,
-        complete: (result) => {
-          console.log(result.data.join("\n"), "解析后的结果");
-          this.msgForm.msgbody += result.data.join("\n")
-          this.request = false;
-        },
-      });
+      const reader = new FileReader();
+      const _this = this;
+    
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        _this.msgForm.msgbody += contents + "\n";
+        _this.request = false;
+      };
+    
+      reader.readAsText(file.raw); // 读取文本文件
     },
     beforeRemove(file, fileList) {
       return this.$confirm(`确定移除 ${file.name}？`);
@@ -1002,7 +984,7 @@ export default {
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           this.isbreak = true;
           return;
         }
@@ -1560,7 +1542,7 @@ export default {
       try {
         let result = await getParser(data);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           this.isbreak = true;
           return;
         }
@@ -1628,7 +1610,7 @@ export default {
       //     : [].concat(JSON.stringify(this.jsoneditorcont));
       // } else {
       //   if (/^{|\[/.test(this.msgForm.msgbody)) {
-      //     // Message.error(this.$t("datasource.transformer.texttip"));
+      //     // this.$error(this.$t("datasource.transformer.texttip"));
       //     this.istext = false;
       //     return;
       //   }
@@ -1659,7 +1641,7 @@ export default {
               resultMsgbody = [].concat(this.msgForm.msgbody);
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 
@@ -1697,11 +1679,11 @@ export default {
     },
     submitSuper(data) {
       if (!this.msgForm.msgbody) {
-        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        this.$error(this.$t("datasource.transformer.msgbodytip"));
         return;
       }
       if (!this.tableData[0]["Expression"]) {
-        Message.error(this.$t("datasource.transformer.tablenametip"));
+        this.$error(this.$t("datasource.transformer.tablenametip"));
         return;
       }
       this.currentCol = data["Name"];
@@ -1775,9 +1757,9 @@ export default {
               selected_db: this.$store.state.app.currentDBName,
               stable_form: this.$refs.createstb.stable_form,
             };
-            let result = await createStableReq(payload);
+                        let result = await createStableReq(payload);
             if (result?.desc) {
-              Message.error(this.$t(result.desc));
+              this.$error(this.$t(result.desc));
               return;
             }
             Message.success(this.$t("operateSucc"));
@@ -1786,7 +1768,7 @@ export default {
             this.getSTbaleList();
             this.closeDialog();
           } catch (error) {
-            error.desc ? Message.error(error.desc) : "";
+            error.desc ? this.$error(error.desc) : "";
             console.log(error);
           }
         }
@@ -1861,7 +1843,7 @@ export default {
         select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}'
         `);
         if (res.desc) {
-          Message.error(res.desc);
+          this.$error(res.desc);
           return;
         }
         if (this.extractArr.length > 0) {
@@ -2174,6 +2156,10 @@ export default {
 ::v-deep i {
   font-size: 16px;
 }
+::v-deep .btn-create-stable i {
+  font-size: 12px;
+}
+
 .mapping {
   font-size: 16px;
   font-weight: 600;
@@ -2412,10 +2398,11 @@ export default {
       height: 14px !important;
     }
 }
+
 .msg_sec {
   ::v-deep {
     .el-input-number--small {
-      width: 100px;
+      width: 86px;
     }
   }
 }

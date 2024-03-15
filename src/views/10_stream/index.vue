@@ -211,7 +211,7 @@
               this.getStreams();
             })
             .catch(res => {
-              this.$message.error(res?.desc)
+              this.$error(res?.desc)
             })
         });
       },
