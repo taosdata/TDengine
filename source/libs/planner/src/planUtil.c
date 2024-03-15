@@ -466,12 +466,24 @@ bool getOptHint(SNodeList* pList, EHintOption hint) {
   return false;
 }
 
-bool getparaTablesSortOptHint(SNodeList* pList) {
+bool getParaTablesSortOptHint(SNodeList* pList) {
   if (!pList) return false;
   SNode* pNode;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
     if (pHint->option == HINT_PARA_TABLES_SORT) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getSmallDataTsSortOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SMALLDATA_TS_SORT) {
       return true;
     }
   }

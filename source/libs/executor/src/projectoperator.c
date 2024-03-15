@@ -28,6 +28,7 @@ typedef struct SProjectOperatorInfo {
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
   bool           inputIgnoreGroup;
+  bool           outputIgnoreGroup;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -111,6 +112,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
+  pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
   
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
@@ -276,6 +278,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
+    if (pProjectInfo->outputIgnoreGroup) {
+      pRes->info.id.groupId = 0;
+    }
+
     return (pRes->info.rows > 0) ? pRes : NULL;
   }
 
@@ -383,6 +389,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+  }
+
+  if (pProjectInfo->outputIgnoreGroup) {
+    p->info.id.groupId = 0;
   }
 
   return (p->info.rows > 0) ? p : NULL;

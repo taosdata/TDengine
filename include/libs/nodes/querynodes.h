@@ -136,7 +136,8 @@ typedef enum EHintOption {
   HINT_BATCH_SCAN,
   HINT_SORT_FOR_GROUP,
   HINT_PARTITION_FIRST,
-  HINT_PARA_TABLES_SORT
+  HINT_PARA_TABLES_SORT,
+  HINT_SMALLDATA_TS_SORT,
 } EHintOption;
 
 typedef struct SHintNode {

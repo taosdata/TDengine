@@ -892,7 +892,7 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
 int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   SMsgSendInfo *pSrc = src;
   int32_t       code = 0;
-  SMsgSendInfo *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  SMsgSendInfo *pDst = taosMemoryCalloc(1, sizeof(*pSrc));
   if (NULL == pDst) {
     qError("malloc SMsgSendInfo for rpcCtx failed, len:%d", (int32_t)sizeof(*pSrc));
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -939,6 +939,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   bool          isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
+
+  if (isHb && persistHandle && trans->pHandle == 0) {
+    trans->pHandle = rpcAllocHandle();
+  } 
 
   if (pJob && pTask) {
     SCH_TASK_DLOG("start to send %s msg to node[%d,%s,%d], pTrans:%p, pHandle:%p", TMSG_INFO(msgType), addr->nodeId,
