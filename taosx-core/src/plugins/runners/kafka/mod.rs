@@ -516,8 +516,6 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     }
     // All clients sharing the same group.id belong to the same group.
     client.set("group.id", config.group);
-    // Client group session and failure detection timeout.
-    client.set("max.poll.interval.ms", config.timeout.to_string());
     // Action to take when there is no initial offset in offset store or the desired offset is out of range.
     // smallest, earliest, beginning, largest, latest, end, error
     client.set("auto.offset.reset", config.fallback_offset);
