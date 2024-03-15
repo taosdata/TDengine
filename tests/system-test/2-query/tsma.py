@@ -566,7 +566,7 @@ class TSMATestSQLGenerator:
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
+    updatecfgDict = {'debugFlag': 143, 'asynclog': 0, 'ttlUnit': 10, 'ttlPushInterval': 5}
 
     def __init__(self):
         self.vgroups = 4

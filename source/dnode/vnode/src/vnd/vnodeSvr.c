@@ -49,6 +49,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 
 static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
@@ -480,6 +481,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_ALTER_TABLE: {
       code = vnodePreProcessAlterTableMsg(pVnode, pMsg);
     } break;
+    case TDMT_VND_FETCH_TTL_EXPIRED_TBS:
     case TDMT_VND_DROP_TTL_TABLE: {
       code = vnodePreProcessDropTtlMsg(pVnode, pMsg);
     } break;
@@ -558,6 +560,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_DROP_TTL_TABLE:
       if (vnodeProcessDropTtlTbReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
+      break;
+    case TDMT_VND_FETCH_TTL_EXPIRED_TBS:
+      if (vnodeProcessFetchTtlExpiredTbs(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_TRIM:
       if (vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
@@ -897,6 +902,65 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
 end:
   taosArrayDestroy(ttlReq.pTbUids);
   return ret;
+}
+
+static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp) {
+  int32_t                 code = -1;
+  SMetaReader             mr = {0};
+  SVDropTtlTableReq       ttlReq = {0};
+  SVFetchTtlExpiredTbsRsp rsp = {0};
+  SEncoder                encoder = {0};
+  pRsp->msgType = TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _end;
+  }
+
+  ASSERT(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids));
+
+  tb_uid_t       suid;
+  char           ctbName[TSDB_TABLE_NAME_LEN];
+  SVTtlExpiredTb expiredTb = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, 0);
+  rsp.vgId = TD_VID(pVnode);
+  rsp.pExpiredTbs = taosArrayInit(ttlReq.nUids, sizeof(SVTtlExpiredTb));
+  if (!rsp.pExpiredTbs) goto _end;
+
+  for (int32_t i = 0; i < ttlReq.nUids; ++i) {
+    tb_uid_t* uid = taosArrayGet(ttlReq.pTbUids, i);
+    expiredTb.uid = *uid;
+    expiredTb.suid = *uid;
+    terrno = metaReaderGetTableEntryByUid(&mr, *uid);
+    if (terrno < 0) goto _end;
+    strncpy(expiredTb.name, mr.me.name, TSDB_TABLE_NAME_LEN);
+    if (mr.me.type == TSDB_CHILD_TABLE) {
+      expiredTb.suid = mr.me.ctbEntry.suid;
+    }
+    taosArrayPush(rsp.pExpiredTbs, &expiredTb);
+  }
+
+  int32_t ret = 0;
+  tEncodeSize(tEncodeVFetchTtlExpiredTbsRsp, &rsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  if (pRsp->pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _end;
+  }
+  tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
+  terrno = tEncodeVFetchTtlExpiredTbsRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
+
+  if (terrno == 0) code = 0;
+_end:
+  metaReaderClear(&mr);
+  tFreeFetchTtlExpiredTbsRsp(&rsp);
+  pRsp->code = terrno;
+  return code;
 }
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
