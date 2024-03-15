@@ -85,7 +85,7 @@ pub struct ConnectorLicense {
     pub number: i64,
     pub speed: i64,
     #[serde_as(as = "serde_with::DisplayFromStr")]
-    pub expire: u64,
+    pub expire: i64,
     pub expire_time: Option<String>,
 }
 
@@ -94,14 +94,14 @@ impl ConnectorLicense {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
-        days > self.expire as i64
+        days > self.expire && self.expire >= 0
     }
 
     pub fn expired_days(&self) -> Option<chrono::Duration> {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
-        if days > self.expire as i64 {
+        if days > self.expire && self.expire >= 0 {
             Some(chrono::Duration::days((days - self.expire as i64) as _))
         } else {
             None
@@ -114,13 +114,13 @@ impl ConnectorLicense {
             .unwrap()
             .as_secs();
 
-        seconds > self.expire as u64
+        seconds > self.expire as u64 && self.expire >= 0
     }
 
     pub fn expired_seconds(&self) -> Option<chrono::Duration> {
         let expire_time = chrono::NaiveDateTime::from_timestamp_opt(self.expire as _, 0).unwrap();
         let now = chrono::Utc::now().naive_utc();
-        if expire_time > now {
+        if expire_time > now || self.expire < 0 {
             return None;
         } else {
             return Some(chrono::Duration::seconds((now - expire_time).num_seconds()));
@@ -134,6 +134,34 @@ fn test_connector_license() {
     let license: ConnectorLicense = serde_json::from_str(s).unwrap();
     dbg!(&license);
     assert!(license.is_expired_day());
+}
+
+#[test]
+fn test_is_expired_day() {
+    let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"-1"}"#;
+    let license: ConnectorLicense = serde_json::from_str(s).unwrap();
+    dbg!(license.is_expired_day());
+}
+
+#[test]
+fn test_expired_days() {
+    let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"-1"}"#;
+    let license: ConnectorLicense = serde_json::from_str(s).unwrap();
+    dbg!(license.expired_days());
+}
+
+#[test]
+fn test_is_expired_second() {
+    let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"-1"}"#;
+    let license: ConnectorLicense = serde_json::from_str(s).unwrap();
+    dbg!(license.is_expired_second());
+}
+
+#[test]
+fn test_expired_seconds() {
+    let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"-1"}"#;
+    let license: ConnectorLicense = serde_json::from_str(s).unwrap();
+    dbg!(license.expired_seconds());
 }
 
 pub enum TaskNotify {
