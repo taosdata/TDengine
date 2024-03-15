@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
+#include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
@@ -138,6 +139,22 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+}
+
+static int32_t mndPullupArbHeartbeat(SMnode *pMnode) {
+  mTrace("pullup arb hb");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_ARB_HEARTBEAT_TIMER, .pCont = pReq, .contLen = contLen, .info.noResp = 1};
+  return tmsgPutToQueue(&pMnode->msgCb, ARB_QUEUE, &rpcMsg);
+}
+
+static int32_t mndPullupArbCheckSync(SMnode *pMnode) {
+  mTrace("pullup arb sync");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_ARB_CHECK_SYNC_TIMER, .pCont = pReq, .contLen = contLen, .info.noResp = 1};
+  return tmsgPutToQueue(&pMnode->msgCb, ARB_QUEUE, &rpcMsg);
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
@@ -391,6 +408,18 @@ static void *mndThreadFp(void *param) {
       continue;
     }
     mndDoTimerPullupTask(pMnode, sec);
+
+    if (sec % (tsArbHeartBeatIntervalSec) == 0) {
+      if (mndPullupArbHeartbeat(pMnode) != 0) {
+        mError("failed to pullup arb heartbeat, since:%s", terrstr());
+      }
+    }
+
+    if (sec % (tsArbCheckSyncIntervalSec) == 0) {
+      if (mndPullupArbCheckSync(pMnode) != 0) {
+        mError("failed to pullup arb check sync, since:%s", terrstr());
+      }
+    }
   }
 
   return NULL;
@@ -513,6 +542,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
@@ -694,6 +724,13 @@ ESyncRole mndGetRole(SMnode *pMnode) {
   return syncGetRole(rid);
 }
 
+int64_t mndGetTerm(SMnode *pMnode) {
+  int64_t rid = pMnode->syncMgmt.sync;
+  return syncGetTerm(rid);
+}
+
+int32_t mndGetArbToken(SMnode *pMnode, char *outToken) { return syncGetArbToken(pMnode->syncMgmt.sync, outToken); }
+
 void mndStop(SMnode *pMnode) {
   mndSetStop(pMnode);
   mndSyncStop(pMnode);
@@ -768,7 +805,8 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE ||
-      pMsg->msgType == TDMT_MND_STREAM_CHECKPOINT_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT) {
+      pMsg->msgType == TDMT_MND_STREAM_CHECKPOINT_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
+      pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER || pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     return -1;
@@ -951,7 +989,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->syncState), sizeof(pVnDesc->vnode_role));
       pVnDesc->syncState = pVgid->syncState;
-      if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
+      if (pVgid->syncState == TAOS_SYNC_STATE_LEADER || pVgid->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }

@@ -44,7 +44,7 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = 0xFFFFFFFF;
   sDebug("vgId:%d, start to resolve sync addr fqdn in %d seconds, "
-        "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ", 
+        "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
         vgId, tsResolveFQDNRetryTime,
         pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
   for(int i = 0; i < tsResolveFQDNRetryTime; i++){
@@ -57,7 +57,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
       break;
     }
   }
-  
+
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
     sError("failed to resolve ipv4 addr, fqdn:%s", pInfo->nodeFqdn);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
@@ -102,6 +102,13 @@ void syncUtilMsgHtoN(void* msg) {
 bool syncUtilUserPreCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
 bool syncUtilUserRollback(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
+
+void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
+  memset(buf, 0, TSDB_ARB_TOKEN_SIZE);
+  int32_t randVal = taosSafeRand() % 1000;
+  int64_t currentMs = taosGetTimestampMs();
+  sprintf(buf, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
+}
 
 // for leader
 static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
@@ -221,19 +228,22 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
 
   if (pNode != NULL) {
-    taosPrintLog(flags, level, dflag,
-                 "vgId:%d, %s, sync:%s, term:%" PRIu64 ", commit-index:%" PRId64 ", applied-index:%" PRId64
-                 ", first-ver:%" PRId64 ", last-ver:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64 ", snap-term:%" PRIu64
-                 ", elect-times:%d, as-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
-                 "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
-                 ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
-                 ", buffer:%s, repl-mgrs:%s, members:%s, hb:%s, hb-reply:%s",
-                 pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, appliedIndex,
-                 logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
-                 pNode->electNum, pNode->becomeLeaderNum, pNode->configChangeNum, pNode->hbSlowNum, pNode->hbrSlowNum,
-                 aqItems, pNode->snapshottingIndex, pNode->replicaNum, pNode->raftCfg.lastConfigIndex, pNode->changing,
-                 pNode->restoreFinish, syncNodeDynamicQuorum(pNode), pNode->electTimerLogicClock,
-                 pNode->heartbeatTimerLogicClockUser, bufferStatesStr, replMgrStatesStr, cfgStr, hbTimeStr, hbrTimeStr);
+    taosPrintLog(
+        flags, level, dflag,
+        "vgId:%d, %s, sync:%s, term:%" PRIu64 ", commit-index:%" PRId64 ", assigned-index:%" PRId64
+        ", applied-index:%" PRId64 ", first-ver:%" PRId64 ", last-ver:%" PRId64 ", min:%" PRId64 ", snap:%" PRId64
+        ", snap-term:%" PRIu64
+        ", elect-times:%d, as-leader-times:%d, as-assigned-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
+        "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
+        ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
+        ", buffer:%s, repl-mgrs:%s, members:%s, hb:%s, hb-reply:%s",
+        pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, pNode->assignedCommitIndex,
+        appliedIndex, logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex,
+        snapshot.lastApplyTerm, pNode->electNum, pNode->becomeLeaderNum, pNode->becomeAssignedLeaderNum,
+        pNode->configChangeNum, pNode->hbSlowNum, pNode->hbrSlowNum, aqItems, pNode->snapshottingIndex,
+        pNode->replicaNum, pNode->raftCfg.lastConfigIndex, pNode->changing, pNode->restoreFinish,
+        syncNodeDynamicQuorum(pNode), pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, bufferStatesStr,
+        replMgrStatesStr, cfgStr, hbTimeStr, hbrTimeStr);
   }
 }
 
