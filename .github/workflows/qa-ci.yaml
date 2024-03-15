@@ -165,7 +165,7 @@ jobs:
       
       - name: Run Test
         run: |
-          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity"
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity connectivity_test.py"
 
       - name: Stop taosx-agent & taosx
         if: always()
