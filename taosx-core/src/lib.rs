@@ -101,7 +101,7 @@ impl ConnectorLicense {
         let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
             .num_days();
 
-        if days > self.expire && self.expire >= 0{
+        if days > self.expire && self.expire >= 0 {
             Some(chrono::Duration::days((days - self.expire as i64) as _))
         } else {
             None
@@ -120,7 +120,7 @@ impl ConnectorLicense {
     pub fn expired_seconds(&self) -> Option<chrono::Duration> {
         let expire_time = chrono::NaiveDateTime::from_timestamp_opt(self.expire as _, 0).unwrap();
         let now = chrono::Utc::now().naive_utc();
-        if expire_time > now || self.expire < 0{
+        if expire_time > now || self.expire < 0 {
             return None;
         } else {
             return Some(chrono::Duration::seconds((now - expire_time).num_seconds()));
