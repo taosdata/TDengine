@@ -27,14 +27,15 @@ class TestCountWindow(TDCase):
                     self.taosd_setting['spec']['config']['firstEP'])
         self.target_taosd = self.firstEP[-1].split(':')
         print(self.target_taosd[0])
+        self.alias_name = "m"
         self.service_host = self.target_taosd[0]
         self.tdCom = TDCom(self.tdSql)
         self.count_window_vol_list = [2, 6]
         self.tbname_check_list = ["stb0", "ctb0", "tb"]
-        self.function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        self.function_list = [f"min(c1) {self.alias_name}", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.nfl_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        self.nfl_function_list = [f"min(c1) {self.alias_name}", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         self.stb_source_select_str = ','.join(self.function_list)
@@ -65,60 +66,95 @@ class TestCountWindow(TDCase):
         print("------", random.choice(self.ts_list))
         return str(random.choice(self.ts_list))
 
-    def no_dup_ts_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, where_condition=None):
+    def no_dup_ts_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, where_condition=None, having_elm=None, having_condition=None, alias_name=None):
         condition_vol = "" if where_condition is None else f"where {where_condition}"
+        # having_condition_vol = "" if having_condition is None else f"having {having_elm} {having_condition}"
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type)
         for count_window_vol in self.count_window_vol_list:
             for tbname in self.tbname_check_list:
                 if "stb" in tbname:
-                    if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"')
-                    if self.delete:
-                        self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
+                    # if self.disorder:
+                    #     self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"')
+                    # if self.delete:
+                    #     self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
+                    # # # No partition
+                    # count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} count_window({count_window_vol})'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str)
+                    # # Partition by tbname
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname")
+                    # # Partition by no-dup column
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index)
+                    # # Partition by tag
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by t3 count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "t3", custom_col_index)
+                    # # Partition by expression
+                    # partition_vol = "abs(c3)"
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", partition_vol, custom_col_index)
+                    # # Filter
+                    # count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, where_condition=condition_vol)
+                    # # Having
                     # # No partition
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} count_window({count_window_vol})'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str)
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname")
-                    # Partition by no-dup column
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname", having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    # # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index)
-                    # Partition by tag
-                    count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index)
-                    # Partition by expression
-                    partition_vol = "abs(c3)"
-                    count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", partition_vol, custom_col_index)
-                    # Filter
-                    count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, where_condition=condition_vol)
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    # # Partition by tag
+                    count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by t3 count_window({count_window_vol}) order by _wstart'
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "t3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    # # Partition by tag, column
+                    count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by t3,c3 count_window({count_window_vol}) order by _wstart'
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "t3,c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
                 else:
-                    if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=tbname, ts_value=f'"{self.get_random_ts(tbname)}"')
-                    if self.delete:
-                        self.tdCom.delete_rows(dbname=self.dbname, tbname=tbname, start_ts=f'"{self.get_random_ts(tbname)}"')
+                    # if self.disorder:
+                    #     self.tdCom.insert_rows(dbname=self.dbname, tbname=tbname, ts_value=f'"{self.get_random_ts(tbname)}"')
+                    # if self.delete:
+                    #     self.tdCom.delete_rows(dbname=self.dbname, tbname=tbname, start_ts=f'"{self.get_random_ts(tbname)}"')
+                    # # # No partition
+                    # count_window_sql = f'select _wstart, _wend, {self.tb_source_select_str} from {tbname} count_window({count_window_vol})'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str)
+                    # # Partition by tbname
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "tbname")
+                    # # Partition by no-dup column
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index)
+                    # Partition by tag
+                    # if tbname != "tb":
+                    #     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by t3 count_window({count_window_vol}) order by _wstart'
+                    #     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "t3", custom_col_index)
+                    # # Partition by expression
+                    # partition_vol = "abs(c3)"
+                    # count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", partition_vol, custom_col_index)
+                    # # Filter
+                    # count_window_sql = f'select _wstart, _wend, {self.tb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
+                    # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, where_condition=condition_vol)
+                    # # Having
                     # # No partition
                     count_window_sql = f'select _wstart, _wend, {self.tb_source_select_str} from {tbname} count_window({count_window_vol})'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str)
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "tbname")
-                    # Partition by no-dup column
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "tbname", having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    # # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index)
+                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
                     # Partition by tag
                     if tbname != "tb":
                         count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by t3 count_window({count_window_vol}) order by _wstart'
-                        self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "t3", custom_col_index)
-                    # Partition by expression
-                    partition_vol = "abs(c3)"
-                    count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", partition_vol, custom_col_index)
-                    # Filter
-                    count_window_sql = f'select _wstart, _wend, {self.tb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
-                    self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, where_condition=condition_vol)
+                        self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "t3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    # # Partition by tag, column
+                    if tbname != "tb":
+                        count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by t3,c3 count_window({count_window_vol}) order by _wstart'
+                        self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "t3,c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
     
     def dup_col_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type):
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type)
@@ -143,6 +179,7 @@ class TestCountWindow(TDCase):
         # self.tdSql.query('select  count(*) from stb0')
         # ts_vol = self.get_random_ts("stb0")
         
-        self.no_dup_ts_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", where_condition="c1 > 0")
+        # self.no_dup_ts_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", where_condition="c1 > 0")
+        self.no_dup_ts_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", having_elm="min(c1)", having_condition="< 0", alias_name=self.alias_name)
         # self.dup_col_test(stable_count=1, ctable_count=2, table_count=1, row_count=10, custom_col_index=2, col_value_type="Part_equal")
         return
