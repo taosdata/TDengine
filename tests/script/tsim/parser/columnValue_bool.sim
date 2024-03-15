@@ -492,11 +492,6 @@ if $data01 != 1 then
   return -1
 endi
 
-
-
-
-
-
 ## case 03: alter tag values
 #sql alter table st_bool_0 set tag tagname=true
 #sql show tags from st_bool_0

@@ -1,0 +1,589 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== columnValues.sim
+
+sql drop database if exists db
+sql create database db
+sql use db
+
+#### test the value of all data types in four cases: static create table, insert column value, synamic create table, alter tag value
+
+######## case 0: timestamp
+print ========== timestamp
+sql create table mt_timestamp (ts timestamp, c timestamp) tags (tagname timestamp)
+
+## case 00: static create table for test tag values
+sql create table st_timestamp_0  using mt_timestamp tags (NULL)
+sql show create table st_timestamp_0
+sql show tags from  st_timestamp_0
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_1  using mt_timestamp tags (NULL)
+sql show tags from  st_timestamp_1
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_2  using mt_timestamp tags ('NULL')
+sql show tags from  st_timestamp_2
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_3  using mt_timestamp tags ('NULL')
+sql show tags from  st_timestamp_3
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_4  using mt_timestamp tags ("NULL")
+sql show tags from  st_timestamp_4
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_5  using mt_timestamp tags ("NULL")
+sql show tags from  st_timestamp_5
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_timestamp_6  using mt_timestamp tags (-2147483647)
+sql show tags from  st_timestamp_6
+if $data05 != -2147483647 then
+  return -1
+endi
+sql create table st_timestamp_7  using mt_timestamp tags (2147483647)
+sql show tags from  st_timestamp_7
+if $data05 != 2147483647 then
+  return -1
+endi
+sql create table st_timestamp_8  using mt_timestamp tags (37)
+sql show tags from  st_timestamp_8
+if $data05 != 37 then
+  return -1
+endi
+sql create table st_timestamp_9  using mt_timestamp tags (-100)
+sql show tags from  st_timestamp_9
+if $data05 != -100 then
+  return -1
+endi
+sql create table st_timestamp_10 using mt_timestamp tags (+113)
+sql show tags from  st_timestamp_10
+if $data05 != 113 then
+  return -1
+endi
+sql create table st_timestamp_11 using mt_timestamp tags ('-100')
+sql show tags from  st_timestamp_11
+if $data05 != -100 then
+  return -1
+endi
+sql create table st_timestamp_12 using mt_timestamp tags ("-0")
+sql show tags from  st_timestamp_12
+if $data05 != 0 then
+  return -1
+endi
+sql create table st_timestamp_13 using mt_timestamp tags (+0078)
+sql show tags from  st_timestamp_13
+if $data05 != 78 then
+  return -1
+endi
+sql create table st_timestamp_14 using mt_timestamp tags (-00078)
+sql show tags from  st_timestamp_14
+if $data05 != -78 then
+  return -1
+endi
+sql create table st_timestamp_15 using mt_timestamp tags ("0x01")
+sql show tags from  st_timestamp_15
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_16 using mt_timestamp tags ("0b01")
+sql show tags from  st_timestamp_16
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_17 using mt_timestamp tags ("+0x01")
+sql show tags from  st_timestamp_17
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_18 using mt_timestamp tags ("-0b01")
+sql show tags from  st_timestamp_18
+if $data05 != -1 then
+  return -1
+endi
+sql create table st_timestamp_19 using mt_timestamp tags ( 0x01)
+sql show tags from  st_timestamp_19
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_20 using mt_timestamp tags (0b01 )
+sql show tags from  st_timestamp_20
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_21 using mt_timestamp tags (+0x01)
+sql show tags from  st_timestamp_21
+if $data05 != 1 then
+  return -1
+endi
+sql create table st_timestamp_22 using mt_timestamp tags ( -0b01 )
+sql show tags from  st_timestamp_22
+if $data05 != -1 then
+  return -1
+endi
+
+## case 01: insert values  for test column values
+sql insert into st_timestamp_0 values(now,NULL)
+sql select * from  st_timestamp_0
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_1 values(now,NULL)
+sql select * from  st_timestamp_1
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_2 values(now,'NULL')
+sql select * from  st_timestamp_2
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_3 values(now,'NULL')
+sql select * from  st_timestamp_3
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_4 values(now,"NULL")
+sql select * from  st_timestamp_4
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_5 values(now,"NULL")
+sql select * from  st_timestamp_5
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_6 values(now,-2147483647)
+sql select ts, cast(c as bigint) from  st_timestamp_6
+if $data01 != -2147483647 then
+  return -1
+endi
+sql insert into st_timestamp_7 values(now,2147483647)
+sql select ts, cast(c as bigint) from  st_timestamp_7
+if $data01 != 2147483647 then
+  return -1
+endi
+sql insert into st_timestamp_8 values(now,37)
+sql select ts, cast(c as bigint) from  st_timestamp_8
+if $data01 != 37 then
+  return -1
+endi
+sql insert into st_timestamp_9 values(now,-100)
+sql select ts, cast(c as bigint) from  st_timestamp_9
+if $data01 != -100 then
+  return -1
+endi
+sql insert into st_timestamp_10 values(now,+113)
+sql select ts, cast(c as bigint) from  st_timestamp_10
+if $data01 != 113 then
+  return -1
+endi
+sql insert into st_timestamp_11 values(now,'-100')
+sql select ts, cast(c as bigint) from  st_timestamp_11
+if $data01 != -100 then
+  return -1
+endi
+sql insert into st_timestamp_12 values(now,"-0")
+sql select ts, cast(c as bigint) from  st_timestamp_12
+if $data01 != 0 then
+  return -1
+endi
+sql insert into st_timestamp_13 values(now,+0078)
+sql select ts, cast(c as bigint) from  st_timestamp_13
+if $data01 != 78 then
+  return -1
+endi
+sql insert into st_timestamp_14 values(now,-00078)
+sql select ts, cast(c as bigint) from  st_timestamp_14
+if $data01 != -78 then
+  return -1
+endi
+sql insert into st_timestamp_15 values(now,"0x01")
+sql select ts, cast(c as bigint) from  st_timestamp_15
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_16 values(now,"0b01")
+sql select ts, cast(c as bigint) from  st_timestamp_16
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_17 values(now,"+0x01")
+sql select ts, cast(c as bigint) from  st_timestamp_17
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_18 values(now,"-0b01")
+sql select ts, cast(c as bigint) from  st_timestamp_18
+if $data01 != -1 then
+  return -1
+endi
+sql insert into st_timestamp_19 values(now, 0x01)
+sql select ts, cast(c as bigint) from  st_timestamp_19
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_20 values(now,0b01 )
+sql select ts, cast(c as bigint) from  st_timestamp_20
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_21 values(now,+0x01)
+sql select ts, cast(c as bigint) from  st_timestamp_21
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_22 values(now, -0b01 )
+sql select ts, cast(c as bigint) from  st_timestamp_22
+if $data01 != -1 then
+  return -1
+endi
+
+## case 02: dynamic create table for test tag values
+sql insert into st_timestamp_100 using mt_timestamp tags(NULL) values(now, NULL)
+sql show tags from  st_timestamp_100
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_100
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_101 using mt_timestamp tags(NULL) values(now, NULL)
+sql show tags from  st_timestamp_101
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_101
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_102 using mt_timestamp tags('NULL') values(now, 'NULL')
+sql show tags from  st_timestamp_102
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_102
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_103 using mt_timestamp tags('NULL') values(now, 'NULL')
+sql show tags from  st_timestamp_103
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_103
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_104 using mt_timestamp tags("NULL") values(now, "NULL")
+sql show tags from  st_timestamp_104
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_104
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_105 using mt_timestamp tags("NULL") values(now, "NULL")
+sql show tags from  st_timestamp_105
+if $data05 != NULL then
+  return -1
+endi
+sql select * from  st_timestamp_105
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_timestamp_106 using mt_timestamp tags(-2147483647) values(now, -2147483647)
+sql show tags from  st_timestamp_106
+if $data05 != -2147483647 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_106
+if $data01 != -2147483647 then
+  return -1
+endi
+sql insert into st_timestamp_107 using mt_timestamp tags(2147483647) values(now, 2147483647)
+sql show tags from  st_timestamp_107
+if $data05 != 2147483647 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_107
+if $data01 != 2147483647 then
+  return -1
+endi
+sql insert into st_timestamp_108 using mt_timestamp tags(37) values(now, 37)
+sql show tags from  st_timestamp_108
+if $data05 != 37 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_108
+if $data01 != 37 then
+  return -1
+endi
+sql insert into st_timestamp_109 using mt_timestamp tags(-100) values(now, -100)
+sql show tags from  st_timestamp_109
+if $data05 != -100 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_109
+if $data01 != -100 then
+  return -1
+endi
+sql insert into st_timestamp_1010 using mt_timestamp tags(+113) values(now, +113)
+sql show tags from  st_timestamp_1010
+if $data05 != 113 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1010
+if $data01 != 113 then
+  return -1
+endi
+sql insert into st_timestamp_1011 using mt_timestamp tags('-100') values(now, '-100')
+sql show tags from  st_timestamp_1011
+if $data05 != -100 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1011
+if $data01 != -100 then
+  return -1
+endi
+sql insert into st_timestamp_1012 using mt_timestamp tags("-0") values(now, "-0")
+sql show tags from  st_timestamp_1012
+if $data05 != 0 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1012
+if $data01 != 0 then
+  return -1
+endi
+sql insert into st_timestamp_1013 using mt_timestamp tags(+0078) values(now, +0078)
+sql show tags from  st_timestamp_1013
+if $data05 != 78 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1013
+if $data01 != 78 then
+  return -1
+endi
+sql insert into st_timestamp_1014 using mt_timestamp tags(-00078) values(now, -00078)
+sql show tags from  st_timestamp_1014
+if $data05 != -78 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1014
+if $data01 != -78 then
+  return -1
+endi
+sql insert into st_timestamp_1015 using mt_timestamp tags("0x01") values(now, "0x01")
+sql show tags from  st_timestamp_1015
+if $data05 != 1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1015
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1016 using mt_timestamp tags("0b01") values(now, "0b01")
+sql show tags from  st_timestamp_1016
+if $data05 != 1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1016
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1017 using mt_timestamp tags("+0x01") values(now, "+0x01")
+sql show tags from  st_timestamp_1017
+if $data05 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1018 using mt_timestamp tags("-0b01") values(now, "-0b01")
+sql show tags from  st_timestamp_1018
+if $data05 != -1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1018
+if $data01 != -1 then
+  return -1
+endi
+sql insert into st_timestamp_1019 using mt_timestamp tags( 0x01) values(now, 0x01)
+sql show tags from  st_timestamp_1019
+if $data05 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1020 using mt_timestamp tags(0b01 ) values(now, 0b01 )
+sql show tags from  st_timestamp_1020
+if $data05 != 1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1020
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1021 using mt_timestamp tags(+0x01) values(now, +0x01)
+sql show tags from  st_timestamp_1021
+if $data05 != 1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1021
+if $data01 != 1 then
+  return -1
+endi
+sql insert into st_timestamp_1022 using mt_timestamp tags( -0b01 ) values(now,  -0b01)
+sql show tags from  st_timestamp_1022
+if $data05 != -1 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1022
+if $data01 != -1 then
+  return -1
+endi
+
+### case 03: alter tag values
+sql alter table st_timestamp_0 set tag tagname=NULL
+sql show tags from  st_timestamp_0
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_1 set tag tagname=NULL
+sql show tags from  st_timestamp_1
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_2 set tag tagname='NULL'
+sql show tags from  st_timestamp_2
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_3 set tag tagname='NULL'
+sql show tags from  st_timestamp_3
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_4 set tag tagname="NULL"
+sql show tags from  st_timestamp_4
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_5 set tag tagname="NULL"
+sql show tags from  st_timestamp_5
+if $data05 != NULL then
+  return -1
+endi
+sql alter table st_timestamp_6 set tag tagname=-2147483647
+sql show tags from  st_timestamp_6
+if $data05 != -2147483647 then
+  return -1
+endi
+sql alter table st_timestamp_7 set tag tagname=2147483647
+sql show tags from  st_timestamp_7
+if $data05 != 2147483647 then
+  return -1
+endi
+sql alter table st_timestamp_8 set tag tagname=37
+sql show tags from  st_timestamp_8
+if $data05 != 37 then
+  return -1
+endi
+sql alter table st_timestamp_9 set tag tagname=-100
+sql show tags from  st_timestamp_9
+if $data05 != -100 then
+  return -1
+endi
+sql alter table st_timestamp_10 set tag tagname=+113
+sql show tags from  st_timestamp_10
+if $data05 != 113 then
+  return -1
+endi
+sql alter table st_timestamp_11 set tag tagname='-100'
+sql show tags from  st_timestamp_11
+if $data05 != -100 then
+  return -1
+endi
+sql alter table st_timestamp_12 set tag tagname="-0"
+sql show tags from  st_timestamp_12
+if $data05 != 0 then
+  return -1
+endi
+sql alter table st_timestamp_13 set tag tagname=+0078
+sql show tags from  st_timestamp_13
+if $data05 != 78 then
+  return -1
+endi
+sql alter table st_timestamp_14 set tag tagname=-00078
+sql show tags from  st_timestamp_14
+if $data05 != -78 then
+  return -1
+endi
+sql alter table st_timestamp_15 set tag tagname="0x01"
+sql show tags from  st_timestamp_15
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_16 set tag tagname="0b01"
+sql show tags from  st_timestamp_16
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_17 set tag tagname="+0x01"
+sql show tags from  st_timestamp_17
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_18 set tag tagname="-0b01"
+sql show tags from  st_timestamp_18
+if $data05 != -1 then
+  return -1
+endi
+sql alter table st_timestamp_19 set tag tagname= 0x01
+sql show tags from  st_timestamp_19
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_20 set tag tagname=0b01 
+sql show tags from  st_timestamp_20
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_21 set tag tagname=+0x01
+sql show tags from  st_timestamp_21
+if $data05 != 1 then
+  return -1
+endi
+sql alter table st_timestamp_22 set tag tagname= -0b01 
+sql show tags from  st_timestamp_22
+if $data05 != -1 then
+  return -1
+endi
+
+## case 04: illegal input
+sql_error create table st_timestamp_e0 using mt_timestamp tags (123abc)
+sql_error create table st_timestamp_e0 using mt_timestamp tags ("123abc")
+sql_error create table st_timestamp_e0 using mt_timestamp tags (abc)
+sql_error create table st_timestamp_e0 using mt_timestamp tags ("abc")
+sql_error create table st_timestamp_e0 using mt_timestamp tags (" ")
+sql_error create table st_timestamp_e0 using mt_timestamp tags ('')
+sql_error create table st_timestamp_104 using mt_timestamp tags ("-123.1")
+sql_error create table st_timestamp_105 using mt_timestamp tags ("+123.5")
+sql_error create table st_timestamp_106 using mt_timestamp tags ("-1e-1")
+sql_error create table st_timestamp_107 using mt_timestamp tags ("+0.1235e3")
+sql_error create table st_timestamp_108 using mt_timestamp tags ("-0.11e-30")
+sql_error create table st_timestamp_109 using mt_timestamp tags ("-1.1e-307")
+sql_error create table st_timestamp_110 using mt_timestamp tags ( -1e-1 )
+sql_error create table st_timestamp_111 using mt_timestamp tags ( +0.1235e3 )
+sql_error create table st_timestamp_112 using mt_timestamp tags (-0.11e-30)
+sql_error create table st_timestamp_113 using mt_timestamp tags (-1.1e-307)
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
