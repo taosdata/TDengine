@@ -302,7 +302,14 @@ async fn validate_connector_license(
         used.push(from.to_string());
         let used = used
             .into_iter()
-            .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
+            .map(|s| {
+                s.parse::<Dsn>()
+                    .unwrap()
+                    .addresses
+                    .first()
+                    .map(|addr| addr.to_string())
+                    .unwrap_or_else(|| "".to_string())
+            })
             .collect::<std::collections::HashSet<_>>()
             .len();
 
