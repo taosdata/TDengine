@@ -4245,6 +4245,25 @@ typedef struct SDropCtbWithTsmaReq {
 int32_t tSerializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, const SMDropTbWithTsmaReq* pReq);
 int32_t tDeserializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, SMDropTbWithTsmaReq* pReq);
 
+typedef struct SVTtlExpiredTb {
+  tb_uid_t uid;
+  char name[TSDB_TABLE_NAME_LEN];
+  tb_uid_t suid;
+} SVTtlExpiredTb;
+
+typedef struct SVFetchTtlExpiredTbsRsp {
+  SArray* pExpiredTbs;
+  int32_t vgId;
+} SVFetchTtlExpiredTbsRsp;
+
+int32_t tEncodeTtlExpiredTb(SEncoder* pEncoder, const SVTtlExpiredTb* pTb);
+int32_t tDecodeTtlExpiredTb(SDecoder* pDecoder, SVTtlExpiredTb* pTb);
+
+int32_t tEncodeVFetchTtlExpiredTbsRsp(SEncoder* pCoder, const SVFetchTtlExpiredTbsRsp* pRsp);
+int32_t tDecodeVFetchTtlExpiredTbsRsp(SDecoder* pCoder, SVFetchTtlExpiredTbsRsp* pRsp);
+
+void tFreeFetchTtlExpiredTbsRsp(void* p);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
