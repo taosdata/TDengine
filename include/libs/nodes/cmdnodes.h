@@ -177,10 +177,8 @@ typedef struct SColumnDefNode {
   ENodeType       type;
   char            colName[TSDB_COL_NAME_LEN];
   SDataType       dataType;
-  char            comments[TSDB_TB_COMMENT_LEN];
   SColumnOptions* pOptions;
   bool            sma;
-  bool            is_pk;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
