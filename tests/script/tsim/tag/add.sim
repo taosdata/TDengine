@@ -395,7 +395,6 @@ sql alter table $tb set tag tgcol6='1'
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
-print $mt
 print select * from $mt where tgcol5 = 5
 print $data01 $data02 $data03 $data04
 if $rows != 1 then

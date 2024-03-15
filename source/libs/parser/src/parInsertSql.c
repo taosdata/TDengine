@@ -922,7 +922,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
   for (int i = 0; TSDB_CODE_SUCCESS == code && i < pCxt->tags.numOfBound; ++i) {
@@ -967,6 +968,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pTag = NULL;
   }
 
+_exit:
   for (int32_t i = 0; i < TARRAY_SIZE(pTagVals); ++i) {
     STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
