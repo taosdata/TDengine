@@ -1427,6 +1427,7 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
       .numOfPKs = 0,  // filled by compress key
   };
   // Key part
+
   tBufferClear(&buffers[1]);
   code = tBlockDataCompressKeyPart(bData, &hdr, &buffers[1], assist, (SColCompressInfo *)pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
