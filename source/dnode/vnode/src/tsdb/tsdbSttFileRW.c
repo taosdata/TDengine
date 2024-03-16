@@ -472,7 +472,6 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
-
   for (int i = 0; i < 4; i++) {
     if (buffers[i].size) {
       code = tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size);
