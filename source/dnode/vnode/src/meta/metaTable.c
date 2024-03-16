@@ -2500,10 +2500,27 @@ _err:
   return -1;
 }
 
+int32_t colCompressDebug(SHashObj *pColCmprObj) {
+  void *p = taosHashIterate(pColCmprObj, NULL);
+  while (p) {
+    uint32_t cmprAlg = *(uint32_t *)p;
+    col_id_t colId = *(col_id_t *)taosHashGetKey(p, NULL);
+    p = taosHashIterate(pColCmprObj, p);
+
+    uint8_t l1, l2, lvl;
+    tcompressDebug(cmprAlg, &l1, &l2, &lvl);
+
+    const char *l1str = columnEncodeStr(l1);
+    const char *l2str = columnCompressStr(l2);
+    const char *lvlstr = columnLevelStr(lvl);
+    metaInfo("colId: %d, encode:%s, compress:%s,level:%s", colId, l1str, l2str, lvlstr);
+  }
+  return 0;
+}
 int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   int rc = 0;
 
-  SHashObj  *pColCmprObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  SHashObj  *pColCmprObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   void      *pData = NULL;
   int        nData = 0;
   SMetaEntry e = {0};
@@ -2537,7 +2554,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     SColCmprWrapper *p = &e.colCmpr;
     for (int32_t i = 0; i < p->nCols; i++) {
       SColCmpr *pCmpr = &p->pColCmpr[i];
-      taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(&pCmpr->alg));
+      taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(pCmpr->alg));
     }
   } else {
     metaULock(pMeta);
@@ -2549,6 +2566,8 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   metaULock(pMeta);
 
   *ppColCmprObj = pColCmprObj;
+  colCompressDebug(pColCmprObj);
+
   return 0;
 }
 // refactor later

@@ -437,10 +437,12 @@ struct SSttFileWriter {
   SSkmInfo skmRow[1];
   SBuffer  local[10];
   SBuffer *buffers;
+  // SColCompressInfo2 pInfo;
 };
 
-static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
-                                           TSttBlkArray *sttBlkArray, SBuffer *buffers, SVersionRange *range) {
+static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
+                                           int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
+                                           SVersionRange *range) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -465,8 +467,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, i
 
   tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
 
-  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = cmprAlg};
-  code = tBlockDataCompress(blockData, &cmprInfo, buffers, buffers + 4);
+  code = tBlockDataCompress(blockData, info, buffers, buffers + 4);
 
   if (code) return code;
   sttBlk->bInfo.offset = *fileSize;
@@ -495,18 +496,19 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // SHashObj *colCmpr = NULL;
-  // tb_uid_t  uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
-  // code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &colCmpr);
+  tb_uid_t         uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
+  SColCompressInfo info = {.defaultCmprAlg = writer->config->cmprAlg, .pColCmpr = NULL};
+  code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
 
-  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
-                                     writer->sttBlkArray, writer->buffers, &writer->ctx->range);
+  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size, writer->sttBlkArray,
+                                     writer->buffers, &writer->ctx->range);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
+  taosHashCleanup(info.pColCmpr);
   return code;
 }
 

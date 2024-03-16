@@ -2134,9 +2134,9 @@ int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     int32_t len = tsCompressTimestampImp(pIn, nEle, pBuf);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    ASSERTS(0, "compress algo not one or two stage");
-    return -1;
+    // tDataTypeCompress[TSDB_DATA_TYPE_TIMESTAMP].compFunc(pIn, nIn, nEle, pOut, nOut, );
   }
+  return 0;
 }
 
 int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
@@ -2397,8 +2397,8 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 
 #define DEFINE_VAR(cmprAlg)                   \
   uint8_t l1 = COMPRESS_L1_TYPE_U32(cmprAlg); \
-  uint8_t l2 = COMPRESS_L2_TYPE_U8(cmprAlg);  \
-  uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(cmprAlg);
+  uint8_t l2 = COMPRESS_L2_TYPE_U32(cmprAlg); \
+  uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U32(cmprAlg);
 /*************************************************************************
  *                  REGULAR COMPRESSION 2
  *************************************************************************/
@@ -2825,5 +2825,13 @@ int32_t tsValidCompressAlgByDataTypes(int8_t type, int8_t compress) {
   if (taosArraySearch(p->l2Set, &l2, compareInt8Val, 0) == NULL) {
     return -1;
   }
+  return 0;
+}
+
+int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level) {
+  DEFINE_VAR(cmprAlg)
+  *l1Alg = l1;
+  *l2Alg = l2;
+  *level = lvl;
   return 0;
 }

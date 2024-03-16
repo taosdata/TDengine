@@ -4267,6 +4267,38 @@ int32_t tCompressData(void          *input,       // input
 
     tBufferDestroy(&local);
   } else {
+    SBuffer local;
+
+    tBufferInit(&local);
+    if (buffer == NULL) {
+      buffer = &local;
+    }
+
+    // if (info->cmprAlg == TWO_STAGE_COMP) {
+    //   code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
+    //   if (code) {
+    //     tBufferDestroy(&local);
+    //     return code;
+    //   }
+    // }
+    code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
+
+    info->compressedSize = tDataCompress[info->dataType].compFunc(  //
+        input,                                                      // input
+        info->originalSize,                                         // input size
+        info->originalSize / tDataTypes[info->dataType].bytes,      // number of elements
+        output,                                                     // output
+        outputSize,                                                 // output size
+        info->cmprAlg,                                              // compression algorithm
+        buffer->data,                                               // buffer
+        buffer->capacity                                            // buffer size
+    );
+    if (info->compressedSize < 0) {
+      tBufferDestroy(&local);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+
+    tBufferDestroy(&local);
     // new col compress
   }
 
@@ -4326,15 +4358,16 @@ int32_t tDecompressData(void                *input,       // input
     if (buffer == NULL) {
       buffer = &local;
     }
-    if (info->cmprAlg == TWO_STAGE_COMP) {
-      code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
-      if (code) {
-        tBufferDestroy(&local);
-        return code;
-      }
-    }
+    // if (info->cmprAlg == TWO_STAGE_COMP) {
+    //   code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
+    //   if (code) {
+    //     tBufferDestroy(&local);
+    //     return code;
+    //   }
+    // }
+    code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
 
-    int32_t decompressedSize = tDataTypes[info->dataType].decompFunc(
+    int32_t decompressedSize = tDataCompress[info->dataType].decompFunc(
         input,                                                  // input
         info->compressedSize,                                   // inputSize
         info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements

@@ -258,6 +258,7 @@ typedef enum L2Compress {
   L2_MAX,
 } EL2ComressFuncType;
 
+int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
 #ifdef __cplusplus
 }
 #endif
