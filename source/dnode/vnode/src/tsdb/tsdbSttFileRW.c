@@ -467,8 +467,8 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
 
   tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
   code = tBlockDataCompress(blockData, info, buffers, buffers + 4);
-
   if (code) return code;
+
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
