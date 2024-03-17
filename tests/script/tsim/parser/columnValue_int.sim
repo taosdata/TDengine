@@ -821,6 +821,7 @@ endi
 ## case 04: illegal input
 sql_error create table st_int_e0 using mt_int tags (2147483648)
 sql create table st_int_e0_err1 using mt_int tags (-2147483648)
+sql_error create table st_int_e0_err2 using mt_int tags (-2147483649)
 sql_error create table st_int_e0 using mt_int tags (214748364800)
 sql_error create table st_int_e0 using mt_int tags (-214748364800)
 #sql_error create table st_int_e0 using mt_int tags (12.80)   truncate integer part
@@ -902,8 +903,10 @@ sql insert into st_int_e23 using mt_int tags (033) values (now, 00062)
 sql insert into st_int_e24 using mt_int tags (033) values (now, 00062)
 sql insert into st_int_e25 using mt_int tags (033) values (now, 00062)
 
+sql alter table st_int_e13 set tag tagname=2147483647
 sql_error alter table st_int_e13 set tag tagname=2147483648
 sql alter table st_int_e14 set tag tagname=-2147483648
+sql_error alter table st_int_e14 set tag tagname=2147483649
 sql_error alter table st_int_e15 set tag tagname=12147483648
 sql_error alter table st_int_e16 set tag tagname=-3147483648
 sql_error alter table st_int_e19 set tag tagname=123abc

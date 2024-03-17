@@ -817,15 +817,15 @@ if $data05 != 0 then
 endi
 
 ## case 04: illegal input
-sql_error create table st_uint_e0 using mt_uint tags (4294967296)
-sql_error create table st_uint_e0_err1 using mt_uint tags (-2147483648)
-sql_error create table st_uint_e0 using mt_uint tags (-214748364800)
-sql_error create table st_uint_e0 using mt_uint tags (123abc)
-sql_error create table st_uint_e0 using mt_uint tags ("123abc")
-sql_error create table st_uint_e0 using mt_uint tags (abc)
-sql_error create table st_uint_e0 using mt_uint tags ("abc")
-sql_error create table st_uint_e0 using mt_uint tags (" ")
-sql_error create table st_uint_e0_err2 using mt_uint tags ('')
+sql_error create table st_uint_e0_err0 using mt_uint tags (4294967296)
+sql_error create table st_uint_e0_err1 using mt_uint tags (-4294967297)
+sql_error create table st_uint_e0_err2 using mt_uint tags (-214748364800)
+sql_error create table st_uint_e0_err3 using mt_uint tags (123abc)
+sql_error create table st_uint_e0_err4 using mt_uint tags ("123abc")
+sql_error create table st_uint_e0_err5 using mt_uint tags (abc)
+sql_error create table st_uint_e0_err6 using mt_uint tags ("abc")
+sql_error create table st_uint_e0_err7 using mt_uint tags (" ")
+sql_error create table st_uint_e0_err8 using mt_uint tags ('')
 
 sql create table st_uint_e0  using mt_uint tags (123)
 sql create table st_uint_e1  using mt_uint tags (123)
@@ -842,7 +842,7 @@ sql create table st_uint_e11 using mt_uint tags (123)
 sql create table st_uint_e12 using mt_uint tags (123)
 
 sql_error insert into st_uint_e0  values (now, 4294967296)
-sql_error insert into st_uint_e1  values (now, -2147483648)
+sql_error insert into st_uint_e1  values (now, -4294967297)
 sql_error insert into st_uint_e3  values (now, -21474836481)
 sql_error insert into st_uint_e6  values (now, 123abc)
 sql_error insert into st_uint_e7  values (now, "123abc")
@@ -852,7 +852,7 @@ sql_error insert into st_uint_e11 values (now, " ")
 sql_error insert into st_uint_e12 values (now, '')
 
 sql_error insert into st_uint_e13 using mt_uint tags (033) values (now, 4294967296)
-sql_error insert into st_uint_e14 using mt_uint tags (033) values (now, -2147483648)
+sql_error insert into st_uint_e14 using mt_uint tags (033) values (now, -4294967297)
 sql_error insert into st_uint_e16 using mt_uint tags (033) values (now, -21474836481)
 sql_error insert into st_uint_e19 using mt_uint tags (033) values (now, 123abc)
 sql_error insert into st_uint_e20 using mt_uint tags (033) values (now, "123abc")
@@ -889,7 +889,7 @@ sql insert into st_uint_e24 using mt_uint tags (033) values (now, 00062)
 sql insert into st_uint_e25 using mt_uint tags (033) values (now, 00062)
 
 sql_error alter table st_uint_e13 set tag tagname=4294967296
-sql_error alter table st_uint_e14 set tag tagname=-2147483648
+sql_error alter table st_uint_e14 set tag tagname=-4294967297
 sql_error alter table st_uint_e16 set tag tagname=-3147483648
 sql_error alter table st_uint_e19 set tag tagname=123abc
 sql_error alter table st_uint_e20 set tag tagname="123abc"

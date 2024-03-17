@@ -585,5 +585,10 @@ sql_error create table st_timestamp_110 using mt_timestamp tags ( -1e-1 )
 sql_error create table st_timestamp_111 using mt_timestamp tags ( +0.1235e3 )
 sql_error create table st_timestamp_112 using mt_timestamp tags (-0.11e-30)
 sql_error create table st_timestamp_113 using mt_timestamp tags (-1.1e-307)
+sql create table st_timestamp_114 using mt_timestamp tags (9223372036854775807)
+sql_error create table st_timestamp_115 using mt_timestamp tags (9223372036854775808)
+sql create table st_timestamp_116 using mt_timestamp tags (-9223372036854775808)
+sql_error create table st_timestamp_117 using mt_timestamp tags (-9223372036854775809)
+sql_error insert into st_timestamp_118 using mt_timestamp tags(9223372036854775807) values(9223372036854775807, 9223372036854775807)
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
