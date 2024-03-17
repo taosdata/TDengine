@@ -710,11 +710,13 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // build create stable
-  pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SField));
+  pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SFieldWithOptions));
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema* pSchema = req.schemaRow.pSchema + i;
-    SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
+    SFieldWithOptions   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
+    // todo get active compress param
+    setDefaultOptionsForField(&field);
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));

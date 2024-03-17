@@ -26,6 +26,7 @@
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "tcol.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
@@ -5765,7 +5766,39 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
 
+static int32_t checkColumnOptions(SNodeList* pList) {
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SColumnDefNode*   pCol = (SColumnDefNode*)pNode;
+    if (!pCol->pOptions)  return TSDB_CODE_TSC_ENCODE_PARAM_NULL;
+    if (!checkColumnEncodeOrSetDefault(pCol->type, pCol->pOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnCompressOrSetDefault(pCol->type, pCol->pOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnLevelOrSetDefault(pCol->type, pCol->pOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
+  *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SColumnDefNode*   pCol = (SColumnDefNode*)pNode;
+    SFieldWithOptions field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
+    strcpy(field.name, pCol->colName);
+    if (pCol->pOptions) {
+      setColEncode(&field.compress, columnEncodeVal(pCol->pOptions->encode));
+      setColCompress(&field.compress, columnCompressVal(pCol->pOptions->compress));
+      setColLevel(&field.compress, columnLevelVal(pCol->pOptions->compressLevel));
+    }
+    if (pCol->sma) {
+      field.flags |= COL_SMA_ON;
+    }
+    taosArrayPush(*pArray, &field);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -5929,6 +5962,9 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code && pCol->pOptions && pCol->pOptions->bPrimaryKey && colIndex != 1) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
@@ -6131,6 +6167,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableSchema(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkColumnOptions(pStmt->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                      "Only supported for create non-super table in databases "
@@ -6147,6 +6186,9 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   int8_t flags = 0;
   if (pCol->sma) {
     flags |= COL_SMA_ON;
+  }
+  if (pCol->pOptions && pCol->pOptions->bPrimaryKey) {
+    flags |= COL_IS_KEY;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
@@ -6456,7 +6498,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
-  columnDefNodeToField(pStmt->pTags, &pReq->pTags);
+  tagDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   if (pStmt->pOptions->commentNull == false) {
@@ -6566,6 +6608,17 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       TAOS_FIELD newField = {0};
       strcpy(newField.name, pStmt->newColName);
       taosArrayPush(pAlterReq->pFields, &newField);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
+      TAOS_FIELD field = {0};
+      strcpy(field.name, pStmt->colName);
+      if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      setColCompressByOption((uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
+                             columnCompressVal(pStmt->pColOptions->compress),
+                             columnLevelVal(pStmt->pColOptions->compressLevel));
       break;
     }
     default:
@@ -8402,7 +8455,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     pReq->fillHistory = pStmt->pOptions->fillHistory;
     pReq->igExpired = pStmt->pOptions->ignoreExpired;
     if (pReq->createStb) {
-      columnDefNodeToField(pStmt->pTags, &pReq->pTags);
+      tagDefNodeToField(pStmt->pTags, &pReq->pTags);
       pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
     }
     pReq->igUpdate = pStmt->pOptions->ignoreUpdate;
@@ -9181,8 +9234,9 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = DESCRIBE_RESULT_COLS;
+  if (pMeta && useCompress(pMeta->tableType)) *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -9203,6 +9257,20 @@ static int32_t extractDescribeResultSchema(int32_t* numOfCols, SSchema** pSchema
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   strcpy((*pSchema)[3].name, "note");
+
+  if (pMeta && useCompress(pMeta->tableType)) {
+    (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
+    (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[4].name, "encode");
+
+    (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
+    (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[5].name, "compress");
+
+    (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
+    (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    strcpy((*pSchema)[6].name, "level");
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -9332,7 +9400,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_EXPLAIN_STMT:
       return extractExplainResultSchema(numOfCols, pSchema);
     case QUERY_NODE_DESCRIBE_STMT:
-      return extractDescribeResultSchema(numOfCols, pSchema);
+      SDescribeStmt* pNode = (SDescribeStmt*)pRoot;
+      return extractDescribeResultSchema(pNode->pMeta, numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -9834,8 +9903,15 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   }
   SNode*   pCol;
   col_id_t index = 0;
+  tInitDefaultSColCmprWrapperByCols(&req.colCmpr, req.ntb.schemaRow.nCols);
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schemaRow.pSchema + index);
+    SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
+    toSchema(pColDef, index + 1, req.ntb.schemaRow.pSchema + index);
+    if (pColDef->pOptions) {
+      req.colCmpr.pColCmpr[index].id = index + 1;
+      setColCompressByOption(&req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
+                           columnCompressVal(pColDef->pOptions->compress), columnLevelVal(pColDef->pOptions->compressLevel));
+    }
     ++index;
   }
   pBatch->info = *pVgroupInfo;
@@ -10644,6 +10720,28 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                        SVAlterTbReq* pReq) {
+  const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+  }
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  if (NULL == pReq->colName) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  setColCompressByOption(&pReq->compress, columnEncodeVal(pStmt->pColOptions->encode),
+                         columnCompressVal(pStmt->pColOptions->compress),
+                         columnLevelVal(pStmt->pColOptions->compressLevel));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -10673,6 +10771,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
       } else {
         return buildRenameColReq(pCxt, pStmt, pTableMeta, pReq);
+      }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+      } else {
+        return buildAlterTableColumnCompress(pCxt, pStmt, pTableMeta, pReq);
       }
     default:
       break;

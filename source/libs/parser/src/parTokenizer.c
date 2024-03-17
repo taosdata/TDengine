@@ -132,6 +132,7 @@ static SKeyword keywordTable[] = {
     {"JOIN",                 TK_JOIN},
     {"JSON",                 TK_JSON},
     {"KEEP",                 TK_KEEP},
+    {"KEY",                  TK_KEY},
     {"KILL",                 TK_KILL},
     {"LANGUAGE",             TK_LANGUAGE},
     {"LAST",                 TK_LAST},
@@ -179,6 +180,7 @@ static SKeyword keywordTable[] = {
     {"PASS",                 TK_PASS},
     {"PORT",                 TK_PORT},
     {"PPS",                  TK_PPS},
+    {"PRIMARY",              TK_PRIMARY},
     {"PRECISION",            TK_PRECISION},
     {"PREV",                 TK_PREV},
     {"PRIVILEGES",           TK_PRIVILEGES},
@@ -304,6 +306,9 @@ static SKeyword keywordTable[] = {
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
+    {"ENCODE",               TK_ENCODE},
+    {"COMPRESS",             TK_COMPRESS},
+    {"LEVEL",                TK_LEVEL},
 };
 // clang-format on
 

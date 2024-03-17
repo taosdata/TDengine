@@ -144,6 +144,11 @@ else()
     endif()
 endif()
 
+target_link_directories(
+    vnode 
+    PUBLIC "${CMAKE_BINARY_DIR}/build/lib"
+)
+
 target_link_libraries(
     vnode
     PUBLIC os
@@ -160,6 +165,7 @@ target_link_libraries(
 
     # PUBLIC bdb
     # PUBLIC scalar
+    PUBLIC zstd
     PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream

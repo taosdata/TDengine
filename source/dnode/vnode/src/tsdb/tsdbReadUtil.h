@@ -87,7 +87,7 @@ typedef struct SSttKeyInfo {
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t    uid;
-  TSKEY       lastProcKey;
+  TSKEY       lastProcKey;       // todo: refactor: add primary key
   SSttKeyInfo sttKeyInfo;
   SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
   SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
@@ -266,7 +266,9 @@ struct STsdbReader {
   STsdbReader*       innerReader[2];
   bool                 bFilesetDelimited;   // duration by duration output
   TsdReaderNotifyCbFn  notifyFn;
-  void*              notifyParam;
+  void*                notifyParam;
+  __compar_fn_t        pkComparFn;
+  bool                 pkChecked;
 };
 
 typedef struct SBrinRecordIter {

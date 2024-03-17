@@ -23,10 +23,12 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
-#define DESCRIBE_RESULT_COLS      4
-#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_NOTE_LEN  (16 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COLS               4
+#define DESCRIBE_RESULT_COLS_COMPRESS      7
+#define DESCRIBE_RESULT_FIELD_LEN          (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -162,12 +164,21 @@ typedef struct STableOptions {
   SNodeList* pSma;
 } STableOptions;
 
+typedef struct SColumnOptions {
+  ENodeType  type;
+  bool       commentNull;
+  char       comment[TSDB_CL_COMMENT_LEN];
+  char       encode[TSDB_CL_COMPRESS_OPTION_LEN];
+  char       compress[TSDB_CL_COMPRESS_OPTION_LEN];
+  char       compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
+  bool       bPrimaryKey;
+} SColumnOptions;
 typedef struct SColumnDefNode {
-  ENodeType type;
-  char      colName[TSDB_COL_NAME_LEN];
-  SDataType dataType;
-  char      comments[TSDB_TB_COMMENT_LEN];
-  bool      sma;
+  ENodeType       type;
+  char            colName[TSDB_COL_NAME_LEN];
+  SDataType       dataType;
+  SColumnOptions* pOptions;
+  bool            sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -217,15 +228,16 @@ typedef struct SDropSuperTableStmt {
 } SDropSuperTableStmt;
 
 typedef struct SAlterTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  int8_t         alterType;
-  char           colName[TSDB_COL_NAME_LEN];
-  char           newColName[TSDB_COL_NAME_LEN];
-  STableOptions* pOptions;
-  SDataType      dataType;
-  SValueNode*    pVal;
+  ENodeType       type;
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  int8_t          alterType;
+  char            colName[TSDB_COL_NAME_LEN];
+  char            newColName[TSDB_COL_NAME_LEN];
+  STableOptions*  pOptions;
+  SDataType       dataType;
+  SValueNode*     pVal;
+  SColumnOptions* pColOptions;
 } SAlterTableStmt;
 
 typedef struct SCreateUserStmt {

@@ -109,6 +109,8 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# zstd
+
 if (${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
         cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -127,6 +129,7 @@ else()
     endif()
 endif()
 
+cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 #libuv
 if(${BUILD_WITH_UV})
     cat("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -427,6 +430,9 @@ if(${BUILD_PTHREAD})
     target_link_libraries(pthread INTERFACE libpthreadVC3)
 endif()
 
+
+#target_link_libraries(zstd)
+#target_include_directories()
 # jemalloc
 if(${JEMALLOC_ENABLED})
     include(ExternalProject)

@@ -185,7 +185,8 @@ void clearColValArraySml(SArray* pCols) {
   int32_t num = taosArrayGetSize(pCols);
   for (int32_t i = 0; i < num; ++i) {
     SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type || TSDB_DATA_TYPE_VARBINARY == pCol->type) {
+    if (TSDB_DATA_TYPE_NCHAR == pCol->value.type || TSDB_DATA_TYPE_GEOMETRY == pCol->value.type ||
+        TSDB_DATA_TYPE_VARBINARY == pCol->value.type) {
       taosMemoryFreeClear(pCol->value.pData);
     }
     pCol->flag = CV_FLAG_NONE;

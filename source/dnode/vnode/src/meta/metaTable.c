@@ -55,10 +55,13 @@ static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
 
 static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
+
   if (NULL == pMetaRsp->pSchemas) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  pMetaRsp->pSchemaExt = taosMemoryMalloc(pSchema->nCols * sizeof(SSchemaExt));
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
@@ -241,9 +244,19 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.name = pReq->name;
   me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
+  // me.stbEntry.colCmpr = pReq->colCmpr;
+  //  me.stbEntry.colCmpr = pReq->
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(me.flags);
     me.stbEntry.rsmaParam = pReq->rsmaParam;
+  }
+  if (pReq->colCmpred) {
+    TABLE_SET_COL_COMPRESSED(me.flags);
+    me.colCmpr = pReq->colCmpr;
+  } else {
+    TABLE_SET_COL_COMPRESSED(me.flags);
+    // TODO(yihao)
+    // SETUP default compress algr
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -432,6 +445,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.name = pReq->name;
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+  nStbEntry.colCmpr = pReq->colCmpr;
+  TABLE_SET_COL_COMPRESSED(nStbEntry.flags);
 
   int     nCols = pReq->schemaRow.nCols;
   int     onCols = oStbEntry.stbEntry.schemaRow.nCols;
@@ -636,6 +651,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.name = pReq->name;
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+  nStbEntry.colCmpr = pReq->colCmpr;
 
   metaWLock(pMeta);
   // update table.db
@@ -769,12 +785,16 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   nStbEntry.uid = oStbEntry.uid;
   nStbEntry.name = oStbEntry.name;
 
-  SSchemaWrapper *row = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaRow);
-  SSchemaWrapper *tag = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaTag);
+  SSchemaWrapper  *row = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaRow);
+  SSchemaWrapper  *tag = tCloneSSchemaWrapper(&oStbEntry.stbEntry.schemaTag);
+  SColCmprWrapper *cmpr = tCloneSColCmprWrapper(&oStbEntry.colCmpr);
 
   nStbEntry.stbEntry.schemaRow = *row;
   nStbEntry.stbEntry.schemaTag = *tag;
   nStbEntry.stbEntry.rsmaParam = oStbEntry.stbEntry.rsmaParam;
+  nStbEntry.colCmpr = *cmpr;
+
+  nStbEntry.colCmpr = oStbEntry.colCmpr;
 
   metaWLock(pMeta);
   // update table.db
@@ -785,6 +805,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
 
   tDeleteSchemaWrapper(tag);
   tDeleteSchemaWrapper(row);
+  tDeleteSColCmprWrapper(cmpr);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
@@ -899,6 +920,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     me.ntbEntry.comment = pReq->comment;
     me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
+    me.colCmpr = pReq->colCmpr;
+    TABLE_SET_COL_COMPRESSED(me.flags);
 
     ++pStats->numOfNTables;
     pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
@@ -923,6 +946,11 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         strcpy((*pMetaRsp)->tbName, pReq->name);
       } else {
         metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+        for (int32_t i = 0; i < pReq->colCmpr.nCols; i++) {
+          SColCmpr *p = &pReq->colCmpr.pColCmpr[i];
+          (*pMetaRsp)->pSchemaExt[i].colId = p->id;
+          (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
+        }
       }
     }
   }
@@ -2457,6 +2485,9 @@ int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
     VND_CHECK_CODE(code, line, _err);
   }
 
+  if (pME->type == TSDB_SUPER_TABLE || pME->type == TSDB_NORMAL_TABLE) {
+  }
+
   metaULock(pMeta);
   metaDebug("vgId:%d, handle meta entry, ver:%" PRId64 ", uid:%" PRId64 ", name:%s", TD_VID(pMeta->pVnode),
             pME->version, pME->uid, pME->name);
@@ -2469,6 +2500,76 @@ _err:
   return -1;
 }
 
+int32_t colCompressDebug(SHashObj *pColCmprObj) {
+  void *p = taosHashIterate(pColCmprObj, NULL);
+  while (p) {
+    uint32_t cmprAlg = *(uint32_t *)p;
+    col_id_t colId = *(col_id_t *)taosHashGetKey(p, NULL);
+    p = taosHashIterate(pColCmprObj, p);
+
+    uint8_t l1, l2, lvl;
+    tcompressDebug(cmprAlg, &l1, &l2, &lvl);
+
+    const char *l1str = columnEncodeStr(l1);
+    const char *l2str = columnCompressStr(l2);
+    const char *lvlstr = columnLevelStr(lvl);
+    metaInfo("colId: %d, encode:%s, compress:%s,level:%s", colId, l1str, l2str, lvlstr);
+  }
+  return 0;
+}
+int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
+  int rc = 0;
+
+  SHashObj  *pColCmprObj = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+  void      *pData = NULL;
+  int        nData = 0;
+  SMetaEntry e = {0};
+  SDecoder   dc = {0};
+
+  metaRLock(pMeta);
+  rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
+  if (rc < 0) {
+    taosHashClear(pColCmprObj);
+    metaULock(pMeta);
+    return -1;
+  }
+  int64_t version = ((SUidIdxVal *)pData)[0].version;
+  rc = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
+  if (rc < 0) {
+    metaULock(pMeta);
+    taosHashClear(pColCmprObj);
+    metaError("failed to get table entry");
+    return rc;
+  }
+
+  tDecoderInit(&dc, pData, nData);
+  rc = metaDecodeEntry(&dc, &e);
+  if (rc < 0) {
+    tDecoderClear(&dc);
+    metaULock(pMeta);
+    taosHashClear(pColCmprObj);
+    return -1;
+  }
+  if (useCompress(e.type)) {
+    SColCmprWrapper *p = &e.colCmpr;
+    for (int32_t i = 0; i < p->nCols; i++) {
+      SColCmpr *pCmpr = &p->pColCmpr[i];
+      taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(pCmpr->alg));
+    }
+  } else {
+    metaULock(pMeta);
+    taosHashClear(pColCmprObj);
+    return 0;
+  }
+  tDecoderClear(&dc);
+  tdbFree(pData);
+  metaULock(pMeta);
+
+  *ppColCmprObj = pColCmprObj;
+  colCompressDebug(pColCmprObj);
+
+  return 0;
+}
 // refactor later
 void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
 void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
