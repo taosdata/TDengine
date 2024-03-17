@@ -36,6 +36,7 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
+#define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
 
 #define STREAM_STATE_BUFF_HASH 1

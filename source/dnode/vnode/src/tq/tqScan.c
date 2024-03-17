@@ -47,7 +47,7 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp
 
 static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, int32_t n) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pTq->pVnode->pMeta, 0);
+  metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK);
 
   // TODO add reference to gurantee success
   if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
