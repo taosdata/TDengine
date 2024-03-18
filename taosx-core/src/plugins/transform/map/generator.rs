@@ -19,7 +19,7 @@ impl ValueBuilder for GeneratorValueBuilder {
         match self.generator.as_str() {
             "now" => {
                 let mut time_array = Vec::with_capacity(len);
-                for i in 0..len {
+                for _ in 0..len {
                     time_array.push(Utc::now().timestamp_nanos_opt());
                 }
                 Ok(Arc::new(
