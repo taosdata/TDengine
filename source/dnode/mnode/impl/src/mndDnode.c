@@ -312,12 +312,11 @@ SEpSet mndGetDnodeEpset(SDnodeObj *pDnode) {
 }
 
 SEpSet mndGetDnodeEpsetById(SMnode *pMnode, int32_t dnodeId) {
-  SEpSet epSet = {0};
-
-  SDnodeObj* pDnode = mndAcquireDnode(pMnode, dnodeId);
+  SEpSet     epSet = {0};
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
   if (!pDnode) return epSet;
 
-  addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
+  epSet = mndGetDnodeEpset(pDnode);
 
   mndReleaseDnode(pMnode, pDnode);
   return epSet;

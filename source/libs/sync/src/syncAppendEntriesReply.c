@@ -78,6 +78,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
+          terrno = TSDB_CODE_SUCCESS;
           raftStoreNextTerm(ths);
           if (terrno != TSDB_CODE_SUCCESS) {
             sError("vgId:%d, failed to update term, reason:%s", ths->vgId, tstrerror(terrno));

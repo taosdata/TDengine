@@ -279,6 +279,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
 
+#define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
 
 #define TSDB_TRANS_STAGE_LEN 12

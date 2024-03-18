@@ -2236,6 +2236,7 @@ typedef struct {
   SMArbUpdateGroupReqMember members[2];
   int8_t                    isSync;
   SMArbUpdateGroupReqMember assignedLeader;
+  int64_t                   version;
 } SMArbUpdateGroupReq;
 
 int32_t tSerializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
