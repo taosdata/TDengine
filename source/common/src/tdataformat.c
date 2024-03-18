@@ -4273,14 +4273,6 @@ int32_t tCompressData(void          *input,       // input
     if (buffer == NULL) {
       buffer = &local;
     }
-
-    // if (info->cmprAlg == TWO_STAGE_COMP) {
-    //   code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
-    //   if (code) {
-    //     tBufferDestroy(&local);
-    //     return code;
-    //   }
-    // }
     code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
 
     info->compressedSize = tDataCompress[info->dataType].compFunc(  //
@@ -4358,13 +4350,6 @@ int32_t tDecompressData(void                *input,       // input
     if (buffer == NULL) {
       buffer = &local;
     }
-    // if (info->cmprAlg == TWO_STAGE_COMP) {
-    //   code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
-    //   if (code) {
-    //     tBufferDestroy(&local);
-    //     return code;
-    //   }
-    // }
     code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
 
     int32_t decompressedSize = tDataCompress[info->dataType].decompFunc(

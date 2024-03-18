@@ -402,7 +402,7 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = sizeof(SSchemaExt) * msg->numOfColumns;
+  int32_t schemaExtSize = useCompress(msg->tableType) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
 
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
   if (NULL == pTableMeta) {

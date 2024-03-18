@@ -1625,6 +1625,8 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
       .dataType = TSDB_DATA_TYPE_TIMESTAMP,
       .originalSize = sizeof(TSKEY) * bData->nRow,
   };
+  // tsdbGetColCmprAlgFromSet(compressInfo->pColCmpr, 1, &cinfo.cmprAlg);
+
   code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, &cinfo, buffer, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
   hdr->szKey = cinfo.compressedSize;

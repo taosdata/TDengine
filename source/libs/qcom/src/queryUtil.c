@@ -300,14 +300,14 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
       break;
 
-    case TSDB_DATA_TYPE_VARBINARY:{
+    case TSDB_DATA_TYPE_VARBINARY: {
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
-      void* data = NULL;
+      void*    data = NULL;
       uint32_t size = 0;
-      if(taosAscii2Hex(buf, bufSize, &data, &size) < 0){
+      if (taosAscii2Hex(buf, bufSize, &data, &size) < 0) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       *str = '"';
@@ -475,6 +475,8 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   if (useCompress(pSrc->tableType)) {
     (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
     memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
+  } else {
+    (*pDst)->schemaExt = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -592,10 +594,9 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
-void freeDbCfgInfo(SDbCfgInfo *pInfo) {
+void freeDbCfgInfo(SDbCfgInfo* pInfo) {
   if (pInfo) {
     taosArrayDestroy(pInfo->pRetensions);
   }
   taosMemoryFree(pInfo);
 }
-

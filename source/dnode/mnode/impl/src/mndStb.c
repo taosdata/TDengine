@@ -501,7 +501,8 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   SColCmprWrapper *pCmpr = &req.colCmpr;
   pCmpr->version = pStb->colVer;
   pCmpr->nCols = pStb->numOfColumns;
-  req.colCmpr.pColCmpr = taosMemoryCalloc(1, sizeof(SColCmpr));
+
+  req.colCmpr.pColCmpr = taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
   for (int32_t i = 0; i < pStb->numOfColumns; i++) {
     SColCmpr *p = &pCmpr->pColCmpr[i];
     p->alg = pStb->pCmpr[i].cmprAlg;
