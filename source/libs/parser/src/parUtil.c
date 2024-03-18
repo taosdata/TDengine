@@ -290,16 +290,24 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
 
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
+  int32_t     cpSize = sizeof(STableMeta) - sizeof(void*);
   STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
 
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, size);
+  memcpy(p, pTableMeta, cpSize);
   if (hasSchemaExt) {
-    SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)p + size);
-    p->schemaExt = pSchemaExt;
-    memcpy(pSchemaExt, pTableMeta->schemaExt, schemaExtSize);
+    p->schemaExt = (SSchemaExt*)(((char*)p) + size);
+  } else {
+    p->schemaExt = NULL;
   }
+  memcpy(p->schema, pTableMeta->schema, numOfFields * sizeof(SSchema));
+  // p->schemaExt = NULL;
+  // if (hasSchemaExt) {
+  //   SSchemaExt* pSchemaExt = (SSchemaExt*)((char*)p + size);
+  //   p->schemaExt = pSchemaExt;
+  //   memcpy(pSchemaExt, pTableMeta->schemaExt, schemaExtSize);
+  // }
   return p;
 }
 
