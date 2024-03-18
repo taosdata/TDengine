@@ -771,7 +771,7 @@ static int32_t collectMetaKeyFromCreateTSMAStmt(SCollectMetaKeyCxt* pCxt, SCreat
     code = reserveTSMAInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
       char dstTbName[TSDB_TABLE_NAME_LEN] = {0};
-      // TODO check len
+      // TODO tsma check len
       sprintf(dstTbName, "%s"TSMA_RES_STB_POSTFIX, pStmt->tableName);
       code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, dstTbName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {

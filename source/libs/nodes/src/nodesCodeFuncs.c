@@ -4455,10 +4455,6 @@ static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddTArray(pJson, jkRealTableSmaIndexes, tableIndexInfoToJson, pNode->pSmaIndexes);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    //TODO
-    //code = tjsonAddTArray(SJson *pJson, const char *pName, FToJson func, const SArray *pArray);
-  }
 
   return code;
 }
@@ -4483,9 +4479,6 @@ static int32_t jsonToRealTableNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code =
         tjsonToTArray(pJson, jkRealTableSmaIndexes, jsonToTableIndexInfo, &pNode->pSmaIndexes, sizeof(STableIndexInfo));
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    //TODO
   }
 
   return code;
