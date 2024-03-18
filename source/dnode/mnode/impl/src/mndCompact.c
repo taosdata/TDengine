@@ -454,7 +454,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[MND_COMPACT_ID_LEN] = {0};
+  char obj[TSDB_INT32_ID_LEN] = {0};
   sprintf(obj, "%d", pCompact->compactId);
 
   auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);

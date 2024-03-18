@@ -906,6 +906,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t chkpIdComp(const void* a, const void* b) {
   int64_t x = *(int64_t*)a;
   int64_t y = *(int64_t*)b;
@@ -964,6 +965,7 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
   taosMemoryFree(chkpPath);
   return 0;
 }
+#endif
 
 #ifdef BUILD_NO_CALL
 int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*** ppHandle, SArray* refs) {

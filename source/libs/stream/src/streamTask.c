@@ -39,7 +39,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
-  // check for the dispath info and the upstream task info
+  // check for the dispatch info and the upstream task info
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
     streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
@@ -412,9 +412,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->msgInfo.pData != NULL) {
-    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-    pTask->msgInfo.pData = NULL;
-    pTask->msgInfo.dispatchMsgType = 0;
+    clearBufferedDispatchMsg(pTask);
   }
 
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
@@ -627,6 +625,7 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
 void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
   EPSET_TO_STR(pEpSet, buf);
+  int32_t id = pTask->id.taskId;
 
   int8_t type = pTask->outputInfo.type;
   if (type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -638,8 +637,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
 
       if (pVgInfo->vgId == nodeId) {
         epsetAssign(&pVgInfo->epSet, pEpSet);
-        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId,
-                pVgInfo->taskId, nodeId, buf);
+        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId,
+                buf);
         break;
       }
     }
@@ -647,8 +646,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
     STaskDispatcherFixed* pDispatcher = &pTask->outputInfo.fixedDispatcher;
     if (pDispatcher->nodeId == nodeId) {
       epsetAssign(&pDispatcher->epSet, pEpSet);
-      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpSet:%s", pTask->id.taskId,
-              pDispatcher->taskId, nodeId, buf);
+      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId,
+              buf);
     }
   }
 }
@@ -767,19 +766,11 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool metaLock) {
-  if (pTask == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
   SStreamMeta* pMeta = pTask->pMeta;
   STaskId      sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
     return TSDB_CODE_SUCCESS;
-  }
-
-  if (metaLock) {
-    streamMetaWLock(pMeta);
   }
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
@@ -799,10 +790,6 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt, bool 
 
     streamMetaSaveTask(pMeta, *ppStreamTask);
     taosThreadMutexUnlock(&(*ppStreamTask)->lock);
-  }
-
-  if (metaLock) {
-    streamMetaWUnLock(pMeta);
   }
 
   return TSDB_CODE_SUCCESS;

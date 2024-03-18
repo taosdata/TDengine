@@ -610,7 +610,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         for(int32_t j = 0; j < tagSize; j++){
           SJson* item = tjsonGetArrayItem(arrayTag, j);
 
-          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN); 
+          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
           tjsonGetStringValue(item, "name", *(labels + j));
 
           *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
@@ -626,7 +626,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         for(int32_t j = 0; j < metricLen; j++){
           SJson *item = tjsonGetArrayItem(metrics, j);
 
-          char name[MONITOR_METRIC_NAME_LEN] = {0}; 
+          char name[MONITOR_METRIC_NAME_LEN] = {0};
           tjsonGetStringValue(item, "name", name);
 
           double value = 0;
@@ -636,7 +636,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
           tjsonGetDoubleValue(item, "type", &type);
 
           int32_t metricNameLen = strlen(name) + strlen(tableName) + 2;
-          char* metricName = taosMemoryMalloc(metricNameLen); 
+          char* metricName = taosMemoryMalloc(metricNameLen);
           memset(metricName, 0, metricNameLen);
           sprintf(metricName, "%s:%s", tableName, name);
 
@@ -669,7 +669,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
           else{
             mTrace("get metric from registry:%p", metric);
           }
-          
+
           if(type == 0){
             taos_counter_add(metric, value, (const char**)sample_labels);
           }
@@ -689,7 +689,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         taosMemoryFreeClear(labels);
       }
     }
-    
+
   }
 
   code = 0;
@@ -1409,24 +1409,6 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     strcpy(dcfgReq.config, "resetlog");
 #ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "supportvnodes", 13) == 0) {
-    int32_t optLen = strlen("supportvnodes");
-    int32_t flag = -1;
-    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
-
-    if (flag < 0 || flag > 4096) {
-      mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      goto _err_out;
-    }
-    if (flag == 0) {
-      flag = tsNumOfCores * 2;
-    }
-    flag = TMAX(flag, 2);
-
-    strcpy(dcfgReq.config, "supportvnodes");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
     int32_t optLen = strlen("s3blocksize");
     int32_t flag = -1;
