@@ -246,32 +246,30 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 int32_t metaRLock(SMeta *pMeta) {
-  int32_t ret = 0;
+  metaTrace("try meta rlock %p, __readers:%d", &pMeta->lock, pMeta->lock.__data.__readers);
+  int32_t ret = taosThreadRwlockRdlock(&pMeta->lock);
 
-  metaTrace("meta rlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockRdlock(&pMeta->lock);
-
+  metaTrace("meta rlock %p, code:%d, __readers:%d", &pMeta->lock, ret, pMeta->lock.__data.__readers);
   return ret;
 }
 
 int32_t metaWLock(SMeta *pMeta) {
-  int32_t ret = 0;
+  metaTrace("try meta wlock %p, __readers:%d, __cur_writer:%x", &pMeta->lock, pMeta->lock.__data.__readers,
+            pMeta->lock.__data.__cur_writer);
 
-  metaTrace("meta wlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockWrlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockWrlock(&pMeta->lock);
+  metaTrace("meta wlock %p completed, code:%d, __readers:%d, __cur_writer:%x", &pMeta->lock, ret,
+            pMeta->lock.__data.__readers, pMeta->lock.__data.__cur_writer);
   return ret;
 }
 
 int32_t metaULock(SMeta *pMeta) {
-  int32_t ret = 0;
+  metaTrace("try meta ulock %p, __readers:%d, __cur_writer:%x", &pMeta->lock, pMeta->lock.__data.__readers,
+            pMeta->lock.__data.__cur_writer);
 
-  metaTrace("meta ulock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockUnlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockUnlock(&pMeta->lock);
+  metaTrace("meta ulock %p, code:%d, __readers:%d, __cur_writer:%x", &pMeta->lock, ret, pMeta->lock.__data.__readers,
+            pMeta->lock.__data.__cur_writer);
   return ret;
 }
 
