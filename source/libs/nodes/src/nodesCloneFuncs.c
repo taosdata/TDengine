@@ -457,6 +457,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(isCountByTag);
   CLONE_OBJECT_FIELD(pFuncTypes, functParamClone);
   COPY_SCALAR_FIELD(paraTablesSort);
+  COPY_SCALAR_FIELD(smallDataTsSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -690,6 +691,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(filesetDelimited);
   COPY_SCALAR_FIELD(needCountEmptyTable);
   COPY_SCALAR_FIELD(paraTablesSort);
+  COPY_SCALAR_FIELD(smallDataTsSort);
   return TSDB_CODE_SUCCESS;
 }
 

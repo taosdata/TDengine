@@ -371,6 +371,80 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+
+  if (!(val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE))) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+  if (pLiteral) {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+  } else if (pNode) {
+    SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+    if (!nodesIsExprNode(pRawExpr->pNode)) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pRawExpr->p);
+      goto _exit;
+    }
+    val->literal = strndup(pRawExpr->p, pRawExpr->n);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
+    goto _exit;
+  }
+  if (!val->literal) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+_exit:
+  nodesDestroyNode(pNode);
+  if (pCxt->errCode != 0) {
+    nodesDestroyNode((SNode*)val);
+    return NULL;
+  }
+  return (SNode*)val;
+}
+
+SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pLeft,
+                             SNode* pRight) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+
+  if (!(val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE))) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+  if (pLiteral) {
+    if (!(val->literal = strndup(pLiteral->z, pLiteral->n))) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+      goto _exit;
+    }
+  } else {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
+    goto _exit;
+  }
+
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+_exit:
+  nodesDestroyNode(pLeft);
+  nodesDestroyNode(pRight);
+  if (pCxt->errCode != 0) {
+    nodesDestroyNode((SNode*)val);
+    return NULL;
+  }
+  return (SNode*)val;
+}
+
 static bool hasHint(SNodeList* pHintList, EHintOption hint) {
   if (!pHintList) return false;
   SNode* pNode;
@@ -403,6 +477,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
       break;
     case HINT_PARA_TABLES_SORT:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
+      break;
+    case HINT_SMALLDATA_TS_SORT:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
     default:
       return true;
@@ -489,6 +566,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_PARA_TABLES_SORT;
+        break;
+      case TK_SMALLDATA_TS_SORT:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SMALLDATA_TS_SORT;
         break;
       case TK_NK_LP:
         lastComma = false;

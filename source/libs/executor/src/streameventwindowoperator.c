@@ -99,6 +99,11 @@ int32_t getEndCondIndex(bool* pEnd, int32_t start, int32_t rows) {
   return -1;
 }
 
+int32_t reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
+  pAPI->streamStateReleaseBuf(pState, pPos, true);
+  return TSDB_CODE_SUCCESS;
+}
+
 void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupId, bool* pStart, bool* pEnd, int32_t index, int32_t rows, SEventWindowInfo* pCurWin, SSessionKey* pNextWinKey) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = pAggSup->resultRowSize;
@@ -143,6 +148,7 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   pCurWin->winInfo.isOutput = false;
 
 _end:
+  reuseOutputBuf(pAggSup->pState, pCurWin->winInfo.pStatePos, &pAggSup->stateStore);
   pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pCur);
   pNextWinKey->groupId = groupId;
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, pNextWinKey, NULL, 0);
@@ -341,6 +347,7 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     }
 
     if (isWindowIncomplete(&curWin)) {
+      releaseOutputBuf(pAggSup->pState, curWin.winInfo.pStatePos, &pAggSup->stateStore);
       continue;
     }
 

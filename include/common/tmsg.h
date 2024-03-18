@@ -2820,8 +2820,10 @@ typedef struct {
   char*    tagName;
   int8_t   isNull;
   int8_t   tagType;
+  int8_t   tagFree;
   uint32_t nTagVal;
   uint8_t* pTagVal;
+  SArray*  pTagArray;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;

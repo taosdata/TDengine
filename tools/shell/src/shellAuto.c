@@ -400,27 +400,41 @@ SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
-void printfIntroduction() {
-  printf("  ********************************  Tab Completion  ************************************\n");
+void printfIntroduction(bool community) {
+  printf("  *********************************  Tab Completion  *************************************\n");
   char secondLine[160] = "\0";
   sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
   printf("%s", secondLine);
   int secondLineLen = strlen(secondLine);
-  while (87 - (secondLineLen++) > 0) {
+  while (89 - (secondLineLen++) > 0) {
     printf(" ");
   }
   printf("*\n");
-  printf("  *   including database names, table names, function names and keywords.              *\n");
-  printf("  *   The full list of shortcut keys is as follows:                                    *\n");
-  printf("  *    [ TAB ]        ......  complete the current word                                *\n");
-  printf("  *                   ......  if used on a blank line, display all supported commands  *\n");
-  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                   *\n");
-  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                     *\n");
-  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                    *\n");
-  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                  *\n");
-  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                        *\n");
-  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                       *\n");
-  printf("  **************************************************************************************\n\n");
+  printf("  *   including database names, table names, function names and keywords.                *\n");
+  printf("  *   The full list of shortcut keys is as follows:                                      *\n");
+  printf("  *    [ TAB ]        ......  complete the current word                                  *\n");
+  printf("  *                   ......  if used on a blank line, display all supported commands    *\n");
+  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                     *\n");
+  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                       *\n");
+  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                      *\n");
+  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                    *\n");
+  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                          *\n");
+  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
+  if(community) {
+  printf("  * ------------------------------------------------------------------------------------ *\n");
+  printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
+  printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
+  printf("  *   Enterprise or Free Cloud Trial. Learn more at https://tdengine.com                 *\n");
+  }
+  printf("  ****************************************************************************************\n\n");
+}
+
+// show enterprise AD
+void showAD(bool end) {
+  printf("  You are using TDengine OSS. To experience advanced features, like backup/restore,  \n");
+  printf("  privilege control and more, or receive 7x24 technical support, try TDengine Enterprise \n");
+  printf("  or Free Cloud Trial. Learn more at https://tdengine.com   \n");
+  printf("  \n");
 }
 
 void showHelp() {
