@@ -1214,7 +1214,7 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
   if (TSDB_CODE_SUCCESS == code) {
     // if slimit was pushed down to agg, agg will be pipelined mode, add sort merge before parent agg
     if (pInfo->pSplitNode->forceCreateNonBlockingOptr)
-      code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg); //TODO test slimit
+      code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg); //TODO tsma test slimit
     else {
       code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
     }

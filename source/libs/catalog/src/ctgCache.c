@@ -3028,7 +3028,7 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq
     ctgDebug("table already not in cache, db:%s, tblName:%s", pTableName->dbname, pTableName->tname);
   }
 
-  // TODO TEST normal table
+  // TODO tsma TEST normal table
   CTG_ERR_JRET(ctgDropTSMAForTbEnqueue(pCtg, pTableName, syncReq));
 
 _return:
@@ -3237,7 +3237,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
   int32_t        tbNum = taosArrayGetSize(pList);
   SCtgTbCache *  pTbCache = NULL;
 
-  // TODO test sys db
+  // TODO tsma test sys db
   if (IS_SYS_DBNAME(pName->dbname)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -3247,7 +3247,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
   CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (!dbCache) {
     ctgDebug("DB %s not in cache", dbFName);
-    // TODO test no db cache, select from another db
+    // TODO tsma test no db cache, select from another db
     for (int32_t i = 0; i < tbNum; ++i) {
       ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL);
       taosArrayPush(pCtx->pResList, &(SMetaData){0});
@@ -3278,7 +3278,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
         taosHashRelease(dbCache->stbCache, stbName);
       } else {
         ctgDebug("stb in db: %s, uid: %" PRId64 " not in cache", dbFName, suid);
-        // TODO remove flag
+        // TODO tsma remove flag
         ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL);
         taosArrayPush(pCtx->pResList, &(SMetaRes){0});
         continue;
@@ -3308,7 +3308,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
 
     CTG_CACHE_HIT_INC(CTG_CI_TBL_TSMA, 1);
 
-    // TODO use construct and destructor pattern
+    // TODO tsma use construct and destructor pattern
     STableTSMAInfoRsp *pRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
     if (!pRsp) {
       ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
@@ -3321,7 +3321,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     SMetaRes res = {0};
-    // TODO if pCache->pTsmas is empty, maybe we should get tsmas from mnode
+    // TODO tsma if pCache->pTsmas is empty, maybe we should get tsmas from mnode
     for (int32_t i = 0; i < pCache->pTsmas->size; ++i) {
       STSMACache *pTsmaOut = NULL;
       STSMACache *pTsmaCache = taosArrayGetP(pCache->pTsmas, i);
@@ -3446,7 +3446,7 @@ int32_t  ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool sync
   msg->tbId = pTsma->suid;
   msg->tsmaId = pTsma->tsmaId;
   tstrncpy(msg->dbFName, pTsma->dbFName, TSDB_DB_FNAME_LEN);
-  // TODO use table name len, instead of TSDB_TABLE_FNAME_LEN
+  // TODO tsma use table name len, instead of TSDB_TABLE_FNAME_LEN
   tstrncpy(msg->tbName, pTsma->tb, TSDB_TABLE_NAME_LEN);
   tstrncpy(msg->tsmaName, pTsma->name, TSDB_TABLE_NAME_LEN);
 

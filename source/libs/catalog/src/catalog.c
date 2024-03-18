@@ -1832,7 +1832,7 @@ _return:
 
 int32_t ctgGetTbTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** ppRes) {
   STableTSMAInfoRsp tsmasRsp = {0};
-  //TODO get from cache first
+  //TODO tsma get from cache first
   int32_t code = ctgGetTbTSMAFromMnode(pCtg, pConn, pTableName, &tsmasRsp, NULL, TDMT_MND_GET_TABLE_TSMA);
   if (code == TSDB_CODE_MND_SMA_NOT_EXIST) {
     code = 0;

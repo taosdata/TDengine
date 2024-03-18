@@ -950,7 +950,6 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   if (tDecodeI64(&decoder, &pReq->normSourceTbUid) < 0) return -1;
 
   int32_t numOfVgVer;
-  // TODO extract method decode vgVerList
   if (tDecodeI32(&decoder, &numOfVgVer) < 0) return -1;
   if (numOfVgVer > 0) {
     pReq->pVgroupVerList = taosArrayInit(numOfVgVer, sizeof(SVgroupVer));
@@ -9877,7 +9876,6 @@ static int32_t tDecodeTableTSMAInfo(SDecoder* pDecoder, STableTSMAInfo* pTsmaInf
     if (!pTsmaInfo->pFuncs) return -1;
     for (int32_t i = 0; i < size; ++i) {
       STableTSMAFuncInfo funcInfo = {0};
-      // TODO free the array when decode failed
       if (tDecodeI32(pDecoder, &funcInfo.funcId) < 0) return -1;
       if (tDecodeI16(pDecoder, &funcInfo.colId) < 0) return -1;
       if (!taosArrayPush(pTsmaInfo->pFuncs, &funcInfo)) return -1;
@@ -9931,7 +9929,7 @@ static int32_t tDecodeTableTSMAInfoRsp(SDecoder* pDecoder, STableTSMAInfoRsp* pR
   pRsp->pTsmas = taosArrayInit(size, POINTER_BYTES);
   if (!pRsp->pTsmas) return -1;
   for (int32_t i = 0; i < size; ++i) {
-    // TODO add a test case when decode failed, to see if the array is freed
+    // TODO tsma add a test case when decode failed, to see if the array is freed
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) return -1;
     taosArrayPush(pRsp->pTsmas, &pTsma);

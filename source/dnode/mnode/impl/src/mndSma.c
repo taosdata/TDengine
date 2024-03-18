@@ -1452,7 +1452,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->igUpdate = 0;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  //TODO remove this log
+  //TODO tsma remove this log
   mDebug("tsma create stream with last ts: %" PRId64 "vgversion size: %d", pCxt->pCreateSmaReq->lastTs,
          pCxt->pCreateStreamReq->pVgroupVerList ? pCxt->pCreateStreamReq->pVgroupVerList->size : 0);
   pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
@@ -1476,7 +1476,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  // TODO fill sql
+  // TODO tsma fill sql
   pCxt->pDropStreamReq->sql = strdup(pCxt->pDropSmaReq->name);
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
@@ -1491,10 +1491,10 @@ static int32_t mndCreateTSMASetCreateStreamUndoAction(SMnode* pMnode) {
 
 static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   int32_t      code = -1;
-  // TODO change the action name
+  // TODO tsma change the action name
   STransAction redoAction = {0};
   STransAction undoAction = {0};
-  // TODO trans conflicting setting, maybe conflict with myself
+  // TODO tsma trans conflicting setting, maybe conflict with myself
   STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1542,7 +1542,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   if (mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndTransAppendRedoAction(pTrans, &redoAction) != 0) goto _OVER;
   if (mndTransAppendUndoAction(pTrans, &undoAction) != 0) goto _OVER;
-  //TODO add drop stable undo action
+  //TODO tsma add drop stable undo action
   if (mndTransPrepare(pCxt->pMnode, pTrans) != 0) goto _OVER;
 
   code = TSDB_CODE_SUCCESS;
@@ -1620,7 +1620,6 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   if (mndCheckCreateSmaReq(&createReq))
     goto _OVER;
 
-  // TODO handle normal table
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
     if (!pStb) {
@@ -1744,7 +1743,7 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   SMDropStbReq dropStbReq = {0};
   dropStbReq.igNotExists = false;
   tstrncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  // TODO fill sql, sql may be freed
+  // TODO tsma fill sql, sql may be freed
   dropStbReq.sql = "drop";
   dropStbReq.sqlLen = 5;
 
@@ -1913,7 +1912,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     colDataSetVal(pColInfo, numOfRows, (const char*)(&pSma->createdTime), false);
 
     // interval
-    // TODO replace 64
+    // TODO tsma replace 64
     char interval[64 + VARSTR_HEADER_SIZE] = {0};
     SDbObj* pSrcDb = mndAcquireDb(pMnode, pSma->db);
     int32_t len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
@@ -2053,7 +2052,7 @@ static int32_t mndGetDeepestBaseForTsma(SMnode* pMnode, SSmaObj* pSma, SSmaObj**
       return TSDB_CODE_MND_SMA_NOT_EXIST;
     }
     while (pRecursiveTsma->baseSmaName[0]) {
-      // TODO test 2 level recursive tsma
+      // TODO tsma test 2 level recursive tsma
       SSmaObj* pTmpSma = pRecursiveTsma;
       pRecursiveTsma = mndAcquireSma(pMnode, pTmpSma->baseSmaName);
       if (!pRecursiveTsma) {

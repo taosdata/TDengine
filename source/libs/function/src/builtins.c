@@ -3971,7 +3971,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = stddevPartialFinalize,
   },
   {
-    //TODO for outer use not only internal
+    //TODO tsma for outer use not only internal
     .name = "_avg_state",
     .type = FUNCTION_TYPE_AVG_STATE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,

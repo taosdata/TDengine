@@ -2396,7 +2396,7 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
 }
 
 uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
-  //TODO
+  //TODO tsma
   return 0;
 }
 
@@ -2420,7 +2420,7 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
            30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   } else {
-    // TODO remove log
+    // TODO tsma remove log
     qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
            " passed: %" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
