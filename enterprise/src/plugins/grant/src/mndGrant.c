@@ -543,8 +543,8 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
   pOldGrant->upgradeTime = pNewGrant->upgradeTime;
   pOldGrant->nStates = pNewGrant->nStates;
   pOldGrant->nActives = pNewGrant->nActives;
-  TSWAP(pOldGrant->states, pNewGrant->states);
-  TSWAP(pOldGrant->actives, pNewGrant->actives);
+  memcpy(pOldGrant->states, pNewGrant->states, sizeof(pNewGrant->states));
+  memcpy(pOldGrant->actives, pNewGrant->actives, sizeof(pNewGrant->actives));
   TSWAP(pOldGrant->active, pNewGrant->active);
   TSWAP(pOldGrant->pMachines, pNewGrant->pMachines);
 
