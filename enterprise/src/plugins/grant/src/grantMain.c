@@ -391,7 +391,7 @@ static int64_t grantGetExpireSec(int64_t expireSec) {
     return gStatus.revokedExpireSec;
   }
 
-  if (expireSec >= GRANT_UNIQ_UNLIMITED) {
+  if (expireSec > GRANT_UNIQ_UNLIMITED) {
     return expireSec;
   }
 
