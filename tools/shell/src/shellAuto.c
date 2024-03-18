@@ -1866,6 +1866,9 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
+#ifdef WINDOWS
+  return ;
+#endif
   // check empty tab key
   if (cmd->commandSize == 0) {
     // have multi line tab key
@@ -1909,6 +1912,10 @@ void pressTabKey(SShellCmd* cmd) {
 
 // press othr key
 void pressOtherKey(char c) {
+#ifdef WINDOWS
+  return ;
+#endif
+
   // reset global variant
   firstMatchIndex = -1;
   lastMatchIndex = -1;
