@@ -892,7 +892,7 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
 int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   SMsgSendInfo *pSrc = src;
   int32_t       code = 0;
-  SMsgSendInfo *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  SMsgSendInfo *pDst = taosMemoryCalloc(1, sizeof(*pSrc));
   if (NULL == pDst) {
     qError("malloc SMsgSendInfo for rpcCtx failed, len:%d", (int32_t)sizeof(*pSrc));
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);

@@ -122,6 +122,7 @@ typedef struct SScanLogicNode {
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
   SArray*       pFuncTypes; // for last, last_row
   bool          paraTablesSort; // for table merge scan
+  bool          smallDataTsSort; // disable row id sort for table merge scan
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -445,6 +446,7 @@ typedef struct STableScanPhysiNode {
   bool           filesetDelimited;
   bool           needCountEmptyTable;
   bool           paraTablesSort;
+  bool           smallDataTsSort;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

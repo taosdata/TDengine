@@ -16,6 +16,7 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -363,9 +364,9 @@ class TDTestCase:
         tdSql.execute(f'create database if not exists test')
         tdSql.execute(f'use test')
         tdSql.execute(f'CREATE STABLE `test`.`b` ( `time` TIMESTAMP , `task_id` NCHAR(1000) ) TAGS( `key` NCHAR(1000))')
-        tdSql.execute(f"insert into `test`.b1 using `test`.`b`(key) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(key) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(key) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
+        tdSql.execute(f"insert into `test`.b1 using `test`.`b`(`key`) tags('1') (time, task_id) values ('2024-03-04 12:50:01.000', '32') `test`.b2 using `test`.`b`(`key`) tags('2') (time, task_id) values ('2024-03-04 12:50:01.000', '43') `test`.b3 using `test`.`b`(`key`) tags('3') (time, task_id) values ('2024-03-04 12:50:01.000', '123456')")
 
-        tdSql.execute(f'create topic tt as select tbname,task_id,key from b')
+        tdSql.execute(f'create topic tt as select tbname,task_id,`key` from b')
 
         consumer_dict = {
             "group.id": "g1",
@@ -423,9 +424,36 @@ class TDTestCase:
 
         consumer.close()
 
+    def consume_ts_4551(self):
+        tdSql.execute(f'use d1')
+
+        tdSql.execute(f'create topic topic_stable as stable stt where tbname like "t%"')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_stable"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+        finally:
+            consumer.close()
+        print("consume_ts_4551 ok")
+
     def run(self):
         self.consumeTest()
         self.consume_ts_4544()
+        self.consume_ts_4551()
         self.consume_TS_4540_Test()
 
         tdSql.prepare()
