@@ -1470,7 +1470,7 @@ static int32_t mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode) {
   return numOfTables;
 }
 
-static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
+void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   int32_t vindex = 0;
   SSdb   *pSdb = pMnode->pSdb;
 

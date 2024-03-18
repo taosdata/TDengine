@@ -4226,38 +4226,25 @@ typedef struct SStreamProgressRsp {
 int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
 int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
 
-typedef struct SDropCtbWithTsmaSingleTbReq {
-  SVDropTbReq req;
-  bool        isTsmaResTb;
-  int64_t     tsmaUid;
-  int64_t     stbUid; // stable uid
-} SMDropCtbWithTsmaSingleTbReq;
-
 typedef struct SDropCtbWithTsmaSingleVgReq {
   SVgroupInfo vgInfo;
-  SArray*     pTbs;
-} SMDropCtbWithTsmaSingleVgReq;
+  SArray*     pTbs; // SVDropTbReq
+} SMDropTbReqsOnSingleVg;
 
-typedef struct SDropCtbWithTsmaReq {
-  SArray* pVgReqs;
-} SMDropTbWithTsmaReq;
+int32_t tEncodeSMDropTbReqOnSingleVg(SEncoder* pEncoder, const SMDropTbReqsOnSingleVg* pReq);
+int32_t tDecodeSMDropTbReqOnSingleVg(SDecoder* pDecoder, SMDropTbReqsOnSingleVg* pReq);
 
-int32_t tSerializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, const SMDropTbWithTsmaReq* pReq);
-int32_t tDeserializeDropCtbWithTsmaReq(void* buf, int32_t bufLen, SMDropTbWithTsmaReq* pReq);
+typedef struct SDropTbsReq {
+  SArray* pVgReqs; // SMDropTbReqsOnSingleVg
+} SMDropTbsReq;
 
-typedef struct SVTtlExpiredTb {
-  tb_uid_t uid;
-  char name[TSDB_TABLE_NAME_LEN];
-  tb_uid_t suid;
-} SVTtlExpiredTb;
+int32_t tSerializeSMDropTbsReq(void* buf, int32_t bufLen, const SMDropTbsReq* pReq);
+int32_t tDeserializeSMDropTbsReq(void* buf, int32_t bufLen, SMDropTbsReq* pReq);
 
 typedef struct SVFetchTtlExpiredTbsRsp {
-  SArray* pExpiredTbs;
+  SArray* pExpiredTbs;  // SVDropTbReq
   int32_t vgId;
 } SVFetchTtlExpiredTbsRsp;
-
-int32_t tEncodeTtlExpiredTb(SEncoder* pEncoder, const SVTtlExpiredTb* pTb);
-int32_t tDecodeTtlExpiredTb(SDecoder* pDecoder, SVTtlExpiredTb* pTb);
 
 int32_t tEncodeVFetchTtlExpiredTbsRsp(SEncoder* pCoder, const SVFetchTtlExpiredTbsRsp* pRsp);
 int32_t tDecodeVFetchTtlExpiredTbsRsp(SDecoder* pCoder, SVFetchTtlExpiredTbsRsp* pRsp);

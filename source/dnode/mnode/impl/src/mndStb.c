@@ -91,6 +91,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA, mndProcessDropTbWithTsma);
   mndSetMsgHandle(pMnode, TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP, mndProcessFetchTtlExpiredTbs);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TABLE_RSP, mndTransProcessRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -3666,25 +3667,166 @@ static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq) {
   return code;
 }
 
-static int32_t mndSetDropTbsRedoActions(SMnode* pMnode, int32_t vgId, SArray* pTbs) {
-  return 0;
+typedef struct SVDropTbVgReqs {
+  SVDropTbBatchReq req;
+  SVgroupInfo      info;
+} SVDropTbVgReqs;
+
+typedef struct SMDropTbDbInfo {
+  SArray *dbVgInfos;
+  int32_t hashPrefix;
+  int32_t hashSuffix;
+  int32_t hashMethod;
+} SMDropTbDbInfo;
+
+typedef struct SMDropTbTsmaInfo {
+  char                tsmaResTbDbFName[TSDB_DB_FNAME_LEN];
+  char                tsmaResTbNamePrefix[TSDB_TABLE_NAME_LEN];
+  int32_t             suid;
+  SMDropTbDbInfo      dbInfo; // reference to DbInfo in pDbMap
+} SMDropTbTsmaInfo;
+
+typedef struct SMDropTbTsmaInfos {
+  SArray* pTsmaInfos; // SMDropTbTsmaInfo
+} SMDropTbTsmaInfos;
+
+typedef struct SMndDropTbsWithTsmaCtx {
+  SHashObj* pTsmaMap;     // <suid, SMDropTbTsmaInfos>
+  SHashObj* pDbMap;      // <dbuid, SMDropTbDbInfo>
+  SHashObj* pVgMap;      // <vgId, SVDropTbVgReqs>
+  SArray*   pResTbNames; // SArray<char*>
+} SMndDropTbsWithTsmaCtx;
+
+static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode* pMnode, SMndDropTbsWithTsmaCtx* pCtx, SArray* pTbs, int32_t vgId);
+
+static void mndDestroyDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx* p) {
+  if (!p) return;
+
+  if (p->pDbMap) {
+    void* pIter = taosHashIterate(p->pDbMap, NULL);
+    while (pIter) {
+      SMDropTbDbInfo* pInfo = pIter;
+      taosArrayDestroy(pInfo->dbVgInfos);
+      pIter = taosHashIterate(p->pDbMap, pIter);
+    }
+    taosHashCleanup(p->pDbMap);
+  }
+  if (p->pResTbNames) {
+    taosArrayDestroyP(p->pResTbNames, taosMemoryFree);
+  }
+  if (p->pTsmaMap) {
+    void* pIter = taosHashIterate(p->pTsmaMap, NULL);
+    while (pIter) {
+      SMDropTbTsmaInfos* pInfos = pIter;
+      taosArrayDestroy(pInfos->pTsmaInfos);
+      pIter = taosHashIterate(p->pTsmaMap, pIter);
+    }
+    taosHashCleanup(p->pTsmaMap);
+  }
+
+  if (p->pVgMap) {
+    void* pIter = taosHashIterate(p->pVgMap, NULL);
+    while (pIter) {
+      SVDropTbVgReqs *pReqs = pIter;
+      taosArrayDestroy(pReqs->req.pArray);
+      pIter = taosHashIterate(p->pVgMap, pIter);
+    }
+    taosHashCleanup(p->pVgMap);
+  }
+  taosMemoryFree(p);
 }
 
-static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg* pRsp) {
-  int32_t code = -1;
+static int32_t mndInitDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx** ppCtx) {
+  int32_t code = 0;
+  SMndDropTbsWithTsmaCtx* pCtx = taosMemoryCalloc(1, sizeof(SMndDropTbsWithTsmaCtx));
+  if (!pCtx) return TSDB_CODE_OUT_OF_MEMORY;
+  pCtx->pTsmaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (!pCtx->pTsmaMap) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  pCtx->pDbMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!pCtx->pDbMap) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  pCtx->pResTbNames = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+
+  pCtx->pVgMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (!pCtx->pVgMap) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  *ppCtx = pCtx;
+_end:
+  if (code) mndDestroyDropTbsWithTsmaCtx(pCtx);
+  return code;
+}
+
+
+static void* mndBuildVDropTbsReq(SMnode* pMnode, const SVgroupInfo* pVgInfo, const SVDropTbBatchReq* pReq, int32_t *len) {
+  int32_t      contLen = 0;
+  int32_t      ret = 0;
+  SMsgHead    *pHead = NULL;
+  SEncoder     encoder = {0};
+
+  tEncodeSize(tEncodeSVDropTbBatchReq, pReq, contLen, ret);
+  if (ret < 0) return NULL;
+
+  contLen += sizeof(SMsgHead);
+  pHead = taosMemoryMalloc(contLen);
+  if (pHead == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgInfo->vgId);
+
+  void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  tEncodeSVDropTbBatchReq(&encoder, pReq);
+  tEncoderClear(&encoder);
+
+  *len = contLen;
+  return pHead;
+}
+
+static int32_t mndSetDropTbsRedoActions(SMnode* pMnode, STrans* pTrans, const SVDropTbVgReqs* pVgReqs, void* pCont, int32_t contLen) {
+  STransAction action = {0};
+  action.epSet = pVgReqs->info.epSet;
+  action.pCont = pCont;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_DROP_TABLE;
+  action.acceptableCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  return mndTransAppendRedoAction(pTrans, &action);
+}
+
+static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg* pRsp, SMndDropTbsWithTsmaCtx* pCtx) {
   SMnode *pMnode = pRsp->info.node;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pRsp, "drop-tbs");
   if (pTrans == NULL) goto _OVER;
 
   if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
-  //if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  void* pIter = taosHashIterate(pCtx->pVgMap, NULL);
+  while (pIter) {
+    const SVDropTbVgReqs* pVgReqs = pIter;
+    int32_t len = 0;
+    void* p = mndBuildVDropTbsReq(pMnode, &pVgReqs->info, &pVgReqs->req, &len);
+    if (!p || mndSetDropTbsRedoActions(pMnode, pTrans, pVgReqs, p, len) != 0) {
+      taosHashCancelIterate(pCtx->pVgMap, pIter);
+      goto _OVER;
+    }
+    pIter = taosHashIterate(pCtx->pVgMap, pIter);
+  }
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
 
 _OVER:
   mndTransDrop(pTrans);
-  return code;
+  return terrno;
 }
 
 static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq) {
@@ -3692,164 +3834,195 @@ static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq) {
   SMnode             *pMnode = pReq->info.node;
   SDbObj             *pDb = NULL;
   SStbObj            *pStb = NULL;
-  SMDropTbWithTsmaReq dropReq = {0};
+  SMDropTbsReq        dropReq = {0};
   bool                locked = false;
-  if (tDeserializeDropCtbWithTsmaReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSMDropTbsReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-  SHashObj* pTsmaHashSet = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  SHashObj* pSourceTbHashSet = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
+  SMndDropTbsWithTsmaCtx* pCtx = NULL;
+  terrno = mndInitDropTbsWithTsmaCtx(&pCtx);
+  if (terrno) goto _OVER;
   for (int32_t i = 0; i < dropReq.pVgReqs->size; ++i) {
-    const SMDropCtbWithTsmaSingleVgReq* pVgReq = taosArrayGet(dropReq.pVgReqs, i);
-    for (int32_t j = 0; j < pVgReq->pTbs->size; ++j) {
-      const SMDropCtbWithTsmaSingleTbReq* pTbReq = taosArrayGet(pVgReq->pTbs, j);
-      if (pTbReq->isTsmaResTb) {
-        taosHashPut(pTsmaHashSet, &pTbReq->tsmaUid, sizeof(pTbReq->tsmaUid), NULL, 0);
-        taosHashPut(pSourceTbHashSet, &pTbReq->req.suid, sizeof(pTbReq->req.suid), NULL, 0);
-      } else {
-        taosHashPut(pSourceTbHashSet, &pTbReq->stbUid, sizeof(pTbReq->stbUid), NULL, 0);
-      }
-    }
+    SMDropTbReqsOnSingleVg* pReq = taosArrayGet(dropReq.pVgReqs, i);
+    terrno = mndDropTbAddTsmaResTbsForSingleVg(pMnode, pCtx, pReq->pTbs, pReq->vgInfo.vgId);
+    if (terrno) goto _OVER;
   }
-  sdbReadLock(pMnode->pSdb, SDB_SMA);
-  locked = true;
-
-  void    *pIter = NULL;
-  SSmaObj *pSma = NULL;
-
-  while(1) {
-    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
-    if (!pIter) break;
-    if (taosHashGet(pSourceTbHashSet, &pSma->stbUid, sizeof(pSma->stbUid))) {
-      if (!taosHashGet(pTsmaHashSet, &pSma->uid, sizeof(pSma->uid))) {
-        // TODO should retry
-        terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-      }
-    }
-    sdbRelease(pMnode->pSdb, pSma);
-  }
-  // start transaction
-
-
-  code = 0;
+  if (mndCreateDropTbsTxnPrepare(pReq, pCtx) == 0)
+    code = 0;
 _OVER:
-  if (locked) sdbUnLock(pMnode->pSdb, SDB_SMA);
-  taosHashCleanup(pTsmaHashSet);
-  taosHashCleanup(pSourceTbHashSet);
+  if (pCtx) mndDestroyDropTbsWithTsmaCtx(pCtx);
   return code;
 }
 
-typedef struct SDropTbVgReqs {
-  SVDropTbBatchReq req;
-  SVgroupInfo      info;
-} SDropTbVgReqs;
+static int32_t mndDropTbAdd(SMnode *pMnode, SHashObj *pVgHashMap, const SVgroupInfo *pVgInfo, char *name, tb_uid_t suid,
+                            bool ignoreNotExists) {
+  SVDropTbReq req = {.name = name, .suid = suid, .igNotExists = ignoreNotExists};
 
-static int32_t mndDropTbAdd(SMnode* pMnode, SHashObj* pVgHashMap, const SVgObj* pVgObj, SVDropTbReq* pReq, char* name, tb_uid_t suid) {
-  SVDropTbReq req = {.name = name, .suid = suid, .igNotExists = true};
-  SVgroupInfo info = {.hashBegin = pVgObj->hashBegin, .hashEnd =  pVgObj->hashEnd, .vgId = pVgObj->vgId};
-  info.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-
-  SDropTbVgReqs * pReqs = taosHashGet(pVgHashMap, &pVgObj->vgId, sizeof(pVgObj->vgId));
-  SDropTbVgReqs reqs = {0};
+  SVDropTbVgReqs * pReqs = taosHashGet(pVgHashMap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
+  SVDropTbVgReqs reqs = {0};
   if (pReqs == NULL) {
-    reqs.info = info;
+    reqs.info = *pVgInfo;
     reqs.req.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVDropTbReq));
-    taosArrayPush(reqs.req.pArray, pReq);
-    taosHashPut(pVgHashMap, &pVgObj->vgId, sizeof(pVgObj->vgId), &reqs, sizeof(reqs));
+    taosArrayPush(reqs.req.pArray, &req);
+    taosHashPut(pVgHashMap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &reqs, sizeof(reqs));
   } else {
-    taosArrayPush(pReqs->req.pArray, pReq);
+    taosArrayPush(pReqs->req.pArray, &req);
   }
   return 0;
+}
+
+static int32_t mndGetDbVgInfoForTsma(SMnode* pMnode, const char* dbname, SMDropTbTsmaInfo* pInfo) {
+  int32_t code = 0;
+  SDbObj* pDb = mndAcquireDb(pMnode, dbname);
+  if (!pDb) {
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _end;
+  }
+
+  pInfo->dbInfo.dbVgInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+  if ( !pInfo->dbInfo.dbVgInfos) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  mndBuildDBVgroupInfo(pDb, pMnode, pInfo->dbInfo.dbVgInfos);
+
+  pInfo->dbInfo.hashPrefix = pDb->cfg.hashPrefix;
+  pInfo->dbInfo.hashSuffix = pDb->cfg.hashSuffix;
+  pInfo->dbInfo.hashMethod = pDb->cfg.hashMethod;
+
+_end:
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  if (code && pInfo->dbInfo.dbVgInfos) {
+    taosArrayDestroy(pInfo->dbInfo.dbVgInfos);
+    pInfo->dbInfo.dbVgInfos = NULL;
+  }
+  return code;
+}
+
+int32_t vgHashValCmp(const void* lp, const void* rp) {
+  uint32_t*    key = (uint32_t*)lp;
+  SVgroupInfo* pVg = (SVgroupInfo*)rp;
+
+  if (*key < pVg->hashBegin) {
+    return -1;
+  } else if (*key > pVg->hashEnd) {
+    return 1;
+  }
+
+  return 0;
+}
+
+static int32_t mndDropTbAddTsmaResTbsForSingleVg(SMnode* pMnode, SMndDropTbsWithTsmaCtx* pCtx, SArray* pTbs, int32_t vgId) {
+  int32_t code = 0;
+
+  SVgObj* pVgObj = mndAcquireVgroup(pMnode, vgId);
+  if (!pVgObj) {
+    code = 0;
+    goto _end;
+  }
+  SVgroupInfo vgInfo = {.hashBegin = pVgObj->hashBegin, .hashEnd = pVgObj->hashEnd, .numOfTable = pVgObj->numOfTables, .vgId = pVgObj->vgId};
+  vgInfo.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+  mndReleaseVgroup(pMnode, pVgObj);
+
+  // get all stb uids
+  for (int32_t i = 0; i < pTbs->size; ++i) {
+    const SVDropTbReq* pTb = taosArrayGet(pTbs, i);
+    if (taosHashGet(pCtx->pTsmaMap, &pTb->suid, sizeof(pTb->suid))) {
+
+    } else {
+      SMDropTbTsmaInfos infos = {0};
+      infos.pTsmaInfos = taosArrayInit(2, sizeof(SMDropTbTsmaInfo));
+      if (!infos.pTsmaInfos) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _end;
+      }
+      taosHashPut(pCtx->pTsmaMap, &pTb->suid, sizeof(pTb->suid), &infos, sizeof(infos));
+    }
+  }
+
+  void    *pIter = NULL;
+  SSmaObj *pSma = NULL;
+  char     buf[TSDB_TABLE_FNAME_LEN] = {0};
+  // get used tsmas and it's dbs
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+    if (!pIter) break;
+    SMDropTbTsmaInfos* pInfos = taosHashGet(pCtx->pTsmaMap, &pSma->stbUid, sizeof(pSma->stbUid));
+    if (pInfos) {
+      SMDropTbTsmaInfo info = {0};
+      int32_t len = sprintf(buf, "%s", pSma->name);
+      len = taosCreateMD5Hash(buf, len);
+      sprintf(info.tsmaResTbDbFName, "%s", pSma->db);
+      sprintf(info.tsmaResTbNamePrefix, "%s", buf);
+      SMDropTbDbInfo* pDbInfo = taosHashGet(pCtx->pDbMap, pSma->db, TSDB_DB_FNAME_LEN);
+      info.suid = pSma->dstTbUid;
+      if (!pDbInfo) {
+        code = mndGetDbVgInfoForTsma(pMnode, pSma->db, &info);
+        if (code != TSDB_CODE_SUCCESS) {
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pSma);
+          goto _end;
+        }
+        taosHashPut(pCtx->pDbMap, pSma->db, TSDB_DB_FNAME_LEN, &info.dbInfo, sizeof(SMDropTbDbInfo));
+      } else {
+        info.dbInfo = *pDbInfo;
+      }
+      taosArrayPush(pInfos->pTsmaInfos, &info);
+    }
+    sdbRelease(pMnode->pSdb, pSma);
+  }
+
+  // generate vg req map
+  for (int32_t i = 0; i < pTbs->size; ++i) {
+    SVDropTbReq* pTb = taosArrayGet(pTbs, i);
+    mndDropTbAdd(pMnode, pCtx->pVgMap, &vgInfo, pTb->name, pTb->suid, pTb->igNotExists);
+
+    SMDropTbTsmaInfos *pInfos = taosHashGet(pCtx->pTsmaMap, &pTb->suid, sizeof(pTb->suid));
+    SArray            *pVgInfos = NULL;
+    char               buf[TSDB_TABLE_FNAME_LEN];
+    for (int32_t j = 0; j < pInfos->pTsmaInfos->size; ++j) {
+      SMDropTbTsmaInfo *pInfo = taosArrayGet(pInfos->pTsmaInfos, j);
+      int32_t           len = sprintf(buf, "%s.%s_%s", pInfo->tsmaResTbDbFName, pInfo->tsmaResTbNamePrefix, pTb->name);
+      uint32_t          hashVal =
+          taosGetTbHashVal(buf, len, pInfo->dbInfo.hashMethod, pInfo->dbInfo.hashPrefix, pInfo->dbInfo.hashSuffix);
+      const SVgroupInfo *pVgInfo = taosArraySearch(pInfo->dbInfo.dbVgInfos, &hashVal, vgHashValCmp, TD_EQ);
+      void* p = taosStrdup(buf + strlen(pInfo->tsmaResTbDbFName) + TSDB_NAME_DELIMITER_LEN);
+      taosArrayPush(pCtx->pResTbNames, &p);
+      mndDropTbAdd(pMnode, pCtx->pVgMap, pVgInfo, p, pInfo->suid, true);
+    }
+  }
+_end:
+  return code;
 }
 
 static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pRsp) {
   int32_t                 code = -1;
   SDecoder                decoder = {0};
   SMnode                 *pMnode = pRsp->info.node;
-  bool                    locked = false;
-  SHashObj*               pTsmaMap = NULL;
-  SHashObj*               pVgroupMap = NULL;
-  SHashObj*               pDbMap = NULL;
-  SVFetchTtlExpiredTbsRsp rsp;
+  SVFetchTtlExpiredTbsRsp rsp = {0};
+  SMndDropTbsWithTsmaCtx *pCtx = NULL;
   if (pRsp->code != TSDB_CODE_SUCCESS) goto _end;
+  if (pRsp->contLen == 0) {
+    code = 0;
+    goto _end;
+  }
 
   tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
   terrno = tDecodeVFetchTtlExpiredTbsRsp(&decoder, &rsp);
   if (terrno) goto _end;
 
-  pTsmaMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (!pTsmaMap) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
+  terrno = mndInitDropTbsWithTsmaCtx(&pCtx);
+  if (terrno) goto _end;
 
-
-  // get all stb uids
-  for (int32_t i = 0; i < rsp.pExpiredTbs->size; ++i) {
-    const SVTtlExpiredTb* pTb = taosArrayGet(rsp.pExpiredTbs, i);
-    if (taosHashGet(pTsmaMap, &pTb->suid, sizeof(pTb->suid))) {
-
-    } else {
-      SArray* pTsmas = taosArrayInit(2, TSDB_TABLE_NAME_LEN);
-      if (!pTsmas) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        goto _end;
-      }
-      taosHashPut(pTsmaMap, &pTb->suid, sizeof(pTb->suid), &pTsmas, sizeof(pTsmas));
-    }
-  }
-
-  sdbReadLock(pMnode->pSdb, SDB_SMA);
-  locked = true;
-
-  void    *pIter = NULL;
-  SSmaObj *pSma = NULL;
-  char buf[TSDB_TABLE_NAME_LEN + TSDB_DB_FNAME_LEN + 1] = {0};
-  while (1) {
-    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
-    if (!pIter) break;
-    SArray* pTsmas = taosHashGet(pTsmaMap, &pSma->stbUid, sizeof(pSma->stbUid));
-    if (pTsmas) {
-      int32_t len = sprintf(buf, "%s.%s", pSma->db, pSma->name);
-      len = taosCreateMD5Hash(buf, len);
-      taosArrayPush(pTsmas, buf);
-    }
-    sdbRelease(pMnode->pSdb, pSma);
-  }
-
-
-  pVgroupMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  if (!pVgroupMap) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
-  SVgObj* pVgObj = mndAcquireVgroup(pMnode, rsp.vgId);
-  if (!pVgObj) {
+  terrno = mndDropTbAddTsmaResTbsForSingleVg(pMnode, pCtx, rsp.pExpiredTbs, rsp.vgId);
+  if (terrno) goto _end;
+  if (mndCreateDropTbsTxnPrepare(pRsp, pCtx) == 0)
     code = 0;
-    goto _end;
-  }
-  SVDropTbReq req = {.igNotExists = true};
-  for (int32_t i = 0; i < rsp.pExpiredTbs->size; ++i) {
-    SVTtlExpiredTb* pTb = taosArrayGet(rsp.pExpiredTbs, i);
-    req.name = pTb->name;
-    req.suid = pTb->suid;
-    mndDropTbAdd(pMnode, pVgroupMap, pVgObj, &req, pTb->name, pTb->suid);
-
-    SArray* pTsmas = taosHashGet(pTsmaMap, &pTb->suid, sizeof(pTb->suid));
-    for (int32_t j = 0; j > pTsmas->size; ++j) {
-      char* name = taosArrayGet(pTsmas, j);
-      sprintf(name + strlen(name), "_%s", pTb->name);
-    }
-  }
-  mndReleaseVgroup(pMnode, pVgObj);
-  if (terrno == 0) code = 0;
 _end:
+  if (pCtx) mndDestroyDropTbsWithTsmaCtx(pCtx);
   tDecoderClear(&decoder);
   tFreeFetchTtlExpiredTbsRsp(&rsp);
-  if (locked) sdbUnLock(pMnode->pSdb, SDB_SMA);
-
-  //pVgroupHashmap
-  //pTsmaMap
   return code;
 }
