@@ -18,9 +18,12 @@ impl ValueBuilder for GeneratorValueBuilder {
 
         match self.generator.as_str() {
             "now" => {
-                let now = Utc::now().timestamp_nanos_opt().unwrap();
+                let mut time_array = Vec::with_capacity(len);
+                for _ in 0..len {
+                    time_array.push(Utc::now().timestamp_nanos_opt());
+                }
                 Ok(Arc::new(
-                    TimestampNanosecondArray::from(vec![now; len]).with_timezone_utc(),
+                    TimestampNanosecondArray::from(time_array).with_timezone_utc(),
                 ))
             }
             _ => {
@@ -53,6 +56,7 @@ mod tests {
             *field.data_type(),
             DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
         );
+        dbg!(&value);
         assert_eq!(value.len(), 3);
         let ts = value
             .as_any()

@@ -108,7 +108,6 @@ groups:
           Polling interval to query schema.
         placeholder: "Interval: 5s"
 
-
   - name: What to migrate
     display_order: 2
     description: Choose to migrate from stable or tables.
@@ -189,3 +188,33 @@ groups:
           Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
           Only numbers default to seconds as unit.<br>
         placeholder: "Duration: 5m"
+
+advanced:
+  name: Advanced Options
+  collapsible: true
+  description: |
+    Adjust the parameters related to concurrency setting for reading from data source and  writing into data sink, and error log.
+  params:
+    - name: workers
+      display: Read Concurreny
+      description: The number of threads for reading data from the source. If not set, the default value is the number of CPU cores.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 100
+    - name: write-concurrency
+      display: Write Concurreny
+      description: |
+        The overall maximum concurrency for writing to the target database. It cannot be less than the read concurrency, and the default is equal to the read concurrency.
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 100
+    - name: fails-to
+      display: File to write failed data
+      description: |
+        An absolute path of the environment where taosX is running. If set, the failed data and the reason for the failure will be written to the file and will not block task execution. If not set, a failed write will cause task interruption.
+      hint:
+        type: str
