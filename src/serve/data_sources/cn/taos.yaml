@@ -177,3 +177,33 @@ groups:
           支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>
           单独使用数字则默认认为是秒。<br>
         placeholder: "示例：5m"
+
+advanced:
+  name: 高级选项
+  collapsible: true
+  description: |
+    调整与读并发、写并发和错误日志相关的参数。
+  params:
+    - name: workers
+      display: 最大读并发数
+      description: 并发查询的线程数，如果为 0 会自动设置为 CPU 核数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 100
+    - name: write-concurrency
+      display: 最大写并发数
+      description: |
+        写入目标数据库的整体最大并发数。不能小于读并发数，默认等于读并发数。
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 100
+    - name: fails-to
+      display: 错误记录文件
+      description: |
+        taosX 所处运行环境的一个绝对路径。 如有值，写入失败的数据及失败原因将被写入该文件，并不阻塞任务执行。如无值，写入失败会导致任务中断。
+      hint:
+        type: str

@@ -216,10 +216,6 @@ impl Drop for TaskOpts {
     }
 }
 
-pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
-pub const METRICS_TIME_COST: &str = "metrics.time_cost";
-pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
-
 impl TaskOpts {
     pub fn cancel(&self) {
         self.cancel.cancel();
@@ -320,11 +316,10 @@ impl TaskOpts {
                 ("taos", "taos") => {
                     tokio::select! {
                         _ = cancel.cancelled() => {
-                            tracing::info!("csv transfer cancelled");
+                            tracing::info!("legacy task was cancelled");
                             return Ok(())
                         }
                         rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone(), task_id.clone())
-                        // .in_current_span()
                         .instrument(tracing::info_span!("legacy_to_taos")) => {
                             rs?;
                         }
