@@ -2923,10 +2923,14 @@ async fn legacy_to_taos_impl(
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     let metrics_arc_clone = metrics_arc.clone();
+    let cancel_clone = cancel.clone();
+    let scheduler_clone = scheduler.clone();
     std::thread::spawn(move || loop {
         let metrics = metrics_arc_clone.as_ref().legacy();
-        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled() {
-            tracing::debug!("stop timer");
+        if task_done_clone.load(Ordering::Relaxed) || cancel_clone.is_cancelled() {
+            tracing::info!("abort handles");
+            scheduler_clone.abort();
+            tracing::info!("stop timer");
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
@@ -3132,7 +3136,7 @@ async fn legacy_to_taos_impl(
             );
         };
         tracing::info!("monitoring for data changes");
-        realtime(
+        let future = realtime(
             &scheduler,
             now,
             &source_taos,
@@ -3141,8 +3145,11 @@ async fn legacy_to_taos_impl(
             source_is_v3,
             target_is_v3,
             &todo,
-        )
-        .await?;
+        );
+        tokio::select! {
+            _ = future => {}
+            _ = cancel.cancelled() => {}
+        };
         return Ok(());
     }
 
