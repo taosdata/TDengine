@@ -1350,7 +1350,9 @@ impl TaskJob {
                     task.agent = opts.task.via
                 );
 
-                let license_tracker_cancellation_token = opts.cancellation.clone();
+                // let license_tracker_cancellation_token = opts.cancellation.clone();
+                let license_tracker_cancellation_token = opts.cancellation.child_token();
+
                 let drop_guard = license_tracker_cancellation_token.clone().drop_guard();
                 let license_tracker_state = opts.clone();
                 let license_tracker_global = global.clone();
