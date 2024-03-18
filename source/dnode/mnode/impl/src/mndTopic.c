@@ -386,7 +386,7 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     SEncoder encoder;
     tEncoderInit(&encoder, abuf, len);
     code = tEncodeSTqCheckInfo(&encoder, &info);
-    if (code != 0) {
+    if (code < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
