@@ -107,7 +107,7 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
   memset(buf, 0, TSDB_ARB_TOKEN_SIZE);
   int32_t randVal = taosSafeRand() % 1000;
   int64_t currentMs = taosGetTimestampMs();
-  sprintf(buf, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
+  snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
 }
 
 // for leader

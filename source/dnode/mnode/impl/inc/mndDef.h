@@ -273,9 +273,10 @@ typedef struct {
 typedef struct {
   int32_t            vgId;
   int64_t            dbUid;
-  SArbGroupMember    members[2];
+  SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
   SArbAssignedLeader assignedLeader;
+  int64_t            version;
 
   // following fields will not be duplicated
   bool          mutexInited;

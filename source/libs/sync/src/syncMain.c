@@ -661,6 +661,12 @@ int32_t syncGetAssignedLogSynced(int64_t rid) {
     return -1;
   }
 
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_VND_ARB_NOT_SYNCED;
+    syncNodeRelease(pSyncNode);
+    return 0;
+  }
+
   bool isSync = pSyncNode->commitIndex >= pSyncNode->assignedCommitIndex;
   terrno = (isSync ? TSDB_CODE_SUCCESS : TSDB_CODE_VND_ARB_NOT_SYNCED);
 

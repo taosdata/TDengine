@@ -6222,13 +6222,14 @@ int32_t tSerializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGrou
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
     if (tEncodeI32(&encoder, pReq->members[i].dnodeId) < 0) return -1;
     if (tEncodeCStr(&encoder, pReq->members[i].token) < 0) return -1;
   }
   if (tEncodeI8(&encoder, pReq->isSync) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->assignedLeader.dnodeId) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->assignedLeader.token) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->version) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -6244,7 +6245,7 @@ int32_t tDeserializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGr
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
     if (tDecodeI32(&decoder, &pReq->members[i].dnodeId) < 0) return -1;
     pReq->members[i].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
     if (tDecodeCStrTo(&decoder, pReq->members[i].token) < 0) return -1;
@@ -6253,6 +6254,7 @@ int32_t tDeserializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGr
   if (tDecodeI32(&decoder, &pReq->assignedLeader.dnodeId) < 0) return -1;
   pReq->assignedLeader.token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
   if (tDecodeCStrTo(&decoder, pReq->assignedLeader.token) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->version) < 0) return -1;
 
   tEndDecode(&decoder);
 
