@@ -910,6 +910,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void*
   SVDropTtlTableReq       ttlReq = {0};
   SVFetchTtlExpiredTbsRsp rsp = {0};
   SEncoder                encoder = {0};
+  SArray*                 pNames = NULL;
   pRsp->msgType = TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -924,19 +925,26 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void*
 
   tb_uid_t       suid;
   char           ctbName[TSDB_TABLE_NAME_LEN];
-  SVTtlExpiredTb expiredTb = {0};
+  SVDropTbReq expiredTb = {.igNotExists = true};
   metaReaderDoInit(&mr, pVnode->pMeta, 0);
   rsp.vgId = TD_VID(pVnode);
-  rsp.pExpiredTbs = taosArrayInit(ttlReq.nUids, sizeof(SVTtlExpiredTb));
+  rsp.pExpiredTbs = taosArrayInit(ttlReq.nUids, sizeof(SVDropTbReq));
   if (!rsp.pExpiredTbs) goto _end;
 
+  pNames = taosArrayInit(ttlReq.nUids, TSDB_TABLE_NAME_LEN);
+  if (!pNames) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  char buf[TSDB_TABLE_NAME_LEN];
   for (int32_t i = 0; i < ttlReq.nUids; ++i) {
     tb_uid_t* uid = taosArrayGet(ttlReq.pTbUids, i);
-    expiredTb.uid = *uid;
     expiredTb.suid = *uid;
     terrno = metaReaderGetTableEntryByUid(&mr, *uid);
     if (terrno < 0) goto _end;
-    strncpy(expiredTb.name, mr.me.name, TSDB_TABLE_NAME_LEN);
+    strncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
+    void* p = taosArrayPush(pNames, buf);
+    expiredTb.name = p;
     if (mr.me.type == TSDB_CHILD_TABLE) {
       expiredTb.suid = mr.me.ctbEntry.suid;
     }
@@ -959,6 +967,8 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void*
 _end:
   metaReaderClear(&mr);
   tFreeFetchTtlExpiredTbsRsp(&rsp);
+  taosArrayDestroy(ttlReq.pTbUids);
+  if (pNames) taosArrayDestroy(pNames);
   pRsp->code = terrno;
   return code;
 }

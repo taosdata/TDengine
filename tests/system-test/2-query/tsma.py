@@ -566,7 +566,7 @@ class TSMATestSQLGenerator:
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143, 'asynclog': 0, 'ttlUnit': 10, 'ttlPushInterval': 5}
+    updatecfgDict = {'debugFlag': 143, 'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 1}
 
     def __init__(self):
         self.vgroups = 4
@@ -751,7 +751,6 @@ class TDTestCase:
         self.create_tsma('tsma5', 'test', 'norm_tb', [
                          'avg(c1)', 'avg(c2)'], '10m')
 
-        time.sleep(999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
@@ -1052,8 +1051,7 @@ class TDTestCase:
         tdSql.execute('use nsdb', queryTimes=1)
         tdSql.execute(
             'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
-        self.create_tsma('tsma1', 'nsdb', 'meters', [
-                         'avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         # drop column, drop tag
         tdSql.error('alter table meters drop column c1', -2147482637)
         tdSql.error('alter table meters drop tag t1', -2147482637)
@@ -1066,7 +1064,28 @@ class TDTestCase:
         tdSql.execute('alter table meters drop tag t3', queryTimes=1)
         tdSql.execute('drop database nsdb')
 
+        # drop norm table
+        self.create_tsma('tsma_norm_tb', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '5m')
+        tdSql.error('drop table norm_tb', -2147471088)
+
+        # drop no tsma table
+        tdSql.execute('drop table t2, t1')
+
+        # test ttl drop table
+        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        tdSql.execute('alter table t0 ttl 2', queryTimes=1)
+        tdSql.execute('flush database test')
+        tdSql.waitedQuery('show tables like "%t0"', 0, 10)
+
+        # test drop multi tables
+        tdSql.execute('drop table t3, t4')
+        tdSql.waitedQuery('show tables like "%t3"', 0, 1)
+        tdSql.waitedQuery('show tables like "%t4"', 0, 1)
+
         # TODO test drop stream
+
+        tdSql.execute('drop database test', queryTimes=1)
+        self.init_data()
 
     def test_create_tsma_on_stable(self):
         function_name = sys._getframe().f_code.co_name
