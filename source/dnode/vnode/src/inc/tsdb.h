@@ -551,7 +551,7 @@ struct SDiskDataHdr {
   int32_t  szKey;
   int32_t  szBlkCol;
   int32_t  nRow;
-  int8_t   cmprAlg;
+  uint32_t cmprAlg;
 
   // fmtVer == 1
   int8_t    numOfPKs;
