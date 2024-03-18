@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tcompression.h"
 #include "tdataformat.h"
 #include "tsdb.h"
 #include "tsdbDef.h"
@@ -1412,6 +1413,7 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
   int32_t lino = 0;
 
   SColCompressInfo *pInfo = pCompr;
+  code = tsdbGetColCmprAlgFromSet(pInfo->pColCmpr, 1, &pInfo->defaultCmprAlg);
 
   SDiskDataHdr hdr = {
       .delimiter = TSDB_FILE_DLMT,
@@ -1530,7 +1532,13 @@ int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr) {
   if ((code = tBufferPutI32v(buffer, pHdr->szKey))) return code;
   if ((code = tBufferPutI32v(buffer, pHdr->szBlkCol))) return code;
   if ((code = tBufferPutI32v(buffer, pHdr->nRow))) return code;
-  if ((code = tBufferPutI8(buffer, pHdr->cmprAlg))) return code;
+  if (pHdr->fmtVer < 1) {
+    if ((code = tBufferPutI8(buffer, pHdr->cmprAlg))) return code;
+  } else if (pHdr->fmtVer == 1) {
+    if ((code = tBufferPutU32(buffer, pHdr->cmprAlg))) return code;
+  } else {
+    // more data fmt ver
+  }
   if (pHdr->fmtVer == 1) {
     if ((code = tBufferPutI8(buffer, pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
@@ -1553,7 +1561,15 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   if ((code = tBufferGetI32v(br, &pHdr->szKey))) return code;
   if ((code = tBufferGetI32v(br, &pHdr->szBlkCol))) return code;
   if ((code = tBufferGetI32v(br, &pHdr->nRow))) return code;
-  if ((code = tBufferGetI8(br, &pHdr->cmprAlg))) return code;
+  if (pHdr->fmtVer < 1) {
+    int8_t cmprAlg = 0;
+    if ((code = tBufferGetI8(br, &cmprAlg))) return code;
+    pHdr->cmprAlg = cmprAlg;
+  } else if (pHdr->fmtVer == 1) {
+    if ((code = tBufferGetU32(br, &pHdr->cmprAlg))) return code;
+  } else {
+    // more data fmt ver
+  }
   if (pHdr->fmtVer == 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
@@ -1625,7 +1641,6 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
       .dataType = TSDB_DATA_TYPE_TIMESTAMP,
       .originalSize = sizeof(TSKEY) * bData->nRow,
   };
-  // tsdbGetColCmprAlgFromSet(compressInfo->pColCmpr, 1, &cinfo.cmprAlg);
 
   code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, &cinfo, buffer, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -1788,5 +1803,10 @@ int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg) {
   if (ret == NULL) return -1;
 
   *alg = *ret;
+  return 0;
+}
+uint32_t tsdbCvtTimestampAlg(uint32_t alg) {
+  DEFINE_VAR(alg)
+
   return 0;
 }

@@ -158,12 +158,12 @@ int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
                            int32_t nBuf);
 int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf);
-int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
-                            int32_t nBuf);
+int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf);
 int32_t tsCompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf);
-int32_t tsDecompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
-                            int32_t nBuf);
+int32_t tsDecompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf);
 int32_t tsCompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                         int32_t nBuf);
 int32_t tsDecompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
@@ -172,8 +172,8 @@ int32_t tsCompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
                            int32_t nBuf);
 int32_t tsDecompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                              void *pBuf, int32_t nBuf);
-int32_t tsCompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
-                            int32_t nBuf);
+int32_t tsCompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf);
 int32_t tsDecompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                               void *pBuf, int32_t nBuf);
 int32_t tsCompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
@@ -182,8 +182,8 @@ int32_t tsDecompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
                          int32_t nBuf);
 int32_t tsCompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf);
-int32_t tsDecompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
-                            int32_t nBuf);
+int32_t tsDecompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf);
 // for internal usage
 int32_t getWordLength(char type);
 
@@ -259,6 +259,12 @@ typedef enum L2Compress {
 } EL2ComressFuncType;
 
 int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
+
+#define DEFINE_VAR(cmprAlg)                   \
+  uint8_t l1 = COMPRESS_L1_TYPE_U32(cmprAlg); \
+  uint8_t l2 = COMPRESS_L2_TYPE_U32(cmprAlg); \
+  uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U32(cmprAlg);
+
 #ifdef __cplusplus
 }
 #endif

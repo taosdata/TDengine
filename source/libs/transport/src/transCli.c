@@ -585,11 +585,11 @@ void* destroyConnPool(SCliThrd* pThrd) {
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   void*      pool = pThrd->pool;
   STrans*    pTranInst = pThrd->pTransInst;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key) + 1);
+    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key));
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -624,11 +624,11 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
 static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   void*      pool = pThrd->pool;
   STrans*    pTransInst = pThrd->pTransInst;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key) + 1);
+    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key));
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -1537,20 +1537,20 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     return;
   }
 
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    if (tmsgIsValid(pMsg->msg.msgType)) {
-      char buf[128] = {0};
-      sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
-      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-      if (NULL == 0) {
-        int localCount = 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      } else {
-        int localCount = *count + 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      }
-    }
-  }
+  // if (rpcDebugFlag & DEBUG_TRACE) {
+  //   if (tmsgIsValid(pMsg->msg.msgType)) {
+  //     char buf[128] = {0};
+  //     sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+  //     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+  //     if (NULL == 0) {
+  //       int localCount = 1;
+  //       taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //     } else {
+  //       int localCount = *count + 1;
+  //       taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //     }
+  //   }
+  // }
 
   char*    fqdn = EPSET_GET_INUSE_IP(&pMsg->ctx->epSet);
   uint16_t port = EPSET_GET_INUSE_PORT(&pMsg->ctx->epSet);
@@ -1730,7 +1730,7 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
         QUEUE_PUSH(&pBatchList->wq, &pBatch->listq);
 
-        taosHashPut(pThrd->batchCache, key, sizeof(key), &pBatchList, sizeof(void*));
+        taosHashPut(pThrd->batchCache, key, strlen(key), &pBatchList, sizeof(void*));
       } else {
         if (QUEUE_IS_EMPTY(&(*ppBatchList)->wq)) {
           SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
@@ -1800,20 +1800,20 @@ static void cliAsyncCb(uv_async_t* handle) {
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
 
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    void* pIter = taosHashIterate(pThrd->msgCount, NULL);
-    while (pIter != NULL) {
-      int*   count = pIter;
-      size_t len = 0;
-      char*  key = taosHashGetKey(pIter, &len);
-      if (*count != 0) {
-        tDebug("key: %s count: %d", key, *count);
-      }
+  // if (rpcDebugFlag & DEBUG_TRACE) {
+  //   void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+  //   while (pIter != NULL) {
+  //     int*   count = pIter;
+  //     size_t len = 0;
+  //     char*  key = taosHashGetKey(pIter, &len);
+  //     if (*count != 0) {
+  //       tDebug("key: %s count: %d", key, *count);
+  //     }
 
-      pIter = taosHashIterate(pThrd->msgCount, pIter);
-    }
-    tDebug("all conn count: %d", pThrd->newConnCount);
-  }
+  //     pIter = taosHashIterate(pThrd->msgCount, pIter);
+  //   }
+  //   tDebug("all conn count: %d", pThrd->newConnCount);
+  // }
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -2411,20 +2411,20 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    if (tmsgIsValid(pResp->msgType - 1)) {
-      char buf[128] = {0};
-      sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
-      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-      if (NULL == 0) {
-        int localCount = 0;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      } else {
-        int localCount = *count - 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      }
-    }
-  }
+  // if (rpcDebugFlag & DEBUG_TRACE) {
+  //   if (tmsgIsValid(pResp->msgType - 1)) {
+  //     char buf[128] = {0};
+  //     sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+  //     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+  //     if (NULL == 0) {
+  //       int localCount = 0;
+  //       taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //     } else {
+  //       int localCount = *count - 1;
+  //       taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //     }
+  //   }
+  // }
   if (pCtx->pSem || pCtx->syncMsgRef != 0) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pSem) {

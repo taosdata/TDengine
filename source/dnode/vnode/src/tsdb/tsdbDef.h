@@ -41,7 +41,7 @@ extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 typedef struct SColCompressInfo SColCompressInfo;
 struct SColCompressInfo {
   SHashObj *pColCmpr;
-  int8_t    defaultCmprAlg;
+  uint32_t  defaultCmprAlg;
 };
 typedef struct SColCompressInfo2 SColCompressInfo2;
 struct SColCompressInfo2 {
