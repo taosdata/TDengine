@@ -1566,7 +1566,7 @@ int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO test errors
+// TODO tsma test errors
 int32_t ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
                                       SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                       void* bInput) {

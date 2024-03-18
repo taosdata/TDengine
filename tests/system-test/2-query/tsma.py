@@ -1082,6 +1082,9 @@ class TDTestCase:
         tdSql.waitedQuery('show tables like "%t3"', 0, 1)
         tdSql.waitedQuery('show tables like "%t4"', 0, 1)
 
+        tdSql.query('show tables like "%tsma%"')
+        tdSql.checkRows(0)
+
         # TODO test drop stream
 
         tdSql.execute('drop database test', queryTimes=1)

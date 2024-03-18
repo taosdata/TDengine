@@ -3153,7 +3153,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
         SName tsmaTargetTbName = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO what if tsma name is too long
+        int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO tsma what if tsma name is too long
         len = taosCreateMD5Hash(tsmaTargetTbName.tname, len);
         sprintf(tsmaTargetTbName.tname + len, "_%s", pRealTable->table.tableName);
         collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
@@ -9201,7 +9201,7 @@ static int32_t buildTSMAAstMakeConcatFuncNode(SCreateTSMAStmt* pStmt, SMCreateSm
       code = nodesListMakeStrictAppend(&pSubstrFunc->pParameterList, nodesMakeNode(QUERY_NODE_VALUE));
       if (TSDB_CODE_SUCCESS == code) {
         SValueNode* pV = (SValueNode*)pSubstrFunc->pParameterList->pTail->pNode;
-        pV->literal = strdup("34"); // TODO define this magic number
+        pV->literal = strdup("34"); // TODO tsma define this magic number
         if (!pV->literal) code = TSDB_CODE_OUT_OF_MEMORY;
         pV->isDuration = false;
         pV->translate = false;
@@ -9373,7 +9373,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   int32_t code = TSDB_CODE_SUCCESS;
 
   STableMeta* pTableMeta = NULL;
-  // TODO 在使用该tableName时, 如果确定其其实是tsma name, 那么避免将此作为tbname进行catalog 获取.
+  // TODO tsma 在使用该tableName时, 如果确定其其实是tsma name, 那么避免将此作为tbname进行catalog 获取.
   STableTSMAInfo* pRecursiveTsma = NULL;
   int32_t         numOfCols = 0, numOfTags = 0;
   SSchema *       pCols = NULL, *pTags = NULL;
@@ -9404,7 +9404,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       memset(useTbName, 0, sizeof(SName));
       memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
       tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
-      numOfCols = pRecursiveTsma->pUsedCols->size; // TODO merge pUsedCols and pTags with one SSchema array
+      numOfCols = pRecursiveTsma->pUsedCols->size; // TODO tsma merge pUsedCols and pTags with one SSchema array
       numOfTags = pRecursiveTsma->pTags->size;
       pCols = pRecursiveTsma->pUsedCols->pData;
       pTags = pRecursiveTsma->pTags->pData;

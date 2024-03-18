@@ -553,7 +553,7 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
         latest = pReader->pHead->head.ingestTs;
       }
     }
-    // TODO remove log
+    // TODO tsma remove log
     tqInfo("------ver: %" PRId64 " fhFinished: %d max: %" PRId64 " cur: %" PRId64 " latest: %" PRId64
            "lastst-cur %" PRId64,
            ver, *fhFinished, verRange.maxVer, cur, latest, latest - cur);
