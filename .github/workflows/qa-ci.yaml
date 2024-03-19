@@ -143,6 +143,7 @@ jobs:
           export PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/
           export ENABLE_COVERAGE=true
           nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &
+          echo $(ps -ef | grep taosx)
           
       - name: Deploy taosx-agent
         run: |
@@ -155,6 +156,7 @@ jobs:
           export ENABLE_COVERAGE=true
           export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw
           nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &
+          echo $(ps -ef | grep taosx)
 
   test:
     runs-on: [self-hosted, linux, x64, qa, rust]
