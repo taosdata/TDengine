@@ -269,6 +269,9 @@ struct STsdbCfg {
   int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keepTimeOffset;  // just for save config, use STsdbKeepCfg in STsdb instead
   SRetention retentions[TSDB_RETENTION_MAX];
+  int32_t encryptAlgorithm;
+  //TODO dmchen len
+  char    encryptKey[17];
 };
 
 typedef struct {

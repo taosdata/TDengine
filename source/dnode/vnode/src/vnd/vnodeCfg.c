@@ -127,6 +127,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
       tjsonAddItemToArray(pNodeRetentions, pNodeRetention);
     }
   }
+  if (tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -134,6 +135,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
@@ -237,6 +239,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeRetention, "keep", (pCfg->tsdbCfg.retentions)[i].keep, code);
     tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
   }
+  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
+  if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+#endif
   tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod, code);
@@ -252,13 +259,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
 #if defined(TD_ENTERPRISE)
-  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
-    pCfg->walCfg.cryptAlgorithm = (tsiEncryptScope & DND_CS_VNODE_WAL)? tsiEncryptAlgorithm : 0;
-    strncpy(pCfg->walCfg.cryptKey, tsEncryptKey, 16);
-  }
-#else
-  pCfg->walCfg.cryptAlgorithm = 0;
+  strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
 #endif
+  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);

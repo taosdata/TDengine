@@ -1153,6 +1153,7 @@ typedef struct {
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
+  int32_t encryptAlgorithm;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1181,6 +1182,7 @@ typedef struct {
   int32_t walRetentionSize;
   int32_t sqlLen;
   char*   sql;
+  int32_t encryptAlgorithm;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1715,6 +1717,7 @@ typedef struct {
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int32_t  changeVersion;
+  int32_t  encryptAlgorithm;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

@@ -154,8 +154,9 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
 
       // validate body
       int32_t cryptedBodyLen = logContent->head.bodyLen;
-      if(pWal->cfg.cryptAlgorithm == 1){
-        cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
+      //TODO: dmchen enum
+      if(pWal->cfg.encryptAlgorithm == 1){
+        cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
       }
       recordLen = walCkHeadSz + cryptedBodyLen;
       if (len < recordLen) {
@@ -626,8 +627,9 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
     int32_t plainBodyLen = ckHead.head.bodyLen;
     int32_t cryptedBodyLen = plainBodyLen;
-    if(pWal->cfg.cryptAlgorithm == 1){
-      cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
+    //TODO: dmchen enum
+    if(pWal->cfg.encryptAlgorithm == 1){
+      cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
     }
     idxEntry.offset += sizeof(SWalCkHead) + cryptedBodyLen;
 

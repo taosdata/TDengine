@@ -187,7 +187,8 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
 
-#define CRYPTEDLEN(len) (len/16) * 16 + (len%16?1:0) * 16
+#define ENCRYPTEDLEN(len) (len/16) * 16 + (len%16?1:0) * 16
+#define ENCRYPTKEYLEN 16
 
 #define TSDB_INT32_ID_LEN 11
 

@@ -303,6 +303,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashSuffix = pDb->cfg.hashSuffix;
   createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
   createReq.changeVersion = ++(pVgroup->syncConfChangeVer);
+  createReq.encryptAlgorithm = pDb->cfg.encryptAlgorithm;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica *pReplica = NULL;

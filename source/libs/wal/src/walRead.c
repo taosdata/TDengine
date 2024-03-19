@@ -311,8 +311,9 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
 
   int32_t plainBodyLen = pRead->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
-  if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
+  //TODO: dmchen emun
+  if(pRead->pWal->cfg.encryptAlgorithm == 1){
+    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
   }
   int64_t code = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
   if (code < 0) {
@@ -338,8 +339,9 @@ int32_t walFetchBody(SWalReader *pRead) {
   int32_t plainBodyLen = pReadHead->bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
 
-  if(pRead->pWal->cfg.cryptAlgorithm == 1){
-    cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
+  //TODO: dmchen emun
+  if(pRead->pWal->cfg.encryptAlgorithm == 1){
+    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
   }
 
   if (pRead->capacity < cryptedBodyLen) {
@@ -450,8 +452,9 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   int32_t plainBodyLen = pReader->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
   
-  if(pReader->pWal->cfg.cryptAlgorithm == 1){
-    cryptedBodyLen = CRYPTEDLEN(cryptedBodyLen);
+  //TODO: dmchen emun
+  if(pReader->pWal->cfg.encryptAlgorithm == 1){
+    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
   }
 
   if (pReader->capacity < cryptedBodyLen) {
@@ -510,8 +513,9 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 }
 
 void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func) {
-  if (cfg->cryptAlgorithm == 1) {
-    int32_t cryptedBodyLen = CRYPTEDLEN(plainBodyLen);
+  //TODO: dmchen emun
+  if (cfg->encryptAlgorithm == 1) {
+    int32_t cryptedBodyLen = ENCRYPTEDLEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
 
     SCryptOpts opts;
@@ -519,7 +523,7 @@ void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const ch
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
-    strncpy(opts.key, cfg->cryptKey, 16);
+    strncpy(opts.key, cfg->encryptKey, 16);
 
     int32_t count = CBC_Decrypt(&opts);
 

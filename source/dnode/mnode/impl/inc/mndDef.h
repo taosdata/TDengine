@@ -343,6 +343,7 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
+  int32_t encryptAlgorithm;
 } SDbCfg;
 
 typedef struct {

@@ -33,6 +33,7 @@
 #include "tjson.h"
 #include "thttp.h"
 #include "audit.h"
+#include "tgrant.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 42
@@ -629,6 +630,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .hashPrefix = pCreate->hashPrefix,
       .hashSuffix = pCreate->hashSuffix,
       .tsdbPageSize = pCreate->tsdbPageSize,
+      //.encryptAlgorithm = pCreate->encryptAlgorithm,
+      //TODO: dmchen
+      .encryptAlgorithm = pCreate->walRetentionSize,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -998,6 +1002,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
            numOfTopics);
+    goto _OVER;
+  }
+
+  if (alterReq.encryptAlgorithm != dbObj.cfg.encryptAlgorithm) {
+    terrno = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+    mError("db:%s, not allowed to change encryptAlgorithm.", pDb->name);
     goto _OVER;
   }
 

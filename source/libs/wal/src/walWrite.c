@@ -528,8 +528,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   char* newBody = NULL;
   char* newBodyEncrypted = NULL;
 
-  if(pWal->cfg.cryptAlgorithm == 1){
-    cyptedBodyLen = CRYPTEDLEN(cyptedBodyLen);
+  //TODO: dmchen enum
+  if(pWal->cfg.encryptAlgorithm == 1){
+    cyptedBodyLen = ENCRYPTEDLEN(cyptedBodyLen);
     char* newBody = taosMemoryMalloc(cyptedBodyLen);
     if(newBody == NULL){
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
@@ -553,7 +554,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
-    strncpy(opts.key, pWal->cfg.cryptKey, 16);
+    strncpy(opts.key, pWal->cfg.encryptKey, 16);
 
     int32_t count = CBC_Encrypt(&opts);
 
@@ -568,14 +569,16 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
     code = -1;
-    if(pWal->cfg.cryptAlgorithm == 1){
+    //TODO: dmchen enum
+    if(pWal->cfg.encryptAlgorithm == 1){
       taosMemoryFree(newBody);
       taosMemoryFree(newBodyEncrypted);
     }
     goto END;
   }
 
-  if(pWal->cfg.cryptAlgorithm == 1){
+  //TODO: dmchen enum
+  if(pWal->cfg.encryptAlgorithm == 1){
     taosMemoryFree(newBody);
     taosMemoryFree(newBodyEncrypted); 
     wInfo("vgId:%d, free newBody newBodyEncrypted %s", 

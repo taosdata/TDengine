@@ -51,8 +51,8 @@
 
 #define ENCODESQL()                                                        \
   do {                                                                     \
+    if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;                 \
     if (pReq->sqlLen > 0 && pReq->sql != NULL) {                           \
-      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;               \
       if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1; \
     }                                                                      \
   } while (0)
@@ -3071,6 +3071,9 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
 
   ENCODESQL();
+
+  if (tEncodeI32(&encoder, pReq->encryptAlgorithm) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3139,6 +3142,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   }
 
   DECODESQL();
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->encryptAlgorithm) < 0) return -1;
+  }
 
   tEndDecode(&decoder);
 
@@ -5123,6 +5130,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
   if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->encryptAlgorithm) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5215,6 +5223,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->encryptAlgorithm) < 0) return -1;
   }
 
   tEndDecode(&decoder);
