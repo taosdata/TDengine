@@ -127,7 +127,7 @@ jobs:
           #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
           scp -r ./target/* root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
 
-  deploy:
+  deploy_for_mqtt:
     runs-on: [self-hosted, linux, x64, qa]
     needs: [build_rust, build_go, build_java]
     steps:
@@ -136,19 +136,58 @@ jobs:
           pwd
           ls ${{ github.workspace }}
           # run taosx
-          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
-          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &'"
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data/"
+          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &'"
           
       - name: Deploy taosx-agent
         run: |
           pwd
           ls ${{ github.workspace }}
           # run taosx-agent
-          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &'"
+          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &'"
 
-  test:
+  test_mqtt:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: deploy
+    needs: deploy_for_mqtt
+    steps:
+      - name: Update Repo
+        run: |
+          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
+          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+      
+      - name: Run Test
+        run: |
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity mqtt_test.py
+
+      - name: Stop taosx-agent & taosx
+        if: always()
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
+  
+  deploy_for_others:
+    runs-on: [self-hosted, linux, x64, qa]
+    needs: [test_mqtt]
+    steps:
+      - name: Deploy taosx
+        run: |
+          pwd
+          ls ${{ github.workspace }}
+          # run taosx
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data/"
+          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &'"
+          
+      - name: Deploy taosx-agent
+        run: |
+          pwd
+          ls ${{ github.workspace }}
+          # run taosx-agent
+          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &'"
+  
+  test_others:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: deploy_for_others
     steps:
       - name: Update Repo
         run: |
@@ -160,7 +199,7 @@ jobs:
         run: |
           rm -rf /data/coverage/opentsdb/
           rm -rf /data/coverage/influxdb/
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity connectivity_test.py
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity -k "not mqtt_test.py"
 
       - name: Stop taosx-agent & taosx
         if: always()
@@ -168,11 +207,14 @@ jobs:
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
 
-      - name: Generate Report
-        if: always()
+  generate_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [test_mqtt]
+    if: always()
+    steps:
+      - name: taosx & agent Report
         run: |
           # taosx report
-
           grcov /data/artifacts/${{ github.event.number }}/taosx-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx
           # taosx-agent report
           grcov /data/artifacts/${{ github.event.number }}/taosx-agent-profraw/ -s /data/artifacts/${{ github.event.number }}/taosx --binary-path /data/artifacts/${{ github.event.number }}/bin/taosx-agent -t html --branch --ignore-not-existing --ignore build.rs -o /data/coverage/${{ github.event.number }}/taosx-agent
@@ -186,10 +228,13 @@ jobs:
 
           genhtml -o /data/coverage/${{ github.event.number }}/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend /data/artifacts/${{ github.event.number }}/lcov_combined_removed.info
 
+      - name: mqtt & opc Report
+        run: |
+
           # TODO 各组件的单元测试覆盖率还需要添加
           cd /data/artifacts/${{ github.event.number }}/go_cover/
           # 依据最后修改时间分离覆盖率文件
-          mkdir -p mqtt_cover_data; mkdir -p opc_cover_data; first_file=$(ls -tl | tail -1); identifier=$(echo "$first_file" | awk -F'.' '{print $2}'); for file in covmeta.* covcounters.*; do if [[ "$file" == *$identifier* ]]; then mv "$file" mqtt_cover_data/; else mv "$file" opc_cover_data/; fi; done
+          #mkdir -p mqtt_cover_data; mkdir -p opc_cover_data; first_file=$(ls -tl | tail -1); identifier=$(echo "$first_file" | awk -F'.' '{print $2}'); for file in covmeta.* covcounters.*; do if [[ "$file" == *$identifier* ]]; then mv "$file" mqtt_cover_data/; else mv "$file" opc_cover_data/; fi; done
           # mqtt report
           cd /data/artifacts/${{ github.event.number }}/taosx/plugins/mqtt
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data -o=mqtt_report.txt
@@ -199,6 +244,8 @@ jobs:
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data -o=opc_report.txt
           /root/go/bin/gocov convert opc_report.txt | /root/go/bin/gocov-html > /data/coverage/${{ github.event.number }}/opc/index.html
 
+      - name: influxdb & opentsdb report
+        run: |
           # opentsdb report
           java -jar /data/coverage/jacococli.jar merge /data/coverage/opentsdb/*.exec --destfile /data/coverage/opentsdb/opentsdb.exec
           java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/opentsdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/opentsdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/opentsdb/src/main/java --html /data/coverage/${{ github.event.number }}/opentsdb/opentsdb_report
