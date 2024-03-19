@@ -205,17 +205,17 @@ jobs:
           # mqtt report
           cd /data/artifacts/${{ github.event.number }}/taosx/plugins/mqtt
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data -o=mqtt_report.txt
-          /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > /data/coverage/mqtt/index.html
+          /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > /data/coverage/${{ github.event.number }}/mqtt/index.html
           # opc report
           cd /data/artifacts/${{ github.event.number }}/taosx/plugins/opc
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data -o=opc_report.txt
-          /root/go/bin/gocov convert opc_report.txt | /root/go/bin/gocov-html > /data/coverage/opc/index.html
+          /root/go/bin/gocov convert opc_report.txt | /root/go/bin/gocov-html > /data/coverage/${{ github.event.number }}/opc/index.html
 
           # opentsdb report
           java -jar /data/coverage/jacococli.jar merge /data/coverage/opentsdb/*.exec --destfile /data/coverage/opentsdb/opentsdb.exec
-          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/opentsdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/opentsdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/opentsdb/src/main/java --html /data/coverage/opentsdb/opentsdb_report
+          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/opentsdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/opentsdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/opentsdb/src/main/java --html /data/coverage/${{ github.event.number }}/opentsdb/opentsdb_report
           # influxdb report
           java -jar /data/coverage/jacococli.jar merge /data/coverage/influxdb/*.exec --destfile /data/coverage/influxdb/influxdb.exec
-          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/influxdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/influxdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/influxdb/src/main/java --html /data/coverage/influxdb/influxdb_report
+          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/influxdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/influxdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/influxdb/src/main/java --html /data/coverage/${{ github.event.number }}/influxdb/influxdb_report
 
 
