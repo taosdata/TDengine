@@ -128,7 +128,7 @@ jobs:
           scp -r ./target/* root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
 
   deploy:
-    runs-on: [self-hosted, linux, x64, qa, rust]
+    runs-on: [self-hosted, linux, x64, qa]
     needs: [build_rust, build_go, build_java]
     steps:
       - name: Deploy taosx
@@ -136,27 +136,15 @@ jobs:
           pwd
           ls ${{ github.workspace }}
           # run taosx
-          export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw
-          export DATABASE_URL=/var/lib/taos/taosx/taosx.db
-          ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/
-          export GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/
-          export PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/
-          export ENABLE_COVERAGE=true
-          nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &
-          echo $(ps -ef | grep taosx)
+          ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/"
+          ssh root@$RELEASE_HOST "nohup sh -c 'DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true nohup /data/artifacts/${{ github.event.number }}/bin/taosx serve > /data/artifacts/${{ github.event.number }}/bin/taosx.log 2>&1 &'"
           
       - name: Deploy taosx-agent
         run: |
           pwd
           ls ${{ github.workspace }}
           # run taosx-agent
-          ls /data/artifacts/${{ github.event.number }}/go_cover/ || mkdir -p /data/artifacts/${{ github.event.number }}/go_cover/
-          export GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/
-          export PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/
-          export ENABLE_COVERAGE=true
-          export LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw
-          nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &
-          echo $(ps -ef | grep taosx)
+          ssh root@$RELEASE_HOST "nohup sh -c 'GOCOVERDIR=/data/artifacts/${{ github.event.number }}/go_cover/ PLUGINS_HOME=/data/artifacts/${{ github.event.number }}/bin/ ENABLE_COVERAGE=true LLVM_PROFILE_FILE=/data/artifacts/${{ github.event.number }}/taosx-agent-profraw/taosx-agent-%p-%m.profraw nohup /data/artifacts/${{ github.event.number }}/bin/taosx-agent > /data/artifacts/${{ github.event.number }}/bin/taosx-agent.log 2>&1 &'"
 
   test:
     runs-on: [self-hosted, linux, x64, qa, rust]
