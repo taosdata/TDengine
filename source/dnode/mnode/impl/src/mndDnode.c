@@ -311,6 +311,17 @@ SEpSet mndGetDnodeEpset(SDnodeObj *pDnode) {
   return epSet;
 }
 
+SEpSet mndGetDnodeEpsetById(SMnode *pMnode, int32_t dnodeId) {
+  SEpSet     epSet = {0};
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+  if (!pDnode) return epSet;
+
+  epSet = mndGetDnodeEpset(pDnode);
+
+  mndReleaseDnode(pMnode, pDnode);
+  return epSet;
+}
+
 static SDnodeObj *mndAcquireDnodeByEp(SMnode *pMnode, char *pEpStr) {
   SSdb *pSdb = pMnode->pSdb;
 
@@ -776,7 +787,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
-      if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
+      if (pVload->syncState == TAOS_SYNC_STATE_LEADER || pVload->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
         pVgroup->numOfCachedTables = pVload->numOfCachedTables;
         pVgroup->numOfTables = pVload->numOfTables;

@@ -107,6 +107,10 @@ int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
 
+int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->arbWorker, pMsg);
+}
+
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
@@ -152,6 +156,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case READ_QUEUE:
       pWorker = &pMgmt->readWorker;
+      break;
+    case ARB_QUEUE:
+      pWorker = &pMgmt->arbWorker;
       break;
     case SYNC_QUEUE:
       pWorker = &pMgmt->syncWorker;
@@ -252,6 +259,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return -1;
   }
 
+  SSingleWorkerCfg arbCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-arb",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->arbWorker, &arbCfg) != 0) {
+    dError("failed to start mnode mnode-arb worker since %s", terrstr());
+    return -1;
+  }
+
   dDebug("mnode workers are initialized");
   return 0;
 }
@@ -263,6 +282,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
+  tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   tSingleWorkerCleanup(&pMgmt->syncRdWorker);
   dDebug("mnode workers are closed");
