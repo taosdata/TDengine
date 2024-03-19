@@ -209,7 +209,7 @@ jobs:
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [test_mqtt]
+    needs: [test_others]
     if: always()
     steps:
       - name: taosx & agent Report
