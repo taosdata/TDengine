@@ -69,6 +69,7 @@ TEST_F(ArbgroupTest, 01_encode_decode_sdb) {
   group.isSync = 1;
   group.assignedLeader.dnodeId = 1;
   generateArbToken(1, 5, group.assignedLeader.token);
+  group.version = 2234;
 
   // --------------------------------------------------------------------------------
   SSdbRaw* pRaw = mndArbGroupActionEncode(&group);
@@ -89,6 +90,7 @@ TEST_F(ArbgroupTest, 01_encode_decode_sdb) {
   EXPECT_EQ(std::string(group.members[0].state.token), std::string(pNewGroup->members[0].state.token));
   EXPECT_EQ(std::string(group.members[1].state.token), std::string(pNewGroup->members[1].state.token));
   EXPECT_EQ(std::string(group.assignedLeader.token), std::string(pNewGroup->assignedLeader.token));
+  EXPECT_EQ(group.version, pNewGroup->version);
 
   taosMemoryFree(pRow);
   taosMemoryFree(pRaw);
@@ -263,9 +265,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     SArbGroup newGroup = {0};
     bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
-    EXPECT_TRUE(updateAssigned);
-    EXPECT_EQ(newGroup.assignedLeader.dnodeId, 0);
-    EXPECT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
+    EXPECT_FALSE(updateAssigned);
   }
 
   {  // errcode == TSDB_CODE_SUCCESS
