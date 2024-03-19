@@ -519,7 +519,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
     int32_t schemaExtSize = 0;
     int32_t metaSize = CTG_META_SIZE(tbMeta);
-    if (useCompress(tbMeta->tableType)) {
+    if (tbMeta->schemaExt != NULL) {
       schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
@@ -528,7 +528,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     }
 
     memcpy(*pTableMeta, tbMeta, metaSize);
-    if (useCompress(tbMeta->tableType)) {
+    if (tbMeta->schemaExt != NULL) {
       (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
       memcpy((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
     } else {
