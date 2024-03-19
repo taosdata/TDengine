@@ -66,6 +66,7 @@ typedef struct SLogicNode {
   EOrder             inputTsOrder;
   EOrder             outputTsOrder;
   bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
+  bool               splitDone;
 } SLogicNode;
 
 typedef enum EScanType {

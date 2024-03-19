@@ -172,7 +172,6 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
   switch (nodeType(pNode)) {
     // for those nodes that will change the order, stop propagating
     // case QUERY_NODE_LOGIC_PLAN_WINDOW:
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_SORT:
       if (pNode == pNodeForcePropagate) {
@@ -180,6 +179,9 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
         break;
       } else
         return;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      pNode->outputTsOrder = order;
+      break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       // Window output ts order default to be asc, and changed when doing sort by primary key optimization.
       // We stop propagate the original order to parents.
@@ -1671,6 +1673,8 @@ static int32_t sortPriKeyOptHandleLeftRightJoinSort(SJoinLogicNode* pJoin, SSort
 
   SSHashObj* pLeftTables = NULL;
   SSHashObj* pRightTables = NULL;
+  bool sortByProbe = true;
+/*  
   bool sortByLeft = true, sortByRight = true, sortByProbe = false;
   collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
   collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
@@ -1700,7 +1704,7 @@ static int32_t sortPriKeyOptHandleLeftRightJoinSort(SJoinLogicNode* pJoin, SSort
   if ((JOIN_TYPE_LEFT == pJoin->joinType && sortByLeft) || (JOIN_TYPE_RIGHT == pJoin->joinType && sortByRight)) {
     sortByProbe = true;
   }
-
+*/
   switch (pJoin->subType) {
     case JOIN_STYPE_OUTER: {
       if (sortByProbe) {
@@ -2012,10 +2016,10 @@ static bool sortForJoinOptMayBeOptimized(SLogicNode* pNode) {
   SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
 
   if (ORDER_ASC != pLeft->outputTsOrder && ORDER_DESC != pLeft->outputTsOrder) {
-    return false;
+    pLeft->outputTsOrder = ORDER_ASC;
   }
   if (ORDER_ASC != pRight->outputTsOrder && ORDER_DESC != pRight->outputTsOrder) {
-    return false;
+    pRight->outputTsOrder = ORDER_ASC;
   }
 
   if (pLeft->outputTsOrder == pRight->outputTsOrder) {

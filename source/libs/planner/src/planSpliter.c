@@ -183,7 +183,7 @@ static int32_t splMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
 
 static bool splMatchByNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, FSplFindSplitNode func,
                            void* pInfo) {
-  if (func(pCxt, pSubplan, pNode, pInfo)) {
+  if (!pNode->splitDone && func(pCxt, pSubplan, pNode, pInfo)) {
     return true;
   }
   SNode* pChild;
@@ -192,7 +192,7 @@ static bool splMatchByNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicN
       return true;
     }
   }
-  return NULL;
+  return false;
 }
 
 static bool splMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan, int32_t flag, FSplFindSplitNode func, void* pInfo) {
@@ -1429,7 +1429,8 @@ static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
     //if (!pInfo->pSplitNode->dynamicOp) {
       pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
     //}
-    SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
+    //SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
+    pInfo->pSplitNode->splitDone = true;
   }
   return code;
 }
@@ -1499,6 +1500,7 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
+  info.pSplitNode->splitDone = true;
   pCxt->split = true;
   return code;
 }
