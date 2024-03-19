@@ -224,10 +224,10 @@ typedef struct SStoreTqReader {
   bool (*tqReaderCurrentBlockConsumed)();
 
   struct SWalReader* (*tqReaderGetWalReader)();  // todo remove it
-  int32_t (*tqReaderRetrieveTaosXBlock)();       // todo remove it
+//  int32_t (*tqReaderRetrieveTaosXBlock)();       // todo remove it
 
   int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
-  bool (*tqReaderNextBlockFilterOut)();
+//  bool (*tqReaderNextBlockFilterOut)();
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {

@@ -77,7 +77,7 @@ int shell_conn_ws_server(bool first) {
       }
       fprintf(stdout, "successfully connected to %s\n", host);
     } else {
-      fprintf(stdout, "successfully connected to cloud service\n");
+      fprintf(stdout, "successfully connected to service\n");
     }
   }
   fflush(stdout);
