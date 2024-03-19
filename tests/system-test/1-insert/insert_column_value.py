@@ -1,4 +1,4 @@
-import datetime
+import datetime, time
 from enum import Enum
 from util.log import *
 from util.sql import *
@@ -55,13 +55,29 @@ class TDTestCase:
                             f"create table {dbname}.stb_in (ts timestamp, c0 int, c1 smallint) tags(t0 bigint, t1 tinyint);",
                             f"create table {dbname}.stb_ui (ts timestamp, c0 int unsigned, c1 smallint unsigned) tags(t0 bigint unsigned, t1 tinyint unsigned);",
                             f"create table {dbname}.stb_fl (ts timestamp, c0 float, c1 float) tags(t0 float, t1 float);",
-                            f"create table {dbname}.stb_db (ts timestamp, c0 float, c1 float) tags(t0 float, t1 float);",
+                            f"create table {dbname}.stb_db (ts timestamp, c0 double, c1 double) tags(t0 double, t1 double);",
                             f"create table {dbname}.stb_ge (ts timestamp, c0 geometry(512), c1 geometry(512)) tags(t0 geometry(512), t1 geometry(512));",
-                            f"create table {dbname}.stb_js (ts timestamp, c0 int) tags(t0 json);" ]
+                            f"create table {dbname}.stb_js (ts timestamp, c0 int) tags(t0 json);"]
+
+        CREATE_NTB_LIST = [ f"create table {dbname}.ntb_vc (ts timestamp, c0 binary(50), c1 varchar(50));",
+                            f"create table {dbname}.ntb_nc (ts timestamp, c0 nchar(50), c1 nchar(50));",
+                            f"create table {dbname}.ntb_ts (ts timestamp, c0 timestamp, c1 timestamp);",
+                            f"create table {dbname}.ntb_bo (ts timestamp, c0 bool, c1 bool);",
+                            f"create table {dbname}.ntb_vb (ts timestamp, c0 varbinary(50), c1 varbinary(50));",
+                            f"create table {dbname}.ntb_in (ts timestamp, c0 int, c1 smallint);",
+                            f"create table {dbname}.ntb_ui (ts timestamp, c0 int unsigned, c1 smallint unsigned);",
+                            f"create table {dbname}.ntb_fl (ts timestamp, c0 float, c1 float);",
+                            f"create table {dbname}.ntb_db (ts timestamp, c0 double, c1 double);",
+                            f"create table {dbname}.ntb_ge (ts timestamp, c0 geometry(512), c1 geometry(512));"]
         for _stb in CREATE_STB_LIST:
             tdSql.execute(_stb)
         tdSql.query(f'show {dbname}.stables')
         tdSql.checkRows(len(CREATE_STB_LIST))
+
+        for _stb in CREATE_NTB_LIST:
+            tdSql.execute(_stb)
+        tdSql.query(f'show {dbname}.tables')
+        tdSql.checkRows(len(CREATE_NTB_LIST))
 
     def _query_check_varchar(self, result, okv, nv, row = 0, col = 0):
         for i in range(row):
@@ -147,12 +163,18 @@ class TDTestCase:
                 tdSql.checkEqual(check_result, True)
 
 
-    def _query_check(self, dbname="db", stbname="", ctbname="", nRows = 0, okv = None, nv = None, dtype = TDDataType.NULL):
+    def _query_check(self, dbname="db", stbname="", ctbname="", ntbname="",nRows = 0, okv = None, nv = None, dtype = TDDataType.NULL):
         result = None
-        if dtype != TDDataType.GEOMETRY: # geometry query by py connector need to be supported
-            tdSql.query(f'select * from {dbname}.{stbname}')
+        if stbname:
+            if dtype != TDDataType.GEOMETRY: # geometry query by py connector need to be supported
+                tdSql.query(f'select * from {dbname}.{stbname}')
+                tdSql.checkRows(nRows)
+                result = tdSql.queryResult
+        else:
+            tdSql.query(f'select * from {dbname}.{ntbname}')
             tdSql.checkRows(nRows)
             result = tdSql.queryResult
+        
 
         if dtype == TDDataType.VARCHAR or  dtype == TDDataType.NCHAR:
             self._query_check_varchar(result, okv, nv, nRows, 4)
@@ -176,48 +198,101 @@ class TDTestCase:
         if ctbname != "":
             tdSql.execute(f'drop table {dbname}.{ctbname}')
 
-    def __insert_query_common(self, dbname="db", stbname="", ctbname="", oklist=[], kolist=[], okv=None, dtype = TDDataType.NULL):
+    def __insert_query_common(self, dbname="db", stbname="", ctbname="", ntbname="", oklist=[], kolist=[], okv=None, dtype = TDDataType.NULL):
         tdLog.info(f'{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d'%(len(oklist), len(kolist)))
         tdSql.checkEqual(34, len(oklist) + len(kolist))
 
+        # while True:
+        #     tdSql.execute(f'insert into db.ntb_ge values(now, "POINT (1.000000 1.000000)", "POINT (1.000000 1.000000)")')
+        #     # tdSql.execute(f'insert into db.ntb_ge values(now + 1s, "POINT (1.000000 1.000000)", "POINT (1.000000 1.000000)")')
+        #     # tdSql.execute(f'insert into db.ntb_ge values(now + 2s, "POINT (1.000000 1.000000)", "POINT (1.000000 1.000000)")')
+
+        #     # self._query_check(dbname, None, None, ntbname, 3, okv, _e, dtype)
+        #     # time.sleep(1)
+        #     # print('sleep 1s')
+        #     tdSql.query(f'select * from db.ntb_ge', queryTimes=1)
+        #     tdSql.checkRows(3)
+        #     tdSql.query(f'delete from db.ntb_ge')
+
         for _l in kolist:
             for _e in _l:
+                # create sub-table manually, check tag
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv})' %(_e))
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s)' %(_e))
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
+
+                # create sub-table automatically, check tag
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s) values(now, {okv}, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv}) values(now, {okv}, {okv})' %(_e))
+                
+                # create sub-table automatically, check value
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, %s)' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, %s)' %(_e, _e))
+                
+                # check alter table tag
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, {okv})')
-                self._query_check(dbname,stbname, "", 1, okv, _e, dtype)
+                self._query_check(dbname,stbname, "", None, 1, okv, _e, dtype)
                 tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = {okv}')
                 tdSql.error(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
                 tdSql.error(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
+
+                # insert into normal table, check value
+                tdSql.error(f'insert into {dbname}.{ntbname} values(now, %s, {okv})' %(_e))
+                tdSql.error(f'insert into {dbname}.{ntbname} values(now, {okv}, %s)' %(_e))
+                tdSql.error(f'insert into {dbname}.{ntbname} values(now, %s, %s)' %(_e, _e))
+
         for _l in oklist:
             for _e in _l:
-                tdLog.info(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv})' %(_e))
-                tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv})' %(_e))
-                tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 0s, %s, {okv})' %(_e))
-                tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 1s, {okv}, %s)' %(_e))
-                tdSql.execute(f'insert into {dbname}.{ctbname} values(now + 2s, %s, %s)' %(_e, _e))
-                tdLog.info(f'insert into {dbname}.{ctbname} values(now + 0s, %s, {okv})' %(_e))
-                tdLog.info(f'insert into {dbname}.{ctbname} values(now + 1s, {okv}, %s)' %(_e))
-                tdLog.info(f'insert into {dbname}.{ctbname} values(now + 2s, %s, %s)' %(_e, _e))
-                tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = %s' %(_e))
-                tdSql.execute(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
-                self._query_check(dbname,stbname, ctbname, 3, okv, _e, dtype)
-                tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
-                tdSql.execute(f'insert into {dbname}.{ctbname} values(now, %s, %s)' %(_e, _e))
-                self._query_check(dbname,stbname, ctbname, 1, okv, _e, dtype)
-                tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv}) values(now, %s, {okv})' %(_e, _e))
-                self._query_check(dbname,stbname, ctbname, 1, okv, _e, dtype)
-                tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s) values(now, {okv}, %s)' %(_e, _e))
-                self._query_check(dbname,stbname, ctbname, 1, okv, _e, dtype)
-                tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s) values(now, %s, %s)' %(_e, _e, _e, _e))
-                self._query_check(dbname,stbname, ctbname, 1, okv, _e, dtype)
+                # 1. create sub-table manually, check tag
+                tdSql.execute(f'create table {dbname}.{ctbname}_1 using {dbname}.{stbname} tags(%s, {okv})' %(_e))
+                tdSql.execute(f'create table {dbname}.{ctbname}_2 using {dbname}.{stbname} tags({okv}, %s)' %(_e))
+                tdSql.execute(f'create table {dbname}.{ctbname}_3 using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
+                
+
+                # 1.1 insert into sub-table, check value
+                tdSql.execute(f'insert into {dbname}.{ctbname}_1 values(now + 0s, %s, {okv})' %(_e))
+                tdSql.execute(f'insert into {dbname}.{ctbname}_2 values(now + 1s, {okv}, %s)' %(_e))
+                tdSql.execute(f'insert into {dbname}.{ctbname}_3 values(now + 2s, %s, %s)' %(_e, _e))
+                
+                # 1.2 check alter table tag
+                tdSql.execute(f'alter table {dbname}.{ctbname}_1 set tag t0 = %s' %(_e))
+                tdSql.execute(f'alter table {dbname}.{ctbname}_2 set tag t1 = %s' %(_e))
+
+                # 1.3 check table data
+                self._query_check(dbname, stbname, f'{ctbname}_1', None, 3, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_2', None, 2, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
+
+                # 2. insert into value by creating sub-table automatically, check tag & value
+                tdSql.execute(f'insert into {dbname}.{ctbname}_1 using {dbname}.{stbname} tags(%s, {okv}) values(now, %s, {okv})' %(_e, _e))
+                tdSql.execute(f'insert into {dbname}.{ctbname}_2 using {dbname}.{stbname} tags({okv}, %s) values(now + 1s, {okv}, %s)' %(_e, _e))
+                tdSql.execute(f'insert into {dbname}.{ctbname}_3 using {dbname}.{stbname} tags(%s, %s) values(now + 2s, %s, %s)' %(_e, _e, _e, _e))
+
+                self._query_check(dbname, stbname, f'{ctbname}_1', None, 3, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_2', None, 2, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
+
+                # 3. insert into value by supper-table, check tag & value
+                tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_1", %s, {okv}, now, %s, {okv})' %(_e, _e))
+                tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_2", {okv}, %s, now + 1s, {okv}, %s)' %(_e, _e))
+                tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_3", %s, %s, now + 2s, %s, %s)' %(_e, _e, _e, _e))
+
+                self._query_check(dbname, stbname, f'{ctbname}_1', None, 3, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_2', None, 2, okv, _e, dtype)
+                self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
+
+                # 4. insert value into normal table
+                tdSql.execute(f'insert into {dbname}.{ntbname} values(now, %s, {okv})' %(_e))
+                tdSql.execute(f'insert into {dbname}.{ntbname} values(now + 1s, {okv}, %s)' %(_e))
+                tdSql.execute(f'insert into {dbname}.{ntbname} values(now + 2s, %s, %s)' %(_e, _e))
+
+                if dtype != TDDataType.GEOMETRY:
+                    # self._query_check(dbname, None, None, ntbname, 3, okv, _e, dtype)
+                    tdSql.query(f'select * from {dbname}.{ntbname}')
+                    tdSql.checkRows(3)
+                tdSql.query(f'delete from {dbname}.{ntbname}')
 
     def __insert_query_json(self, dbname="db", stbname="", ctbname="", oklist=[], kolist=[], okv=None):
         tdLog.info(f'{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d'%(len(oklist), len(kolist)))
@@ -244,7 +319,7 @@ class TDTestCase:
 
     def __insert_query_exec(self):
         STR_EMPTY = ['\'\'', "\"\"", '\' \'', "\"    \""]
-        STR_INTEGER_P = ["\"42\"", '\'+42\'', '\'+0\'', '\'-0\'', '\'0x2A\'', '\'-0X0\'', '\'+0x0\'', '\'0B00101010\'', '\'-0b00\'']
+        STR_INTEGER_P = ["\"42\"", '\'+42\'', '\'+0\'', '\'1\'','\'-0\'', '\'0x2A\'', '\'-0X0\'', '\'+0x0\'', '\'0B00101010\'', '\'-0b00\'']
         STR_INTEGER_M = ['\'-128\'', '\'-0X1\'', '\"-0x34\"', '\'-0b01\'', '\'-0B00101010\'']
         STR_FLOAT_P = ['\'42.1\'', "\"+0.003\"", "\'-0.0\'"]
         STR_FLOAT_M = ["\"-32.001\""]
@@ -320,21 +395,21 @@ class TDTestCase:
                  RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M]
         
         PARAM_LIST = [
-                        ["db", "stb_vc", "ctb_vc", OK_VC, KO_VC, "\'vc\'", TDDataType.VARCHAR],
-                        ["db", "stb_nc", "ctb_nc", OK_NC, KO_NC, "\'nc\'", TDDataType.NCHAR],
-                        ["db", "stb_ts", "ctb_ts", OK_TS, KO_TS, "now", TDDataType.TIMESTAMP],
-                        ["db", "stb_bo", "ctb_bo", OK_BO, KO_BO, "true", TDDataType.BOOL],
-                        ["db", "stb_vb", "ctb_vb", OK_VB, KO_VB, "\'\\x12\'", TDDataType.VARBINARY],
-                        ["db", "stb_in", "ctb_in", OK_IN, KO_IN, "-1", TDDataType.UINT],
-                        ["db", "stb_ui", "ctb_ui", OK_UI, KO_UI, "1", TDDataType.UINT],
-                        ["db", "stb_fl", "ctb_fl", OK_FL, KO_FL, "1.0", TDDataType.FLOAT],
-                        ["db", "stb_db", "ctb_db", OK_DB, KO_DB, "1.0", TDDataType.DOUBLE],
-                        ["db", "stb_ge", "ctb_ge", OK_GE, KO_GE, "\'POINT(1.0 1.0)\'", TDDataType.GEOMETRY] 
+                        ["db", "stb_vc", "ctb_vc", "ntb_vc", OK_VC, KO_VC, "\'vc\'", TDDataType.VARCHAR],
+                        ["db", "stb_nc", "ctb_nc", "ntb_nc", OK_NC, KO_NC, "\'nc\'", TDDataType.NCHAR],
+                        ["db", "stb_ts", "ctb_ts", "ntb_ts", OK_TS, KO_TS, "now", TDDataType.TIMESTAMP],
+                        ["db", "stb_bo", "ctb_bo", "ntb_bo", OK_BO, KO_BO, "true", TDDataType.BOOL],
+                        ["db", "stb_vb", "ctb_vb", "ntb_vb", OK_VB, KO_VB, "\'\\x12\'", TDDataType.VARBINARY],
+                        ["db", "stb_in", "ctb_in", "ntb_in", OK_IN, KO_IN, "-1", TDDataType.UINT],
+                        ["db", "stb_ui", "ctb_ui", "ntb_ui", OK_UI, KO_UI, "1", TDDataType.UINT],
+                        ["db", "stb_fl", "ctb_fl", "ntb_fl", OK_FL, KO_FL, "1.0", TDDataType.FLOAT],
+                        ["db", "stb_db", "ctb_db", "ntb_db", OK_DB, KO_DB, "1.0", TDDataType.DOUBLE],
+                        ["db", "stb_ge", "ctb_ge", "ntb_ge", OK_GE, KO_GE, "\'POINT(1.0 1.0)\'", TDDataType.GEOMETRY] 
                       ]
 
         # check with common function
         for _pl in PARAM_LIST:
-            self.__insert_query_common(_pl[0], _pl[1], _pl[2], _pl[3], _pl[4], _pl[5], _pl[6])
+            self.__insert_query_common(_pl[0], _pl[1], _pl[2], _pl[3], _pl[4], _pl[5], _pl[6], _pl[7])
         # check json
         self.__insert_query_json("db", "stb_js", "ctb_js", OK_JS, KO_JS, "\'{\"k1\":\"v1\",\"k2\":\"v2\"}\'")
 

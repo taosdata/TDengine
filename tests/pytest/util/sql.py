@@ -85,6 +85,7 @@ class TDSql:
         i=1
         while i <= queryTimes:
             try:
+                tdLog.info(sql)
                 self.affectedRows = self.cursor.execute(sql)
                 return self.affectedRows
             except Exception as e:
@@ -120,8 +121,10 @@ class TDSql:
         expectErrNotOccured = True
 
         try:
+            tdLog.info("sql:%s" % (sql))
             self.cursor.execute(sql)
         except BaseException as e:
+            tdLog.info("err:%s" % (e))
             expectErrNotOccured = False
             self.errno = e.errno
             error_info = repr(e)
