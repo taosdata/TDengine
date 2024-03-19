@@ -1085,6 +1085,8 @@ static int32_t pdcJoinAddParentOnColsToTarget(SOptimizeContext* pCxt, SJoinLogic
     }
     pTmp = (SJoinLogicNode*)pTmp->node.pParent;
   } while (true);
+
+  tSimpleHashCleanup(pTables);
   
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pCondCols, &pTargets);

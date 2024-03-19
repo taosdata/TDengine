@@ -2613,7 +2613,7 @@ void mAsofJoinGroupReset(SMJoinOperatorInfo* pJoin) {
   pWin->eqPostDone = false;
   pWin->lastTs = INT64_MIN;
 
-  mWinJoinResetWindowCache(pCache);
+  mWinJoinResetWindowCache(pWin, pCache);
 
   mJoinResetGroupTableCtx(pJoin->probe);
   mJoinResetGroupTableCtx(pJoin->build);    
@@ -2623,6 +2623,8 @@ static FORCE_INLINE void mWinJoinPopFrontGroup(SMJoinWindowCtx* pCtx, SMJoinGrpR
   pCtx->cache.rowNum -= (pGrp->blk->info.rows - pGrp->beginIdx);
   if (pGrp->blk == pCtx->cache.outBlk) {
     blockDataCleanup(pGrp->blk);
+  } else if (pGrp->clonedBlk) {
+    blockDataDestroy(pGrp->blk);
   }
   
   taosArrayPopFrontBatch(pCtx->cache.grps, 1);
@@ -3259,7 +3261,7 @@ void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin) {
   pWin->eqPostDone = false;
   pWin->lastTs = INT64_MIN;
 
-  mWinJoinResetWindowCache(pCache);
+  mWinJoinResetWindowCache(pWin, pCache);
   
   mJoinResetGroupTableCtx(pJoin->probe);
   mJoinResetGroupTableCtx(pJoin->build);  
@@ -3281,6 +3283,8 @@ int32_t mJoinInitWindowCache(SMJoinWinCache* pCache, SMJoinOperatorInfo* pJoin, 
 void mJoinDestroyWindowCtx(SMJoinOperatorInfo* pJoin) {
   SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
 
+  mWinJoinResetWindowCache(pCtx, &pCtx->cache);
+  
   pCtx->finBlk = blockDataDestroy(pCtx->finBlk);
   pCtx->cache.outBlk = blockDataDestroy(pCtx->cache.outBlk);
 

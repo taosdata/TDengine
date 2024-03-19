@@ -431,7 +431,7 @@ void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin);
 void mJoinDestroyWindowCtx(SMJoinOperatorInfo* pJoin);
 int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
-void mWinJoinResetWindowCache(SMJoinWinCache* pCache);
+void mWinJoinResetWindowCache(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache);
 SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);

@@ -1425,13 +1425,22 @@ void mJoinResetMergeCtx(SMJoinMergeCtx* pCtx) {
   pCtx->hashJoin = false;
 }
 
-void mWinJoinResetWindowCache(SMJoinWinCache* pCache) {
+void mWinJoinResetWindowCache(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache) {
   pCache->outRowIdx = 0;
   pCache->rowNum = 0;
   pCache->grpIdx = 0;
 
   if (pCache->grpsQueue) {
     TSWAP(pCache->grps, pCache->grpsQueue);
+  }
+
+  int32_t grpNum = taosArrayGetSize(pCache->grps);
+
+  for (int32_t i = 0; i < grpNum; ++i) {
+    SMJoinGrpRows* pGrp = taosArrayGet(pCache->grps, i);
+    if (pGrp->blk != pCtx->cache.outBlk && pGrp->clonedBlk) {
+      blockDataDestroy(pGrp->blk);
+    }
   }
   
   taosArrayClear(pCache->grps);
@@ -1448,7 +1457,7 @@ void mJoinResetWindowCtx(SMJoinWindowCtx* pCtx) {
   pCtx->eqPostDone = false;
   pCtx->lastTs = INT64_MIN;
   
-  mWinJoinResetWindowCache(&pCtx->cache);
+  mWinJoinResetWindowCache(pCtx, &pCtx->cache);
 }
 
 void mJoinResetCtx(SMJoinOperatorInfo* pJoin) {

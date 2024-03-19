@@ -1439,6 +1439,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pWindowOffset);
       nodesDestroyNode(pPhyNode->pJLimit);
+      nodesDestroyNode(pPhyNode->leftPrimExpr);
+      nodesDestroyNode(pPhyNode->rightPrimExpr);
       nodesDestroyList(pPhyNode->pEqLeft);
       nodesDestroyList(pPhyNode->pEqRight);
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
