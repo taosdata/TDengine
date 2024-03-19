@@ -4499,7 +4499,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
     }
 
     STableTSMAInfo* pTsma = taosArrayGetP(pTsmaOptCtx->pTsmas, i);
-    if (!pTsma->fillHistoryFinished || 30 * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) {
+    if (!pTsma->fillHistoryFinished || tsMaxTsmaCalcDelay * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) {
       qInfo("tsma %s filtered out history: %d rspTs: %ld reqTs: %ld delay: %ld, rspTs - reqTs: %ld", pTsma->name,
              pTsma->fillHistoryFinished, pTsma->rspTs, pTsma->reqTs, pTsma->delayDuration, pTsma->rspTs - pTsma->reqTs);
       continue;
@@ -5161,6 +5161,9 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
   STSMAOptCtx     tsmaOptCtx = {0};
   SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tsmaOptMayBeOptimized);
   if (!pScan) return code;
+
+  SLogicNode* pRootNode = getLogicNodeRootNode((SLogicNode*)pScan);
+  if (getOptHint(pRootNode->pHint, HINT_SKIP_TSMA)) return code;
 
   code = fillTSMAOptCtx(&tsmaOptCtx, pScan);
   if (code == TSDB_CODE_SUCCESS) {

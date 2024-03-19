@@ -200,6 +200,7 @@ extern char tsSmlTsDefaultName[];
 
 extern int32_t tmqMaxTopicNum;
 extern int32_t tsMaxTsmaNum;
+extern int32_t tsMaxTsmaCalcDelay;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
