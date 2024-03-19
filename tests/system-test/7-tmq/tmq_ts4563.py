@@ -51,24 +51,17 @@ class TDTestCase:
         try:
             while True:
                 res = consumer.poll(1)
-                print(cnt,res)
+                print(res)
                 if not res:
-                    print("111",cnt)
                     if cnt == 0 or  cnt != 2*self.expected_affected_rows:
                         tdLog.exit("consume error")
                     break
                 val = res.value()
-                print(val)
                 if val is None:
                     continue
                 for block in val:
                     print(block.fetchall(),len(block.fetchall()))
                     cnt += len(block.fetchall())
-                # print(cnt)
-                # if cnt != 3:
-                #     tdLog.exit("consume error")
-                # print("polling")
-
         finally:
             consumer.close()
 
