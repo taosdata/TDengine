@@ -75,7 +75,6 @@ typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
   uint64_t    tableId;
   int8_t      tableType;
-  bool        tableHasPk;
   col_id_t    colId;
   uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
@@ -86,6 +85,7 @@ typedef struct SColumnNode {
   char        colName[TSDB_COL_NAME_LEN];
   int16_t     dataBlockId;
   int16_t     slotId;
+  bool        tableHasPk;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
