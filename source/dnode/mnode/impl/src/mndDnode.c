@@ -231,9 +231,9 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   if (sver > 1) {
     int16_t keyLen = 0;
     SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
-    if (keyLen > 0) SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
     SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
-    if (keyLen > 0) SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
   }
 
   terrno = 0;
