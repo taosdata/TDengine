@@ -22,6 +22,7 @@
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
+#include "crypt.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -66,6 +67,8 @@ static struct {
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
   int64_t      startTime;
+  bool         generateCode;
+  char         encryptKey[ENCRYPTKEYLEN + 1];
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetGlobalDebugFlag(143); }
@@ -194,6 +197,18 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-e") == 0) {
+      global.generateCode = true;
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) > ENCRYPTKEYLEN) {
+          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPTKEYLEN);
+          return -1;
+        }
+        tstrncpy(global.encryptKey, argv[i], ENCRYPTKEYLEN);
+      } else {
+        printf("'-e' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -275,6 +290,148 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+static int32_t readEncryptCode(){
+  char     *content = NULL;
+  char      file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sencryptCode", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  TdFilePtr pFile = NULL;
+  pFile = taosOpenFile(tsDataDir, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to open dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to fstat dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, content, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to read dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+
+  strncpy(tsEncryptKey, content, ENCRYPTKEYLEN);
+
+  snprintf(file, sizeof(file), "%s%sdnode%scheckCode", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  pFile = taosOpenFile(tsDataDir, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to open dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  if (taosFStatFile(pFile, &size, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to fstat dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, content, size) != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to read dnode file:%s since %s", file, terrstr());
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+  
+  SCryptOpts opts;
+  strncpy(opts.key, tsEncryptKey, ENCRYPTKEYLEN);
+  opts.len = strlen(tsEncryptKey);
+  opts.source = content;
+  opts.result = taosMemoryMalloc(ENCRYPTEDLEN(size));
+  CBC_Decrypt(&opts);
+
+  if(strcmp(opts.result, "taos") != 0) {
+    dError("failed to start since encrypt key was changed");
+    goto _OVER;
+  }
+_OVER:
+  if (content != NULL) taosMemoryFree(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
+  return -1;
+}
+
+int32_t writeEncryptCode(char *buffer) {
+  int32_t   code = -1;
+  TdFilePtr pFile = NULL;
+  char      file[PATH_MAX] = {0};
+  char      realfile[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sencryptCode.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode%sencryptCode", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  terrno = 0;
+
+  //pFile = taosCreateFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  //if (pFile == NULL) goto _OVER;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) goto _OVER;
+
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
+
+  taosCloseFile(&pFile);
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
+
+  code = 0;
+  dInfo("succeed to write encryptCode file:%s", realfile);
+
+  strcpy(buffer, "taos");
+
+  SCryptOpts opts;
+  strncpy(opts.key, tsEncryptKey, ENCRYPTKEYLEN);
+  opts.len = strlen(tsEncryptKey);
+  opts.source = buffer;
+  opts.result = taosMemoryMalloc(ENCRYPTEDLEN(4));
+  CBC_Decrypt(&opts);
+
+  snprintf(file, sizeof(file), "%s%sdnode%scheckCode.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode%scheckCode", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+  terrno = 0;
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) goto _OVER;
+
+  len = strlen(buffer);
+  if (taosWriteFile(pFile, opts.result, ENCRYPTEDLEN(4)) <= 0) goto _OVER;
+  if (taosFsyncFile(pFile) < 0) goto _OVER;
+
+  taosCloseFile(&pFile);
+  if (taosRenameFile(file, realfile) != 0) goto _OVER;
+
+_OVER:
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to write encryptCode file:%s since %s", realfile, terrstr());
+  }
+  return code;
+}
+
 int main(int argc, char const *argv[]) {
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
@@ -347,6 +504,13 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return -1;
   }
+
+  if(global.generateCode) {
+    writeEncryptCode(global.encryptKey);
+    return 0;
+  }
+
+  readEncryptCode();
 
   if (taosConvInit() != 0) {
     dError("failed to init conv");
