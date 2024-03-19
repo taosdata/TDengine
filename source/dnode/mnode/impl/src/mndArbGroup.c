@@ -217,7 +217,7 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   mTrace("arbgroup:%d, perform update action, old row:%p new row:%p", pOld->vgId, pOld, pNew);
   taosThreadMutexLock(&pOld->mutex);
 
-  if (pOld->version >= pNew->version) {
+  if (pOld->version != pNew->version) {
     mInfo("arbgroup:%d, skip to perform update action, old row:%p new row:%p, old version:%" PRId64
           " new version:%" PRId64,
           pOld->vgId, pOld, pNew, pOld->version, pNew->version);
@@ -231,7 +231,7 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   pOld->isSync = pNew->isSync;
   pOld->assignedLeader.dnodeId = pNew->assignedLeader.dnodeId;
   memcpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
-  pOld->version = pNew->version;
+  pOld->version++;
   taosThreadMutexUnlock(&pOld->mutex);
   return 0;
 }
@@ -586,7 +586,6 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
       SArbGroup newGroup = {0};
       mndArbGroupDupObj(&arbGroupDup, &newGroup);
       mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
-      newGroup.version++;
       if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
         mError("vgId:%d, arb failed to pullup set assigned leader to dnodeId:%d, since %s", vgId, pMember->info.dnodeId,
                terrstr());
@@ -766,7 +765,6 @@ bool mndUpdateArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMembe
   mndArbGroupDupObj(pGroup, pNewGroup);
   memcpy(pNewGroup->members[index].state.token, pRspMember->memberToken, TSDB_ARB_TOKEN_SIZE);
   pNewGroup->isSync = false;
-  pNewGroup->version++;
 
   bool resetAssigned = false;
   if (pMember->info.dnodeId == pGroup->assignedLeader.dnodeId) {
@@ -836,7 +834,6 @@ bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0
   if (pGroup->isSync != newIsSync) {
     mndArbGroupDupObj(pGroup, pNewGroup);
     pNewGroup->isSync = newIsSync;
-    pNewGroup->version++;
 
     mInfo("vgId:%d, arb isSync updating, new isSync:%d", vgId, newIsSync);
     updateIsSync = true;
@@ -960,7 +957,6 @@ bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char 
   if (pGroup->isSync) {
     mndArbGroupDupObj(pGroup, pNewGroup);
     pNewGroup->isSync = false;
-    pNewGroup->version++;
 
     mInfo("vgId:%d, arb isSync is setting to false", vgId);
     updateAssigned = true;
