@@ -326,6 +326,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists in
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DROP_TSMA,        "Invalid drop base tsma, drop recursive tsma first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED,    "Max tsma num exceeded")
 
 
 // mnode-view
