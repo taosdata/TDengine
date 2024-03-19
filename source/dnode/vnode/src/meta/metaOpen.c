@@ -246,7 +246,7 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 int32_t metaRLock(SMeta *pMeta) {
-  metaTrace("try meta rlock %p", &pMeta->lock);
+  metaTrace("meta rlock %p", &pMeta->lock);
   int32_t ret = taosThreadRwlockRdlock(&pMeta->lock);
   return ret;
 }
