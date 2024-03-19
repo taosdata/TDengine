@@ -165,7 +165,7 @@ static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "storage", "backup_restore"};
 
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
-    "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
+    "basic", "service_time", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
@@ -626,7 +626,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 
   gStatus.officialVersion = grantObj.officialVersion;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, grantClusterEpoch);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, grantClusterEpoch);
   GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
   GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
   GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
@@ -2086,13 +2086,19 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SGrantStatus *pStatus = &gStatus;
 
   if (pShow->numOfRows < 1) {
+    // sevice
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE], gGrantDisplay[GRANT_OPT_SERVICE],
+                             pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     // with expire and limits
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "timeseries", pStatus->basicExpireSec,
-                             pStatus->curTimeSeries, pStatus->limitTimeSeries, false);
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "dnodes", pStatus->basicExpireSec, pStatus->curDnodes,
+    int64_t basicExpireSec =
+        pStatus->grantState == GRANT_STATE_REVOKED ? pStatus->revokedExpireSec : pStatus->basicExpireSec;
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "timeseries", basicExpireSec, pStatus->curTimeSeries,
+                             pStatus->limitTimeSeries, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "dnodes", basicExpireSec, pStatus->curDnodes,
                              pStatus->limitDnodes, false);
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "cpu_cores", pStatus->basicExpireSec,
-                             pStatus->curCpuCores, pStatus->limitCpuCores, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "cpu_cores", basicExpireSec, pStatus->curCpuCores,
+                             pStatus->limitCpuCores, false);
+
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
                              pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
@@ -2101,8 +2107,6 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
                              pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false);
     // with expire and no limits
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE], gGrantDisplay[GRANT_OPT_SERVICE],
-                             pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT], gGrantDisplay[GRANT_OPT_AUDIT],
                              pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV], gGrantDisplay[GRANT_OPT_CSV],
