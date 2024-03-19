@@ -359,6 +359,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_MND_GRANT_NOTIFY:
       code = dmProcessGrantNotify(NULL, pMsg);
       break;
+    case TDMT_DND_QUERY_CRYPT:
+      code = dmProcessCryptReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue", pMsg);

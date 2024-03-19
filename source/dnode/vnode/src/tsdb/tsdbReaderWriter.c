@@ -15,6 +15,7 @@
 
 #include "cos.h"
 #include "tsdb.h"
+#include "crypt.h"
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
@@ -153,6 +154,26 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
     }
 
     taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    
+    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+      unsigned char		PacketData[128];
+      int		NewLen;
+      int32_t count = 0;
+      while (count < pFD->szPage) {
+        SCryptOpts opts = {0};
+        opts.len = 128;
+        opts.source = pFD->pBuf + count;
+        opts.result = PacketData;
+        opts.unitLen = 128;
+        strncpy(opts.key, tsEncryptKey, 16);
+
+        NewLen = CBC_Encrypt(&opts);
+
+        memcpy(pFD->pBuf + count, PacketData, NewLen);
+        count += NewLen; 
+      }
+      tsdbInfo("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+    }
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
     if (n < 0) {
@@ -218,6 +239,28 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     } else if (n < pFD->szPage) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
+    }
+
+    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+      unsigned char		PacketData[128];
+      int		NewLen;
+
+      int32_t count = 0;
+      while(count < pFD->szPage)
+      {
+        SCryptOpts opts = {0};
+        opts.len = 128;
+        opts.source = pFD->pBuf + count;
+        opts.result = PacketData;
+        opts.unitLen = 128;
+        strncpy(opts.key, tsEncryptKey, 16);
+
+        NewLen = CBC_Decrypt(&opts);
+
+        memcpy(pFD->pBuf + count, PacketData, NewLen);
+        count += NewLen;
+      }
+      tsdbInfo("CBC_Decrypt count:%d %s", count, __FUNCTION__);
     }
   }
 

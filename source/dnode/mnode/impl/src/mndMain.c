@@ -44,6 +44,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndCrypt.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -443,7 +444,16 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .retentionPeriod = 0,
       .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
+      .cryptAlgorithm = 0,
+      .cryptKey = {0}
   };
+
+#if defined(TD_ENTERPRISE)
+  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
+    cfg.cryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
+    strncpy(cfg.cryptKey, tsEncryptKey, 16);
+  }
+#endif
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {
@@ -539,6 +549,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-crypt", mndInitCrypt, mndCleanupCrypt) != 0) return -1;
 
   return 0;
 }

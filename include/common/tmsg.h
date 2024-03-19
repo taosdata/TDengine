@@ -150,6 +150,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_GRANTS_FULL,
   TSDB_MGMT_TABLE_GRANTS_LOGS,
   TSDB_MGMT_TABLE_MACHINES,
+  TSDB_MGMT_TABLE_CRYPT,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1580,6 +1581,22 @@ typedef struct {
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
+
+typedef struct{
+  int32_t unused;
+} SCryptReq;
+
+int32_t tSerializeSCryptReq(void* buf, int32_t bufLen, SCryptReq* pReq);
+//no need tDeserializeSCryptReq
+
+typedef struct{
+  int32_t dnodeid;
+  int32_t cryptAlgorithm;
+  int32_t cryptScope;
+} SCryptRsp;
+
+int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp);
+int32_t tDeserializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp);
 
 typedef struct {
   int32_t     contLen;

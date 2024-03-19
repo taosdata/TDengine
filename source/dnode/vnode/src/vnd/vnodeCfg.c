@@ -15,6 +15,7 @@
 
 #include "tutil.h"
 #include "vnd.h"
+#include "tglobal.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -250,6 +251,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_VNODE_WAL) == DND_CS_VNODE_WAL){
+    pCfg->walCfg.cryptAlgorithm = (tsiEncryptScope & DND_CS_VNODE_WAL)? tsiEncryptAlgorithm : 0;
+    strncpy(pCfg->walCfg.cryptKey, tsEncryptKey, 16);
+  }
+#else
+  pCfg->walCfg.cryptAlgorithm = 0;
+#endif
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
