@@ -1134,6 +1134,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     if (pIter == NULL) break;
 
     if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
+      sdbRelease(pSdb, pSma);
       continue;
     }
 
@@ -1149,6 +1150,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     if (pVg == NULL) {
       code = -1;
       sdbRelease(pSdb, pSma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
     info.epSet = mndGetVgroupEpset(pMnode, pVg);
@@ -1158,6 +1160,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       code = -1;
       sdbRelease(pSdb, pSma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
 
@@ -1169,6 +1172,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
       code = -1;
       taosMemoryFree(info.expr);
       sdbRelease(pSdb, pSma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
 
@@ -2137,6 +2141,7 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
     if (pIter == NULL) break;
 
     if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
+      sdbRelease(pSdb, pSma);
       continue;
     }
 
@@ -2164,6 +2169,7 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       mndReleaseStb(pMnode, pStb);
       sdbRelease(pSdb, pSma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
     pTsma->streamUid = streamId;
@@ -2177,11 +2183,13 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
     if (pBaseTsma) mndReleaseSma(pMnode, pBaseTsma);
     if (terrno) {
       tFreeTableTSMAInfo(pTsma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
     if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tFreeTableTSMAInfo(pTsma);
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
     *exist = true;
@@ -2296,6 +2304,7 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     if (pSma->uid != pTsmaVer->tsmaId) {
       mDebug("tsma: %s.%" PRIx64 " tsmaId mismatch with current %" PRIx64, tsmaFName, pTsmaVer->tsmaId, pSma->uid);
       terrno = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
+      mndReleaseSma(pMnode, pSma);
       if (terrno) goto _OVER;
       taosArrayPush(hbRsp.pTsmas, &pTsmaInfo);
       continue;

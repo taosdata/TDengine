@@ -386,6 +386,7 @@
 #define TK_PARTITION_FIRST  609
 #define TK_PARA_TABLES_SORT  610
 #define TK_SMALLDATA_TS_SORT 611
+#define TK_SKIP_TSMA         612
 
 #define TK_NK_NIL 65535
 

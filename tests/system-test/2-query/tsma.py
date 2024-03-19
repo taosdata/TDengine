@@ -757,9 +757,15 @@ class TDTestCase:
         # self.test_query_with_drop_tsma()
         # self.test_query_with_add_tag()
         # self.test_union()
-        self.test_query_sub_table()
+        self.test_query_child_table()
+        self.test_skip_tsma_hint()
 
-    def test_query_sub_table(self):
+    def test_skip_tsma_hint(self):
+        ctxs = []
+        sql = 'select /*+ skip_tsma()*/avg(c1), avg(c2) from meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+
+    def test_query_child_table(self):
         sql = 'select avg(c1) from t1'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
@@ -1143,7 +1149,6 @@ class TDTestCase:
 
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('use test', queryTimes=1)
-        time.sleep(999999)
         tdSql.execute(
             'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2)) interval(10m)', queryTimes=1)
         self.wait_for_tsma_calculation(
