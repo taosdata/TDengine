@@ -199,8 +199,8 @@ jobs:
         run: |
           rm -rf /data/coverage/opentsdb/
           rm -rf /data/coverage/influxdb/
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity -k "not mqtt_test.py"
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity opcua_test.py
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity -k "not mqtt_test.py"
+          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=../report --timeout=100 -m sanity opcua_test.py
 
       - name: Stop taosx-agent & taosx
         if: always()
