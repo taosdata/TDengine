@@ -921,7 +921,7 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
 }
 
 static bool hasPkInTable(STableMeta* pTableMeta) {
-  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags | COL_IS_KEY;
+  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags & COL_IS_KEY;
 }
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
