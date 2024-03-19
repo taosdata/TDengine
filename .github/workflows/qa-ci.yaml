@@ -232,15 +232,17 @@ jobs:
         run: |
 
           # TODO 各组件的单元测试覆盖率还需要添加
-          cd /data/artifacts/${{ github.event.number }}/go_cover/
+          # cd /data/artifacts/${{ github.event.number }}/go_cover/
           # 依据最后修改时间分离覆盖率文件
           #mkdir -p mqtt_cover_data; mkdir -p opc_cover_data; first_file=$(ls -tl | tail -1); identifier=$(echo "$first_file" | awk -F'.' '{print $2}'); for file in covmeta.* covcounters.*; do if [[ "$file" == *$identifier* ]]; then mv "$file" mqtt_cover_data/; else mv "$file" opc_cover_data/; fi; done
           # mqtt report
+          ls /data/coverage/${{ github.event.number }}/mqtt || mkdir -p /data/coverage/${{ github.event.number }}/mqtt 
           cd /data/artifacts/${{ github.event.number }}/taosx/plugins/mqtt
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/mqtt_cover_data -o=mqtt_report.txt
           /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > /data/coverage/${{ github.event.number }}/mqtt/index.html
           # opc report
           cd /data/artifacts/${{ github.event.number }}/taosx/plugins/opc
+          ls /data/coverage/${{ github.event.number }}/opc || mkdir -p /data/coverage/${{ github.event.number }}/opc
           go tool covdata textfmt -i=/data/artifacts/${{ github.event.number }}/go_cover/opc_cover_data -o=opc_report.txt
           /root/go/bin/gocov convert opc_report.txt | /root/go/bin/gocov-html > /data/coverage/${{ github.event.number }}/opc/index.html
 
