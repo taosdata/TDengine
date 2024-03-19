@@ -353,6 +353,66 @@ static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
   return 0;
 }
 
+static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj *topicObj){
+  STqCheckInfo info;
+  memcpy(info.topic, topicObj->name, TSDB_TOPIC_FNAME_LEN);
+  info.ntbUid = topicObj->ntbUid;
+  info.colIdList = topicObj->ntbColIds;
+  // broadcast forbid alter info
+  void   *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  int32_t code = 0;
+  void    *buf = NULL;
+
+  while (1) {
+    // iterate vg
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (!mndVgroupInDb(pVgroup, topicObj->dbUid)) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    // encoder check alter info
+    int32_t len;
+    tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
+    if (code != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
+    void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    SEncoder encoder;
+    tEncoderInit(&encoder, abuf, len);
+    code = tEncodeSTqCheckInfo(&encoder, &info);
+    if (code < 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    tEncoderClear(&encoder);
+    ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
+    // add redo action
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = buf;
+    action.contLen = sizeof(SMsgHead) + len;
+    action.msgType = TDMT_VND_TMQ_ADD_CHECKINFO;
+    code = mndTransAppendRedoAction(pTrans, &action);
+    if (code != 0) {
+      goto END;
+    }
+    sdbRelease(pSdb, pVgroup);
+    buf = NULL;
+  }
+
+END:
+  taosMemoryFree(buf);
+  sdbRelease(pSdb, pVgroup);
+  sdbCancelFetch(pSdb, pIter);
+  return code;
+}
+
 static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb,
                               const char *userName) {
   mInfo("start to create topic:%s", pCreate->name);
@@ -396,13 +456,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.withMeta = pCreate->withMeta;
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (pCreate->withMeta) {
-      terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-      code = terrno;
-      goto _OUT;
-    }
-
     topicObj.ast = taosStrdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
@@ -474,59 +527,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (topicObj.ntbUid != 0) {
-    STqCheckInfo info;
-    memcpy(info.topic, topicObj.name, TSDB_TOPIC_FNAME_LEN);
-    info.ntbUid = topicObj.ntbUid;
-    info.colIdList = topicObj.ntbColIds;
-    // broadcast forbid alter info
-    void   *pIter = NULL;
-    SSdb   *pSdb = pMnode->pSdb;
-    SVgObj *pVgroup = NULL;
-    while (1) {
-      // iterate vg
-      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-      if (pIter == NULL) break;
-      if (!mndVgroupInDb(pVgroup, topicObj.dbUid)) {
-        sdbRelease(pSdb, pVgroup);
-        continue;
-      }
-
-      // encoder check alter info
-      int32_t len;
-      tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
-      if (code < 0) {
-        sdbRelease(pSdb, pVgroup);
-        sdbCancelFetch(pSdb, pIter);
-        goto _OUT;
-      }
-      void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
-      void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-      SEncoder encoder;
-      tEncoderInit(&encoder, abuf, len);
-      if (tEncodeSTqCheckInfo(&encoder, &info) < 0) {
-        taosMemoryFree(buf);
-        sdbRelease(pSdb, pVgroup);
-        sdbCancelFetch(pSdb, pIter);
-        code = -1;
-        goto _OUT;
-      }
-      tEncoderClear(&encoder);
-      ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
-      // add redo action
-      STransAction action = {0};
-      action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-      action.pCont = buf;
-      action.contLen = sizeof(SMsgHead) + len;
-      action.msgType = TDMT_VND_TMQ_ADD_CHECKINFO;
-      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-        taosMemoryFree(buf);
-        sdbRelease(pSdb, pVgroup);
-        sdbCancelFetch(pSdb, pIter);
-        code = -1;
-        goto _OUT;
-      }
-      buf = NULL;
-      sdbRelease(pSdb, pVgroup);
+    code = sendCheckInfoToVnode(pTrans, pMnode, &topicObj);
+    if (code != 0){
+      goto _OUT;
     }
   }
 
@@ -618,7 +621,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname, 
+  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
               createTopicReq.sql, strlen(createTopicReq.sql));
 
 _OVER:
@@ -653,9 +656,104 @@ _OVER:
   return code;
 }
 
+static bool checkTopic(SArray *topics, char *topicName){
+  int32_t sz = taosArrayGetSize(topics);
+  for (int32_t i = 0; i < sz; i++) {
+    char *name = taosArrayGetP(topics, i);
+    if (strcmp(name, topicName) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
+  int32_t         code = 0;
+  SSdb           *pSdb    = pMnode->pSdb;
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) {
+      break;
+    }
+
+    bool found = checkTopic(pConsumer->assignedTopics, topicName);
+    if (found){
+      if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
+        code = mndSetConsumerDropLogs(pTrans, pConsumer);
+        if (code != 0) {
+          goto end;
+        }
+        sdbRelease(pSdb, pConsumer);
+        continue;
+      }
+      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+             topicName, pConsumer->consumerId, pConsumer->cgroup);
+      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+      goto end;
+    }
+
+    if (checkTopic(pConsumer->rebNewTopics, topicName) || checkTopic(pConsumer->rebRemovedTopics, topicName))  {
+      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+      mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
+             topicName, pConsumer->consumerId, pConsumer->cgroup);
+      goto end;
+    }
+    sdbRelease(pSdb, pConsumer);
+  }
+
+end:
+  sdbRelease(pSdb, pConsumer);
+  sdbCancelFetch(pSdb, pIter);
+  return code;
+}
+
+static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic){
+  // broadcast to all vnode
+  void   *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+  int32_t code    = 0;
+  SSdb   *pSdb    = pMnode->pSdb;
+  void   *buf     = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    buf = taosMemoryCalloc(1, sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN);
+    if (buf == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto end;
+    }
+    void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
+    memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = buf;
+    action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
+    action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
+    code = mndTransAppendRedoAction(pTrans, &action);
+    if (code != 0) {
+      taosMemoryFree(buf);
+      goto end;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+end:
+  sdbRelease(pSdb, pVgroup);
+  sdbCancelFetch(pSdb, pIter);
+  return code;
+}
+
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SMnode        *pMnode  = pReq->info.node;
-  SSdb          *pSdb    = pMnode->pSdb;
   SMDropTopicReq dropReq = {0};
   int32_t        code = 0;
   SMqTopicObj *pTopic = NULL;
@@ -705,68 +803,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     goto end;
   }
 
-  void           *pIter = NULL;
-  SMqConsumerObj *pConsumer;
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-    if (pIter == NULL) {
-      break;
-    }
-
-    bool found = false;
-    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
-    for (int32_t i = 0; i < sz; i++) {
-      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
-      if (strcmp(name, pTopic->name) == 0) {
-        found = true;
-        break;
-      }
-    }
-    if (found){
-      if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
-        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pReq->info);
-        mndReleaseConsumer(pMnode, pConsumer);
-        continue;
-      }
-
-      mndReleaseConsumer(pMnode, pConsumer);
-      sdbCancelFetch(pSdb, pIter);
-      terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-             dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
-      code = -1;
-      goto end;
-    }
-
-    sz = taosArrayGetSize(pConsumer->rebNewTopics);
-    for (int32_t i = 0; i < sz; i++) {
-      char *name = taosArrayGetP(pConsumer->rebNewTopics, i);
-      if (strcmp(name, pTopic->name) == 0) {
-        mndReleaseConsumer(pMnode, pConsumer);
-        sdbCancelFetch(pSdb, pIter);
-        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
-               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
-        code = -1;
-        goto end;
-      }
-    }
-
-    sz = taosArrayGetSize(pConsumer->rebRemovedTopics);
-    for (int32_t i = 0; i < sz; i++) {
-      char *name = taosArrayGetP(pConsumer->rebRemovedTopics, i);
-      if (strcmp(name, pTopic->name) == 0) {
-        mndReleaseConsumer(pMnode, pConsumer);
-        sdbCancelFetch(pSdb, pIter);
-        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb remove)",
-               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
-        code = -1;
-        goto end;
-      }
-    }
-
-    sdbRelease(pSdb, pConsumer);
+  code = mndDropConsumerByTopic(pMnode, pTrans, dropReq.name);
+  if (code != 0) {
+    goto end;
   }
 
   code = mndDropSubByTopic(pMnode, pTrans, dropReq.name);
@@ -776,36 +815,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   if (pTopic->ntbUid != 0) {
-    // broadcast to all vnode
-    pIter = NULL;
-    SVgObj *pVgroup = NULL;
-
-    while (1) {
-      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-      if (pIter == NULL) break;
-      if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
-        sdbRelease(pSdb, pVgroup);
-        continue;
-      }
-
-      void *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN);
-      void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-      ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
-      memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
-
-      STransAction action = {0};
-      action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-      action.pCont = buf;
-      action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
-      action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
-      code = mndTransAppendRedoAction(pTrans, &action);
-      if (code != 0) {
-        taosMemoryFree(buf);
-        sdbRelease(pSdb, pVgroup);
-        sdbCancelFetch(pSdb, pIter);
-        goto end;
-      }
-      sdbRelease(pSdb, pVgroup);
+    code = mndDropCheckInfoByTopic(pMnode, pTrans, pTopic);
+    if (code != 0) {
+      goto end;
     }
   }
 
@@ -822,7 +834,6 @@ end:
 
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  //reuse this function for topic
 
   auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
