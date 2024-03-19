@@ -779,7 +779,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
       taosWUnLockLatch(&tmq->lock);
       taosReleaseRef(tmqMgmt.rsetId, refId);
     }
-    tDeatroySMqHbRsp(&rsp);
+    tDestroySMqHbRsp(&rsp);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
@@ -861,7 +861,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
 OVER:
-  tDeatroySMqHbReq(&req);
+  tDestroySMqHbReq(&req);
   taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
