@@ -167,7 +167,6 @@ class TDTestCase:
 
     def run(self):
         self.check_setup_cluster_status()
-        sleep(9999999)
         self.create_db_check_vgroups()
         self.create_db_replica_3_insertdatas(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums)
         self.check_insert_status(self.db_name , self.tb_nums , self.row_nums)
