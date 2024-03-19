@@ -510,3 +510,7 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
 
   return pSdb->tableVer[type];
 }
+
+int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type) {
+
+}
