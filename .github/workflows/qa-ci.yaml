@@ -125,7 +125,7 @@ jobs:
           fi
           ssh root@$RELEASE_HOST "ls /data/artifacts/${{ github.event.number }}/bin/opentsdb || mkdir -p /data/artifacts/${{ github.event.number }}/bin/opentsdb/"
           #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
-          scp ./target/* root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
+          scp -r ./target/* root@$RELEASE_HOST:/data/artifacts/${{ github.event.number }}/bin/opentsdb/
 
   deploy:
     runs-on: [self-hosted, linux, x64, qa]
