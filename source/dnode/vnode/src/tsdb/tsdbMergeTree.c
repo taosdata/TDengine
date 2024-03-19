@@ -429,7 +429,7 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
   code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
+  tsdbDebug("load the stt file blk info completed, elapsed time:%.2fms, %s", el, idStr);
   return code;
 }
 
@@ -806,7 +806,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         tMergeTreeAddIter(pMTree, pIter);
 
         // let's record the time window for current table of uid in the stt files
-        if (pSttDataInfo != NULL) {
+        if (pSttDataInfo != NULL && numOfRows > 0) {
           taosArrayPush(pSttDataInfo->pTimeWindowList, &w);
           pSttDataInfo->numOfRows += numOfRows;
         }
