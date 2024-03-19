@@ -298,6 +298,8 @@ int32_t tsS3UploadDelaySec = 60;
 
 bool tsExperimental = true;
 
+int32_t tsMaxTsmaNum = 8;
+
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
@@ -732,6 +734,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
+  if (cfgAddInt32(pCfg, "tsMaxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1203,6 +1206,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
   tmqRowSize = cfgGetItem(pCfg, "tmqRowSize")->i32;
+  tsMaxTsmaNum = cfgGetItem(pCfg, "tsMaxTsmaNum")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
@@ -1548,7 +1552,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
                                          {"s3PageCacheSize", &tsS3PageCacheSize},
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
-                                         {"experimental", &tsExperimental}};
+                                         {"experimental", &tsExperimental},
+                                         {"maxTsmaNum", &tsMaxTsmaNum}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);

@@ -1097,8 +1097,7 @@ class TDTestCase:
         tdSql.execute('use nsdb', queryTimes=1)
         tdSql.execute(
             'create table meters(ts timestamp, c1 int, c2 int, c3 varchar(255)) tags(t1 int, t2 int)', queryTimes=1)
-        self.create_tsma('tsma1', 'nsdb', 'meters', [
-                         'avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         # Invalid tsma interval, 1ms ~ 1h is allowed
         tdSql.error(
             'create tsma tsma2 on meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
@@ -1131,8 +1130,20 @@ class TDTestCase:
         tdSql.error(
             'create tsma tsma1 on meters function(avg(c1), avg(c2)) interval(10m)', -2147482496)
 
+        # max tsma num 8
+        self.create_tsma('tsma2', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '10s')
+        self.create_tsma('tsma3', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '100s')
+        self.create_tsma('tsma4', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '101s')
+        self.create_tsma('tsma5', 'nsdb', 'meters', ['avg(c1)', 'count(ts)'], '102s')
+        self.create_tsma('tsma6', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '103s')
+        self.create_tsma('tsma7', 'nsdb', 'meters', ['avg(c1)', 'count(c2)'], '104s')
+        self.create_tsma('tsma8', 'nsdb', 'meters', ['avg(c1)', 'sum(c2)'], '105s')
+        tdSql.error('create tsma tsma9 on meters function(count(ts), count(c1), sum(c2)) interval(99s)', -2147482490)
+        tdSql.error('create recursive tsma tsma9 on tsma8 interval(210s)', -2147482490)
+
         tdSql.execute('drop tsma tsma1', queryTimes=1)
         tdSql.execute('use test', queryTimes=1)
+        time.sleep(999999)
         tdSql.execute(
             'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2)) interval(10m)', queryTimes=1)
         self.wait_for_tsma_calculation(

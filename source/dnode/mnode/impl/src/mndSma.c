@@ -1611,6 +1611,11 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateSmaReq createReq = {0};
 
+  if (sdbGetSize(pMnode->pSdb, SDB_SMA) >= tsMaxTsmaNum) {
+    terrno = TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED;
+    goto _OVER;
+  }
+
   if (tDeserializeSMCreateSmaReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
