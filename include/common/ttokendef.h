@@ -399,6 +399,7 @@
 #define TK_PARA_TABLES_SORT  610
 #define TK_SMALLDATA_TS_SORT 611
 #define TK_HASH_JOIN         612
+#define TK_SKIP_TSMA         613
 
 #define TK_NK_NIL 65535
 

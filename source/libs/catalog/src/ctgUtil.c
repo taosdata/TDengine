@@ -2413,18 +2413,13 @@ bool hasOutOfDateTSMACache(SArray* pTsmas) {
 
 bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   int64_t now = taosGetTimestampMs();
-  bool ret = !pTsmaCache->fillHistoryFinished || (30 * 1000 - pTsmaCache->delayDuration)  < (now - pTsmaCache->reqTs);
+  bool    ret = !pTsmaCache->fillHistoryFinished ||
+             (tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration) < (now - pTsmaCache->reqTs);
   if (ret) {
     qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
            " passed: %" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
-           30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
-  } else {
-    // TODO tsma remove log
-    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
-           " passed: %" PRId64,
-           pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
-           30 * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
+           tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   }
   return ret;
 }

@@ -459,6 +459,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
                        int32_t paramNum) {
   void* value = NULL;
   switch (opt) {
+    case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
     case HINT_NO_BATCH_SCAN: {
       if (paramNum > 0) {
@@ -583,6 +584,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_HASH_JOIN;
+        break;
+      case TK_SKIP_TSMA:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SKIP_TSMA;
         break;
       case TK_NK_LP:
         lastComma = false;
