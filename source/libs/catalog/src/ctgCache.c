@@ -517,13 +517,23 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctx->tbInfo.tbType = tbMeta->tableType;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+    int32_t schemaExtSize = 0;
     int32_t metaSize = CTG_META_SIZE(tbMeta);
-    *pTableMeta = taosMemoryCalloc(1, metaSize);
+    if (useCompress(tbMeta->tableType)) {
+      schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
     if (NULL == *pTableMeta) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     memcpy(*pTableMeta, tbMeta, metaSize);
+    if (useCompress(tbMeta->tableType)) {
+      (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
+      memcpy((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
+    } else {
+      (*pTableMeta)->schemaExt = NULL;
+    }
 
     ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
     return TSDB_CODE_SUCCESS;
@@ -1484,7 +1494,7 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
 }
 
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
-                              STableMeta *meta, int32_t metaSize) {
+                              STableMeta *meta) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
     taosMemoryFree(meta);
     ctgError("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
@@ -2008,8 +2018,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
   }
 
   if (CTG_IS_META_TABLE(pMeta->metaType) || CTG_IS_META_BOTH(pMeta->metaType)) {
-    int32_t metaSize = CTG_META_SIZE(pMeta->tbMeta);
-    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta, metaSize);
+    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta);
     pMeta->tbMeta = NULL;
     CTG_ERR_JRET(code);
   }
@@ -2021,7 +2030,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
     }
     memcpy(ctbMeta, &pMeta->ctbMeta, sizeof(SCTableMeta));
     CTG_ERR_JRET(ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->ctbName,
-                                       (STableMeta *)ctbMeta, sizeof(SCTableMeta)));
+                                       (STableMeta *)ctbMeta));
   }
 
 _return:
