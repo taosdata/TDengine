@@ -247,6 +247,15 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkTsmaName(SAstCreateContext* pCxt, const SToken* pTsmaToken) {
+  if (NULL == pTsmaToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pTsmaToken->n >= TSDB_TABLE_NAME_LEN - strlen(TSMA_RES_STB_POSTFIX)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSMA_NAME_TOO_LONG);
+  }
+  return pCxt->errCode == TSDB_CODE_SUCCESS;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
@@ -2724,7 +2733,10 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkIndexName(pCxt, tsmaName)) return NULL;
+  if (!checkTsmaName(pCxt, tsmaName)) {
+    nodesDestroyNode(pInterval);
+    return NULL;
+  }
 
   SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -2734,6 +2746,7 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
     // recursive tsma
     pStmt->pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
     if (!pStmt->pOptions) {
+      nodesDestroyNode(pInterval);
       nodesDestroyNode((SNode*)pStmt);
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
       snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
@@ -2764,7 +2777,6 @@ SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
     return NULL;
   }
-  // TODO tsma check non supported funcs somewhere
   pOptions->pFuncs = pFuncs;
   return (SNode*)pOptions;
 }
