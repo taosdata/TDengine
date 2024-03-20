@@ -251,9 +251,9 @@ jobs:
         run: |
           # opentsdb report
           java -jar /data/coverage/jacococli.jar merge /data/coverage/opentsdb/*.exec --destfile /data/coverage/opentsdb/opentsdb.exec
-          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/opentsdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/opentsdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/opentsdb/src/main/java --html /data/coverage/${{ github.event.number }}/opentsdb/opentsdb_report
+          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/opentsdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/opentsdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/opentsdb/src/main/java --html /data/coverage/${{ github.event.number }}/opentsdb/
           # influxdb report
           java -jar /data/coverage/jacococli.jar merge /data/coverage/influxdb/*.exec --destfile /data/coverage/influxdb/influxdb.exec
-          java -jar /data/coverage/jacococli.jar report /data/coverage/opentsdb/influxdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/influxdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/influxdb/src/main/java --html /data/coverage/${{ github.event.number }}/influxdb/influxdb_report
+          java -jar /data/coverage/jacococli.jar report /data/coverage/influxdb/influxdb.exec --classfiles /data/artifacts/${{ github.event.number }}/bin/influxdb/classes --sourcefiles /data/artifacts/${{ github.event.number }}/taosx/plugins/influxdb/src/main/java --html /data/coverage/${{ github.event.number }}/influxdb/
 
 
