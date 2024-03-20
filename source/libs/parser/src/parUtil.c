@@ -780,6 +780,7 @@ static int32_t putDbDataToCache(const SArray* pDbReq, const SArray* pDbData, SHa
 }
 
 static int32_t putDbTableDataToCache(const SArray* pDbReq, const SArray* pTableData, SHashObj** pTable) {
+  if (!pTableData || pTableData->size == 0) return TSDB_CODE_SUCCESS;
   int32_t ndbs = taosArrayGetSize(pDbReq);
   int32_t tableNo = 0;
   for (int32_t i = 0; i < ndbs; ++i) {

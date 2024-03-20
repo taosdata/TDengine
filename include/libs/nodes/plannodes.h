@@ -351,6 +351,7 @@ typedef struct SLogicSubplan {
   int32_t       level;
   int32_t       splitFlag;
   int32_t       numOfComputeNodes;
+  SNodeList*    pTsmaChildren;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {

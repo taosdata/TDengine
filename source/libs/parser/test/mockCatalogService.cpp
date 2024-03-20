@@ -756,6 +756,7 @@ void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroy(pReq->pTableIndex);
   taosArrayDestroy(pReq->pTableCfg);
   taosArrayDestroyEx(pReq->pView, destoryTablesReq);
+  taosArrayDestroyEx(pReq->pTableTSMAs, destoryTablesReq);
   delete pReq;
 }
 

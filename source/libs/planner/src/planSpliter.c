@@ -655,6 +655,7 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   pMerge->needSort = needSort;
   pMerge->numOfChannels = stbSplGetNumOfVgroups(pPartChild);
   pMerge->srcGroupId = pCxt->groupId;
+  pMerge->srcEndGroupId = pCxt->groupId;
   pMerge->node.precision = pPartChild->precision;
   pMerge->pMergeKeys = pMergeKeys;
   pMerge->groupSort = groupSort;
@@ -744,20 +745,23 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
     SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
-    FOREACH(pNode, pInfo->pSubplan->pChildren) {
-      ++(pCxt->groupId);
-      SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
-      pSubplan->id.groupId = pCxt->groupId;
-      pSubplan->id.queryId = pCxt->queryId;
-      pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
-      splSetSubplanVgroups(pSubplan, pSubplan->pNode);
-      code = stbSplCreatePartWindowNode((SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
-      if (TSDB_CODE_SUCCESS == code) {
-        nodesDestroyNode((SNode*)pSubplan->pNode);
-        pSubplan->pNode = pPartWindow;
+    if (pInfo->pSubplan->pTsmaChildren && LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) > 0) {
+      FOREACH(pNode, pInfo->pSubplan->pTsmaChildren) {
+        ++(pCxt->groupId);
+        SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
+        pSubplan->id.groupId = pCxt->groupId;
+        pSubplan->id.queryId = pCxt->queryId;
+        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        splSetSubplanVgroups(pSubplan, pSubplan->pNode);
+        code = stbSplCreatePartWindowNode((SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
+        if (TSDB_CODE_SUCCESS == code) {
+          nodesDestroyNode((SNode*)pSubplan->pNode);
+          pSubplan->pNode = pPartWindow;
+        }
       }
+      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pInfo->pSubplan->pTsmaChildren);
+      pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     }
-    pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     pMerge->srcEndGroupId = pCxt->groupId;
   }
   if (code == TSDB_CODE_SUCCESS) {
@@ -976,8 +980,7 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 }
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
-      (!pInfo->pSubplan->pChildren || LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
+  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) && (LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) == 0)) {
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
@@ -1179,19 +1182,22 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
 
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
-    FOREACH(pNode, pInfo->pSubplan->pChildren) {
-      ++(pCxt->groupId);
-      SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
-      pSubplan->id.groupId = pCxt->groupId;
-      pSubplan->id.queryId = pCxt->queryId;
-      pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
-      splSetSubplanVgroups(pSubplan, pSubplan->pNode);
-      code = stbSplCreatePartAggNode((SAggLogicNode*)pSubplan->pNode, &pPartAgg);
-      if (code) break;
-      nodesDestroyNode((SNode*)pSubplan->pNode);
-      pSubplan->pNode = pPartAgg;
+    if (pInfo->pSubplan->pTsmaChildren && LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) >0) {
+      FOREACH(pNode, pInfo->pSubplan->pTsmaChildren) {
+        ++(pCxt->groupId);
+        SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
+        pSubplan->id.groupId = pCxt->groupId;
+        pSubplan->id.queryId = pCxt->queryId;
+        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        splSetSubplanVgroups(pSubplan, pSubplan->pNode);
+        code = stbSplCreatePartAggNode((SAggLogicNode*)pSubplan->pNode, &pPartAgg);
+        if (code) break;
+        nodesDestroyNode((SNode*)pSubplan->pNode);
+        pSubplan->pNode = pPartAgg;
+      }
+      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pInfo->pSubplan->pTsmaChildren);
+      pMergeNode->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     }
-    pMergeNode->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     pMergeNode->srcEndGroupId = pCxt->groupId;
   }
 
@@ -1238,12 +1244,11 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
 }
 
 static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode) &&
-      (!pInfo->pSubplan->pChildren || LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
-    return stbSplSplitAggNodeForPartTable(pCxt, pInfo);
-  }
-  if (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) > 0) {
+  if (LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) > 0) {
     return stbSplSplitAggNodeForCrossTableMulSubplan(pCxt, pInfo);
+  }
+  if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode)) {
+    return stbSplSplitAggNodeForPartTable(pCxt, pInfo);
   }
   return stbSplSplitAggNodeForCrossTable(pCxt, pInfo);
 }

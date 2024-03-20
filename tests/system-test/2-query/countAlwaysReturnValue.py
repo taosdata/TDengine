@@ -168,6 +168,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:prepare data ==============")
 
         self.prepare_data()
+        tdSql.execute('alter local  "countAlwaysReturnValue" "0"')
 
         tdLog.printNoPrefix("==========step2:test results ==============")
 

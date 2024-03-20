@@ -1687,6 +1687,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
     p->pNext = pList->pHead;
   }
   pList->pHead = p;
+  pList->pTail = pList->pTail ? pList->pTail : p;
   ++(pList->length);
   return TSDB_CODE_SUCCESS;
 }

@@ -4488,6 +4488,43 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
   return found;
 }
 
+typedef struct STsmaOptTagCheckCtx {
+  const STableTSMAInfo* pTsma;
+  bool  ok;
+} STsmaOptTagCheckCtx;
+
+static EDealRes tsmaOptTagCheck(SNode* pNode, void* pContext) {
+  bool found = false;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->colType == COLUMN_TYPE_TAG) {
+      STsmaOptTagCheckCtx* pCtx = pContext;
+      for (int32_t i = 0; i < pCtx->pTsma->pTags->size; ++i) {
+        SSchema* pSchema = taosArrayGet(pCtx->pTsma->pTags, i);
+        if (pSchema->colId == pCol->colId) {
+          found = true;
+        }
+      }
+      if (!found) {
+        pCtx->ok = false;
+        return DEAL_RES_END;
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool tsmaOptCheckTags(STSMAOptCtx* pCtx, const STableTSMAInfo* pTsma) {
+  const SScanLogicNode* pScan = pCtx->pScan;
+  STsmaOptTagCheckCtx ctx = {.pTsma = pTsma, .ok = true};
+  nodesWalkExpr(pScan->pTagCond, tsmaOptTagCheck, &ctx);
+  if (!ctx.ok) return false;
+  nodesWalkExprs(pScan->pScanPseudoCols, tsmaOptTagCheck, &ctx);
+  if (!ctx.ok) return false;
+  nodesWalkExprs(pScan->pGroupTags, tsmaOptTagCheck, &ctx);
+  return ctx.ok;
+}
+
 static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
   STSMAOptUsefulTsma usefulTsma = {.pTsma = NULL, .scanRange = {.skey = TSKEY_MIN, .ekey = TSKEY_MAX}};
   SArray*            pTsmaScanCols = NULL;
@@ -4500,8 +4537,6 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
 
     STableTSMAInfo* pTsma = taosArrayGetP(pTsmaOptCtx->pTsmas, i);
     if (!pTsma->fillHistoryFinished || tsMaxTsmaCalcDelay * 1000 < (pTsma->rspTs - pTsma->reqTs) + pTsma->delayDuration) {
-      qInfo("tsma %s filtered out history: %d rspTs: %ld reqTs: %ld delay: %ld, rspTs - reqTs: %ld", pTsma->name,
-             pTsma->fillHistoryFinished, pTsma->rspTs, pTsma->reqTs, pTsma->delayDuration, pTsma->rspTs - pTsma->reqTs);
       continue;
     }
     // filter with interval
@@ -4513,6 +4548,8 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
     if (!tsmaOptCheckValidFuncs(pTsma->pFuncs, pTsmaOptCtx->pAggFuncs, pTsmaScanCols)) {
       continue;
     }
+
+    if (!tsmaOptCheckTags(pTsmaOptCtx, pTsma)) continue;
     usefulTsma.pTsma = pTsma;
     usefulTsma.pTsmaScanCols = pTsmaScanCols;
     pTsmaScanCols = NULL;
@@ -5184,7 +5221,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
             SLogicSubplan* pSubplan = tsmaOptCtx.generatedSubPlans[i];
             if (!pSubplan) continue;
             pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-            nodesListMakeAppend(&pLogicSubplan->pChildren, (SNode*)pSubplan);
+            nodesListMakeAppend(&pLogicSubplan->pTsmaChildren, (SNode*)pSubplan);
           }
         }
       }

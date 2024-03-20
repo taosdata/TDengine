@@ -643,7 +643,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
 _sum_over:
   if (numOfElem == 0) {
-    if (pCtx->pExpr->pExpr->_function.pFunctNode->hasOriginalFunc &&
+    if (tsCountAlwaysReturnValue && pCtx->pExpr->pExpr->_function.pFunctNode->hasOriginalFunc &&
         fmIsCountLikeFunc(pCtx->pExpr->pExpr->_function.pFunctNode->originalFuncId)) {
       numOfElem = 1;
     }

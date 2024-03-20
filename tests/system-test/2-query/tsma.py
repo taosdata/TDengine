@@ -756,12 +756,33 @@ class TDTestCase:
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
         # self.test_query_with_drop_tsma()
-        # self.test_query_with_add_tag()
         # self.test_union()
         self.test_query_child_table()
         self.test_skip_tsma_hint()
         self.test_long_tsma_name()
         self.test_long_tb_name()
+        self.test_add_tag_col()
+        self.test_modify_col_name_value()
+
+    def test_modify_col_name_value(self):
+        tdSql.execute('alter table norm_tb rename column c1 c1_new')
+        sql = 'select avg(c1_new) from norm_tb'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma5').ignore_query_table().get_qc()])
+
+        ## modify tag name
+        tdSql.error('alter stable meters rename tag t1 t1_new;', -2147482637) ## stream must be dropped
+
+    def test_add_tag_col(self):
+        ## query with newly add tag will skip all tsmas not have this tag
+        tdSql.execute('alter table meters add tag tag_new int', queryTimes=1)
+        sql = 'select avg(c1) from meters partition by tag_new'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
+        sql = 'select avg(c1) from meters partition by abs(tag_new)'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
+        sql = 'select avg(c1) from meters where abs(tag_new) > 100'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
+
+        tdSql.execute('alter table meters drop tag tag_new', queryTimes=1)
 
     def generate_random_string(self, length):
         letters_and_digits = string.ascii_lowercase
@@ -784,9 +805,11 @@ class TDTestCase:
         tdSql.error(f'create tsma {name} on test.meters function({",".join(tsma_func_list)}) interval(1h)', -2147471087)
 
         name = self.generate_random_string(178)
-        self.create_recursive_tsma('tsma1', name, 'test', '30m', 'meters', ['avg(c1)','avg(c2)'])
-        sql = 'select avg(c1) from meters interval(30m)'
+        self.create_recursive_tsma('tsma1', name, 'test', '60m', 'meters', ['avg(c1)','avg(c2)'])
+        sql = 'select avg(c1) from meters interval(60m)'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()])
+
+        tdSql.execute(f'drop tsma {name}')
 
     def test_long_tb_name(self):
         pass
