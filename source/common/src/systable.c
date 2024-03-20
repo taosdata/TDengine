@@ -107,6 +107,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "table_suffix", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT, .sysInfo = true},
     {.name = "tsdb_pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "keep_time_offset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "encrypt_algorithm", .bytes = TSDB_DB_STRICT_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {

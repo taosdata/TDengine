@@ -35,7 +35,7 @@
 #include "audit.h"
 #include "tgrant.h"
 
-#define DB_VER_NUMBER   1
+#define DB_VER_NUMBER   2
 #define DB_RESERVE_SIZE 42
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -140,6 +140,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -231,6 +232,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _OVER)
+  if(sver > 1){
+    SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _OVER)
+  }
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -1867,6 +1871,13 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   char statusVstr[24] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(statusVstr, statusStr, 24);
 
+  char *encrypt = "na";
+  if(pDb->cfg.encryptAlgorithm == DND_CA_SM4){
+    encrypt = "sm4";
+  }
+  char encryptVstr[24] = {0};
+  STR_WITH_MAXSIZE_TO_VARSTR(encryptVstr, encrypt, 24);
+
   if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
@@ -2001,6 +2012,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, (const char *)encryptVstr, false);
   }
 
   taosMemoryFree(buf);
