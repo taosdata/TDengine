@@ -766,12 +766,12 @@ static int32_t collectMetaKeyFromDropViewStmt(SCollectMetaKeyCxt* pCxt, SDropVie
 
 static int32_t collectMetaKeyFromCreateTSMAStmt(SCollectMetaKeyCxt* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code;
-  if (pStmt->pOptions->recursiveTsma && strlen(pStmt->tableName) + strlen(TSMA_RES_STB_POSTFIX) <= TSDB_TABLE_NAME_LEN) {
+  if (pStmt->pOptions->recursiveTsma) {
     // if creating recursive tsma, the tablename is tsmaName
     code = reserveTSMAInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
       char dstTbName[TSDB_TABLE_NAME_LEN] = {0};
-      sprintf(dstTbName, "%s"TSMA_RES_STB_POSTFIX, pStmt->tableName);
+      snprintf(dstTbName, TSDB_TABLE_NAME_LEN, "%s"TSMA_RES_STB_POSTFIX, pStmt->tableName);
       code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, dstTbName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {
         code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, dstTbName, pCxt->pMetaCache);
