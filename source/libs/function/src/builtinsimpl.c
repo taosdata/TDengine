@@ -2740,7 +2740,7 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
       }
     } else {
       if (pInput->ts < pOutput->ts ||
-          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) < 0)) {
+          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
         return TSDB_CODE_FAILED;
       }
     }
