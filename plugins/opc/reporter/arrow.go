@@ -87,6 +87,7 @@ func (r *ArrowReporter) startReceiveMessage() {
 }
 
 func (r *ArrowReporter) upload(list []*common.NodeValue) error {
+	defer r.messageList.TryGet()
 	r.logger.Debugf("upload data count %d", len(list))
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
