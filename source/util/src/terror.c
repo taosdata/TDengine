@@ -351,6 +351,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE,  "Please use this comma
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_MACHINE_CODE,        "Dnode can not get machine code")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_ENCRYPT_KEY,         "Dnode can not get encryption key")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG, "invalid encryption configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_ENCRYPTKEY,     "invalid encryption key")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED,     "encryption key was changed")
+
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INIT_FAILED,              "Vnode init failure")

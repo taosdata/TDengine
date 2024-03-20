@@ -287,6 +287,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  if(req.encryptAlgorithm == DND_CA_SM4){
+    if(strlen(tsEncryptKey) == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      dError("vgId:%d, failed to create vnode since encrypt key is empty", req.vgId);
+      return -1;
+    }
+  }
+
   vmGenerateVnodeCfg(&req, &vnodeCfg);
 
   if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {

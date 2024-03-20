@@ -164,7 +164,7 @@ int32_t dmInitVars(SDnode *pDnode) {
 #if defined(TD_ENTERPRISE)
   tsiEncryptAlgorithm = pData->encryptAlgorigthm;
   tsiEncryptScope = pData->encryptScope;
-
+  /*
   if(tsiEncryptAlgorithm != 0) {
     if(pData->machineId != NULL && strlen(pData->machineId) > 0){
       dInfo("get crypt key at startup, machineId:%s", pData->machineId);
@@ -198,6 +198,7 @@ int32_t dmInitVars(SDnode *pDnode) {
       return -1;
     }
   }
+  */
 #endif
 
   if (pData->dropped) {

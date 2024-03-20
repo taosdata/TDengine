@@ -54,7 +54,7 @@ extern char     tsEncryptAlgorithm[];
 extern char     tsEncryptScope[];
 extern EEncryptAlgor  tsiEncryptAlgorithm;
 extern EEncryptScope  tsiEncryptScope;
-extern char     tsAuthCode[];
+//extern char     tsAuthCode[];
 extern char     tsEncryptKey[];
 
 // common

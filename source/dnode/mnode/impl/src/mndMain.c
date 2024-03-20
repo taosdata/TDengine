@@ -451,7 +451,13 @@ static int32_t mndInitWal(SMnode *pMnode) {
 #if defined(TD_ENTERPRISE)
   if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
     cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
-    strncpy(cfg.encryptKey, tsEncryptKey, 16);
+    if(tsEncryptKey[0] == '\0'){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    }
   }
 #endif
 

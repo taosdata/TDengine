@@ -242,7 +242,15 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
   if (code < 0) return -1;
 #if defined(TD_ENTERPRISE)
-  strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+  if(pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    }
+  }
 #endif
   tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId, code);
   if (code < 0) return -1;
@@ -258,11 +266,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
-#if defined(TD_ENTERPRISE)
-  strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
-#endif
   tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
   if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(pCfg->walCfg.encryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    }
+  }
+#endif
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
