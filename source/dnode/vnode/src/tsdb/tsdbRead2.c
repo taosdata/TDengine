@@ -1507,7 +1507,7 @@ static int32_t pkCompEx(__compar_fn_t comparFn, STsdbRowKey* p1, STsdbRowKey* p2
   if (p1->key.numOfPKs == 0) {
     return 0;
   } else {
-    return comparFn(p1->key.pks[0].pData, p2->key.pks[0].pData);
+    return comparFn(&p1->key.pks[0].val, &p2->key.pks[0].val);
   }
 }
 
