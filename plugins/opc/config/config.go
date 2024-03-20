@@ -33,18 +33,19 @@ type ConnectConfig struct {
 }
 
 type UaConnectConfig struct {
-	Endpoint        string `json:"endpoint,omitempty" yaml:"endpoint" toml:"endpoint"`                         // opc endpoint, such as `opc.tcp://localhost:4840`
-	ConnectTimeout  int64  `json:"connect_timeout,omitempty" yaml:"connect_timeout" toml:"connect_timeout"`    // timeout for connect to endpoint in second
-	RequestTimeout  int64  `json:"request_timeout,omitempty" yaml:"request_timeout" toml:"request_timeout"`    // timeout for a request in second
-	SecurityPolicy  string `json:"security_policy,omitempty" yaml:"security_policy" toml:"security_policy"`    // Security policy, one of `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss`
-	SecurityMode    string `json:"security_mode,omitempty" yaml:"security_mode" toml:"security_mode"`          // Security mode, one of `None`, `Sign`, `SignAndEncrypt`
-	Certificate     string `json:"certificate,omitempty" yaml:"certificate" toml:"certificate"`                // Path to cert.pem. Required when security mode or policy isn't `None`
-	PrivateKey      string `json:"private_key,omitempty" yaml:"private_key" toml:"private_key"`                // Path to private key.pem. Required when security mode or policy isn't `None`
-	AuthMethod      string `json:"auth_method,omitempty" yaml:"auth_method" toml:"auth_method"`                // authentication Method, one of `Certificate`, `Username`, or `Anonymous`
-	Username        string `json:"user_name,omitempty" yaml:"username" toml:"username"`                        // Required for auth_method = "Username"
-	Password        string `json:"password,omitempty" yaml:"password" toml:"password"`                         // Required for auth_method = "Username"
-	AuthCertificate string `json:"auth_certificate,omitempty" yaml:"auth_certificate" toml:"auth_certificate"` // Required for auth_method = "Certificate"
-	AuthPrivateKey  string `json:"auth_private_key,omitempty" yaml:"auth_private_key" toml:"auth_private_key"` // Required for auth_method = "Certificate"
+	Endpoint        string   `json:"endpoint,omitempty" yaml:"endpoint" toml:"endpoint"`                         // opc endpoint, such as `opc.tcp://localhost:4840`
+	ConnectTimeout  int64    `json:"connect_timeout,omitempty" yaml:"connect_timeout" toml:"connect_timeout"`    // timeout for connect to endpoint in second
+	RequestTimeout  int64    `json:"request_timeout,omitempty" yaml:"request_timeout" toml:"request_timeout"`    // timeout for a request in second
+	SecurityPolicy  string   `json:"security_policy,omitempty" yaml:"security_policy" toml:"security_policy"`    // Security policy, one of `None`, `Basic128Rsa15`, `Basic256`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss`
+	SecurityMode    string   `json:"security_mode,omitempty" yaml:"security_mode" toml:"security_mode"`          // Security mode, one of `None`, `Sign`, `SignAndEncrypt`
+	Certificate     string   `json:"certificate,omitempty" yaml:"certificate" toml:"certificate"`                // Path to cert.pem. Required when security mode or policy isn't `None`
+	PrivateKey      string   `json:"private_key,omitempty" yaml:"private_key" toml:"private_key"`                // Path to private key.pem. Required when security mode or policy isn't `None`
+	AuthMethod      string   `json:"auth_method,omitempty" yaml:"auth_method" toml:"auth_method"`                // authentication Method, one of `Certificate`, `Username`, or `Anonymous`
+	Username        string   `json:"user_name,omitempty" yaml:"username" toml:"username"`                        // Required for auth_method = "Username"
+	Password        string   `json:"password,omitempty" yaml:"password" toml:"password"`                         // Required for auth_method = "Username"
+	AuthCertificate string   `json:"auth_certificate,omitempty" yaml:"auth_certificate" toml:"auth_certificate"` // Required for auth_method = "Certificate"
+	AuthPrivateKey  string   `json:"auth_private_key,omitempty" yaml:"auth_private_key" toml:"auth_private_key"` // Required for auth_method = "Certificate"
+	MaxAge          *float64 `json:"max_age,omitempty" yaml:"max_age" toml:"max_age"`                            // MaxAge is the maximum age of the value to be read in milliseconds. If the server has no value within this time, it returns a Bad_Timeout.
 }
 
 type DaConnectConfig struct {
