@@ -1456,9 +1456,6 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->igUpdate = 0;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  //TODO tsma remove this log
-  mDebug("tsma create stream with last ts: %" PRId64 "vgversion size: %d", pCxt->pCreateSmaReq->lastTs,
-         pCxt->pCreateStreamReq->pVgroupVerList ? pCxt->pCreateStreamReq->pVgroupVerList->size : 0);
   pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
   pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
 

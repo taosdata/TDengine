@@ -193,8 +193,6 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
-typedef struct {} STableTSMAVersion;
-
 typedef SUserIndexRsp SIndexInfo;
 
 typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
