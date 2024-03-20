@@ -670,7 +670,7 @@ typedef struct {
 static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper* pSrcWrapper) {
   if (pSrcWrapper->pColCmpr == NULL || pSrcWrapper->nCols == 0) return NULL;
 
-  SColCmprWrapper* pDstWrapper = taosMemoryMalloc(pSrcWrapper->nCols * sizeof(SColCmpr));
+  SColCmprWrapper* pDstWrapper = (SColCmprWrapper*)taosMemoryMalloc(sizeof(SColCmprWrapper));
   pDstWrapper->nCols = pSrcWrapper->nCols;
   pDstWrapper->version = pSrcWrapper->version;
 

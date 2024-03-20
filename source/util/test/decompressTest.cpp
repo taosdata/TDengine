@@ -13,6 +13,7 @@ TEST(utilTest, decompress_test) {
   int32_t len = tsCompressTimestamp(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 10, ONE_STAGE_COMP, NULL, 0);
 
   char* decompOutput[10 * 8] = {0};
+
   tsDecompressTimestamp(pOutput, len, 10, decompOutput, sizeof(int64_t)*10, ONE_STAGE_COMP, NULL, 0);
 
   for(int32_t i = 0; i < 10; ++i) {
