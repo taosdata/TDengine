@@ -307,6 +307,26 @@ static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t addPkCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+  bool   found = false;
+  SNode* pCol = NULL;
+  FOREACH(pCol, *pCols) {
+    if (pSchema->colId == ((SColumnNode*)pCol)->colId) {
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool hasPkInTable(const STableMeta* pTableMeta) {
+  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+}
+
 static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
   if (LIST_LENGTH(*pCols) > 0) {
     return TSDB_CODE_SUCCESS;
@@ -317,6 +337,9 @@ static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNo
 static int32_t addDefaultScanCol(const STableMeta* pMeta, SNodeList** pCols) {
   if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
     return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols);
+  }
+  if (hasPkInTable(pMeta)) {
+    addPkCol(pMeta->uid, pMeta->schema + 1, pCols);
   }
   return addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols);
 }
