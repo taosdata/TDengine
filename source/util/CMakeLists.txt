@@ -19,6 +19,7 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
+    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
 )
 target_link_libraries(
     util
