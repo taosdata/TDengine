@@ -213,6 +213,7 @@ typedef struct SDataBlockInfo {
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
   bool        blankFill;
+  SValue      pks[2];
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
