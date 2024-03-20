@@ -91,6 +91,7 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)&cryptRsp.dnodeid, false);
 
+/*
     char algorStr[10] = {0};    
     if(cryptRsp.cryptAlgorithm == DND_CA_SM4){
       sprintf(algorStr, "%s", "sm4");
@@ -153,6 +154,19 @@ int32_t mndRetrieveCrypt(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, in
     strncpy(varDataVal(tmpBuf), scopeFinialStr, TSDB_SHOW_SQL_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+*/
+    char *status = "key not setted";
+    if(cryptRsp.keyFileExisted){
+      status = "key setted";
+    }
+    if(cryptRsp.keyLoaded){
+      status = "key loaded";
+    }
+    char statusVstr[24] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(statusVstr, status, 24);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
 
     numOfRows++;
   }

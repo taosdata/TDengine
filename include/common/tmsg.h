@@ -1595,6 +1595,8 @@ typedef struct{
   int32_t dnodeid;
   int32_t cryptAlgorithm;
   int32_t cryptScope;
+  bool    keyFileExisted;
+  bool    keyLoaded;
 } SCryptRsp;
 
 int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp);

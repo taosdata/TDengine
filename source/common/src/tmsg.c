@@ -1461,6 +1461,8 @@ int32_t tSerializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp){
   if (tEncodeI32(&encoder, pRsp->cryptAlgorithm) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->cryptScope) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->dnodeid) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->keyFileExisted) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->keyLoaded) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -1478,6 +1480,8 @@ int32_t tDeserializeSCryptRsp(void* buf, int32_t bufLen, SCryptRsp* pRsp){
   if (tDecodeI32(&decoder, &pRsp->cryptAlgorithm) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->cryptScope) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->dnodeid) < 0) return -1;
+  if (tDecodeI8(&decoder, (int8_t *)&pRsp->keyFileExisted) < 0) return -1;
+  if (tDecodeI8(&decoder, (int8_t *)&pRsp->keyLoaded) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

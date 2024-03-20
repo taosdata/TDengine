@@ -628,7 +628,7 @@ int mainWindows(int argc, char **argv) {
   }
 
   if(getEncryptKey() != 0){
-    dError("failed to start since read encrypt code error");
+    dError("failed to start since failed to get encrypt key");
     taosCloseLog();
     taosCleanupArgs();
     return -1;

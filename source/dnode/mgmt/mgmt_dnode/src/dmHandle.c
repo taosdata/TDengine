@@ -422,6 +422,22 @@ int32_t dmProcessCryptReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg){
   cryptRsp.cryptScope = tsiEncryptScope;
   cryptRsp.dnodeid = pMgmt->pData->dnodeId;
 
+  char      encryptFile[PATH_MAX] = {0};
+  snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, "encryptCode.cfg");
+  if(taosCheckExistFile(encryptFile)){
+    cryptRsp.keyFileExisted = true;
+  }
+  else{
+    cryptRsp.keyFileExisted = false;
+  }
+
+  if(tsEncryptKey[0] != '\0'){
+    cryptRsp.keyLoaded = true;
+  }
+  else{
+    cryptRsp.keyLoaded = false;
+  }
+
   SRpcMsg rspMsg = {.info = pMsg->info};
   int32_t rspLen = tSerializeSCryptRsp(NULL, 0, &cryptRsp);
   if (rspLen < 0) {
