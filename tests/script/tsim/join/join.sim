@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sql drop database if exists test0
+sql drop database if exists test0;
 sql create database test0 vgroups 3;
 sql use test0;
 sql create stable sta (ts timestamp, col1 int) tags(t1 int);
@@ -19,7 +19,7 @@ sql insert into tba2 values ('2023-11-17 16:29:01', 3);
 sql insert into tba2 values ('2023-11-17 16:29:03', 5);
 sql insert into tba2 values ('2023-11-17 16:29:05', 7);
 
-sql drop database if exists testa
+sql drop database if exists testa;
 sql create database testa vgroups 3;
 sql use testa;
 
@@ -41,8 +41,8 @@ sql create table tt using stt tags(99);
 sql create table stv(ts timestamp, h int) tags (t1 int);
 sql insert into ctv1 using stv tags(1) values('2023-10-16 10:10:10', 1);
 
-sql drop database if exists testb
-sql create database testb vgroups 1;
+sql drop database if exists testb;
+sql create database testb vgroups 1 PRECISION 'us';
 sql use testb;
 
 sql create table stb1(ts timestamp, f int,g int) tags (t int);
@@ -72,6 +72,7 @@ run tsim/join/right_win_join.sim
 run tsim/join/join_scalar.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
+run tsim/join/join_boundary.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -93,5 +94,6 @@ run tsim/join/right_win_join.sim
 run tsim/join/join_scalar.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
+run tsim/join/join_boundary.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

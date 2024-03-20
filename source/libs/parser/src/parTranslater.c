@@ -3509,6 +3509,36 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
                                      "Unsupported ASOF/WINDOW join table type");
     }    
 
+    if (IS_WINDOW_JOIN(pJoinTable->subType)) {
+      if (pLeft->table.precision != pRight->table.precision) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                       "Same database precision required in WINDOW join");
+      }
+      SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pJoinTable->pWindowOffset;
+      SValueNode* pStart = (SValueNode*)pWinOffset->pStartOffset;
+      SValueNode* pEnd = (SValueNode*)pWinOffset->pEndOffset;
+      switch (pLeft->table.precision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          if (TIME_UNIT_NANOSECOND == pStart->unit || TIME_UNIT_MICROSECOND == pStart->unit) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pStart->unit);
+          }
+          if (TIME_UNIT_NANOSECOND == pEnd->unit || TIME_UNIT_MICROSECOND == pEnd->unit) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pEnd->unit);
+          }
+          break;
+        case TSDB_TIME_PRECISION_MICRO:
+          if (TIME_UNIT_NANOSECOND == pStart->unit) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pStart->unit);
+          }
+          if (TIME_UNIT_NANOSECOND == pEnd->unit) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pEnd->unit);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
     int32_t code = addPrimJoinEqCond(&pJoinTable->addPrimCond, pLeft, pRight, pJoinTable->joinType, pJoinTable->subType);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -4901,6 +4931,14 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                      "Has Interp pseudo column(s) but missing interp function");
     }
     return TSDB_CODE_SUCCESS;
+  }
+
+  if ((NULL != pSelect->pFromTable) && (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable))) {
+    SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+    if (IS_WINDOW_JOIN(pJoinTable->subType)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Interp not supported to be used in WINDOW join");
+    }
   }
 
   if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {

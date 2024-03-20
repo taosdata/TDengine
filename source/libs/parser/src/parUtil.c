@@ -197,7 +197,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR:
       return "Not supported window join having expr";
     case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
-      return "Invalid WINDOW_OFFSET unit \"%s\"";
+      return "Invalid WINDOW_OFFSET unit \"%c\"";
     case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
       return "Valid primary timestamp required";
     default:

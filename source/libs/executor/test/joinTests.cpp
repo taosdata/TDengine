@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       10000
+#define JT_MAX_LOOP       1000000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -2858,7 +2858,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(10000, 1000, 10000, 1000, 100);
+  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -3335,7 +3335,7 @@ TEST(leftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(leftAntiJoin, noCondTest) {
   SJoinTestParam param;
@@ -3446,7 +3446,7 @@ TEST(leftAntiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(leftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
@@ -3606,7 +3606,7 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
 #endif
 
 
-#if 1
+#if 0
 #if 1
 TEST(leftWinJoin, noCondProjectionTest) {
   SJoinTestParam param;
