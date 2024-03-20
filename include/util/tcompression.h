@@ -24,6 +24,20 @@
 extern "C" {
 #endif
 
+// start compress flag
+// |----l1 compAlg----|-----l2 compAlg---|---level--|
+// |------8bit--------|------16bit-------|---8bit---|
+#define COMPRESS_L1_TYPE_U32(type)       (((type) >> 24) & 0xFF)
+#define COMPRESS_L2_TYPE_U32(type)       (((type) >> 8) & 0xFFFF)
+#define COMPRESS_L2_TYPE_LEVEL_U32(type) ((type)&0xFF)
+// compress flag
+// |----l2lel--|----l2Alg---|---l1Alg--|
+// |----2bit---|----3bit----|---3bit---|
+#define COMPRESS_L1_TYPE_U8(type)       ((type)&0x07)
+#define COMPRESS_L2_TYPE_U8(type)       (((type) >> 3) & 0x07)
+#define COMPRESS_L2_TYPE_LEVEL_U8(type) (((type) >> 6) & 0x03)
+// end compress flag
+
 #define COMP_OVERFLOW_BYTES 2
 #define BITS_PER_BYTE       8
 // Masks
