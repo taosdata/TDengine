@@ -3669,13 +3669,15 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         taosArrayDestroyP(pRealTable->tsmaTargetTbVgInfo, taosMemoryFree);
         pRealTable->tsmaTargetTbVgInfo = NULL;
       }
+      char buf[TSDB_TABLE_FNAME_LEN];
       for (int32_t i = 0; i < pRealTable->pTsmas->size; ++i) {
         STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
         SName tsmaTargetTbName = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = snprintf(tsmaTargetTbName.tname, TSDB_TABLE_NAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO tsma what if tsma name is too long
-        len = taosCreateMD5Hash(tsmaTargetTbName.tname, len);
-        sprintf(tsmaTargetTbName.tname + len, "_%s", pRealTable->table.tableName);
+        int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO tsma what if tsma name is too long
+        len = taosCreateMD5Hash(buf, len);
+        len = sprintf(buf + len, "_%s", pRealTable->table.tableName);
+        strncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
         collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
         SVgroupInfo vgInfo = {0};
         bool exists = false;
@@ -10577,7 +10579,7 @@ static int32_t buildTSMAAstMakeConcatFuncNode(SCreateTSMAStmt* pStmt, SMCreateSm
   if (TSDB_CODE_SUCCESS == code) {
     sprintf(pTsmaNameHashVNode->literal, "%s", pReq->name);
     int32_t len = taosCreateMD5Hash(pTsmaNameHashVNode->literal, strlen(pTsmaNameHashVNode->literal));
-    pTsmaNameHashVNode->literal[len] = '_';
+    sprintf(pTsmaNameHashVNode->literal + len, "_");
     pTsmaNameHashVNode->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
     pTsmaNameHashVNode->node.resType.bytes = strlen(pTsmaNameHashVNode->literal);
   }

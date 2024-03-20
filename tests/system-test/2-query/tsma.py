@@ -9,6 +9,7 @@ from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
 
+ROUND = 1000
 
 class TSMA:
     def __init__(self):
@@ -759,11 +760,45 @@ class TDTestCase:
         # self.test_union()
         self.test_query_child_table()
         self.test_skip_tsma_hint()
+        self.test_long_tsma_name()
+        self.test_long_tb_name()
+
+    def generate_random_string(self, length):
+        letters_and_digits = string.ascii_lowercase
+        result_str = ''.join(random.choice(letters_and_digits) for i in range(length))
+        return result_str
+
+    def test_long_tsma_name(self):
+        name = self.generate_random_string(178)
+        tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)', 'stddev(c3)', 'hyperloglog(c5)']
+        self.create_tsma(name, 'test', 'meters', tsma_func_list, '55m')
+        sql = 'select last(c5), spread(c2) from meters interval(55m)'
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()
+        self.check([ctx])
+        tdSql.execute(f'drop tsma {name}')
+
+        name = self.generate_random_string(180)
+        tdSql.error(f'create tsma {name} on test.meters function({",".join(tsma_func_list)}) interval(1h)', -2147471087)
+
+        name = self.generate_random_string(179)
+        tdSql.error(f'create tsma {name} on test.meters function({",".join(tsma_func_list)}) interval(1h)', -2147471087)
+
+        name = self.generate_random_string(178)
+        self.create_recursive_tsma('tsma1', name, 'test', '30m', 'meters', ['avg(c1)','avg(c2)'])
+        sql = 'select avg(c1) from meters interval(30m)'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()])
+
+    def test_long_tb_name(self):
+        pass
 
     def test_skip_tsma_hint(self):
         ctxs = []
         sql = 'select /*+ skip_tsma()*/avg(c1), avg(c2) from meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
+
+        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1').get_qc())
+        self.check(ctxs)
 
     def test_query_child_table(self):
         sql = 'select avg(c1) from t1'
@@ -817,7 +852,7 @@ class TDTestCase:
         opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
         opts.interval = True
         opts.where_ts_range = True
-        for _ in range(1, 1000):
+        for _ in range(1, ROUND):
             opts.partition_by = True
             opts.group_by = True
             opts.norm_tb = False
@@ -1005,10 +1040,8 @@ class TDTestCase:
 
     def run(self):
         self.init_data()
-        # time.sleep(999999)
         self.test_ddl()
         self.test_query_with_tsma()
-        # time.sleep(999999)
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name

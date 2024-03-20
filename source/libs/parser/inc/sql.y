@@ -590,8 +590,8 @@ cmd ::= DROP TSMA exists_opt(B) full_tsma_name(C).                              
 cmd ::= SHOW CREATE TSMA full_tsma_name(B).                                       { pCxt->pRootNode = createShowCreateTSMAStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                           { pCxt->pRootNode = createShowTSMASStmt(pCxt, B); }
 
-full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNodeForIndexName(pCxt, NULL, &B); }
-full_tsma_name(A) ::= db_name(B) NK_DOT tsma_name(C).                             { A = createRealTableNodeForIndexName(pCxt, &B, &C); }
+full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
+full_tsma_name(A) ::= db_name(B) NK_DOT tsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
 
 %type tsma_func_list                                                              { SNode* }
 %destructor tsma_func_list                                                        { nodesDestroyNode($$); }

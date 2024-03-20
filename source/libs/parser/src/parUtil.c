@@ -212,6 +212,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
       return "primary key column can not be added, modified, and dropped";    
+    case TSDB_CODE_TSMA_NAME_TOO_LONG:
+      return "Tsma name too long";
     default:
       return "Unknown error";
   }

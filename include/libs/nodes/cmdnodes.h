@@ -604,7 +604,7 @@ typedef struct STSMAOptions {
 typedef struct SCreateTSMAStmt {
   ENodeType       type;
   bool            ignoreExists;
-  char            tsmaName[TSDB_INDEX_NAME_LEN];
+  char            tsmaName[TSDB_TABLE_NAME_LEN];
   char            dbName[TSDB_DB_NAME_LEN];
   char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
   char            originalTbName[TSDB_TABLE_NAME_LEN];
@@ -616,14 +616,14 @@ typedef struct SCreateTSMAStmt {
 typedef struct SShowCreateTSMAStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-  char      tsmaName[TSDB_INDEX_NAME_LEN];
+  char      tsmaName[TSDB_TABLE_NAME_LEN];
 }SShowCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
   ENodeType     type;
   bool          ignoreNotExists;
   char          dbName[TSDB_DB_NAME_LEN];
-  char          tsmaName[TSDB_INDEX_NAME_LEN];
+  char          tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
 
 #ifdef __cplusplus
