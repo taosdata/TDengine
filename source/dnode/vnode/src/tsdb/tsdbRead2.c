@@ -2815,10 +2815,10 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
   pKey->numOfPKs = pReader->numOfPks;
 
   // todo opt allocation, and handle varchar primary key
-  pKey->pks[0].val = asc ? pBlockInfo->lastPrimaryKey.val : pBlockInfo->firstPrimaryKey.val;
+  pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
 
-  pInfo->pks[0].val = pBlockInfo->firstPrimaryKey.val;
-  pInfo->pks[1].val = pBlockInfo->lastPrimaryKey.val;
+  pInfo->pks[0].val = pBlockInfo->firstPk.val;
+  pInfo->pks[1].val = pBlockInfo->lastPk.val;
 
   tsdbDebug("%p uid:%" PRIu64
             " clean file block retrieved from file, global index:%d, "

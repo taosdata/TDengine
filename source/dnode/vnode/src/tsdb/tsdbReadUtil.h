@@ -189,13 +189,13 @@ typedef struct SFileDataBlockInfo {
   union {
     int64_t  val;
     uint8_t* pData;
-  } firstPrimaryKey;
+  } firstPk;
 
   int64_t lastKey;
   union {
     int64_t  val;
     uint8_t* pData;
-  } lastPrimaryKey;
+  } lastPk;
 
   int32_t firstPKLen;
   int32_t lastPKLen;
