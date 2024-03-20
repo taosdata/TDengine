@@ -484,7 +484,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
       taosMsleep(1);
       goto _out;
     }
-    
+
     if(pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
       if(pNode->pLogBuf->commitIndex == pEntry->index -1){
         sInfo("vgId:%d, to change config at %s. "
@@ -492,7 +492,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
               "node, restore:%d, commitIndex:%" PRId64 ", "
               "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
               pNode->vgId, str,
-              pEntry->index, pEntry->term, 
+              pEntry->index, pEntry->term,
               pNode->restoreFinish, pNode->commitIndex,
               pEntry->index - 1, pNode->pLogBuf->commitIndex);
         if(syncNodeChangeConfig(pNode, pEntry, str) != 0){
@@ -507,9 +507,9 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
               "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), "
               "cond:( pre entry index:%" PRId64" != buf commit index:%" PRId64 ")",
               pNode->vgId, str,
-              pEntry->index, pEntry->term, 
+              pEntry->index, pEntry->term,
               pNode->commitIndex, pNode->pLogBuf->startIndex, pNode->pLogBuf->commitIndex,
-              pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex, 
+              pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex,
               pEntry->index - 1, pNode->pLogBuf->commitIndex);
       }
     }
@@ -653,8 +653,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
               "current entry, index:%" PRId64 ", term:%" PRId64", "
               "node, role:%d, current term:%" PRId64 ", restore:%d, "
               "cond, next entry index:%" PRId64 ", msgType:%s",
-              vgId, 
-              pEntry->index, pEntry->term, 
+              vgId,
+              pEntry->index, pEntry->term,
               role, currentTerm, pNode->restoreFinish,
               pNextEntry->index, TMSG_INFO(pNextEntry->originalRpcType));
 
@@ -685,12 +685,12 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
         syncEntryDestroy(pNextEntry);
         pNextEntry = NULL;
       }
-    } 
-    
+    }
+
     if (!inBuf) {
       syncEntryDestroy(pEntry);
       pEntry = NULL;
-    }  
+    }
   }
 
   // recycle

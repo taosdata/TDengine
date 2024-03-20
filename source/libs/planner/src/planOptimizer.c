@@ -2523,6 +2523,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
        TSDB_SUPER_TABLE == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->tableType)) {
     return false;
   }
+  
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if(LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
+      return false;
+    }
+  }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
   if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit ||

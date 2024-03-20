@@ -288,7 +288,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
     } else if (pRawExpr->isPseudoColumn) {
       // all pseudo column are translate to function with same name
       strcpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName);
-      strcpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName);     
+      strcpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName);
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 
@@ -1269,11 +1269,11 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   return select;
 }
 
-SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) { 
+SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
   if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     if (pCxt->pQueryCxt->biMode) {
       ((SSelectStmt*)pStmt)->tagScan = true;
-    } else {  
+    } else {
       ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
     }
   }
@@ -1343,6 +1343,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
+  pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   return (SNode*)pOptions;
 }
 
@@ -1378,6 +1379,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = -1;
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
+  pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   return (SNode*)pOptions;
 }
 
@@ -1433,6 +1435,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_REPLICA:
       pDbOptions->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->withArbitrator = (pDbOptions->replica == 2);
       if (!alter) {
         updateWalOptionsDefault(pDbOptions);
       }
@@ -1862,7 +1865,7 @@ SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type) {
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;
-  } 
+  }
   SShowStmt* pShow = (SShowStmt*)pStmt;
   pShow->showKind = showKind;
   return pStmt;
