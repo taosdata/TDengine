@@ -546,6 +546,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
       code = -1;
+      if(newBodyEncrypted != NULL) taosMemoryFreeClear(newBodyEncrypted);
+      if(newBody != NULL) taosMemoryFreeClear(newBody);
       goto END;
     }
 
