@@ -57,7 +57,7 @@ local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
 
-services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"x" ${PREFIX}"-explorer" ${PREFIX}"keeper" tarbitrator)
+services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"x" ${PREFIX}"-explorer" ${PREFIX}"keeper")
 tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript)
 
 csudo=""
@@ -97,7 +97,7 @@ clean_service_on_systemd_of() {
   _service=$1
   _service_config="${service_config_dir}/${_service}.service"
   if systemctl is-active --quiet ${_service}; then
-    echo "taoskeeper is running, stopping it..."
+    echo "${_service} is running, stopping it..."
     ${csudo}systemctl stop ${_service} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${_service} &>/dev/null || echo &>/dev/null
@@ -145,10 +145,12 @@ clean_service_of() {
 remove_service_of() {
   _service=$1
   clean_service_of ${_service}
-  [ -e "${bin_link_dir}/${_service}" ] && ${csudo}rm -rf ${bin_link_dir}/${_service}
-  [ -e "${installDir}/bin/${_service}" ] && ${csudo}rm -rf ${installDir}/bin/${_service}
-  [ -e "${local_bin_link_dir}/${_service}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_service}
-  echo "${_service} is removed successfully!"
+  if [[ -e "${bin_link_dir}/${_service}" || -e "${installDir}/bin/${_service}" || -e "${local_bin_link_dir}/${_service}" ]]; then
+    ${csudo}rm -rf ${bin_link_dir}/${_service}
+    ${csudo}rm -rf ${installDir}/bin/${_service} 
+    ${csudo}rm -rf ${local_bin_link_dir}/${_service}
+    echo "${_service} is removed successfully!"
+  fi
 }
 
 remove_tools_of() {
@@ -215,8 +217,7 @@ function remove_data_and_config() {
   log_dir=`grep logDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$log_dir" == X"" ]; then
     log_dir="/var/log/${clientName2}"
-  fi
-  cd ~
+  fi  
   [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}
   [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
@@ -270,5 +271,5 @@ fi
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 
-echo "${productName2} is removed successfully!"
+echo "${productName} is removed successfully!"
 echo
