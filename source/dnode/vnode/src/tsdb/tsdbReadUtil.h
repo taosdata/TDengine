@@ -77,7 +77,7 @@ typedef enum ESttKeyStatus {
 
 typedef struct SSttKeyInfo {
   ESttKeyStatus status;           // this value should be updated when switch to the next fileset
-  int64_t       nextProcKey;
+  int64_t       nextProcKey;   // todo remove this attribute, since it is impossible to set correct nextProcKey value
 } SSttKeyInfo;
 
 // clean stt file blocks:
@@ -87,7 +87,8 @@ typedef struct SSttKeyInfo {
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t    uid;
-  TSKEY       lastProcKey;       // todo: refactor: add primary key
+//  TSKEY       lastProcKey;       // todo: refactor: add primary key
+  STsdbRowKey lastProcKey;
   SSttKeyInfo sttKeyInfo;
   SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
   SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
@@ -168,7 +169,9 @@ typedef struct SSttBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  int64_t            currentKey;
+  STsdbRowKey        currentKey;
+  int32_t            numOfPks;
+  __compar_fn_t      pkComparFn;
 } SSttBlockReader;
 
 typedef struct SFilesetIter {
@@ -181,12 +184,21 @@ typedef struct SFilesetIter {
 
 typedef struct SFileDataBlockInfo {
   // index position in STableBlockScanInfo in order to check whether neighbor block overlaps with it
-  //  int64_t suid;
   int64_t uid;
   int64_t firstKey;
-//  int64_t firstKeyVer;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } firstPrimaryKey;
+
   int64_t lastKey;
-//  int64_t lastKeyVer;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } lastPrimaryKey;
+
+  int32_t firstPKLen;
+  int32_t lastPKLen;
   int64_t minVer;
   int64_t maxVer;
   int64_t blockOffset;
@@ -211,7 +223,8 @@ typedef struct SDataBlockIter {
 typedef struct SFileBlockDumpInfo {
   int32_t totalRows;
   int32_t rowIndex;
-  int64_t lastKey;
+//  int64_t lastKey;
+//  STsdbRowKey lastKey;  // this key should be removed
   bool    allDumped;
 } SFileBlockDumpInfo;
 
@@ -249,7 +262,6 @@ struct STsdbReader {
   TdThreadMutex      readerMutex;
   EReaderStatus      flag;
   int32_t            code;
-  uint64_t           rowsNum;
   SResultBlockInfo   resBlockInfo;
   SReaderStatus      status;
   char*              idStr;  // query info handle, for debug purpose
@@ -268,6 +280,7 @@ struct STsdbReader {
   TsdReaderNotifyCbFn  notifyFn;
   void*                notifyParam;
   __compar_fn_t        pkComparFn;
+  int32_t              numOfPks;
   bool                 pkChecked;
 };
 

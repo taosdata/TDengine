@@ -623,6 +623,54 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   }
 }
 
+void tsdbColRowGetKey(SBlockData* pBlock, int32_t irow, STsdbRowKey* key) {
+  key->version = pBlock->aVersion[irow];
+  key->key.ts = pBlock->aTSKEY[irow];
+  key->key.numOfPKs = 0;
+
+  for (int32_t i = 0; i < pBlock->nColData; i++) {
+    SColData *pColData = &pBlock->aColData[i];
+    if (pColData->cflag & COL_IS_KEY) {
+      SColVal cv;
+      tColDataGetValue(pColData, irow, &cv);
+      ASSERT(COL_VAL_IS_VALUE(&cv));
+      key->key.pks[key->key.numOfPKs] = cv.value;
+      key->key.numOfPKs++;
+    } else {
+      break;
+    }
+  }
+}
+
+int32_t tsdbRowKeyAssign(STsdbRowKey *pDst, STsdbRowKey* pSrc) {
+  pDst->version = pSrc->version;
+
+  if (pSrc->key.numOfPKs == 0) {
+    pDst->key.ts = pSrc->key.ts;
+    pDst->key.numOfPKs = 0;
+  } else {
+    pDst->key = pSrc->key;
+
+    for (int32_t i = 0; i < pDst->key.numOfPKs; ++i) {
+      SValue *pVal = &pDst->key.pks[i];
+      if (IS_NUMERIC_TYPE(pVal->type)) {
+        continue;
+      }
+
+      uint8_t *p = taosMemoryMalloc(pVal->nData);
+      if (p == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
+
+      memcpy(p, pVal->pData, pVal->nData);
+      pVal->pData = p;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
   int32_t c = tRowKeyCompare(&key1->key, &key2->key);
 
@@ -726,7 +774,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       return code;
-      //      goto _exit;
     }
 
     // other

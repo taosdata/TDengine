@@ -165,18 +165,18 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
 
     if (ASCENDING_TRAVERSE(pTsdbReader->info.order)) {
       int64_t skey = pTsdbReader->info.window.skey;
-      pScanInfo->lastProcKey = (skey > INT64_MIN) ? (skey - 1) : skey;
+      pScanInfo->lastProcKey.key.ts = (skey > INT64_MIN) ? (skey - 1) : skey;
       pScanInfo->sttKeyInfo.nextProcKey = skey;
     } else {
       int64_t ekey = pTsdbReader->info.window.ekey;
-      pScanInfo->lastProcKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+      pScanInfo->lastProcKey.key.ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
       pScanInfo->sttKeyInfo.nextProcKey = ekey;
     }
 
     pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
     tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
-              pScanInfo->lastProcKey, pTsdbReader->idStr);
+              pScanInfo->lastProcKey.key.ts, pTsdbReader->idStr);
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -209,7 +209,9 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
     }
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
-    pInfo->lastProcKey = ts;
+    pInfo->lastProcKey.key.ts = ts;
+    ASSERT(0);
+
     pInfo->sttKeyInfo.nextProcKey = ts + step;
   }
 }
@@ -355,7 +357,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
+static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record, STsdbReader* pReader) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -368,6 +370,31 @@ static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* recor
   pBlockInfo->smaSize = record->smaSize;
   pBlockInfo->numRow = record->numRow;
   pBlockInfo->count = record->count;
+
+  SRowKey* pFirstKey = &record->firstKey.key;
+  if (!pReader->pkChecked) {
+    pReader->pkChecked = true;
+    pReader->numOfPks = pFirstKey->numOfPKs;
+    pReader->pkComparFn = getComparFunc(pFirstKey->pks[0].type, 0);
+  }
+
+  if (pFirstKey->numOfPKs > 0) {
+    if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
+      pBlockInfo->firstPrimaryKey.val = pFirstKey->pks[0].val;
+      pBlockInfo->lastPrimaryKey.val = record->lastKey.key.pks[0].val;
+
+      pBlockInfo->firstPKLen = 0;
+      pBlockInfo->lastPKLen = 0;
+    } else {  // todo handle memory alloc error, opt memory alloc perf
+      pBlockInfo->firstPKLen = pFirstKey->pks[0].nData;
+      pBlockInfo->firstPrimaryKey.pData = taosMemoryCalloc(1, pBlockInfo->firstPKLen);
+      memcpy(pBlockInfo->firstPrimaryKey.pData, pFirstKey->pks[0].pData, pBlockInfo->firstPKLen);
+
+      pBlockInfo->lastPKLen = record->lastKey.key.pks[0].nData;
+      pBlockInfo->lastPrimaryKey.pData = taosMemoryCalloc(1, pBlockInfo->lastPKLen);
+      memcpy(pBlockInfo->lastPrimaryKey.pData, record->lastKey.key.pks[0].pData, pBlockInfo->lastPKLen);
+    }
+  }
 }
 
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
@@ -392,7 +419,6 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    //    ASSERT(pTableScanInfo->pBlockList != NULL && taosArrayGetSize(pTableScanInfo->pBlockList) > 0);
 
     size_t num = taosArrayGetSize(pTableScanInfo->pBlockList);
     sup.numOfBlocksPerTable[sup.numOfTables] = num;
@@ -426,15 +452,17 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     if (pTableScanInfo->pBlockIdxList == NULL) {
       pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
     }
+
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
       SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
-      recordToBlockInfo(&blockInfo, record);
+      recordToBlockInfo(&blockInfo, record, pReader);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
       taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     }
+
     pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
 
     int64_t et = taosGetTimestampUs();
@@ -464,7 +492,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
     SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
-    recordToBlockInfo(&blockInfo, record);
+    recordToBlockInfo(&blockInfo, record, pReader);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
     STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
