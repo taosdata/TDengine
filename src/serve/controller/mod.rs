@@ -739,10 +739,14 @@ impl TaskController {
         let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
         tracing::info!("create new task");
-        let from: Dsn = task
+        let mut from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        if let Some(topic) = task.oneshot_topic.as_deref() {
+            from.set("use.topic.name", topic);
+            tracing::info!("Set oneshot topic name: {}", topic);
+        };
 
         let to: Dsn = task
             .to
