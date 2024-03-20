@@ -3968,22 +3968,33 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 }
 
 
-SArray* generateSortByTsInfo(SArray* colMatchInfo, int32_t order) {
+SArray* generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order) {
   int32_t tsTargetSlotId = 0;
+  int32_t pkTargetSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(colMatchInfo); ++i) {
     SColMatchItem* colInfo = taosArrayGet(colMatchInfo, i);
     if (colInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       tsTargetSlotId = colInfo->dstSlotId;
     }
+    if (colInfo->isPk) {
+      pkTargetSlotId = colInfo->dstSlotId;
+    }
   }
 
   SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
-  SBlockOrderInfo bi = {0};
-  bi.order = order;
-  bi.slotId = tsTargetSlotId;
-  bi.nullFirst = NULL_ORDER_FIRST;
+  SBlockOrderInfo biTs = {0};
+  biTs.order = order;
+  biTs.slotId = tsTargetSlotId;
+  biTs.nullFirst = NULL_ORDER_FIRST;
+  taosArrayPush(pList, &biTs);
 
-  taosArrayPush(pList, &bi);
+  if (pkTargetSlotId != -1) {
+    SBlockOrderInfo biPk = {0};
+    biPk.order = order;
+    biPk.slotId = pkTargetSlotId;
+    biPk.nullFirst = NULL_ORDER_FIRST;
+    taosArrayPush(pList, &biPk);
+  }
 
   return pList;
 }
@@ -4354,7 +4365,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->bSortRowId = false;
   }
 
-  pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
+  pInfo->pSortInfo = generateSortByTsPkInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
 
   pInfo->needCountEmptyTable = tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable;
