@@ -169,6 +169,7 @@ class TDSql:
         i=1
         while i <= queryTimes:
             try:
+                tdLog.info(sql)
                 self.cursor.execute(sql)
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
