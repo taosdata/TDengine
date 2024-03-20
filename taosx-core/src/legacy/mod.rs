@@ -346,13 +346,6 @@ struct WriteContext {
 }
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
-
-    let from = &context
-        .from
-        .0
-        .get()
-        .await
-        .context("Get source connection error")?;
     let to = &context
         .to
         .0
@@ -385,6 +378,12 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
             let code: i32 = err.code().into();
             let err_str = err.to_string();
             tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
+            let from = &context
+                .from
+                .0
+                .get()
+                .await
+                .context("Get source connection error")?;
             if code == 0x2603 || code == 0x0618 {
                 if let Some(stable) = stable {
                     sync_super_table_schema(
