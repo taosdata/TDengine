@@ -700,6 +700,11 @@ impl Scheduler {
             task_id,
         }
     }
+
+    pub fn abort(&self) {
+        self.handles.iter().for_each(|h| h.abort());
+    }
+
     pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
         self.sender.send_async(todo).await
     }
