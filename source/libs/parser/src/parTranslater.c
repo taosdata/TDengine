@@ -804,6 +804,10 @@ static bool isImplicitTsFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsImplicitTsFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isPkFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsPrimaryKeyFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isScanPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
@@ -916,6 +920,10 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
   return isPrimaryKeyImpl(pExpr);
 }
 
+static bool hasPkInTable(STableMeta* pTableMeta) {
+  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+}
+
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                   SColumnNode* pCol) {
   strcpy(pCol->dbName, pTable->table.dbName);
@@ -938,6 +946,8 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
     pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
   }
+  pCol->tableHasPk = hasPkInTable(pTable->pMeta);
+  pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
 }
 
 static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
@@ -4615,6 +4625,63 @@ static int32_t appendTsForImplicitTsFunc(STranslateContext* pCxt, SSelectStmt* p
   return pCxt->errCode;
 }
 
+static int32_t createPkColByTable(STranslateContext* pCxt, SRealTableNode* pTable, SNode** pPk) {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCol->colId = pTable->pMeta->schema[1].colId;
+  strcpy(pCol->colName, pTable->pMeta->schema[1].name);
+  bool    found = false;
+  int32_t code = findAndSetColumn(pCxt, &pCol, (STableNode*)pTable, &found);
+  if (TSDB_CODE_SUCCESS != code || !found) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR);
+  }
+  *pPk = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static EDealRes hasPkColImpl(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->tableHasPk) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool hasPkCol(SNode* pNode) {
+  bool hasPk = false;
+  nodesWalkExprPostOrder(pNode, hasPkColImpl, &hasPk);
+  return hasPk;
+}
+
+static EDealRes appendPkForPkFuncImpl(SNode* pNode, void* pContext) {
+  STranslateContext* pCxt = pContext;
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable) && isPkFunc(pNode) && hasPkCol(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SRealTableNode* pRealTable = (SRealTableNode*)pTable;
+    SNode*         pPk = NULL;
+    pCxt->errCode = createPkColByTable(pCxt, pRealTable, &pPk);
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPk);
+    }
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pFunc->hasPk = true;
+      pFunc->pkBytes = ((SColumnNode*)pPk)->node.resType.bytes;
+    }
+    return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t appendPkParamForPkFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, appendPkForPkFuncImpl, pCxt);
+  return pCxt->errCode;
+}
+
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
   SNodeList*         pProjectionList;
@@ -4755,6 +4822,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = appendTsForImplicitTsFunc(pCxt, pSelect);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = appendPkParamForPkFunc(pCxt, pSelect);
+  }  
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
@@ -5938,6 +6008,14 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     }
     if (TSDB_CODE_SUCCESS == code && pCol->is_pk && colIndex != 1) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
+    }
+    if (TSDB_CODE_SUCCESS == code && pCol->is_pk &&
+        !(TSDB_DATA_TYPE_INT == pCol->dataType.type || 
+          TSDB_DATA_TYPE_UINT == pCol->dataType.type ||
+          TSDB_DATA_TYPE_BIGINT == pCol->dataType.type ||
+          TSDB_DATA_TYPE_UBIGINT == pCol->dataType.type ||
+          TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type)) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PK_TYPE);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
