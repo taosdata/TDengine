@@ -1339,6 +1339,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
+      c.isPk = pColNode->isPk;
       taosArrayPush(pList, &c);
     }
   }

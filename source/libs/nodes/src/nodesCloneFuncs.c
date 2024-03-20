@@ -120,6 +120,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
   COPY_SCALAR_FIELD(tableHasPk);
+  COPY_SCALAR_FIELD(isPk);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -938,7 +938,6 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
-  pCol->tableHasPk = hasPkInTable(pTable->pMeta);
   pCol->colId = pColSchema->colId;
   pCol->colType = (tagFlag >= 0 ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN);
   pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
@@ -947,6 +946,8 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
     pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
   }
+  pCol->tableHasPk = hasPkInTable(pTable->pMeta);
+  pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
 }
 
 static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {

@@ -86,6 +86,7 @@ typedef struct SColumnNode {
   int16_t     dataBlockId;
   int16_t     slotId;
   bool        tableHasPk;
+  bool        isPk;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
