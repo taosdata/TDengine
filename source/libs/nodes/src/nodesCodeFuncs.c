@@ -4067,7 +4067,7 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionUdfBufSize, pNode->udfBufSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkFunctionHasPk, pNode->hasPk);
+    code = tjsonAddBoolToObject(pJson, jkFunctionHasPk, pNode->hasPk);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionPkBytes, pNode->pkBytes);
