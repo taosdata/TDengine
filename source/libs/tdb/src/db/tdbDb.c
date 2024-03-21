@@ -52,7 +52,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   pDb->encryptAlgorithm = encryptAlgorithm;
   if(encryptKey != NULL){
-    strncpy(pDb->encryptKey, encryptKey, ENCRYPTKEYLEN); 
+    strncpy(pDb->encryptKey, encryptKey, ENCRYPT_KEY_LEN); 
   }
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));

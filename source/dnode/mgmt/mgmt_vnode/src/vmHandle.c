@@ -143,7 +143,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 #if defined(TD_ENTERPRISE)
   pCfg->tsdbCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if(pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4){
-    strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
   pCfg->walCfg.cryptAlgorithm = 0;
@@ -159,7 +159,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 #if defined(TD_ENTERPRISE)
   pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if(pCfg->walCfg.encryptAlgorithm == DND_CA_SM4){
-    strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
   pCfg->walCfg.cryptAlgorithm = 0;
@@ -168,7 +168,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 #if defined(TD_ENTERPRISE)
   pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
   if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
-    strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
   pCfg->tdbEncryptKey = 0;

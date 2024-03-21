@@ -249,7 +249,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
       return -1;
     }
     else{
-      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
 #endif
@@ -276,7 +276,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
       return -1;
     }
     else{
-      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
 #endif
@@ -289,7 +289,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
       return -1;
     }
     else{
-      strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+      strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
 #endif

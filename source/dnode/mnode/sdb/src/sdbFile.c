@@ -279,7 +279,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
     readLen = pRaw->dataLen + sizeof(int32_t);
     if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
-      readLen = ENCRYPTEDLEN(pRaw->dataLen) + sizeof(int32_t);
+      readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
       bufLen = pRaw->dataLen * 2;
@@ -311,14 +311,14 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
       int32_t count = 0;
 
-      char *plantContent = taosMemoryMalloc(ENCRYPTEDLEN(pRaw->dataLen));
+      char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
 
       SCryptOpts opts;
-      opts.len = ENCRYPTEDLEN(pRaw->dataLen);
+      opts.len = ENCRYPTED_LEN(pRaw->dataLen);
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      strncpy(opts.key, tsEncryptKey, ENCRYPTKEYLEN);
+      strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
 
       count = CBC_Decrypt(&opts);
       
@@ -326,7 +326,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
-      memcpy(pRaw->pData + pRaw->dataLen, &pRaw->pData[ENCRYPTEDLEN(pRaw->dataLen)], sizeof(int32_t));
+      memcpy(pRaw->pData + pRaw->dataLen, &pRaw->pData[ENCRYPTED_LEN(pRaw->dataLen)], sizeof(int32_t));
     }
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
@@ -438,7 +438,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
         int32_t newDataLen = pRaw->dataLen;
         char* newData = pRaw->pData;
         if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
-          newDataLen = ENCRYPTEDLEN(pRaw->dataLen);
+          newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
             code = TSDB_CODE_OUT_OF_MEMORY;
@@ -452,7 +452,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          strncpy(opts.key, tsEncryptKey, ENCRYPTKEYLEN);
+          strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
 
           int32_t count = CBC_Encrypt(&opts);
 

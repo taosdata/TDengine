@@ -456,7 +456,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
       return -1;
     }
     else{
-      strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+      strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
 #endif

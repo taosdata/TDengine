@@ -313,7 +313,7 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   int32_t cryptedBodyLen = plainBodyLen;
   //TODO: dmchen emun
   if(pRead->pWal->cfg.encryptAlgorithm == 1){
-    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
+    cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
   int64_t code = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
   if (code < 0) {
@@ -341,7 +341,7 @@ int32_t walFetchBody(SWalReader *pRead) {
 
   //TODO: dmchen emun
   if(pRead->pWal->cfg.encryptAlgorithm == 1){
-    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
+    cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
 
   if (pRead->capacity < cryptedBodyLen) {
@@ -454,7 +454,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   
   //TODO: dmchen emun
   if(pReader->pWal->cfg.encryptAlgorithm == 1){
-    cryptedBodyLen = ENCRYPTEDLEN(cryptedBodyLen);
+    cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
 
   if (pReader->capacity < cryptedBodyLen) {
@@ -515,7 +515,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func) {
   //TODO: dmchen emun
   if (cfg->encryptAlgorithm == 1) {
-    int32_t cryptedBodyLen = ENCRYPTEDLEN(plainBodyLen);
+    int32_t cryptedBodyLen = ENCRYPTED_LEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
 
     SCryptOpts opts;

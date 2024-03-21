@@ -71,7 +71,7 @@ static struct {
   SArray      *pArgs;  // SConfigPair
   int64_t      startTime;
   bool         generateCode;
-  char         encryptKey[ENCRYPTKEYLEN + 1];
+  char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetGlobalDebugFlag(143); }
@@ -203,11 +203,11 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-e") == 0) {
       global.generateCode = true;
       if(i < argc - 1) {
-        if (strlen(argv[++i]) > ENCRYPTKEYLEN) {
-          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPTKEYLEN);
+        if (strlen(argv[++i]) > ENCRYPT_KEY_LEN) {
+          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPT_KEY_LEN);
           return -1;
         }
-        tstrncpy(global.encryptKey, argv[i], ENCRYPTKEYLEN);
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
       } else {
         printf("'-e' requires a parameter\n");
         return -1;
@@ -327,11 +327,11 @@ static int32_t compareCheckCode(char* file, char* key){
 
   dInfo("succeed to read checkCode file:%s", file);
   
-  int len = ENCRYPTEDLEN(size);
+  int len = ENCRYPTED_LEN(size);
   result = taosMemoryMalloc(len);
 
   SCryptOpts opts = {0};
-  strncpy(opts.key, key, ENCRYPTKEYLEN);
+  strncpy(opts.key, key, ENCRYPT_KEY_LEN);
   opts.len = len;
   opts.source = content;
   opts.result = result;
@@ -359,11 +359,11 @@ static int32_t writeCheckCode(char* file, char* realfile, char* key){
   char     *result = NULL;
   int32_t   code = -1;
 
-  int32_t len = ENCRYPTEDLEN(sizeof(DM_KEY_INDICATOR));
+  int32_t len = ENCRYPTED_LEN(sizeof(DM_KEY_INDICATOR));
   result = taosMemoryMalloc(len);
 
   SCryptOpts opts;
-  strncpy(opts.key, key, ENCRYPTKEYLEN);
+  strncpy(opts.key, key, ENCRYPT_KEY_LEN);
   opts.len = len;
   opts.source = DM_KEY_INDICATOR;
   opts.result = result;
@@ -474,7 +474,7 @@ static int32_t getEncryptKey(){
 
   //TODO: dmchen parse key from code
 
-  strncpy(tsEncryptKey, content, ENCRYPTKEYLEN);
+  strncpy(tsEncryptKey, content, ENCRYPT_KEY_LEN);
 
   taosMemoryFreeClear(content);
 
