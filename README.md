@@ -35,7 +35,7 @@ Learn more about our offerings:
 
 - [TDengine OSS](https://tdengine.com/oss/), a high-performance open-source time-series database
 - [TDengine Enterprise](https://tdengine.com/enterprise/), a next generation data historian for Industry 4.0 and the Industrial IoT
-- [TDengine Cloud](https://cloud.tdengine.com), a fully managed cloud service for industrial big data
+- [TDengine Cloud](https://cloud.tdengine.com), a fully managed cloud service for industrial big data 
 
 # Documentation
 
