@@ -41,6 +41,12 @@
 #define LOG_BUF_SIZE(x)   ((x)->buffSize)
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
+#ifdef TD_ENTERPRISE
+#define LOG_EDITION_FLG ("E")
+#else
+#define LOG_EDITION_FLG ("C")
+#endif
+
 typedef struct {
   char         *buffer;
   int32_t       buffStart;
@@ -493,8 +499,9 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL);
 
-  return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
+  return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s", ptm->tm_mon + 1, ptm->tm_mday,
+                 ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(),
+                 LOG_EDITION_FLG, flags);
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
