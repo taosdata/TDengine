@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TDPIConnector.Core.Monitoring;
 using TDPIConnector.PI;
 using TDPIConnector.PI.Exceptions;
+using System.Threading;
 
 namespace TDPIConnector.Core.Tasks
 {
@@ -18,6 +19,7 @@ namespace TDPIConnector.Core.Tasks
         private readonly PISystemManager piSystemManager;
         private AFDataPipeManager afDataPipeWrapper;
         private bool stopTaskRequested;
+        private Semaphore semSignup = new Semaphore(0, 1);
 
         public ElementModeTask(PISystemManager piSystemManager,
             IMonitoringService monitoringService,
@@ -31,7 +33,7 @@ namespace TDPIConnector.Core.Tasks
 
             this.task = new Task(async () =>
             {
-                log.Info("Process datapipe, AF Element Mode observer start...");
+                log.Info("Process datapipe, AF Element Mode observer startting...");
                 try {
                     this.afDataPipeWrapper = this.piSystemManager.AddSignups(this.elements.Values.ToList(), elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
                 }
@@ -40,6 +42,7 @@ namespace TDPIConnector.Core.Tasks
                     log.Error("Error Occured when AF Element AddSignups.", e);
                     stopTaskRequested = true;
                 }
+                semSignup.Release();
                 while (!stopTaskRequested)
                 {
                     if (!StandbyManager.Instance.PIConnectionError)
@@ -72,6 +75,7 @@ namespace TDPIConnector.Core.Tasks
             log.Debug("Starting ElementModeTask...");
             stopTaskRequested = false;
             this.task.Start();
+            semSignup.WaitOne();
             log.Debug("ElementModeTask started successfully");
         }
 

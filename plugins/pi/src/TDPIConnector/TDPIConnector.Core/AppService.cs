@@ -200,8 +200,8 @@ namespace TDPIConnector.Core
 
             if ((this.piPoints != null && this.piPoints.Count > 0) || (this.elements != null && this.elements.Count > 0))
             {
-                StartBackfill();
                 StartDataPipe();
+                StartBackfill();
                 StartTemplateObserve();
                 this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 this.standByModeTask.Start();

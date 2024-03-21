@@ -7,6 +7,7 @@ using TDPIConnector.Core.Monitoring;
 using TDPIConnector.PI;
 using TDPIConnector.PI.Exceptions;
 using TDPIConnector.TDEngine.Models;
+using System.Threading;
 
 namespace TDPIConnector.Core.Tasks
 {
@@ -19,6 +20,7 @@ namespace TDPIConnector.Core.Tasks
         private readonly Task task;
         private PIDataPipeManager piDataPipeManager;
         private bool stopTaskRequested;
+        private Semaphore semSignup = new Semaphore(0, 1);
 
         public PointModeTask(PIServerManager piServerManager, 
             IMonitoringService monitoringService,
@@ -36,6 +38,7 @@ namespace TDPIConnector.Core.Tasks
                 this.piDataPipeManager = this.piServerManager.AddSignups(piPointNames, pointModeObserver, AppSettings.tomlConfig.PIDataPipesInstances);
                 log.Info("Process datapipe, PI Point Mode observer start...");
                 int maxEventCount = AppSettings.MaxEventCountObserverFetchOnce;
+                semSignup.Release();
                 while (!stopTaskRequested)
                 {
                     if (!StandbyManager.Instance.PIConnectionError)
@@ -67,6 +70,7 @@ namespace TDPIConnector.Core.Tasks
             log.Debug("Starting PointModeTask...");
             stopTaskRequested = false;
             this.task.Start();
+            semSignup.WaitOne();
             log.Debug("PointModeTask started successfully");
         }
 
