@@ -165,18 +165,23 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
 
     if (ASCENDING_TRAVERSE(pTsdbReader->info.order)) {
       int64_t skey = pTsdbReader->info.window.skey;
-      pScanInfo->lastProcKey.key.ts = (skey > INT64_MIN) ? (skey - 1) : skey;
+      pScanInfo->lastProcKey.ts = (skey > INT64_MIN) ? (skey - 1) : skey;
       pScanInfo->sttKeyInfo.nextProcKey = skey;
     } else {
       int64_t ekey = pTsdbReader->info.window.ekey;
-      pScanInfo->lastProcKey.key.ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+      pScanInfo->lastProcKey.ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
       pScanInfo->sttKeyInfo.nextProcKey = ekey;
+    }
+
+    pScanInfo->lastProcKey.numOfPKs = pTsdbReader->suppInfo.numOfPks;
+    if (pTsdbReader->suppInfo.numOfPks > 0 && IS_VAR_DATA_TYPE(pTsdbReader->suppInfo.pk.type)) {
+      pScanInfo->lastProcKey.pks[0].pData = taosMemoryCalloc(1, pTsdbReader->suppInfo.pk.bytes);
     }
 
     pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
     tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
-              pScanInfo->lastProcKey.key.ts, pTsdbReader->idStr);
+              pScanInfo->lastProcKey.ts, pTsdbReader->idStr);
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -209,7 +214,7 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
     }
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
-    pInfo->lastProcKey.key.ts = ts;
+    pInfo->lastProcKey.ts = ts;
     ASSERT(0);
 
     pInfo->sttKeyInfo.nextProcKey = ts + step;
