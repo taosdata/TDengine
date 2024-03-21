@@ -969,7 +969,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
 _exit:
-  for (int32_t i = 0; i < TARRAY_SIZE(pTagVals); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFreeClear(p->pData);
