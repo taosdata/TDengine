@@ -227,11 +227,23 @@ namespace TDPIConnector.PI
         }
         public bool IsTDengineTag()
         {
-            if (DataReference == "Table Lookup" || DataReference == "String Builder")
+            // DataReference == "Formula" ||
+            if (DataReference == "Table Lookup" || DataReference == "String Builder"
+                ||  DataReference == "URI Builder")
             {
                 return true;
             }
+
             return string.IsNullOrEmpty(DataReference);
+        }
+        public bool Unsupported()
+        {
+            if (DataReference == "PI Point Array")
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }
