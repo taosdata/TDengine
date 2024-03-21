@@ -1575,6 +1575,13 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       break;
     }
+    case TSDB_DATA_TYPE_BLOB: {
+      int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      if (code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_NCHAR: {
       // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
       int32_t len = 0;

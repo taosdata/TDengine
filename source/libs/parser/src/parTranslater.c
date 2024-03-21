@@ -1847,7 +1847,8 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_VARBINARY == dt.type || TSDB_DATA_TYPE_BLOB == dt.type ||
+      TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -7477,10 +7478,13 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
     }
-    if (TSDB_CODE_SUCCESS == code) {
-      rowSize += calcTypeBytes(pCol->dataType);
-    } else {
+
+    if (TSDB_CODE_SUCCESS != code) {
       break;
+    }
+
+    if (pCol->dataType.type != TSDB_DATA_TYPE_BLOB) {
+      rowSize += calcTypeBytes(pCol->dataType);
     }
     // next column
     ++colIndex;
