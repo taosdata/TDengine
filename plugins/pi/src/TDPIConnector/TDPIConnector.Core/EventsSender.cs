@@ -83,7 +83,7 @@ namespace TDPIConnector.Core
                     !dpEvent.Value.Attribute.Unsupported())
                 {
                     log.Info($"element event delete {elementName}:{attributeName}:{timestamp}");
-                    this.tdEngineProxy.DeleteAFElementEvent(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, timestamp).Wait();
+                    this.tdEngineProxy.UpdateAFElementAttributeNULL(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, timestamp).Wait();
                     continue;
                 }
                 if (!columnNames.Contains(attributeName))
