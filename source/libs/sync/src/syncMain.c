@@ -302,6 +302,10 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
         goto _OVER;
       }
       syncNodeBecomeAssignedLeader(ths);
+
+      if (syncNodeAppendNoop(ths) < 0) {
+        sError("vgId:%d, assigned leader failed to append noop entry since %s", ths->vgId, terrstr());
+      }
     }
     errcode = TSDB_CODE_SUCCESS;
   } else {
