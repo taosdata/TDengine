@@ -338,7 +338,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void Stop()
         {
-            if (stopTaosxSend) {
+            if (!stopTaosxSend) {
                 stopTaosxSend = true;
                 send();
             }

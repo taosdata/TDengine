@@ -188,10 +188,11 @@ namespace TDPIConnector.Core
                     }
                 }
                 log.Info($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
-                if (!found) break;
+
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
-                currentStart = smallLastAttributeTime.AddMilliseconds(1);
+                currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
                 stopwatch.Reset();
+                if (!found) break;
             } while (currentStart < endTime);
             log.Info($"Backfill TDEngine attribute {element.Name} values written finished.");
         }
