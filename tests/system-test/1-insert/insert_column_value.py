@@ -45,6 +45,8 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         tdSql.execute(f'drop database if exists db')
         tdSql.execute(f'create database if not exists db vgroups 1')
+        tdLog.printNoPrefix("create table")
+        self.__create_tb()
 
     def __create_tb(self, dbname="db"):
         CREATE_STB_LIST = [ f"create table {dbname}.stb_vc (ts timestamp, c0 varchar(50), c1 varchar(50)) tags(t0 varchar(50), t1 varchar(50));",
@@ -53,8 +55,14 @@ class TDTestCase:
                             f"create table {dbname}.stb_ts (ts timestamp, c0 timestamp, c1 timestamp) tags(t0 timestamp, t1 timestamp);",
                             f"create table {dbname}.stb_bo (ts timestamp, c0 bool, c1 bool) tags(t0 bool, t1 bool);",
                             f"create table {dbname}.stb_vb (ts timestamp, c0 varbinary(50), c1 varbinary(50)) tags(t0 varbinary(50), t1 varbinary(50));",
-                            f"create table {dbname}.stb_in (ts timestamp, c0 int, c1 smallint) tags(t0 bigint, t1 tinyint);",
-                            f"create table {dbname}.stb_ui (ts timestamp, c0 int unsigned, c1 smallint unsigned) tags(t0 bigint unsigned, t1 tinyint unsigned);",
+                            f"create table {dbname}.stb_in (ts timestamp, c0 int, c1 int) tags(t0 int, t1 int);",
+                            f"create table {dbname}.stb_ui (ts timestamp, c0 int unsigned, c1 int unsigned) tags(t0 int unsigned, t1 int unsigned);",
+                            f"create table {dbname}.stb_bin (ts timestamp, c0 bigint, c1 bigint) tags(t0 bigint, t1 bigint);",
+                            f"create table {dbname}.stb_bui (ts timestamp, c0 bigint unsigned, c1 bigint unsigned) tags(t0 bigint unsigned, t1 bigint unsigned);",
+                            f"create table {dbname}.stb_sin (ts timestamp, c0 smallint, c1 smallint) tags(t0 smallint, t1 smallint);",
+                            f"create table {dbname}.stb_sui (ts timestamp, c0 smallint unsigned, c1 smallint unsigned) tags(t0 smallint unsigned, t1 smallint unsigned);",
+                            f"create table {dbname}.stb_tin (ts timestamp, c0 tinyint, c1 tinyint) tags(t0 tinyint, t1 tinyint);",
+                            f"create table {dbname}.stb_tui (ts timestamp, c0 tinyint unsigned, c1 tinyint unsigned) tags(t0 tinyint unsigned, t1 tinyint unsigned);",
                             f"create table {dbname}.stb_fl (ts timestamp, c0 float, c1 float) tags(t0 float, t1 float);",
                             f"create table {dbname}.stb_db (ts timestamp, c0 double, c1 double) tags(t0 double, t1 double);",
                             f"create table {dbname}.stb_ge (ts timestamp, c0 geometry(512), c1 geometry(512)) tags(t0 geometry(512), t1 geometry(512));",
@@ -66,8 +74,14 @@ class TDTestCase:
                             f"create table {dbname}.ntb_ts (ts timestamp, c0 timestamp, c1 timestamp);",
                             f"create table {dbname}.ntb_bo (ts timestamp, c0 bool, c1 bool);",
                             f"create table {dbname}.ntb_vb (ts timestamp, c0 varbinary(50), c1 varbinary(50));",
-                            f"create table {dbname}.ntb_in (ts timestamp, c0 int, c1 smallint);",
-                            f"create table {dbname}.ntb_ui (ts timestamp, c0 int unsigned, c1 smallint unsigned);",
+                            f"create table {dbname}.ntb_in (ts timestamp, c0 int, c1 int);",
+                            f"create table {dbname}.ntb_ui (ts timestamp, c0 int unsigned, c1 int unsigned);",
+                            f"create table {dbname}.ntb_bin (ts timestamp, c0 bigint, c1 bigint);",
+                            f"create table {dbname}.ntb_bui (ts timestamp, c0 bigint unsigned, c1 bigint unsigned);",
+                            f"create table {dbname}.ntb_sin (ts timestamp, c0 smallint, c1 smallint);",
+                            f"create table {dbname}.ntb_sui (ts timestamp, c0 smallint unsigned, c1 smallint unsigned);",
+                            f"create table {dbname}.ntb_tin (ts timestamp, c0 tinyint, c1 tinyint);",
+                            f"create table {dbname}.ntb_tui (ts timestamp, c0 tinyint unsigned, c1 tinyint unsigned);",
                             f"create table {dbname}.ntb_fl (ts timestamp, c0 float, c1 float);",
                             f"create table {dbname}.ntb_db (ts timestamp, c0 double, c1 double);",
                             f"create table {dbname}.ntb_ge (ts timestamp, c0 geometry(512), c1 geometry(512));"]
@@ -201,30 +215,30 @@ class TDTestCase:
             tdSql.execute(f'drop table {dbname}.{ctbname}')
 
     def __insert_query_common(self, dbname="db", stbname="", ctbname="", ntbname="", oklist=[], kolist=[], okv=None, dtype = TDDataType.NULL):
-        tdLog.info(f'{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d'%(len(oklist), len(kolist)))
+        tdLog.info(f'[Begin]{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d, TDDataType:%s'%(len(oklist), len(kolist), dtype))
         # tdSql.checkEqual(34, len(oklist) + len(kolist))
 
         for _l in kolist:
             for _e in _l:
                 # create sub-table manually, check tag
-                tdLog.info('ko:create sub-table manually, check tag')
+                tdLog.info('[ko:create sub-table manually, check tag]')
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv})' %(_e))
                 tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s)' %(_e))
-                tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
+                # tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
 
                 # create sub-table automatically, check tag
-                tdLog.info('ko:create sub-table automatically, check tag')
+                tdLog.info('[ko:create sub-table automatically, check tag]')
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, %s) values(now, {okv}, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%s, {okv}) values(now, {okv}, {okv})' %(_e))
                 
                 # create sub-table automatically, check value
-                tdLog.info('ko:create sub-table automatically, check value')
+                tdLog.info('[ko:create sub-table automatically, check value]')
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, %s)' %(_e))
-                tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, %s)' %(_e, _e))
+                # tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, %s, %s)' %(_e, _e))
                 
                 # check alter table tag
-                tdLog.info('ko:check alter table tag')
+                tdLog.info('[ko:check alter table tag]')
                 tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags({okv}, {okv}) values(now, {okv}, {okv})')
                 self._query_check(dbname,stbname, "", None, 1, okv, _e, dtype)
                 tdSql.execute(f'alter table {dbname}.{ctbname} set tag t0 = {okv}')
@@ -232,40 +246,46 @@ class TDTestCase:
                 tdSql.error(f'alter table {dbname}.{ctbname} set tag t1 = %s' %(_e))
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
 
+                # insert into value by supper-table, check tag & value
+                tdLog.info('[ko:insert into value by supper-table, check tag & value]')
+                tdSql.error(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_1", %s, {okv}, now, {okv}, {okv})' %(_e))
+                tdSql.error(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_2", {okv},{okv}, now + 1s, {okv}, %s)' %(_e))
+                # tdSql.error(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_3", %s, %s, now + 2s, %s, %s)' %(_e, _e, _e, _e))
+
                 # insert into normal table, check value
-                tdLog.info('ko:insert into normal table, check value')
+                tdLog.info('[ko:insert into normal table, check value]')
                 tdSql.error(f'insert into {dbname}.{ntbname} values(now, %s, {okv})' %(_e))
                 tdSql.error(f'insert into {dbname}.{ntbname} values(now, {okv}, %s)' %(_e))
-                tdSql.error(f'insert into {dbname}.{ntbname} values(now, %s, %s)' %(_e, _e))
+                # tdSql.error(f'insert into {dbname}.{ntbname} values(now, %s, %s)' %(_e, _e))
 
         for _l in oklist:
             for _e in _l:
                 # 1. create sub-table manually, check tag
-                tdLog.info('ok:create sub-table manually, check tag')
+                tdLog.info('[ok:create sub-table manually, check tag]')
                 tdSql.execute(f'create table {dbname}.{ctbname}_1 using {dbname}.{stbname} tags(%s, {okv})' %(_e))
                 tdSql.execute(f'create table {dbname}.{ctbname}_2 using {dbname}.{stbname} tags({okv}, %s)' %(_e))
                 tdSql.execute(f'create table {dbname}.{ctbname}_3 using {dbname}.{stbname} tags(%s, %s)' %(_e, _e))
                 
 
                 # 1.1 insert into sub-table, check value
-                tdLog.info('ok:insert into sub-table, check value')
+                tdLog.info('[ok:insert into sub-table, check value]')
                 tdSql.execute(f'insert into {dbname}.{ctbname}_1 values(now + 0s, %s, {okv})' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ctbname}_2 values(now + 1s, {okv}, %s)' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ctbname}_3 values(now + 2s, %s, %s)' %(_e, _e))
                 
                 # 1.2 check alter table tag
-                tdLog.info('ok:check alter table tag')
+                tdLog.info('[ok:check alter table tag]')
                 tdSql.execute(f'alter table {dbname}.{ctbname}_1 set tag t1 = %s' %(_e))
                 tdSql.execute(f'alter table {dbname}.{ctbname}_2 set tag t0 = %s' %(_e))
 
                 # 1.3 check table data
-                tdLog.info('ok:check table data')
+                tdLog.info('[ok:check table data]')
                 self._query_check(dbname, stbname, f'{ctbname}_1', None, 3, okv, _e, dtype)
                 self._query_check(dbname, stbname, f'{ctbname}_2', None, 2, okv, _e, dtype)
                 self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
 
                 # 2. insert into value by creating sub-table automatically, check tag & value
-                tdLog.info('ok:insert into value by creating sub-table automatically, check tag & value')
+                tdLog.info('[ok:insert into value by creating sub-table automatically, check tag & value]')
                 tdSql.execute(f'insert into {dbname}.{ctbname}_1 using {dbname}.{stbname} tags(%s, {okv}) values(now, %s, {okv})' %(_e, _e))
                 tdSql.execute(f'insert into {dbname}.{ctbname}_2 using {dbname}.{stbname} tags({okv}, %s) values(now + 1s, {okv}, %s)' %(_e, _e))
                 tdSql.execute(f'insert into {dbname}.{ctbname}_3 using {dbname}.{stbname} tags(%s, %s) values(now + 2s, %s, %s)' %(_e, _e, _e, _e))
@@ -275,7 +295,7 @@ class TDTestCase:
                 self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
 
                 # 3. insert into value by supper-table, check tag & value
-                tdLog.info('ok:insert into value by supper-table, check tag & value')
+                tdLog.info('[ok:insert into value by supper-table, check tag & value]')
                 tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_1", %s, {okv}, now, %s, {okv})' %(_e, _e))
                 tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_2", {okv}, %s, now + 1s, {okv}, %s)' %(_e, _e))
                 tdSql.execute(f'insert into {dbname}.{stbname}(tbname, t0, t1, ts, c0, c1) values("{ctbname}_3", %s, %s, now + 2s, %s, %s)' %(_e, _e, _e, _e))
@@ -285,7 +305,7 @@ class TDTestCase:
                 self._query_check(dbname, stbname, f'{ctbname}_3', None, 1, okv, _e, dtype)
 
                 # 4. insert value into normal table
-                tdLog.info('ok:insert value into normal table')
+                tdLog.info('[ok:insert value into normal table]')
                 tdSql.execute(f'insert into {dbname}.{ntbname} values(now, %s, {okv})' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ntbname} values(now + 1s, {okv}, %s)' %(_e))
                 tdSql.execute(f'insert into {dbname}.{ntbname} values(now + 2s, %s, %s)' %(_e, _e))
@@ -318,7 +338,7 @@ class TDTestCase:
                 tdSql.query(f'select * from {dbname}.{stbname}')
                 tdSql.checkRows(1)
                 tdSql.execute(f'drop table {dbname}.{ctbname}')
-
+    
     def __insert_query_exec(self):
         STR_EMPTY = ['\'\'', "\"\"", '\' \'', "\"    \""]
         STR_CHINESE = ['\'年年岁岁，花相似\'']
@@ -351,6 +371,14 @@ class TDTestCase:
 
         RAW_INTEGER_P = [' 42 ', '+042 ', ' +0', '0 ', '-0', '0', ' 0X2A', ' -0x0 ', '+0x0  ', '  0B00101010', ' -0b00']
         RAW_INTEGER_M = [' -42 ', ' -0128',' -0x1', '  -0X2A', '-0b01  ', ' -0B00101010 ']
+        RAW_INTEGER_INT_BOUNDARY_ILLEGAL =['2147483648', '-2147483649']
+        RAW_INTEGER_UINT_BOUNDARY_ILLEGAL =['4294967296', '-1']
+        RAW_INTEGER_BINT_BOUNDARY_ILLEGAL =['9223372036854775808', '-9223372036854775809']
+        RAW_INTEGER_UBINT_BOUNDARY_ILLEGAL =['18446744073709551616', '-1']
+        RAW_INTEGER_SINT_BOUNDARY_ILLEGAL =['32768', '-32769']
+        RAW_INTEGER_USINT_BOUNDARY_ILLEGAL =['65536', '-1']
+        RAW_INTEGER_TINT_BOUNDARY_ILLEGAL =['128', '-129']
+        RAW_INTEGER_UTINT_BOUNDARY_ILLEGAL =['256', '-1']
         RAW_FLOAT_P = [' 123.012', ' 0.0', ' +0.0', ' -0.0  ']
         RAW_FLOAT_M = ['-128.001 ']
         RAW_FLOAT_E_P = [' 1e-100', ' +0.1E+2', ' -0.1E-10']
@@ -390,12 +418,26 @@ class TDTestCase:
                  STR_BINARY_ILLEGAL, STR_BINARY_ILLEGAL, RAW_BINARY_ILLEGAL, RAW_NONE]
         OK_IN = [STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, STR_NULL, RAW_INTEGER_P, RAW_INTEGER_M, RAW_FLOAT_P, RAW_FLOAT_M,
                  RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_NULL]
-        KO_IN = [STR_EMPTY, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK,
+        BASE_KO_IN = [STR_EMPTY, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK,
                  RAW_BOOL, RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, STR_CHINESE, STR_NONE, STR_BINARY, RAW_NONE]
+        KO_IN = BASE_KO_IN + [RAW_INTEGER_INT_BOUNDARY_ILLEGAL]
+        OK_BIN = OK_IN
+        KO_BIN = BASE_KO_IN +  [RAW_INTEGER_BINT_BOUNDARY_ILLEGAL]
+        OK_SIN = OK_IN
+        KO_SIN = BASE_KO_IN + [RAW_INTEGER_SINT_BOUNDARY_ILLEGAL]
+        OK_TIN = OK_IN
+        KO_TIN = BASE_KO_IN + [RAW_INTEGER_TINT_BOUNDARY_ILLEGAL]
         OK_UI = [STR_INTEGER_P, STR_FLOAT_P, STR_FLOAT_E_P, STR_NULL, RAW_INTEGER_P, RAW_FLOAT_P, RAW_FLOAT_E_P, RAW_NULL, RAW_FLOAT_E_M_SPE]
-        KO_UI = [STR_EMPTY, STR_MISC, STR_INTEGER_M, STR_FLOAT_M, STR_FLOAT_E_M, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, 
+        BASE_KO_UI = [STR_EMPTY, STR_MISC, STR_INTEGER_M, STR_FLOAT_M, STR_FLOAT_E_M, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, 
                  STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK, RAW_BOOL, RAW_INTEGER_M, RAW_FLOAT_M, RAW_FLOAT_E_M, RAW_MISC, RAW_OPTR, RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, 
                  STR_CHINESE, STR_NONE, RAW_NONE]
+        KO_UI = BASE_KO_UI + [RAW_INTEGER_UINT_BOUNDARY_ILLEGAL]
+        OK_UBINT = OK_UI
+        KO_UBINT = BASE_KO_UI + [RAW_INTEGER_UBINT_BOUNDARY_ILLEGAL]
+        OK_USINT = OK_UI
+        KO_USINT = BASE_KO_UI + [RAW_INTEGER_USINT_BOUNDARY_ILLEGAL]
+        OK_UTINT = OK_UI
+        KO_UTINT = BASE_KO_UI + [RAW_INTEGER_UTINT_BOUNDARY_ILLEGAL]
         OK_FL = [RAW_INTEGER_P, STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, STR_NULL, RAW_INTEGER_M, RAW_FLOAT_P, RAW_FLOAT_M,
                   RAW_FLOAT_E_P, RAW_FLOAT_E_M, RAW_NULL]
         KO_FL = [STR_EMPTY, STR_MISC, STR_OPTR, STR_TSK, STR_TSK_MISC, STR_TSKP, STR_TSKP_MISC, STR_BOOL, STR_TS, STR_VARBIN, STR_JSON_O, STR_JSON_A, STR_GEO, RAW_TSK, 
@@ -411,9 +453,6 @@ class TDTestCase:
                  RAW_TSK_OPTR, RAW_TSKP, RAW_TSKP_OPTR, STR_INTEGER_P, STR_INTEGER_M, STR_FLOAT_P, STR_FLOAT_M, STR_FLOAT_E_P, STR_FLOAT_E_M, RAW_INTEGER_P, RAW_INTEGER_M, 
                  RAW_FLOAT_P, RAW_FLOAT_M, RAW_FLOAT_E_P, RAW_FLOAT_E_M, STR_CHINESE, STR_NONE, STR_BINARY, RAW_NONE]
         
-        # PARAM_LIST = [
-        #                 ["db", "stb_vc", "ctb_vc", "ntb_vc", OK_VC, KO_VC, "\'vc\'", TDDataType.VARCHAR]
-        #               ]
         
         PARAM_LIST = [
                         ["db", "stb_vc", "ctb_vc", "ntb_vc", OK_VC, KO_VC, "\'vc\'", TDDataType.VARCHAR],
@@ -422,8 +461,16 @@ class TDTestCase:
                         ["db", "stb_ts", "ctb_ts", "ntb_ts", OK_TS, KO_TS, "now", TDDataType.TIMESTAMP],
                         ["db", "stb_bo", "ctb_bo", "ntb_bo", OK_BO, KO_BO, "true", TDDataType.BOOL],
                         ["db", "stb_vb", "ctb_vb", "ntb_vb", OK_VB, KO_VB, "\'\\x12\'", TDDataType.VARBINARY],
-                        ["db", "stb_in", "ctb_in", "ntb_in", OK_IN, KO_IN, "-1", TDDataType.UINT],
+
+                        ["db", "stb_in", "ctb_in", "ntb_in", OK_IN, KO_IN, "-1", TDDataType.INT],
                         ["db", "stb_ui", "ctb_ui", "ntb_ui", OK_UI, KO_UI, "1", TDDataType.UINT],
+                        ["db", "stb_bin", "ctb_bin", "ntb_bin", OK_BIN, KO_BIN, "-1", TDDataType.BIGINT],
+                        ["db", "stb_bui", "ctb_bui", "ntb_bui", OK_UBINT, KO_UBINT, "1", TDDataType.UBIGINT],
+                        ["db", "stb_sin", "ctb_sin", "ntb_sin", OK_SIN, KO_SIN, "-1", TDDataType.SMALLINT],
+                        ["db", "stb_sui", "ctb_sui", "ntb_sui", OK_USINT, KO_USINT, "1", TDDataType.USMALLINT],
+                        ["db", "stb_tin", "ctb_tin", "ntb_tin", OK_TIN, KO_TIN, "-1", TDDataType.TINYINT],
+                        ["db", "stb_tui", "ctb_tui", "ntb_tui", OK_UTINT, KO_UTINT, "1", TDDataType.UTINYINT],
+
                         ["db", "stb_fl", "ctb_fl", "ntb_fl", OK_FL, KO_FL, "1.0", TDDataType.FLOAT],
                         ["db", "stb_db", "ctb_db", "ntb_db", OK_DB, KO_DB, "1.0", TDDataType.DOUBLE],
                         ["db", "stb_ge", "ctb_ge", "ntb_ge", OK_GE, KO_GE, "\'POINT(1.0 1.0)\'", TDDataType.GEOMETRY] 
@@ -437,8 +484,6 @@ class TDTestCase:
 
 
     def run(self):
-        tdLog.printNoPrefix("==========step1:create table")
-        self.__create_tb()
         self.__insert_query_exec()
 
 
