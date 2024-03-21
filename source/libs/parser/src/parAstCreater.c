@@ -1786,6 +1786,11 @@ SDataType createDataType(uint8_t type) {
   return dt;
 }
 
+SDataType createBlobDataType(uint8_t type) {
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = 1024 * 1024 * 20};
+  return dt;
+}
+
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
   int32_t len = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
   if (type == TSDB_DATA_TYPE_NCHAR) len /= TSDB_NCHAR_SIZE;

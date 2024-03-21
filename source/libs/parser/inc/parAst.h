@@ -175,6 +175,7 @@ SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectT
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
 SDataType createDataType(uint8_t type);
+SDataType createBlobDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
 
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
