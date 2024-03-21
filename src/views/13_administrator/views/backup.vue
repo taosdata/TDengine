@@ -445,7 +445,7 @@ export default {
         const scheduleObj = { [key]: value };
         let base_url = localStorage.getItem("base_url")
         let splitArr = base_url.split('//')
-        let dsn = splitArr[0] + "//" + this.username + ':' + this.decryptPwd + '@'+ splitArr[1]
+        let dsn = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
         let params = {
           // name: "bakcup",
           labels: [
