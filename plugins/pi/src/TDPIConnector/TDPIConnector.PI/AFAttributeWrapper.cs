@@ -221,6 +221,16 @@ namespace TDPIConnector.PI
 
             return string.IsNullOrEmpty(DataReference);
         }
+        public bool signUpValid()
+        {
+            if (DataReference == "String Builder" || DataReference == "Table Lookup"
+                || DataReference == "URI Builder")
+            {
+                return false;
+            }
+
+            return true;
+        }
         public bool Unsupported()
         {
             if (DataReference == "PI Point Array")
