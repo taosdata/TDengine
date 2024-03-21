@@ -171,6 +171,25 @@ class TDTestCase:
         for i in range(tdSql.queryRows):
             tdSql.checkData(i, 0, expectedResults[5][i+1])
 
+    def test_td28365(self):
+        # verify TD-28365
+        tdSql.execute("create database db2;")
+        tdSql.execute("use db2;")
+        tdSql.execute("create table st (ts timestamp, c1 int) tags(id int, location geometry(512));")
+        tdSql.execute("create table ct1 using st tags(1, 'POINT (3.000000 6.000000)')")
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("create table ct2 using st tags(2, 'LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)')")
+        tdSql.execute("insert into ct2 values(now, 2)")
+        tdSql.execute("create table ct3 using st tags(3, 'POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))')")
+        tdSql.execute("insert into ct3 values(now, 3)")
+        tdSql.query("select ST_AsText(location) from st order by location;")
+        tdSql.checkEqual(tdSql.queryRows, 3)
+        tdLog.debug(tdSql.queryResult)
+        # check geometry data
+        tdSql.checkEqual(tdSql.queryResult[0][0], "POINT (3.000000 6.000000)")
+        tdSql.checkEqual(tdSql.queryResult[1][0], "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)")
+        tdSql.checkEqual(tdSql.queryResult[2][0], "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))")
+
     def run(self):
         tdSql.prepare()
 
@@ -248,6 +267,7 @@ class TDTestCase:
             [1, self.point]               # in where clause
         ]
         self.geomRelationFunc_test('ST_ContainsProperly', expectedResults)
+        self.test_td28365()
 
     def stop(self):
         tdSql.close()
