@@ -3156,7 +3156,7 @@ async fn legacy_to_taos_impl(
     if let Some(duration) = source_opts.schema_polling_wait_before_end {
         tokio::time::sleep(duration).await;
     }
-    schema_polling_done.send(()).unwrap();
+    let _ = schema_polling_done.send(());
     schema_polling_task.await??;
 
     info!("syncing done, wait to release resources");
