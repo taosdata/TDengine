@@ -1,13 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Models;
-using TDPIConnector.TDEngine;
-using TDPIConnector.Core.Conversions;
-
 namespace TDPIConnector.Core.Conversions
 {
     class TableNameConvert

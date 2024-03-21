@@ -200,8 +200,8 @@ namespace TDPIConnector.Core
 
             if ((this.piPoints != null && this.piPoints.Count > 0) || (this.elements != null && this.elements.Count > 0))
             {
-                StartBackfill();
                 StartDataPipe();
+                StartBackfill();
                 StartTemplateObserve();
                 this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 this.standByModeTask.Start();
@@ -269,7 +269,7 @@ namespace TDPIConnector.Core
 
         private void BackfillData()
         {
-            var backfillStartLimit = DateTime.UtcNow.AddDays(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+            var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
             this.backfillPIPointsTask = null;
             this.backfillAFElementsTask = null;
             BackfillManager backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);

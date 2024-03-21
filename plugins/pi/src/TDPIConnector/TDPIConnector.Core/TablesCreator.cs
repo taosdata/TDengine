@@ -122,6 +122,7 @@ namespace TDPIConnector.Core
             {
                 //check for associated supertable, create if needed
                 var superTable = TemplateSTableConverter.Convert(elementTemplate);
+                if (!superTable.HasValidColumn()) continue;
                 await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
                 //get all elements based on template
@@ -162,6 +163,7 @@ namespace TDPIConnector.Core
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {
                 var elements = await CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
+                if (null == elements) continue;
                 elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
             }
             return elementsCollection;
@@ -170,6 +172,7 @@ namespace TDPIConnector.Core
         {
             //check for associated supertable, create if needed
             var superTable = TemplateSTableConverter.Convert(elementTemplate);
+            if (!superTable.HasValidColumn()) return null;
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
             //get all elements based on template
@@ -204,9 +207,9 @@ namespace TDPIConnector.Core
 
             } catch (Exception e) {
                 log.Error($"GetSTables failed.{e}");
-                throw e;
+                return false;
             }
-            if (res.Data == null)
+            if (null == res || null == res.Data)
             {
                 // Adding super tables at runtime is not supported
                 return false;

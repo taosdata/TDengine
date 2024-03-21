@@ -14,8 +14,8 @@ namespace TDPIConnector.Core
         public class TomlConfig {
             public string LogLevel { get; set; }
             public int MaxWaitLen { get; set; } = 1000;
-            public int UpdateInterval { get; set; } = 10000;
-            public int MaxBackfillRangeDays { get; set; } = 1;
+            public int UpdateInterval { get; set; } = 1000;
+            public int MaxBackfillRangeDays { get; set; } = 1; // uit: Minutes
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }

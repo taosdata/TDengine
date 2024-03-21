@@ -171,6 +171,7 @@ namespace TDPIConnector.Core
             {
                 //check for associated supertable, create if needed
                 var superTable = TemplateSTableConverter.Convert(elementTemplate);
+                if (!superTable.HasValidColumn()) continue;
                 var resp2 = await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
                 var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);

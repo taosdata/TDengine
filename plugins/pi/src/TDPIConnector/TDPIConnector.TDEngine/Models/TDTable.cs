@@ -39,5 +39,16 @@ namespace TDPIConnector.TDEngine.Models
 
         public string Name { get; set; }
         public IEnumerable<TDColumn> Columns { get; set; }
+
+        public bool HasValidColumn() {
+            foreach (var column in Columns)
+            {
+                if (!column.IsTDengineTag())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

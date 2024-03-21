@@ -26,7 +26,7 @@ namespace TDPIConnector.TDEngine
         private readonly bool forTaosX;
         private readonly byte[] credentialsByteArray = null;
 
-        public TDEngineClient(bool forTaosX, string hostname, int port, string username, string password, string token, string tablesPrefix):base()
+        public TDEngineClient(bool forTaosX, string hostname, int port, string username, string password, string token, string tablesPrefix) : base()
         {
             this.httpClient = new HttpClient();
             this.httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -34,7 +34,8 @@ namespace TDPIConnector.TDEngine
             {
                 baseUrl = hostname;
             }
-            else {
+            else
+            {
                 baseUrl = string.Format("{0}:{1}", hostname, port);
             }
             this.queryStringToken = token;
@@ -60,7 +61,7 @@ namespace TDPIConnector.TDEngine
                 DoServerVersionReceived(version);
                 log.Info($"Got taosd version:{version}");
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 log.Fatal($"Get taosd version failed.{e}");
                 throw new Exception("Could not connect to TDengine. Please check the settings on the .config file.");
@@ -86,6 +87,9 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDEngineResponse> GetSTables(string database, string stable)
         {
+#if ONLY_PI_TEST
+            return null;
+#endif
             string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
             return await MakeHttpRequest(sqlCommand);
         }
@@ -145,7 +149,7 @@ namespace TDPIConnector.TDEngine
                     allLastValueTimestamps.Add(dataItem[0], DateTime.Parse(dataItem[1]));
                 }
             }
-            
+
             foreach (var tableName in tableNames)
             {
                 string tdEngineTableName = GetFullTableName(tableName).ToTDEngineNamingPattern();
@@ -171,7 +175,7 @@ namespace TDPIConnector.TDEngine
             TDValues tdValues = resp.ToTDValues();
             return tdValues.FirstOrDefault();
         }
-        public override async Task<TDEngineResponse>  CreateSuperTableForPIPoint(string database, string superTable, string tdColumnType)
+        public override async Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTable, string tdColumnType)
         {
             string sqlCommand = $"CREATE STABLE IF NOT EXISTS {superTable.ToTDEngineNamingPattern()} (ts TIMESTAMP, val {tdColumnType}, quality INT) TAGS (pointId INT);";
             return await MakeHttpRequest(sqlCommand, database);
@@ -479,7 +483,8 @@ namespace TDPIConnector.TDEngine
             List<StringBuilder> tableList = new List<StringBuilder>();
             int insertCount = 0;
 
-            foreach (var tables in stables) {
+            foreach (var tables in stables)
+            {
                 foreach (var table in tables.Value)
                 {
                     string tdEngineTableName = GetFullTableName(table.Key).ToTDEngineNamingPattern();
@@ -538,14 +543,17 @@ namespace TDPIConnector.TDEngine
         private async Task<TDEngineResponse> MakeHttpRequest(string sqlCommand, string dbName = null)
         {
             int retryTimes = 0;
-            while (true) {
+            while (true)
+            {
                 try
                 {
                     return await makRequest(sqlCommand, dbName);
                 }
-                catch (Exception e) {
+                catch (Exception e)
+                {
                     Thread.Sleep(500);
-                    if (++retryTimes >= StaticConfig.Default.HttpMaxRetryTime) {
+                    if (++retryTimes >= StaticConfig.Default.HttpMaxRetryTime)
+                    {
                         log.Error($"sql exec retry {StaticConfig.Default.HttpMaxRetryTime} times failed.{sqlCommand}");
                         throw e;
                     }
@@ -649,12 +657,29 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
         {
-            try {
+            try
+            {
                 string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
                     $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
                 return await MakeHttpRequest(sqlCommand);
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
+                log.Error($"ChangeTagValueForAFElements failed. {e}");
+                return null;
+            }
+        }
+        public override async Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
+        {
+            try
+            {
+                string sqlCommand = $"INSERT INTO {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                    $"(ts, {attriName.ToTDEngineNamingPattern()}_val, {attriName.ToTDEngineNamingPattern()}_status)" +
+                    $" VALUES ('{ts}', NULL, NULL);";
+                return await MakeHttpRequest(sqlCommand);
+            }
+            catch (Exception e)
+            {
                 log.Error($"ChangeTagValueForAFElements failed. {e}");
                 return null;
             }
