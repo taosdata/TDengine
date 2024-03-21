@@ -476,6 +476,9 @@ impl PiConfig {
     }
 
     fn parse_from_tdengine_last_time(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
+        if dsn.params.get("BackfillStartTime").map(|s| s.as_str()) == Some("auto") {
+            return Ok(Some(true));
+        }
         dsn.params
             .get("FromTDengineLastTime")
             .map(|v| {
@@ -487,6 +490,9 @@ impl PiConfig {
     }
 
     fn parse_to_tdengine_first_time(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
+        if dsn.params.get("BackfillEndTime").map(|s| s.as_str()) == Some("auto") {
+            return Ok(Some(true));
+        }
         dsn.params
             .get("ToTDengineFirstTime")
             .map(|v| {
@@ -498,25 +504,25 @@ impl PiConfig {
     }
 
     fn parse_backfill_start_time(dsn: &Dsn) -> anyhow::Result<Option<Datetime>> {
-        dsn.params
-            .get("BackfillStartTime")
-            .map(|v| {
-                Self::parse_date_time(v.as_str()).map_err(|err| {
+        match dsn.params.get("BackfillStartTime").map(|s| s.trim()) {
+            Some("auto") | None => Ok(None),
+            Some(v) => Self::parse_date_time(v)
+                .map_err(|err| {
                     anyhow::anyhow!("invalid BackfillStartTime, cause: {}", err.to_string())
                 })
-            })
-            .transpose()
+                .map(Some),
+        }
     }
 
     fn parse_backfill_end_time(dsn: &Dsn) -> anyhow::Result<Option<Datetime>> {
-        dsn.params
-            .get("BackfillEndTime")
-            .map(|v| {
-                Self::parse_date_time(v.as_str()).map_err(|err| {
+        match dsn.params.get("BackfillEndTime").map(|s| s.as_str()) {
+            Some("auto") | None => Ok(None),
+            Some(v) => Self::parse_date_time(v)
+                .map_err(|err| {
                     anyhow::anyhow!("invalid BackfillEndTime, cause: {}", err.to_string())
                 })
-            })
-            .transpose()
+                .map(Some),
+        }
     }
 
     fn parse_date_time(date_time: &str) -> anyhow::Result<Datetime> {
@@ -829,6 +835,12 @@ mod tests {
         let config = PiConfig::parse_backfill_start_time(&dsn);
         assert!(config.is_err());
         assert_eq!("invalid BackfillStartTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("pi:///?BackfillStartTime=auto").unwrap();
+        let config = PiConfig::parse_backfill_start_time(&dsn).unwrap();
+        assert_eq!(None, config);
+        let from_tdengine_last_time = PiConfig::parse_from_tdengine_last_time(&dsn).unwrap();
+        assert_eq!(Some(true), from_tdengine_last_time);
     }
 
     #[test]
@@ -845,6 +857,12 @@ mod tests {
         let config = PiConfig::parse_backfill_end_time(&dsn);
         assert!(config.is_err());
         assert_eq!("invalid BackfillEndTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("pi:///?BackfillEndTime=auto").unwrap();
+        let config = PiConfig::parse_backfill_end_time(&dsn).unwrap();
+        assert_eq!(None, config);
+        let bool = PiConfig::parse_to_tdengine_first_time(&dsn).unwrap();
+        assert_eq!(Some(true), bool);
     }
 
     #[test]
