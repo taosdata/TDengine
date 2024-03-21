@@ -2467,6 +2467,8 @@ typedef struct {
   int8_t   igUpdate;
   int64_t  lastTs;
   SArray*  pVgroupVerList;
+  // 3.3.0.0
+  SArray*  pCols;  // array of SField
 } SCMCreateStreamReq;
 
 typedef struct {

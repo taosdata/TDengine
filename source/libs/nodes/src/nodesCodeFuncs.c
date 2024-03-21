@@ -2511,6 +2511,7 @@ static const char* jkWindowPhysiPlanDeleteMark = "DeleteMark";
 static const char* jkWindowPhysiPlanIgnoreExpired = "IgnoreExpired";
 static const char* jkWindowPhysiPlanInputTsOrder = "InputTsOrder";
 static const char* jkWindowPhysiPlanMergeDataBlock = "MergeDataBlock";
+static const char* jkWindowPhysiPlanDestHasPrimaryKey = "DestHasPrimaryKey";
 
 static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowPhysiNode* pNode = (const SWindowPhysiNode*)pObj;
@@ -2542,6 +2543,9 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkWindowPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanDestHasPrimaryKey, pNode->destHasPrimayKey);
   }
 
   return code;
@@ -2577,6 +2581,9 @@ static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkWindowPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkWindowPhysiPlanDestHasPrimaryKey, &pNode->destHasPrimayKey);
   }
 
   return code;

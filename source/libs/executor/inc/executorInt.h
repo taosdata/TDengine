@@ -602,6 +602,8 @@ typedef struct SStreamIntervalOperatorInfo {
   bool                recvPullover;
   SSDataBlock*        pMidPulloverRes;
   bool                clearState;
+  SSHashObj*          pDeletedMap;
+  bool                destHasPrimaryKey;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -652,6 +654,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SSDataBlock*        pCheckpointRes;
   bool                clearState;
   bool                recvGetAll;
+  bool                destHasPrimaryKey;
+  SSHashObj*          pPkDeleted;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -676,6 +680,8 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
   bool                recvGetAll;
+  SSHashObj*          pPkDeleted;
+  bool                destHasPrimaryKey;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -702,6 +708,8 @@ typedef struct SStreamEventAggOperatorInfo {
   SSDataBlock*        pCheckpointRes;
   SFilterInfo*        pStartCondInfo;
   SFilterInfo*        pEndCondInfo;
+  SSHashObj*          pPkDeleted;
+  bool                destHasPrimaryKey;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
@@ -723,6 +731,8 @@ typedef struct SStreamCountAggOperatorInfo {
   bool                reCkBlock;
   bool                recvGetAll;
   SSDataBlock*        pCheckpointRes;
+  SSHashObj*          pPkDeleted;
+  bool                destHasPrimaryKey;
 } SStreamCountAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -901,7 +911,7 @@ void     initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* p
 void     getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void     initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void     getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
-void     deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate, SSHashObj* pMapDelete);
+void     deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate, SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
 int32_t  getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
 int32_t  closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHashObj* pClosed);
 int32_t  copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated,  __compar_fn_t compar);
@@ -951,6 +961,7 @@ bool         doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pK
 void         saveDeleteInfo(SArray* pWins, SSessionKey key);
 void         removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
 void         copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
+void         copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
 
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);

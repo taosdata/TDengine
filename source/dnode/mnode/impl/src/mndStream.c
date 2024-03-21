@@ -287,6 +287,45 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
+static int32_t createSchemaByFields(const SArray* pFields, SSchemaWrapper* pWrapper) {
+  pWrapper->nCols = taosArrayGetSize(pFields);
+  pWrapper->pSchema = taosMemoryCalloc(pWrapper->nCols, sizeof(SSchema));
+  if (NULL == pWrapper->pSchema) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNode*  pNode;
+  int32_t index = 0;
+  for(int32_t i = 0; i < pWrapper->nCols; i++) {
+    SField* pField = (SField*)taosArrayGet(pFields, i);
+    if (TSDB_DATA_TYPE_NULL == pField->type) {
+      pWrapper->pSchema[index].type = TSDB_DATA_TYPE_VARCHAR;
+      pWrapper->pSchema[index].bytes = VARSTR_HEADER_SIZE;
+    } else {
+      pWrapper->pSchema[index].type = pField->type;
+      pWrapper->pSchema[index].bytes = pField->bytes;
+    }
+    pWrapper->pSchema[index].colId = index + 1;
+    strcpy(pWrapper->pSchema[index].name, pField->name);
+    pWrapper->pSchema[index].flags = pField->flags;
+    index += 1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool hasPrimaryKey(SSchemaWrapper* pWrapper) {
+  if (pWrapper->nCols < 2) {
+    return false;
+  }
+  for (int32_t i = 1; i < pWrapper->nCols; i++) {
+     if(pWrapper->pSchema[i].flags & COL_IS_KEY) {
+      return true;
+     }
+  }
+  return false;
+}
+
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
   SNode      *pAst = NULL;
   SQueryPlan *pPlan = NULL;
@@ -352,8 +391,8 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
-  // extract output schema from ast
-  if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
+  // create output schema
+  if (createSchemaByFields(pCreate->pCols, &pObj->outputSchema) != TSDB_CODE_SUCCESS) {
     goto FAIL;
   }
 
@@ -389,6 +428,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->outputSchema.pSchema = pFullSchema;
   }
 
+  bool hasKey = hasPrimaryKey(&pObj->outputSchema);
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
@@ -398,6 +438,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .igExpired = pObj->conf.igExpired,
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
+      .destHasPrimaryKey = hasKey,
   };
 
   // using ast and param to build physical plan
