@@ -16,12 +16,10 @@ namespace TDPIConnector.PI
         {
             this.AFSDKObject = attribute;
         }
-
         public AFAttributeWrapper()
         {
 
         }
-
         public virtual string ID
         {
             get
@@ -29,7 +27,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.ID.ToString();
             }
         }
-
         public virtual IEnumerable<string> Categories
         {
             get
@@ -37,7 +34,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.Categories.Select(c => c.Name);
             }
         }
-
 
         public virtual PIPointWrapper PIPoint
         {
@@ -58,7 +54,6 @@ namespace TDPIConnector.PI
                 }
             }
         }
-
         internal AFAttributeWrapper GetElementAttribute()
         {
             if (AFSDKObject == null)
@@ -94,14 +89,12 @@ namespace TDPIConnector.PI
 
             return this;
         }
-
         private AFAttribute GetAttributeFromEfAttributeConfigString()
         {
             string path = this.AFSDKObject.ConfigString.Split(';')[0];
             path = path.Replace("%Attribute%", this.AFSDKObject.Name);
             return AFObject.FindObject(path, this.AFSDKObject) as AFAttribute;
         }
-
         public virtual AFElementWrapper Element
         {
             get
@@ -113,8 +106,6 @@ namespace TDPIConnector.PI
                 return new AFElementWrapper((AFElement)this.AFSDKObject.Element);
             }
         }
-
-
         public virtual string Name
         {
             get
@@ -132,7 +123,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DataReferencePlugIn != null && this.AFSDKObject.DataReferencePlugIn.Name == "PI Point";
             }
         }
-
         public bool IsConfigurationItem
         {
             get
@@ -140,7 +130,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.IsConfigurationItem;
             }
         }
-
         public string Uom
         {
             get
@@ -149,7 +138,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Abbreviation : null;
             }
         }
-
         public Type Type
         {
             get
@@ -157,7 +145,6 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.Type;
             }
         }
-
         public string ConfigurationItem
         {
             get
@@ -177,7 +164,6 @@ namespace TDPIConnector.PI
         {
             return this.AFSDKObject.GetPath();
         }
-
         public override bool Equals(object obj)
         {
             if (obj is AFAttribute)
@@ -205,7 +191,6 @@ namespace TDPIConnector.PI
         {
             return this.AFSDKObject.GetHashCode();
         }
-
         public virtual AFValueWrapper GetValue()
         {
             AFValue value = AFSDKObject.GetValue();
@@ -227,11 +212,46 @@ namespace TDPIConnector.PI
         }
         public bool IsTDengineTag()
         {
-            if (DataReference == "Table Lookup" || DataReference == "String Builder")
+            // DataReference == "Formula" ||
+            if (DataReference == "Table Lookup" || DataReference == "String Builder"
+                ||  DataReference == "URI Builder")
             {
                 return true;
             }
+
             return string.IsNullOrEmpty(DataReference);
+        }
+        public bool signUpValid()
+        {
+            if (DataReference == "String Builder" || DataReference == "Table Lookup"
+                || DataReference == "URI Builder")
+            {
+                return false;
+            }
+
+            return true;
+        }
+        public bool Unsupported()
+        {
+            if (DataReference == "PI Point Array")
+            {
+                return true;
+            }
+
+            return false;
+        }
+        public bool Valid()
+        {
+            try
+            {
+                if (AFSDKObject.PIPoint == null)
+                    ;// do noting, just for exception
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
         }
     }
 }

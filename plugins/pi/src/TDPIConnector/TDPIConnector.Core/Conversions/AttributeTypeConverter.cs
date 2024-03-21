@@ -1,11 +1,15 @@
-﻿using System;
+﻿using log4net;
+using System;
 
 namespace TDPIConnector.Core.Conversions
 {
     public class AttributeTypeConverter
     {
-        internal static string Convert(Type attributeType)
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
+        internal static string Convert(string dataReference, Type attributeType)
         {
+            if (dataReference == "URI Builder") return "NCHAR(256)";
             switch (attributeType.Name)
             {
                 case "AFEnumerationValue":
@@ -37,7 +41,8 @@ namespace TDPIConnector.Core.Conversions
                 case "Byte":
                     return "NCHAR(100)";
             }
-            throw new Exception("AttributeType not found.");
+            log.Error($"AttributeType:{attributeType.Name} not supported, please conntact Tdengine");
+            return null;
         }
     }
 }

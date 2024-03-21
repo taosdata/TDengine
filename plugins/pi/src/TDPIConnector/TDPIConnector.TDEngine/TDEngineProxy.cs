@@ -83,6 +83,10 @@ namespace TDPIConnector.TDEngine
         {
             return taosxCommonClient.ChangeTagValueForAFElements(db, elementName, attriName, value);
         }
+        public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
+        {
+            return taosxCommonClient.UpdateAFElementAttributeNULL(db, elementName, attriName, ts);
+        }
         public virtual async Task<TDEngineResponse> GetSTables(string database, string stable) {
             return await taosxCommonClient.GetSTables(database, stable);
         }
@@ -163,6 +167,7 @@ namespace TDPIConnector.TDEngine
         }
         public virtual Task CreateTablesForAFElements(string database, List<TDTable> elements)
         {
+            if (0 == elements.Count) return Task.CompletedTask; ;
             for (int i = 0; i < elements.Count; i++)
             {
                 var element = elements[i];

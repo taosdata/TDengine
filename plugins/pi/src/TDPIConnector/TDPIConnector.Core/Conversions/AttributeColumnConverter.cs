@@ -13,6 +13,7 @@ namespace TDPIConnector.Core.Conversions
             foreach (AFAttributeTemplateWrapper attributeTemplate in attributeTemplates)
             {
                 TDColumn column = ConvertAttribute(attributeTemplate);
+                if (null == column) continue;
                 list.Add(column);
             }
             return list.OrderBy(item => item.Name);
@@ -24,6 +25,7 @@ namespace TDPIConnector.Core.Conversions
             foreach (AFAttributeWrapper attribute in attributes)
             {
                 TDColumn column = ConvertElementAttribute(attribute);
+                if (null == column) continue;
                 list.Add(column);
             }
             return list.OrderBy(item => item.Name);
@@ -31,12 +33,14 @@ namespace TDPIConnector.Core.Conversions
 
         private static TDColumn ConvertAttribute(AFAttributeTemplateWrapper attributeTemplate)
         {
-            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.Type);
+            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.DataReference, attributeTemplate.Type);
+            if (null == tdColumnType) return null;
             return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.DataReference);
         }
         private static TDColumn ConvertElementAttribute(AFAttributeWrapper attributeTemplate)
         {
-            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.Type);
+            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.DataReference, attributeTemplate.Type);
+            if (null == tdColumnType) return null;
             return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.ConfigurationItem);
         }
     }

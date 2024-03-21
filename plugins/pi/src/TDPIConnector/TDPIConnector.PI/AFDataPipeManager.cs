@@ -37,9 +37,9 @@ namespace TDPIConnector.PI
             for (int i = 0; i < elements.Count; i++)
             {
                 int k = i % afDataPipes.Count;
-                if (elements[i].HasInvalidAttr()) continue;
+                // if (elements[i].HasInvalidAttr()) continue;
                 foreach (AFAttributeWrapper attr in elements[i].Attributes ) {
-                    if (!attr.IsTDengineTag()) {
+                    if (attr.Valid() && attr.signUpValid() && !attr.Unsupported()) {
                         attributeSetLists[k].Add(attr.AFSDKObject);
                     }
                 }

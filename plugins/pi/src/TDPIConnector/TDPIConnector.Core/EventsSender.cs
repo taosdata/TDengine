@@ -68,9 +68,10 @@ namespace TDPIConnector.Core
                 var timestamp = tdValue.TimestampString;
 
                 var attributeName = dpEvent.Value.Attribute.Name;
-                if (string.IsNullOrEmpty(dpEvent.Value.Attribute.DataReference))
+                if (dpEvent.Value.Attribute.IsTDengineTag())
                 {
-                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update)
+                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update ||
+                        dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Add)
                     {
                         var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
                         log.Info($"element tag change {elementName}:{attributeName}:{valueString}");
@@ -78,9 +79,11 @@ namespace TDPIConnector.Core
                     }
                     continue;
                 }
-                if (dpEvent.Value.Attribute.IsTDengineTag())
+                if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete &&
+                    !dpEvent.Value.Attribute.Unsupported())
                 {
-                    log.Debug($"element tag changed {elementName}:{attributeName}");
+                    log.Info($"element event delete {elementName}:{attributeName}:{timestamp}");
+                    this.tdEngineProxy.UpdateAFElementAttributeNULL(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, timestamp).Wait();
                     continue;
                 }
                 if (!columnNames.Contains(attributeName))
