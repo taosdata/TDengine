@@ -165,7 +165,7 @@ target_link_libraries(
 
     # PUBLIC bdb
     # PUBLIC scalar
-    PUBLIC zstd
+    #PUBLIC zstd
     PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
