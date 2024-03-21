@@ -249,7 +249,9 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   return (void *)buf;
 }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup) {
+static void *topicNameDup(void *p) { return taosStrdup((char *)p); }
+
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -264,36 +266,64 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup) {
   pConsumer->hbStatus = 0;
 
   taosInitRWLatch(&pConsumer->lock);
+  pConsumer->createTime = taosGetTimestampMs();
+  pConsumer->updateType = updateType;
 
-  pConsumer->currentTopics = taosArrayInit(0, sizeof(void *));
-  pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
-  pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
-  pConsumer->assignedTopics = taosArrayInit(0, sizeof(void *));
+  if (updateType == CONSUMER_ADD_REB){
+    pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
+    if(pConsumer->rebNewTopics == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
 
-  if (pConsumer->currentTopics == NULL || pConsumer->rebNewTopics == NULL || pConsumer->rebRemovedTopics == NULL ||
-      pConsumer->assignedTopics == NULL) {
-    taosArrayDestroy(pConsumer->currentTopics);
-    taosArrayDestroy(pConsumer->rebNewTopics);
-    taosArrayDestroy(pConsumer->rebRemovedTopics);
-    taosArrayDestroy(pConsumer->assignedTopics);
-    taosMemoryFree(pConsumer);
-    return NULL;
+    char* topicTmp = taosStrdup(topic);
+    taosArrayPush(pConsumer->rebNewTopics, &topicTmp);
+  }else if (updateType == CONSUMER_REMOVE_REB) {
+    pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
+    if(pConsumer->rebRemovedTopics == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    char* topicTmp = taosStrdup(topic);
+    taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp);
+  }else if (updateType == CONSUMER_INSERT_SUB){
+    tstrncpy(pConsumer->clientId, subscribe->clientId, tListLen(pConsumer->clientId));
+    pConsumer->withTbName = subscribe->withTbName;
+    pConsumer->autoCommit = subscribe->autoCommit;
+    pConsumer->autoCommitInterval = subscribe->autoCommitInterval;
+    pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
+
+
+    pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
+    if (pConsumer->rebNewTopics == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    pConsumer->assignedTopics = subscribe->topicNames;
+    subscribe->topicNames = NULL;
+  }else if (updateType == CONSUMER_UPDATE_SUB){
+    pConsumer->assignedTopics = subscribe->topicNames;
+    subscribe->topicNames = NULL;
   }
 
-  pConsumer->createTime = taosGetTimestampMs();
-
   return pConsumer;
+
+END:
+  tDeleteSMqConsumerObj(pConsumer);
+  return NULL;
 }
 
-void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer, bool delete) {
+void tClearSMqConsumerObj(SMqConsumerObj *pConsumer) {
   if (pConsumer == NULL) return;
   taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
   taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
-  if (delete) {
-    taosMemoryFree(pConsumer);
-  }
+}
+
+void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
+  tClearSMqConsumerObj(pConsumer);
+  taosMemoryFree(pConsumer);
 }
 
 int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
@@ -548,6 +578,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
 }
 
 void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
+  if (pSub == NULL) return;
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pSub->consumerHash, pIter);

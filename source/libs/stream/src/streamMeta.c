@@ -1128,7 +1128,11 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {
-      entry.processedVer = (*pTask)->chkInfo.nextProcessVer - 1;
+      entry.processedVer = walReaderGetCurrentVer((*pTask)->exec.pWalReader) - 1;
+      if (entry.processedVer < 0) {
+        entry.processedVer = (*pTask)->chkInfo.processedVer;
+      }
+
       walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
     }
 

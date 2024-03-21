@@ -63,7 +63,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, 0);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
   if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
@@ -179,7 +179,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, 0);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
   if (metaGetTableEntryByName(&mer1, cfgReq.tbName) < 0) {
     code = terrno;
@@ -192,7 +192,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, 0);
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     strcpy(cfgRsp.stbName, mer2.me.name);
@@ -406,7 +406,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
 
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
   SSyncState syncState = syncGetState(pVnode->sync);
-  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+  if (syncState.state == TAOS_SYNC_STATE_LEADER || syncState.state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     pLoad->vgId = TD_VID(pVnode);
     pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
     return 0;

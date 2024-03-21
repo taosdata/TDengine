@@ -8,15 +8,18 @@ sql connect
 print ===== step1
 sql drop stream if exists streams1;
 sql drop database if exists test;
-sql create database test  vgroups 10;
+sql create database test vgroups 3;
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
+
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);
 sleep 2000
+
+sql_error create stream stream1_same_dst into streamt1 as select _wstart, count(*) c1, sum(a) c3 from st interval(10s);
 
 sql pause stream streams1;
 
@@ -102,6 +105,11 @@ if $data11 != 4 then
   goto loop1
 endi
 
+print ===== idle for 70 sec for checkpoint gen
+sleep 70000
+
+print ===== idle 60 sec completed , continue
+
 print ===== step 1 over
 
 print ===== step2
@@ -112,6 +120,12 @@ sql use test2;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
+
+# duplicate stream
+sql_error create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
+sql create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
+
+sleep 1000
 
 sql pause stream streams2;
 
@@ -237,8 +251,9 @@ print ===== step 2 over
 print ===== step3
 sql drop stream if exists streams3;
 sql drop database if exists test3;
-sql create database test3  vgroups 10;
+sql create database test3  vgroups 3;
 sql use test3;
+
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
@@ -259,7 +274,7 @@ sql insert into ts4 values(1648791213001,1,12,3,1.0);
 
 
 $loop_count = 0
-loop3:
+loop4:
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -276,7 +291,7 @@ if $rows != 1 then
   print $data00 $data01 $data02
   print $data10 $data11 $data12
   print $data20 $data21 $data22
-  goto loop3
+  goto loop4
 endi
 
 print 2 select * from streamt5;
@@ -287,7 +302,7 @@ if $rows != 1 then
   print $data00 $data01 $data02
   print $data10 $data11 $data12
   print $data20 $data21 $data22
-  goto loop3
+  goto loop4
 endi
 
 print 3 select * from streamt3;
