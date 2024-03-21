@@ -1039,7 +1039,10 @@ impl TaskJob {
                                         state.state.write().await.stopped();
                                     }
                                     Operator::Run => {
-                                        unreachable!("Cancellation should be only trigger by stop or suspend operator")
+                                        tracing::warn!("operator is run, expect stop or suspend");
+                                        global.send_task_activity(TaskActivity::stopped(task_id));
+                                        state.state.write().await.stopped();
+                                        //unreachable!("Cancellation should be only trigger by stop or suspend operator")
                                     }
                                 }
                                 tracing::warn!(ipc_in_progress, agent.id = agent_id, task.id = task_id, job.id = %jid, "Task {task_id} cancelled");

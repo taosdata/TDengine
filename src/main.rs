@@ -384,30 +384,33 @@ async fn init_tracing_layers(
         log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
         log::LevelFilter::Trace => TracingLevelFilter::TRACE,
     };
+    fn env_filter_from(tracing_level_filter: &TracingLevelFilter) -> anyhow::Result<EnvFilter> {
+        let event_filter = EnvFilter::builder()
+            .with_default_directive(tracing_level_filter.clone().into())
+            .with_regex(true)
+            .from_env_lossy();
+        let event_filter = if *tracing_level_filter > TracingLevelFilter::INFO {
+            event_filter
+                .add_directive("tungstenite=warn".parse()?)
+                .add_directive("tokio=warn".parse()?)
+                .add_directive("runtime=warn".parse()?)
+                .add_directive("actix_server=info".parse()?)
+                .add_directive("actix_http=info".parse()?)
+                .add_directive("tokio_tungstenite=warn".parse()?)
+                .add_directive("mio=warn".parse()?)
+                .add_directive("h2=warn".parse()?)
+        } else {
+            event_filter
+        };
+        Ok(event_filter)
+    }
     // Add layer for rotating logs
     layers.push(
         TaosXLayer::new()
             .with_writer(non_blocking)
-            .with_filter(tracing_level_filter)
+            .with_filter(env_filter_from(&tracing_level_filter)?)
             .boxed(),
     );
-    let event_filter = EnvFilter::builder()
-        .with_default_directive(tracing_level_filter.into())
-        .with_regex(true)
-        .from_env_lossy();
-    let event_filter = if level_filter > log::LevelFilter::Info {
-        event_filter
-            .add_directive("tungstenite=warn".parse()?)
-            .add_directive("tokio=warn".parse()?)
-            .add_directive("runtime=warn".parse()?)
-            .add_directive("actix_server=info".parse()?)
-            .add_directive("actix_http=info".parse()?)
-            .add_directive("tokio_tungstenite=warn".parse()?)
-            .add_directive("mio=warn".parse()?)
-            .add_directive("h2=warn".parse()?)
-    } else {
-        event_filter
-    };
 
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
@@ -428,7 +431,7 @@ async fn init_tracing_layers(
                 .with_span_events(span_events)
                 .with_ansi(true)
                 .pretty()
-                .with_filter(event_filter)
+                .with_filter(env_filter_from(&tracing_level_filter)?)
                 .boxed(),
         );
     } else {
@@ -439,7 +442,7 @@ async fn init_tracing_layers(
                 .with_writer(std::io::stderr)
                 .with_span_events(span_events)
                 .with_ansi(false)
-                .with_filter(event_filter)
+                .with_filter(env_filter_from(&tracing_level_filter)?)
                 .boxed(),
         );
     }
