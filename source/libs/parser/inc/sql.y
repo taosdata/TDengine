@@ -429,7 +429,7 @@ type_name(A) ::= BIGINT UNSIGNED.                                               
 type_name(A) ::= JSON.                                                            { A = createDataType(TSDB_DATA_TYPE_JSON); }
 type_name(A) ::= VARCHAR NK_LP NK_INTEGER(B) NK_RP.                               { A = createVarLenDataType(TSDB_DATA_TYPE_VARCHAR, &B); }
 type_name(A) ::= MEDIUMBLOB.                                                      { A = createDataType(TSDB_DATA_TYPE_MEDIUMBLOB); }
-type_name(A) ::= BLOB.                                                            { A = createDataType(TSDB_DATA_TYPE_BLOB); }
+type_name(A) ::= BLOB.                                                            { A = createBlobDataType(TSDB_DATA_TYPE_BLOB); }
 type_name(A) ::= VARBINARY NK_LP NK_INTEGER(B) NK_RP.                             { A = createVarLenDataType(TSDB_DATA_TYPE_VARBINARY, &B); }
 type_name(A) ::= GEOMETRY NK_LP NK_INTEGER(B) NK_RP.                              { A = createVarLenDataType(TSDB_DATA_TYPE_GEOMETRY, &B); }
 type_name(A) ::= DECIMAL.                                                         { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
