@@ -7,8 +7,9 @@ namespace TDPIConnector.Core.Conversions
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        internal static string Convert(Type attributeType)
+        internal static string Convert(string dataReference, Type attributeType)
         {
+            if (dataReference == "URI Builder") return "NCHAR(256)";
             switch (attributeType.Name)
             {
                 case "AFEnumerationValue":

@@ -33,13 +33,13 @@ namespace TDPIConnector.Core.Conversions
 
         private static TDColumn ConvertAttribute(AFAttributeTemplateWrapper attributeTemplate)
         {
-            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.Type);
+            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.DataReference, attributeTemplate.Type);
             if (null == tdColumnType) return null;
             return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.DataReference);
         }
         private static TDColumn ConvertElementAttribute(AFAttributeWrapper attributeTemplate)
         {
-            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.Type);
+            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.DataReference, attributeTemplate.Type);
             if (null == tdColumnType) return null;
             return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.ConfigurationItem);
         }

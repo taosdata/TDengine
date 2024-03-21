@@ -207,9 +207,9 @@ namespace TDPIConnector.Core
 
             } catch (Exception e) {
                 log.Error($"GetSTables failed.{e}");
-                throw e;
+                return false;
             }
-            if (res.Data == null)
+            if (null == res || null == res.Data)
             {
                 // Adding super tables at runtime is not supported
                 return false;
