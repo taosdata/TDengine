@@ -634,9 +634,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .hashPrefix = pCreate->hashPrefix,
       .hashSuffix = pCreate->hashSuffix,
       .tsdbPageSize = pCreate->tsdbPageSize,
-      //.encryptAlgorithm = pCreate->encryptAlgorithm,
+      .encryptAlgorithm = pCreate->encryptAlgorithm,
       //TODO: dmchen
-      .encryptAlgorithm = pCreate->walRetentionSize,
+      //.encryptAlgorithm = pCreate->walRetentionSize,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
