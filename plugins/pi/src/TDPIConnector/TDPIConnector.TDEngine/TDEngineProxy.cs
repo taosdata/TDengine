@@ -83,9 +83,9 @@ namespace TDPIConnector.TDEngine
         {
             return taosxCommonClient.ChangeTagValueForAFElements(db, elementName, attriName, value);
         }
-        public virtual Task<TDEngineResponse> DeleteAFElementEvent(string db, string elementName, string attriName, string ts)
+        public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
-            return taosxCommonClient.DeleteAFElementEvent(db, elementName, attriName, ts);
+            return taosxCommonClient.UpdateAFElementAttributeNULL(db, elementName, attriName, ts);
         }
         public virtual async Task<TDEngineResponse> GetSTables(string database, string stable) {
             return await taosxCommonClient.GetSTables(database, stable);

@@ -669,12 +669,13 @@ namespace TDPIConnector.TDEngine
                 return null;
             }
         }
-        public override async Task<TDEngineResponse> DeleteAFElementEvent(string db, string elementName, string attriName, string value)
+        public override async Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
             try
             {
-                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
-                    $"WHERE ts ='{value}';";
+                string sqlCommand = $"INSERT INTO {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                    $"(ts, {attriName.ToTDEngineNamingPattern()}_val, {attriName.ToTDEngineNamingPattern()}_status)" +
+                    $" VALUES ('{ts}', NULL, NULL);";
                 return await MakeHttpRequest(sqlCommand);
             }
             catch (Exception e)
