@@ -50,12 +50,10 @@ groups:
       - name: MaxBackfillRangeDays
         display: 重启补偿时间
         hint:
-          type: integer
-          min: 0
-          max: 30
-        description: 连接丢失或首次启动时自动回填的最大天数。
-        placeholder: 1
-        value: 1
+          type: str
+        description: 连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。
+        placeholder: 30m
+        value: 30m
 
 advanced:
   name: 高级选项
