@@ -129,6 +129,10 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     } else {
       pSupInfo->buildBuf[i] = NULL;
     }
+
+    if (pCols[i].pk) {
+      pSupInfo->pkSlotId = pCols[i].slotId;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

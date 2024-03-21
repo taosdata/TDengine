@@ -370,7 +370,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
                          .type = pSColumnNode->node.resType.type,
-                         .bytes = pSColumnNode->node.resType.bytes};
+                         .bytes = pSColumnNode->node.resType.bytes,
+                         .pk = pSColumnNode->isPk};
 #if TAG_FILTER_DEBUG
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
@@ -1763,6 +1764,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     pCond->colList[j].type = pColNode->node.resType.type;
     pCond->colList[j].bytes = pColNode->node.resType.bytes;
     pCond->colList[j].colId = pColNode->colId;
+    pCond->colList[j].pk = pColNode->isPk;
 
     pCond->pSlotList[j] = pNode->slotId;
     j += 1;

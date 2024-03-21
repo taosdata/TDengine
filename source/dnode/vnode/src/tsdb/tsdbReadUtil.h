@@ -159,6 +159,7 @@ typedef struct SBlockLoadSuppInfo {
   int16_t*            slotId;
   int32_t             numOfCols;
   char**              buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
+  int16_t             pkSlotId;
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
