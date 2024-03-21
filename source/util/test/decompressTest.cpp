@@ -111,34 +111,64 @@ void setColLevel(uint32_t* compress, uint8_t level) {
   *compress |= level;
   return;
 }
-TEST(utilTest, zstdtest) {
-  int32_t num = 10000;
 
+void compressImplTest(void* pVal, int8_t type, int32_t sz, uint32_t cmprAlg) {
+  {
+    int64_t* pList = (int64_t*)pVal;
+    int32_t  num = sz;
+
+    char* px = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t)));
+    char* pBuf = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t) + 64));
+
+    int32_t len =
+        tsCompressTimestamp2(pList, num * sizeof(int64_t), num, px, num, cmprAlg, pBuf, num * sizeof(int64_t) + 64);
+
+    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, num * sizeof(int64_t)));
+    memset(pBuf, 0, num * sizeof(int64_t) + 64);
+    int32_t size =
+        tsDecompressTimestamp2(px, len, num, pOutput, sizeof(int64_t) * num, cmprAlg, pBuf, num * sizeof(int64_t) + 64);
+    printf("size: %d\n", size);
+    for (int i = 0; i < num; i++) {
+      int64_t val = *(int64_t*)(pOutput + i * sizeof(int64_t));
+      int32_t ival = val;
+      if (i < 100) printf("val = %d\n", ival);
+    }
+    taosMemoryFree(px);
+    taosMemoryFree(pBuf);
+    taosMemoryFree(pOutput);
+  }
+}
+TEST(utilTest, zstdtest) {
+  int32_t  num = 10000;
   int64_t* pList = static_cast<int64_t*>(taosMemoryCalloc(num, sizeof(int64_t)));
-  int64_t  iniVal = 1700000000;
+  int64_t  iniVal = 17000;
 
   uint32_t v = 100;
 
   for (int32_t i = 0; i < num; ++i) {
-    iniVal += num;
+    iniVal += i;
     pList[i] = iniVal;
   }
-  uint32_t cmprAlg = 0;
-  setColCompress(&cmprAlg, 1);
-  setColEncode(&cmprAlg, 1);
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 1);
+    setColEncode(&cmprAlg, 1);
 
-  char* pOutput = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t)));
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
 
-  int32_t bufSize = num * sizeof(int64_t) + 64;
-  char*   pBuf = static_cast<char*>(taosMemoryMalloc(bufSize));
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 2);
+    setColEncode(&cmprAlg, 1);
 
-  int32_t sz =
-      tsCompressTimestamp2(pList, num * sizeof(int64_t), num, pOutput, num * sizeof(int64_t), cmprAlg, pBuf, bufSize);
-  printf("compress size: %d", sz);
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 3);
+    setColEncode(&cmprAlg, 1);
 
-  tsDecompressTimestamp(pOutput, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf, int32_t nBuf)
-
-  
-
-  
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
 }
