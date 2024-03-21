@@ -492,8 +492,8 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   setOperatorCompleted(pOperator);
 
-  qDebug("get cols success, total rows:%" PRIu64 ", current:%d %s", pInfo->loadInfo.totalRows, pInfo->pRes->info.rows,
-         GET_TASKID(pTaskInfo));
+  qDebug("get cols success, total rows:%" PRIu64 ", current:%" PRId64 " %s", pInfo->loadInfo.totalRows,
+         pInfo->pRes->info.rows, GET_TASKID(pTaskInfo));
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
