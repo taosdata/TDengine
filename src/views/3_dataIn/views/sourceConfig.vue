@@ -251,7 +251,7 @@ export default {
     toUrl() {
       let base_url = localStorage.getItem("base_url")
       let splitArr = base_url.split('//')
-      let url = splitArr[0] + "//" + this.username + ':' + this.decryptPwd + '@'+ splitArr[1]
+      let url = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
       return (
         "taos+" +
         url +
