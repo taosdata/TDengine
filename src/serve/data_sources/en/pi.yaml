@@ -47,14 +47,13 @@ groups:
     description: Auto-backfill configurations.
     params:
       - name: MaxBackfillRangeDays
-        display: Max Backfill Range(in days)
+        display: Max Backfill Range
         hint:
-          type: integer
-          min: 0
-          max: 30
-        description: Max number of days to automatically backfill when connection is lost or on first startup.
-        placeholder: 1
-        value: 1
+          type: str
+        description: |
+            The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.
+        placeholder: 30m
+        value: 30m
 
 advanced:
   name: Advanced Options
