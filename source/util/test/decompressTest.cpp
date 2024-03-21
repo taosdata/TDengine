@@ -131,7 +131,7 @@ void compressImplTest(void* pVal, int8_t type, int32_t sz, uint32_t cmprAlg) {
     for (int i = 0; i < num; i++) {
       int64_t val = *(int64_t*)(pOutput + i * sizeof(int64_t));
       int32_t ival = val;
-      if (i < 100) printf("val = %d\n", ival);
+      if (i < 10) printf("val = %d\n", ival);
     }
     taosMemoryFree(px);
     taosMemoryFree(pBuf);
