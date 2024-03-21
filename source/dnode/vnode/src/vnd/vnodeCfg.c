@@ -136,6 +136,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
@@ -276,6 +277,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     }
     else{
       strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+    }
+  }
+#endif
+  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
+  if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPTKEYLEN);
     }
   }
 #endif

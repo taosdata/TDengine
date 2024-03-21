@@ -15,7 +15,8 @@
 
 #include "tdbInt.h"
 
-int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback) {
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback, int32_t encryptAlgorithm,
+                char *encryptKey) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -48,6 +49,11 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   pDb->jnName[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
 
   pDb->jfd = -1;
+
+  pDb->encryptAlgorithm = encryptAlgorithm;
+  if(encryptKey != NULL){
+    strncpy(pDb->encryptKey, encryptKey, ENCRYPTKEYLEN); 
+  }
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {

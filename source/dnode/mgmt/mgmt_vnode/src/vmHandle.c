@@ -165,6 +165,15 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.cryptAlgorithm = 0;
 #endif
 
+#if defined(TD_ENTERPRISE)
+  pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
+  if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
+    strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPTKEYLEN);
+  }
+#else
+  pCfg->tdbEncryptKey = 0;
+#endif
+
   pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;

@@ -313,6 +313,8 @@ struct SVnodeCfg {
   int16_t     hashPrefix;
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
+  int32_t     tdbEncryptAlgorithm;
+  char        tdbEncryptKey[ENCRYPTKEYLEN];
 };
 
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
