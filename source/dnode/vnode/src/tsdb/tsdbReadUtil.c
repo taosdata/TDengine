@@ -372,12 +372,6 @@ static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* recor
   pBlockInfo->count = record->count;
 
   SRowKey* pFirstKey = &record->firstKey.key;
-  if (!pReader->pkChecked) {
-    pReader->pkChecked = true;
-    pReader->numOfPks = pFirstKey->numOfPKs;
-    pReader->pkComparFn = getComparFunc(pFirstKey->pks[0].type, 0);
-  }
-
   if (pFirstKey->numOfPKs > 0) {
     if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
       pBlockInfo->firstPk.val = pFirstKey->pks[0].val;
@@ -403,8 +397,6 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
   SBlockOrderSupporter sup = {0};
   pBlockIter->numOfBlocks = numOfBlocks;
   taosArrayClear(pBlockIter->blockList);
-
-  pBlockIter->pTableMap = pReader->status.pTableMap;
 
   // access data blocks according to the offset of each block in asc/desc order.
   int32_t numOfTables = taosArrayGetSize(pTableList);
