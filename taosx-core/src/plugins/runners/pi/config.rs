@@ -432,12 +432,18 @@ impl PiConfig {
     fn parse_max_backfill_range_days(dsn: &Dsn) -> anyhow::Result<Option<u32>> {
         dsn.params
             .get("MaxBackfillRangeDays")
-            .map(|v| {
-                v.parse::<u32>().map_err(|err| {
-                    anyhow::anyhow!("invalid MaxBackfillRangeDays, cause: {}", err.to_string())
-                })
+            .map(|s| {
+                let result = parse_duration::parse(s);
+                match result {
+                    Ok(d) => Ok(Some(d.as_secs().div_ceil(60) as u32)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid max_backfill_range: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
             })
-            .transpose()
+            .unwrap_or(Ok(None))
     }
 
     fn parse_template_for_pi_point(dsn: &Dsn) -> Vec<String> {
@@ -713,21 +719,38 @@ mod tests {
 
     #[test]
     fn test_parse_max_backfill_range_days() {
+        // not set
         let dsn = Dsn::from_str("pi:///").unwrap();
         let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
         assert_eq!(None, config);
-
-        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=100").unwrap();
-        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
-        assert_eq!(Some(100), config);
-
+        // error value
         let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=abc").unwrap();
         let config = PiConfig::parse_max_backfill_range_days(&dsn);
         assert!(config.is_err());
         assert_eq!(
-            "invalid MaxBackfillRangeDays, cause: invalid digit found in string",
+            "invalid max_backfill_range: abc, cause: NoValueFoundError: no value found in the string \"abc\"",
             config.unwrap_err().to_string()
         );
+        // use unit d
+        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=2d").unwrap();
+        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
+        assert_eq!(Some(2880), config);
+        // use unit d and h
+        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=2d3h").unwrap();
+        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
+        assert_eq!(Some(3060), config);
+        // use unit d and h and m
+        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=2d3h4m").unwrap();
+        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
+        assert_eq!(Some(3064), config);
+        // use unit d and h and m and s
+        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=2d3h4m60s").unwrap();
+        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
+        assert_eq!(Some(3065), config);
+        // use unit d and h and m and s
+        let dsn = Dsn::from_str("pi:///?MaxBackfillRangeDays=2d3h4m65s").unwrap();
+        let config = PiConfig::parse_max_backfill_range_days(&dsn).unwrap();
+        assert_eq!(Some(3066), config);
     }
 
     #[test]
