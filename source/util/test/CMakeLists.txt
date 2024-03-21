@@ -116,3 +116,10 @@ add_test(
     NAME bufferTest
     COMMAND bufferTest
 )
+
+add_executable(decompressTest "decompressTest.cpp")
+target_link_libraries(decompressTest os util gtest_main)
+add_test(
+    NAME decompressTest 
+    COMMAND decompressTest
+)
