@@ -1871,7 +1871,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   char statusVstr[24] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(statusVstr, statusStr, 24);
 
-  char *encrypt = "na";
+  char *encrypt = "none";
   if(pDb->cfg.encryptAlgorithm == DND_CA_SM4){
     encrypt = "sm4";
   }

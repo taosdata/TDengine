@@ -50,6 +50,7 @@
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
+#define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -e 1234567890abcdef, the length should be less or equal to 16."
 #define DM_KEY_INDICATOR "this indicator!"
 #define DM_ENCRYPT_CODE_FILE  "encryptCode.cfg"
 #define DM_CHECK_CODE_FILE    "checkCode.bin"
@@ -200,7 +201,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
-    } else if (strcmp(argv[i], "-e") == 0) {
+    } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
       if(i < argc - 1) {
         if (strlen(argv[++i]) > ENCRYPT_KEY_LEN) {
@@ -209,7 +210,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         }
         tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
       } else {
-        printf("'-e' requires a parameter\n");
+        printf("'-y' requires a parameter\n");
         return -1;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
@@ -274,6 +275,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+  printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
