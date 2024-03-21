@@ -160,6 +160,8 @@ typedef struct SBlockLoadSuppInfo {
   int32_t             numOfCols;
   int32_t             numOfPks;
   SColumnInfo         pk;
+  int32_t             pkSrcSlot;
+  int32_t             pkDstSlot;
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 

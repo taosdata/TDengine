@@ -640,15 +640,7 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
       if (IS_NUMERIC_TYPE(pVal->type)) {
         continue;
       }
-
-      uint8_t *p = taosMemoryMalloc(pVal->nData);
-      if (p == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return terrno;
-      }
-
-      memcpy(p, pVal->pData, pVal->nData);
-      pVal->pData = p;
+      memcpy(pVal->pData, pVal->pData, pVal->nData);
     }
   }
 
