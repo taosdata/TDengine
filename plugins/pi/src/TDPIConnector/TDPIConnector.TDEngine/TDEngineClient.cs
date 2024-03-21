@@ -86,6 +86,9 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDEngineResponse> GetSTables(string database, string stable)
         {
+#if ONLY_PI_TEST
+            return null;
+#endif
             string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
             return await MakeHttpRequest(sqlCommand);
         }

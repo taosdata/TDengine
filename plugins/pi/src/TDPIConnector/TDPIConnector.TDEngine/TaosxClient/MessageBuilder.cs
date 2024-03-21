@@ -233,7 +233,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
             tagField.Add(new Field(TaosxConstants.TABLENAME, StringType.Default, true));
             foreach (var tag in tagNames)
             {
-                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, "NCHAR(100)"));
+                string tagType = "NCHAR(100)";
+                if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
+                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tagType));
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
             }
 
