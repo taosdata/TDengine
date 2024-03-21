@@ -163,6 +163,7 @@ namespace TDPIConnector.TDEngine
         }
         public virtual Task CreateTablesForAFElements(string database, List<TDTable> elements)
         {
+            if (0 == elements.Count) return Task.CompletedTask; ;
             for (int i = 0; i < elements.Count; i++)
             {
                 var element = elements[i];

@@ -1,9 +1,12 @@
-﻿using System;
+﻿using log4net;
+using System;
 
 namespace TDPIConnector.Core.Conversions
 {
     public class AttributeTypeConverter
     {
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
         internal static string Convert(Type attributeType)
         {
             switch (attributeType.Name)
@@ -37,7 +40,8 @@ namespace TDPIConnector.Core.Conversions
                 case "Byte":
                     return "NCHAR(100)";
             }
-            throw new Exception("AttributeType not found.");
+            log.Error($"AttributeType:{attributeType.Name} not supported, please conntact Tdengine");
+            return null;
         }
     }
 }

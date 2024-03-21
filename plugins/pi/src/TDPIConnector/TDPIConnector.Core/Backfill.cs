@@ -146,7 +146,7 @@ namespace TDPIConnector.Core
             stopwatch.Start();
             AFAttributeListWrapper attributes = new AFAttributeListWrapper();
             foreach (AFAttributeWrapper attribute in element.Attributes) {
-                if (!attribute.IsTDengineTag()) // tag update is not here
+                if (!attribute.IsTDengineTag() && !attribute.Unsupported()) // tag update is not here
                 {
                     attributes.Add(attribute);
                 }
@@ -180,7 +180,8 @@ namespace TDPIConnector.Core
                         this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
                         log.Info($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
                  
-                        if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime)
+                        if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime
+                            && values[values.Count - 1].AFSDKObject.IsGood == true)
                         {
                             smallLastAttributeTime = values[values.Count - 1].Timestamp.LocalTime;
                         }
