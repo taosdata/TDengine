@@ -1037,6 +1037,7 @@ typedef struct {
   uint8_t scale;
   int32_t bytes;
   int8_t  type;
+  uint8_t pk;
 } SColumnInfo;
 
 typedef struct STimeWindow {

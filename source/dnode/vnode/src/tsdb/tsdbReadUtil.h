@@ -157,8 +157,10 @@ typedef struct SBlockLoadSuppInfo {
   SColumnDataAgg      tsColAgg;
   int16_t*            colId;
   int16_t*            slotId;
-  int32_t             numOfCols;
   char**              buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
+  int32_t             numOfCols;
+  int32_t             numOfPks;
+  SColumnInfo         pk;
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
@@ -189,13 +191,13 @@ typedef struct SFileDataBlockInfo {
   union {
     int64_t  val;
     uint8_t* pData;
-  } firstPrimaryKey;
+  } firstPk;
 
   int64_t lastKey;
   union {
     int64_t  val;
     uint8_t* pData;
-  } lastPrimaryKey;
+  } lastPk;
 
   int32_t firstPKLen;
   int32_t lastPKLen;
@@ -217,7 +219,6 @@ typedef struct SDataBlockIter {
   SArray*    blockList;  // SArray<SFileDataBlockInfo>
   int32_t    order;
   SDataBlk   block;  // current SDataBlk data
-  SSHashObj* pTableMap;
 } SDataBlockIter;
 
 typedef struct SFileBlockDumpInfo {
@@ -280,8 +281,6 @@ struct STsdbReader {
   TsdReaderNotifyCbFn  notifyFn;
   void*                notifyParam;
   __compar_fn_t        pkComparFn;
-  int32_t              numOfPks;
-  bool                 pkChecked;
 };
 
 typedef struct SBrinRecordIter {

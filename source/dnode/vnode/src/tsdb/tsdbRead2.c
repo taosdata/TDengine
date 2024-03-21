@@ -110,6 +110,10 @@ static int32_t pkComp2(STsdbReader* pReader, STsdbRowKey* p1, STsdbRowKey* p2) {
 
 static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pCols, const int32_t* pSlotIdList,
                                    int32_t numOfCols) {
+  pSupInfo->pk.pk = 0;
+  pSupInfo->numOfPks = 0;
+  pSupInfo->pk.slotId = -1;
+
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
   pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + POINTER_BYTES));
@@ -128,6 +132,11 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
     } else {
       pSupInfo->buildBuf[i] = NULL;
+    }
+
+    if (pCols[i].pk) {
+      pSupInfo->pk = pCols[i];
+      pSupInfo->numOfPks += 1;
     }
   }
 
@@ -197,7 +206,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   pLReader->order = pReader->info.order;
   pLReader->window = pReader->info.window;
   pLReader->verRange = pReader->info.verRange;
-  pLReader->numOfPks = pReader->numOfPks;
+  pLReader->numOfPks = pReader->suppInfo.numOfPks;
 
   pLReader->uid = 0;
   tMergeTreeClose(&pLReader->mergeTree);
@@ -430,8 +439,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   pReader->type = pCond->type;
   pReader->info.window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
   pReader->blockInfoBuf.numPerBucket = 1000;  // 1000 tables per bucket
-  pReader->numOfPks = -1;
-  pReader->pkChecked = false;
 
   code = initResBlockInfo(&pReader->resBlockInfo, capacity, pResBlock, pCond);
   if (code != TSDB_CODE_SUCCESS) {
@@ -448,6 +455,10 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+
+  if (pSup->numOfPks > 0) {
+    pReader->pkComparFn = getComparFunc(pSup->pk.type, 0);
+  }
 
   code = tBlockDataCreate(&pReader->status.fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1519,12 +1530,6 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttB
     TSDBROW* pNextRow = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     tsdbRowGetKey(pNextRow, &nextKey);
 
-    if (!pReader->pkChecked) {
-      pReader->pkComparFn = getComparFunc(pSttKey->key.pks[0].type, 0);
-      pReader->pkChecked = true;
-      pReader->numOfPks = pSttKey->key.numOfPKs;
-    }
-
     if (pkCompEx(pReader->pkComparFn, pSttKey, &nextKey) != 0) {
       code = doAppendRowFromFileBlock(pReader->resBlockInfo.pResBlock, pReader, fRow->pBlockData, fRow->iRow);
       if (code) {
@@ -1778,7 +1783,7 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
       }
 
       // key == tsLast. ts is equal and the primary key exists
-      if (pReader->numOfPks > 0) {
+      if (pReader->suppInfo.numOfPks > 0) {
         int32_t res = pkComp1(pReader, pSttKey, &fRow);
         if (res < 0) {
           return mergeRowsInFileBlocks(pBlockData, pBlockScanInfo, key, pReader);
@@ -2273,7 +2278,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
   }
 
   if (copied) {
-    if (pReader->numOfPks == 0) {
+    if (pReader->suppInfo.numOfPks == 0) {
       pBlockScanInfo->lastProcKey.key.ts = key;
     } else {  // todo use deep copy instead of shallow copy
       int32_t step = ASCENDING_TRAVERSE(pReader->info.order)? 1 : -1;
@@ -2434,6 +2439,7 @@ void updateComposedBlockInfo(STsdbReader* pReader, double el, STableBlockScanInf
   pResBlock->info.version = pReader->info.verRange.maxVer;
 
   blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
+  blockDataUpdatePkRange(pResBlock, pReader->suppInfo.pk.slotId, ASCENDING_TRAVERSE(pReader->info.order));
   setComposedBlockFlag(pReader, true);
 
   // todo update the pk range for current return data block
@@ -2806,19 +2812,29 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
   pInfo->version = pReader->info.verRange.maxVer;
   pInfo->window = (STimeWindow){.skey = pBlockInfo->firstKey, .ekey = pBlockInfo->lastKey};
 
+  if (pReader->suppInfo.pk.pk) {
+    if (IS_NUMERIC_TYPE(pReader->suppInfo.pk.type)) {
+      pInfo->pks[0].val = pBlockInfo->firstPk.val;
+      pInfo->pks[1].val = pBlockInfo->lastPk.val;
+    } else {
+      memcpy(pInfo->pks[0].pData, pBlockInfo->firstPk.pData, pBlockInfo->firstPKLen);
+      memcpy(pInfo->pks[1].pData, pBlockInfo->lastPk.pData, pBlockInfo->lastPKLen);
+
+      pInfo->pks[0].nData = pBlockInfo->firstPKLen;
+      pInfo->pks[1].nData = pBlockInfo->lastPKLen;
+    }
+  }
+
   setComposedBlockFlag(pReader, false);
   setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->lastKey, pReader->info.order);
 
   // update the last key for the corresponding table
   SRowKey* pKey = &pScanInfo->lastProcKey.key;
   pKey->ts = asc ? pInfo->window.ekey : pInfo->window.skey;
-  pKey->numOfPKs = pReader->numOfPks;
+  pKey->numOfPKs = pReader->suppInfo.numOfPks;
 
   // todo opt allocation, and handle varchar primary key
-  pKey->pks[0].val = asc ? pBlockInfo->lastPrimaryKey.val : pBlockInfo->firstPrimaryKey.val;
-
-  pInfo->pks[0].val = pBlockInfo->firstPrimaryKey.val;
-  pInfo->pks[1].val = pBlockInfo->lastPrimaryKey.val;
+  pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
 
   tsdbDebug("%p uid:%" PRIu64
             " clean file block retrieved from file, global index:%d, "
@@ -3477,14 +3493,6 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
 
   int32_t  order = pReader->info.order;
   TSDBROW* pRow = tsdbTbDataIterGet(pIter->iter);
-
-  if (!pReader->pkChecked) {
-    STsdbRowKey k;
-    tsdbRowGetKey(pRow, &k);
-
-    pReader->pkComparFn = getComparFunc(k.key.pks[0].type, 0);
-    pReader->pkChecked = true;
-  }
 
   TSDBKEY  key = TSDBROW_KEY(pRow);
   if (outOfTimeWindow(key.ts, &pReader->info.window)) {
