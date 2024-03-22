@@ -5375,6 +5375,23 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
   STranslateContext* pCxt = pContext;
   if (isImplicitTsFunc(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (!isSelectStmt(pCxt->pCurrStmt)) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "%s function must be used in select statements", pFunc->functionName);
+      return DEAL_RES_ERROR;                               
+    }
+
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    if ((NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+        !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+        !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
+        (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
+        (TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode))) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "%s function requires valid time series input", pFunc->functionName);
+      return DEAL_RES_ERROR;                                     
+    }
+
     SNode*         pPrimaryKey = NULL;
     SSHashObj*     pTableAlias = NULL;
     nodesWalkExprs(pFunc->pParameterList, collectTableAlias, &pTableAlias);
@@ -5539,6 +5556,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkIsEmptyResult(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = appendTsForImplicitTsFunc(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
@@ -5550,9 +5570,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterp(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = appendTsForImplicitTsFunc(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);

@@ -7,6 +7,16 @@ if $rows != 64 then
 endi
 
 #inner join + non join
+sql_error select tail(col1, 1) from (select b.col1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0) c;
+sql_error select tail(col1, 1) from (select b.col1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0 order by b.ts) c;
+sql select tail(col1, 1) from (select b.col1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0 order by b.ts) c;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 7 then
+  return -1
+endi
+
 sql_error select a.*,b.* from (select * from sta partition by tbname) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;
 sql_error select a.t1 from (select * from sta partition by tbname order by col1) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;
 sql select a.t1 from (select * from sta partition by tbname order by ts) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;

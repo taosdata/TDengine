@@ -12,6 +12,8 @@ endi
 
 sql_error select diff(a.col1) c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;
 sql_error select csum(b.col1) from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;
+sql_error select tail(b.col1, 1) from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;
+sql_error select tail(b.col1, 1) from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 and a.t1 > 0;
 
 sql select count(a.col1) c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 interval(1s);
 if $rows != 6 then
