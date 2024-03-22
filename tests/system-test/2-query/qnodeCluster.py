@@ -20,9 +20,9 @@ import threading
 class TDTestCase:
 
     clientCfgDict = {'queryproxy': '1','debugFlag': 135}
-    clientCfgDict["debugFlag"] = 135
+    clientCfgDict["debugFlag"] = 131
     updatecfgDict = {'clientCfg': {}}
-    updatecfgDict = {'debugFlag': 135}
+    updatecfgDict = {'debugFlag': 131}
     updatecfgDict = {'keepColumnName': 1}
     updatecfgDict["clientCfg"]  = clientCfgDict
 
