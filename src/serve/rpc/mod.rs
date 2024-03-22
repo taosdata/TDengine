@@ -569,7 +569,10 @@ impl FlightService for FlightServiceImpl {
             self.notify_sender
                 .send(AgentNotify::AgentConnected(agent_id))
                 .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
-            tracing::debug!("Sent AgentNotify::AgentConnected, agent.id={agent_id}");
+            tracing::debug!(
+                "Sent agent notify: {:?}",
+                AgentNotify::AgentConnected(agent_id)
+            );
         }
 
         // dbg!(&agent);
