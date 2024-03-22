@@ -490,7 +490,7 @@ pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<
                         oneshot::error::TryRecvError::Empty => {
                             match save_metrics(metrics_arc.clone()) {
                                 Ok(_) => {
-                                    tracing::debug!("success")
+                                    tracing::trace!("success");
                                 }
                                 Err(err) => {
                                     tracing::error!("failed. {}", err);
@@ -512,7 +512,7 @@ pub fn save_task_metrics_finally(task_id: i64) {
     match metrics {
         Some(metrics) => match save_metrics(metrics) {
             Ok(_) => {
-                tracing::info!("finally save metrics success");
+                tracing::debug!("finally save metrics success");
             }
             Err(err) => {
                 tracing::error!("finally save metrics failed. {}", err);
