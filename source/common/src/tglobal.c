@@ -82,6 +82,11 @@ int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 
+// arbitrator
+int32_t tsArbHeartBeatIntervalSec = 5;
+int32_t tsArbCheckSyncIntervalSec = 10;
+int32_t tsArbSetAssignedTimeoutSec = 30;
+
 // dnode
 int64_t tsDndStart = 0;
 int64_t tsDndStartOsUptime = 0;
@@ -672,6 +677,16 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
 
+  if (cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER,
+                  CFG_DYN_NONE) != 0)
+    return -1;
+  if (cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER,
+                  CFG_DYN_NONE) != 0)
+    return -1;
+  if (cfgAddInt32(pCfg, "arbSetAssignedTimeoutSec", tsArbSetAssignedTimeoutSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER,
+                  CFG_DYN_NONE) != 0)
+    return -1;
+
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
@@ -1186,6 +1201,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
   tsSnapReplMaxWaitN = cfgGetItem(pCfg, "syncSnapReplMaxWaitN")->i32;
+
+  tsArbHeartBeatIntervalSec = cfgGetItem(pCfg, "arbHeartBeatIntervalSec")->i32;
+  tsArbCheckSyncIntervalSec = cfgGetItem(pCfg, "arbCheckSyncIntervalSec")->i32;
+  tsArbSetAssignedTimeoutSec = cfgGetItem(pCfg, "arbSetAssignedTimeoutSec")->i32;
 
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;

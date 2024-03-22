@@ -2168,8 +2168,8 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       pScanInfo->sttKeyInfo.nextProcKey =
           ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.skey : pScanInfo->sttWindow.ekey;
       hasData = (pScanInfo->sttKeyInfo.status == STT_FILE_HAS_DATA);
-    } else { // not clean stt blocks
-      INIT_TIMEWINDOW(&pScanInfo->sttWindow);  // reset the time window
+    } else {  // not clean stt blocks
+      INIT_TIMEWINDOW(&pScanInfo->sttWindow);  //reset the time window
       pScanInfo->sttBlockReturned = false;
       hasData = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pReader->suppInfo.pkSrcSlot, &pReader->info.verRange);
     }

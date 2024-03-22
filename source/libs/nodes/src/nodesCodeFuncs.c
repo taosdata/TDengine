@@ -209,6 +209,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowSnodesStmt";
     case QUERY_NODE_SHOW_BNODES_STMT:
       return "ShowBnodesStmt";
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return "ShowArbGroupsStmt";
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return "ShowClusterStmt";
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -266,7 +268,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
-      return "ShowCompactDetailsStmt";     
+      return "ShowCompactDetailsStmt";
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return "ShowGrantsFullStmt";
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
@@ -3178,16 +3180,16 @@ static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGrpColsMayBeNull, pNode->grpColsMayBeNull);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGroupByUid, pNode->grpByUid);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGlobalGroup, pNode->globalGrp);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanBatchFetch, pNode->batchFetch);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCachePhysiPlanGroupCols, pNode->pGroupCols);
   }
@@ -6684,6 +6686,10 @@ static int32_t showQnodesStmtToJson(const void* pObj, SJson* pJson) { return sho
 
 static int32_t jsonToShowQnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
+static int32_t showArbGroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowArbGroupsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
 static int32_t showClusterStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowClusterStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
@@ -7209,6 +7215,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return showQnodesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return showClusterStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -7546,6 +7554,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowMnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return jsonToShowQnodesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return jsonToShowClusterStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -7610,7 +7620,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToRestoreQnodeStmt(pJson, pObj);
     case QUERY_NODE_RESTORE_MNODE_STMT:
       return jsonToRestoreMnodeStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_VNODE_STMT:  
+    case QUERY_NODE_RESTORE_VNODE_STMT:
       return jsonToRestoreVnodeStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return jsonToLogicScanNode(pJson, pObj);
