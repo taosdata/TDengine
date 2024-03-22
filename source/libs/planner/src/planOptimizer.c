@@ -1322,8 +1322,56 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
+static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sortOrder) {
+  if (sortOrder == ORDER_ASC) {
+    return false;
+  }
+
+  SNodeList* pFuncList = NULL;
+  switch (nodeType(pLogicNode)) {
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      pFuncList = ((SAggLogicNode*)pLogicNode)->pAggFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      pFuncList = ((SWindowLogicNode*)pLogicNode)->pFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      pFuncList = ((SPartitionLogicNode*)pLogicNode)->pAggFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      pFuncList = ((SIndefRowsFuncLogicNode*)pLogicNode)->pFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      pFuncList = ((SInterpFuncLogicNode*)pLogicNode)->pFuncs;
+      break;
+    default:
+      break;
+  }
+  
+  SNode* pNode = 0;
+  FOREACH(pNode, pFuncList) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    SFunctionNode* pFuncNode = (SFunctionNode*)pLogicNode;
+    if (pFuncNode->hasPk && 
+        (pFuncNode->funcType == FUNCTION_TYPE_DIFF || 
+         pFuncNode->funcType == FUNCTION_TYPE_DERIVATIVE || 
+         pFuncNode->funcType == FUNCTION_TYPE_IRATE ||
+         pFuncNode->funcType == FUNCTION_TYPE_TWA)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, EOrder sortOrder,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes) {
+  if (sortPriKeyOptHasUnsupportedPkFunc(pNode, sortOrder)) {
+    *pNotOptimize = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (NULL != pNode->pLimit || NULL != pNode->pSlimit) {
     *pNotOptimize = false;
     return TSDB_CODE_SUCCESS;
@@ -2047,6 +2095,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
       (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
        TSDB_SUPER_TABLE == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->tableType)) {
     return false;
+  }
+  
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if(LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
+      return false;
+    }
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;

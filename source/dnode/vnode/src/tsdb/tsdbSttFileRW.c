@@ -556,7 +556,7 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
     SValueColumnCompressInfo compressInfo = {.cmprAlg = statisBlk.cmprAlg};
 
     tBufferClear(buffer0);
-    tBufferClear(buffer0);
+    tBufferClear(buffer1);
 
     for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
       code = tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, buffer1, assist);

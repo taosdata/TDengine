@@ -302,11 +302,13 @@ typedef struct STmsSubTableInput {
 
   int32_t rowIdx;
   int64_t* aTs;
+  SSDataBlock* pInputBlock;
 } STmsSubTableInput;
 
 typedef struct SBlockOrderInfo SBlockOrderInfo;
 typedef struct STmsSubTablesMergeInfo {
-  SBlockOrderInfo* pOrderInfo;
+  SBlockOrderInfo* pTsOrderInfo;
+  SBlockOrderInfo* pPkOrderInfo;
 
   int32_t numSubTables;
   STmsSubTableInput* aInputs;
@@ -602,6 +604,8 @@ typedef struct SStreamIntervalOperatorInfo {
   bool                recvPullover;
   SSDataBlock*        pMidPulloverRes;
   bool                clearState;
+  SArray*             pMidPullDatas;
+  int32_t             midDelIndex;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {

@@ -125,6 +125,9 @@ int32_t tsdbRowCompare(const void *p1, const void *p2);
 int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2);
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2);
 void    tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key);
+void    tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key);
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+
 // STSDBRowIter
 int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 void     tsdbRowClose(STSDBRowIter *pIter);

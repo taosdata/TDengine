@@ -221,7 +221,7 @@ static bool doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
 static int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
 
 static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDataBlock* pBlock, SArray* pUpWins,
-                            SSHashObj* pUpdatedMap) {
+                            SSHashObj* pUpdatedMap, SHashObj* pInvalidWins) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SColumnInfoData*             pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*                       startTsCols = (TSKEY*)pStartTsCol->pData;
@@ -255,10 +255,15 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDa
       void*    chIds = taosHashGet(pInfo->pPullDataMap, &winRes, sizeof(SWinKey));
       if (chIds) {
         int32_t childId = getChildIndex(pBlock);
+        if (pInvalidWins) {
+          qDebug("===stream===save mid delete window:%" PRId64 ",groupId:%" PRId64 ",chId:%d", winRes.ts, winRes.groupId, childId);
+          taosHashPut(pInvalidWins, &winRes, sizeof(SWinKey), NULL, 0);
+        }
+
         SArray* chArray = *(void**)chIds;
         int32_t index = taosArraySearchIdx(chArray, &childId, compareInt32Val, TD_EQ);
         if (index != -1) {
-          qDebug("===stream===try push delete window%" PRId64 "chId:%d ,continue", win.skey, childId);
+          qDebug("===stream===try push delete window:%" PRId64 ",groupId:%" PRId64 ",chId:%d ,continue", win.skey, winGpId, childId);
           getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
           continue;
         }
@@ -413,6 +418,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pMidRetriveRes);
   blockDataDestroy(pInfo->pMidPulloverRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
+  taosArrayDestroy(pInfo->pMidPullDatas);
 
   if (pInfo->pState->dump == 1) {
     taosMemoryFreeClear(pInfo->pState->pTdbState->pOwner);
@@ -642,9 +648,12 @@ static bool processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pFina
                                       .calWin.skey = nextWin.skey,
                                       .calWin.ekey = nextWin.skey};
               // add pull data request
-              if (savePullWindow(&pull, pPullWins) == TSDB_CODE_SUCCESS) {
+              qDebug("===stream===prepare final retrive for delete window:%" PRId64 ",groupId%" PRId64 ", size:%d", winRes.ts, winRes.groupId, numOfCh);
+              if (IS_MID_INTERVAL_OP(pOperator)) {
+                SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)pOperator->info;
+                taosArrayPush(pInfo->pMidPullDatas, &winRes);
+              } else if (savePullWindow(&pull, pPullWins) == TSDB_CODE_SUCCESS) {
                 addPullWindow(pMap, &winRes, numOfCh);
-                qDebug("===stream===prepare final retrive for delete %" PRId64 ", size:%d", winRes.ts, numOfCh);
               }
             }
           }
@@ -1191,11 +1200,6 @@ static SSDataBlock* buildIntervalResult(SOperatorInfo* pOperator) {
     return pInfo->binfo.pRes;
   }
 
-  if (pInfo->recvPullover) {
-    pInfo->recvPullover = false;
-    printDataBlock(pInfo->pMidPulloverRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pInfo->pMidPulloverRes;
-  }
   return NULL;
 }
 
@@ -1273,14 +1277,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-      if (pInfo->pUpdated != NULL) {
-        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
-      }
-
-      if (pInfo->pUpdatedMap != NULL) {
-        tSimpleHashCleanup(pInfo->pUpdatedMap);
-        pInfo->pUpdatedMap = NULL;
-      }
       qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
       return NULL;
     }
@@ -1301,7 +1297,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
                pBlock->info.type == STREAM_CLEAR) {
       SArray* delWins = taosArrayInit(8, sizeof(SWinKey));
-      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap);
+      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap, NULL);
       if (IS_FINAL_INTERVAL_OP(pOperator)) {
         int32_t chId = getChildIndex(pBlock);
         addRetriveWindow(delWins, pInfo, chId);
@@ -1337,7 +1333,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
         pInfo->recvRetrive = true;
         copyDataBlock(pInfo->pMidRetriveRes, pBlock);
         pInfo->pMidRetriveRes->info.type = STREAM_MID_RETRIEVE;
-        doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pInfo->pUpdatedMap);
+        doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pInfo->pUpdatedMap, NULL);
         break;
       }
       continue;
@@ -1565,8 +1561,10 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->recvRetrive = false;
   pInfo->pMidRetriveRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
+  pInfo->recvPullover = false;
   pInfo->pMidPulloverRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
   pInfo->clearState = false;
+  pInfo->pMidPullDatas = taosArrayInit(4, sizeof(SWinKey));
 
   pOperator->operatorType = pPhyNode->type;
   if (!IS_FINAL_INTERVAL_OP(pOperator) || numOfChild == 0) {
@@ -1842,11 +1840,6 @@ void saveDeleteRes(SSHashObj* pStDelete, SSessionKey key) {
 
 int32_t releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
   pAPI->streamStateReleaseBuf(pState, pPos, false);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
-  pAPI->streamStateReleaseBuf(pState, pPos, true);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2495,7 +2488,7 @@ void getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
     return;
   }
   SResultWindowInfo* pWinInfo = taosArrayGet(pAllWins, size - 1);
-  SSessionKey*       pSeKey = pWinInfo->pStatePos->pKey;
+  SSessionKey*       pSeKey = &pWinInfo->sessionWin;
   taosArrayPush(pMaxWins, pSeKey);
   if (pSeKey->groupId == 0) {
     return;
@@ -2503,7 +2496,7 @@ void getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
   uint64_t preGpId = pSeKey->groupId;
   for (int32_t i = size - 2; i >= 0; i--) {
     pWinInfo = taosArrayGet(pAllWins, i);
-    pSeKey = pWinInfo->pStatePos->pKey;
+    pSeKey = &pWinInfo->sessionWin;
     if (preGpId != pSeKey->groupId) {
       taosArrayPush(pMaxWins, pSeKey);
       preGpId = pSeKey->groupId;
@@ -3979,7 +3972,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
-      doDeleteWindows(pOperator, &pInfo->interval, pBlock, pInfo->pDelWins, pInfo->pUpdatedMap);
+      doDeleteWindows(pOperator, &pInfo->interval, pBlock, pInfo->pDelWins, pInfo->pUpdatedMap, NULL);
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
       pInfo->recvGetAll = true;
@@ -4272,6 +4265,34 @@ static void addMidRetriveWindow(SArray* wins, SHashObj* pMidPullMap, int32_t num
   }
 }
 
+static SSDataBlock* buildMidIntervalResult(SOperatorInfo* pOperator) {
+  SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
+  uint16_t                     opType = pOperator->operatorType;
+
+  if (pInfo->recvPullover) {
+    pInfo->recvPullover = false;
+    printDataBlock(pInfo->pMidPulloverRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    return pInfo->pMidPulloverRes;
+  }
+
+  qDebug("===stream=== build mid interval result");
+  doBuildDeleteResult(pInfo, pInfo->pMidPullDatas, &pInfo->midDelIndex, pInfo->pDelRes);
+  if (pInfo->pDelRes->info.rows != 0) {
+    // process the rest of the data
+    printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
+    return pInfo->pDelRes;
+  }
+
+  if (pInfo->recvRetrive) {
+    pInfo->recvRetrive = false;
+    printDataBlock(pInfo->pMidRetriveRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    return pInfo->pMidRetriveRes;
+  }
+
+  return NULL;
+}
+
 static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
@@ -4300,10 +4321,9 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
       return resBlock;
     }
 
-    if (pInfo->recvRetrive) {
-      pInfo->recvRetrive = false;
-      printDataBlock(pInfo->pMidRetriveRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pMidRetriveRes;
+    resBlock = buildMidIntervalResult(pOperator);
+    if (resBlock != NULL) {
+      return resBlock;
     }
 
     if (pInfo->clearState) {
@@ -4323,15 +4343,6 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-      if (pInfo->pUpdated != NULL) {
-        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
-      }
-
-      if (pInfo->pUpdatedMap != NULL) {
-        tSimpleHashCleanup(pInfo->pUpdatedMap);
-        pInfo->pUpdatedMap = NULL;
-      }
-
       qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
       return NULL;
     }
@@ -4352,7 +4363,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
                pBlock->info.type == STREAM_CLEAR) {
       SArray* delWins = taosArrayInit(8, sizeof(SWinKey));
-      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap);
+      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap, pInfo->pFinalPullDataMap);
       removeResults(delWins, pInfo->pUpdatedMap);
       taosArrayAddAll(pInfo->pDelWins, delWins);
       taosArrayDestroy(delWins);
@@ -4388,7 +4399,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_MID_RETRIEVE) {
       SArray* delWins = taosArrayInit(8, sizeof(SWinKey));
-      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap);
+      doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap, NULL);
       addMidRetriveWindow(delWins, pInfo->pPullDataMap, pInfo->numOfChild);
       taosArrayDestroy(delWins);
       pInfo->recvRetrive = true;
@@ -4433,10 +4444,9 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
     return resBlock;
   }
 
-  if (pInfo->recvRetrive) {
-    pInfo->recvRetrive = false;
-    printDataBlock(pInfo->pMidRetriveRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pInfo->pMidRetriveRes;
+  resBlock = buildMidIntervalResult(pOperator);
+  if (resBlock != NULL) {
+    return resBlock;
   }
 
   if (pInfo->clearState) {

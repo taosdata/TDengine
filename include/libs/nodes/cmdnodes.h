@@ -100,6 +100,7 @@ typedef struct SDatabaseOptions {
   int32_t     sstTrigger;
   int32_t     tablePrefix;
   int32_t     tableSuffix;
+  int8_t      withArbitrator;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

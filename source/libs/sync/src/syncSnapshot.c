@@ -1242,7 +1242,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     goto _ERROR;
   }
 
-  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     sSError(pSender, "snapshot sender not leader");
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     goto _ERROR;

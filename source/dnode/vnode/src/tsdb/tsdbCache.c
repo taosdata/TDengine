@@ -2014,7 +2014,7 @@ static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
   tb_uid_t suid = 0;
 
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pTsdb->pVnode->pMeta, 0);
+  metaReaderDoInit(&mr, pTsdb->pVnode->pMeta, META_READER_LOCK);
   if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);  // table not esist
     return 0;
