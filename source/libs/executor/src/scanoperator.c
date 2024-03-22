@@ -3985,34 +3985,37 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
 
 SArray* generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order) {
+  SArray*         pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  SBlockOrderInfo biTs = {0};
+  SBlockOrderInfo biPk = {0};
+
   int32_t tsTargetSlotId = 0;
   int32_t pkTargetSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(colMatchInfo); ++i) {
     SColMatchItem* colInfo = taosArrayGet(colMatchInfo, i);
     if (colInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       tsTargetSlotId = colInfo->dstSlotId;
+      biTs.order = order;
+      biTs.slotId = tsTargetSlotId;
+      biTs.nullFirst = (order == TSDB_ORDER_ASC);
+      biTs.compFn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, order);
     }
+    //TODO: order by just ts
     if (colInfo->isPk) {
       pkTargetSlotId = colInfo->dstSlotId;
+      biPk.order = order;
+      biPk.slotId = pkTargetSlotId;
+      biPk.nullFirst = (order == TSDB_ORDER_ASC);
+      biPk.compFn = getKeyComparFunc(colInfo->dataType.type, order);
     }
   }
 
-  SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
-  SBlockOrderInfo biTs = {0};
-  biTs.order = order;
-  biTs.slotId = tsTargetSlotId;
-  biTs.nullFirst = NULL_ORDER_FIRST;
-  taosArrayPush(pList, &biTs);
-
+  taosArrayPush(pSortInfo, &biTs);
   if (pkTargetSlotId != -1) {
-    SBlockOrderInfo biPk = {0};
-    biPk.order = order;
-    biPk.slotId = pkTargetSlotId;
-    biPk.nullFirst = NULL_ORDER_FIRST;
-    taosArrayPush(pList, &biPk);
+    taosArrayPush(pSortInfo, &biPk);
   }
 
-  return pList;
+  return pSortInfo;
 }
 
 void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
