@@ -613,12 +613,6 @@ typedef struct SCreateTSMAStmt {
   SMCreateSmaReq* pReq;
 } SCreateTSMAStmt;
 
-typedef struct SShowCreateTSMAStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tsmaName[TSDB_TABLE_NAME_LEN];
-}SShowCreateTSMAStmt;
-
 typedef struct SDropTSMAStmt {
   ENodeType     type;
   bool          ignoreNotExists;

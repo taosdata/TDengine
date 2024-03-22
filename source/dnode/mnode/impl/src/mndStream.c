@@ -1193,6 +1193,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
+  if (pStream->smaId != 0) {
+    void    *pIter = NULL;
+    SSmaObj *pSma = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
+    while (pIter) {
+      if (pSma && pSma->uid == pStream->smaId) {
+        sdbRelease(pMnode->pSdb, pSma);
+        sdbRelease(pMnode->pSdb, pStream);
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        tFreeMDropStreamReq(&dropReq);
+        terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+        return -1;
+      }
+      if (pSma) sdbRelease(pMnode->pSdb, pSma);
+      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
+    }
+  }
+
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);

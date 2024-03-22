@@ -3981,17 +3981,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = stddevPartialFinalize,
   },
   {
-    //TODO tsma for outer use not only internal
     .name = "_avg_state",
     .type = FUNCTION_TYPE_AVG_STATE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateAvgState,
-    //.dataRequiredFunc = statisDataRequired,
     .getEnvFunc = getAvgFuncEnv,
     .initFunc = avgFunctionSetup,
     .processFunc = avgFunction,
     .finalizeFunc = avgPartialFinalize,
-    //.combineFunc = avgCombine,
     .pPartialFunc = "_avg_partial",
     .pMergeFunc = "_avg_state_merge"
   },

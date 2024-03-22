@@ -173,6 +173,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  SNodeList *pTsmaSubplans;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -311,6 +312,7 @@ typedef struct SWindowLogicNode {
   bool             isPartTb;
   int64_t          windowCount;
   int64_t          windowSliding;
+  SNodeList*       pTsmaSubplans;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -369,7 +371,6 @@ typedef struct SLogicSubplan {
   int32_t       level;
   int32_t       splitFlag;
   int32_t       numOfComputeNodes;
-  SNodeList*    pTsmaChildren;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {

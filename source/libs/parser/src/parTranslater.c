@@ -3674,7 +3674,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
         SName tsmaTargetTbName = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name); // TODO tsma what if tsma name is too long
+        int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN, "%s.%s", pTsma->dbFName, pTsma->name);
         len = taosCreateMD5Hash(buf, len);
         len = sprintf(buf + len, "_%s", pRealTable->table.tableName);
         strncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
@@ -5697,7 +5697,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
 
         for (int32_t k = 0; k < pInfo->aTbnames->size; ++k) {
           const char* pTbName = taosArrayGetP(pInfo->aTbnames, k);
-          char* pNewTbName = taosMemoryCalloc(1, 34 + strlen(pTbName) + 1);
+          char* pNewTbName = taosMemoryCalloc(1, TSMA_RES_CTB_PREFIX_LEN + strlen(pTbName) + 1);
           if (!pNewTbName) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             break;
@@ -10579,6 +10579,7 @@ static int32_t buildTSMAAstMakeConcatFuncNode(SCreateTSMAStmt* pStmt, SMCreateSm
   if (TSDB_CODE_SUCCESS == code) {
     sprintf(pTsmaNameHashVNode->literal, "%s", pReq->name);
     int32_t len = taosCreateMD5Hash(pTsmaNameHashVNode->literal, strlen(pTsmaNameHashVNode->literal));
+    ASSERT(len == TSMA_RES_CTB_PREFIX_LEN - 1);
     sprintf(pTsmaNameHashVNode->literal + len, "_");
     pTsmaNameHashVNode->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
     pTsmaNameHashVNode->node.resType.bytes = strlen(pTsmaNameHashVNode->literal);
@@ -10595,8 +10596,9 @@ static int32_t buildTSMAAstMakeConcatFuncNode(SCreateTSMAStmt* pStmt, SMCreateSm
       code = nodesListMakeStrictAppend(&pSubstrFunc->pParameterList, nodesMakeNode(QUERY_NODE_VALUE));
       if (TSDB_CODE_SUCCESS == code) {
         SValueNode* pV = (SValueNode*)pSubstrFunc->pParameterList->pTail->pNode;
-        pV->literal = strdup("34"); // TODO tsma define this magic number
+        pV->literal = taosMemoryCalloc(1, 64);
         if (!pV->literal) code = TSDB_CODE_OUT_OF_MEMORY;
+        sprintf(pV->literal, "%d", TSMA_RES_CTB_PREFIX_LEN + 1);
         pV->isDuration = false;
         pV->translate = false;
         pV->node.resType.type = TSDB_DATA_TYPE_INT;
@@ -10767,7 +10769,6 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   int32_t code = TSDB_CODE_SUCCESS;
 
   STableMeta* pTableMeta = NULL;
-  // TODO tsma 在使用该tableName时, 如果确定其其实是tsma name, 那么避免将此作为tbname进行catalog 获取.
   STableTSMAInfo* pRecursiveTsma = NULL;
   int32_t         numOfCols = 0, numOfTags = 0;
   SSchema *       pCols = NULL, *pTags = NULL;
@@ -10798,7 +10799,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       memset(useTbName, 0, sizeof(SName));
       memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
       tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
-      numOfCols = pRecursiveTsma->pUsedCols->size; // TODO tsma merge pUsedCols and pTags with one SSchema array
+      numOfCols = pRecursiveTsma->pUsedCols->size;
       numOfTags = pRecursiveTsma->pTags->size;
       pCols = pRecursiveTsma->pUsedCols->pData;
       pTags = pRecursiveTsma->pTags->pData;

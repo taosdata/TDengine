@@ -3899,6 +3899,7 @@ static int32_t mndProcessDropTbWithTsma(SRpcMsg* pReq) {
   if (mndCreateDropTbsTxnPrepare(pReq, pCtx) == 0)
     code = 0;
 _OVER:
+  tFreeSMDropTbsReq(&dropReq);
   if (pCtx) mndDestroyDropTbsWithTsmaCtx(pCtx);
   return code;
 }

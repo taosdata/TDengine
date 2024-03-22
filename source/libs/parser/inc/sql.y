@@ -587,7 +587,6 @@ cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
 cmd ::= CREATE RECURSIVE TSMA not_exists_opt(B) tsma_name(C)
   ON full_table_name(D) INTERVAL NK_LP duration_literal(E) NK_RP.                 { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, NULL, D, releaseRawExprNode(pCxt, E)); }
 cmd ::= DROP TSMA exists_opt(B) full_tsma_name(C).                                { pCxt->pRootNode = createDropTSMAStmt(pCxt, B, C); }
-cmd ::= SHOW CREATE TSMA full_tsma_name(B).                                       { pCxt->pRootNode = createShowCreateTSMAStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                           { pCxt->pRootNode = createShowTSMASStmt(pCxt, B); }
 
 full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }

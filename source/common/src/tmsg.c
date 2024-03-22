@@ -10121,7 +10121,6 @@ static int32_t tDecodeTableTSMAInfoRsp(SDecoder* pDecoder, STableTSMAInfoRsp* pR
   pRsp->pTsmas = taosArrayInit(size, POINTER_BYTES);
   if (!pRsp->pTsmas) return -1;
   for (int32_t i = 0; i < size; ++i) {
-    // TODO tsma add a test case when decode failed, to see if the array is freed
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) return -1;
     taosArrayPush(pRsp->pTsmas, &pTsma);
@@ -10338,6 +10337,11 @@ int32_t tDecodeSMDropTbReqOnSingleVg(SDecoder* pDecoder, SMDropTbReqsOnSingleVg*
   return 0;
 }
 
+void tFreeSMDropTbReqOnSingleVg(void *p) {
+  SMDropTbReqsOnSingleVg* pReq = p;
+  taosArrayDestroy(pReq->pTbs);
+}
+
 int32_t tSerializeSMDropTbsReq(void* buf, int32_t bufLen, const SMDropTbsReq* pReq){
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -10373,6 +10377,11 @@ int32_t tDeserializeSMDropTbsReq(void* buf, int32_t bufLen, SMDropTbsReq* pReq) 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
+}
+
+void tFreeSMDropTbsReq(void* p) {
+  SMDropTbsReq* pReq = p;
+  taosArrayDestroyEx(pReq->pVgReqs, tFreeSMDropTbReqOnSingleVg);
 }
 
 int32_t tEncodeVFetchTtlExpiredTbsRsp(SEncoder* pCoder, const SVFetchTtlExpiredTbsRsp* pRsp) {
