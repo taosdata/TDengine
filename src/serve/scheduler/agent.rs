@@ -108,6 +108,7 @@ impl AgentWorker {
             loop {
                 match agent_notify_receiver.recv().await {
                     Ok(item) => {
+                        tracing::debug!("Received agent notify: {:?}", item);
                         let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
                         let agent_states_cloned = agent_states_cloned.clone();
                         let scheduler_notify_sender = scheduler_notify_sender.clone();

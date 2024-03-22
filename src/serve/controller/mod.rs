@@ -437,6 +437,12 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
             status = "connected";
         }
     }
+    tracing::debug!(
+        "push agent activity. agent.id={}, status={}, activity={}",
+        activity.id,
+        status,
+        activity.activity
+    );
     sqlx::query(
             "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
