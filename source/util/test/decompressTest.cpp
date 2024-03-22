@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <tcompression.h>
 #include <random>
+#include "ttypes.h"
 
 namespace {}  // namespace
 
@@ -117,29 +118,92 @@ void compressImplTest(void* pVal, int8_t type, int32_t sz, uint32_t cmprAlg) {
     int64_t* pList = (int64_t*)pVal;
     int32_t  num = sz;
 
-    char* px = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t)));
-    char* pBuf = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t) + 64));
+    int64_t bytes = 0;  // tDataTypeDescriptor[TSDB_DATA_TYPE_TIMESTAMP].
+    char*   px = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t)));
+    char*   pBuf = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t) + 64));
 
-    int32_t len =
-        tsCompressTimestamp2(pList, num * sizeof(int64_t), num, px, num, cmprAlg, pBuf, num * sizeof(int64_t) + 64);
-
+    int32_t len = tsCompressTimestamp2(pList, num * sizeof(int64_t), num, px, num * sizeof(int64_t) + 64, cmprAlg, pBuf,
+                                       num * sizeof(int64_t) + 64);
+    printf("compresess size: %d, actual size: %d\n", len, (int32_t)(num * sizeof(int64_t)));
     char* pOutput = static_cast<char*>(taosMemoryCalloc(1, num * sizeof(int64_t)));
     memset(pBuf, 0, num * sizeof(int64_t) + 64);
-    int32_t size =
-        tsDecompressTimestamp2(px, len, num, pOutput, sizeof(int64_t) * num, cmprAlg, pBuf, num * sizeof(int64_t) + 64);
-    printf("size: %d\n", size);
+
+
+    int32_t size = tsDecompressTimestamp2(px, len, num, pOutput, sizeof(int64_t) * num + 64, cmprAlg, pBuf,
+                                          num * sizeof(int64_t) + 64);
     for (int i = 0; i < num; i++) {
       int64_t val = *(int64_t*)(pOutput + i * sizeof(int64_t));
-      int32_t ival = val;
-      if (i < 10) printf("val = %d\n", ival);
+      ASSERT_EQ(val, pList[i]);
     }
     taosMemoryFree(px);
     taosMemoryFree(pBuf);
     taosMemoryFree(pOutput);
   }
 }
-TEST(utilTest, zstdtest) {
-  int32_t  num = 10000;
+
+const char* alg[] = {"disabled", "lz4", "zlib", "zstd", "tsz", "xz"};
+const char* end[] = {"disabled", "simppe8b", "delta"};
+void        compressImplTestByAlg(void* pVal, int8_t type, int32_t num, uint32_t cmprAlg) {
+  {
+    tDataTypeCompress compres = tDataCompress[type];
+    int32_t           bytes = compres.bytes * num;
+
+    int32_t externalSize = bytes + 64;
+    char*   px = static_cast<char*>(taosMemoryMalloc(externalSize));
+    char*   pBuf = static_cast<char*>(taosMemoryMalloc(externalSize));
+
+    DEFINE_VAR(cmprAlg)
+    int32_t len = compres.compFunc(pVal, bytes, num, px, externalSize, cmprAlg, pBuf, externalSize);
+    printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, radio: %f\n", end[l1], alg[l2],
+                  compres.name, len, bytes, (float)len / bytes);
+    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, bytes));
+    memset(pBuf, 0, externalSize);
+    int32_t size = compres.decompFunc(px, len, num, pOutput, externalSize, cmprAlg, pBuf, externalSize);
+
+    ASSERT_EQ(size, bytes);
+    taosMemoryFree(px);
+    taosMemoryFree(pBuf);
+    taosMemoryFree(pOutput);
+    // taosMemoryFree(pVal);
+  }
+}
+int32_t fillDataByData(char* pBuf, void* pData, int32_t nBytes) {
+  memcpy(pBuf, pData, nBytes);
+  return 0;
+}
+void* genCompressData(int32_t type, int32_t num, bool order) {
+  tDataTypeDescriptor desc = tDataTypes[type];
+
+  int32_t cnt = num * (desc.bytes);
+
+  char*    pBuf = (char*)taosMemoryCalloc(1, cnt);
+  char*    p = pBuf;
+  uint32_t v = taosGetTimestampMs();
+  int64_t  iniVal = 0;
+  for (int32_t i = 0; i < num; i++) {
+    int64_t d = taosRandR(&v);
+    if (type == TSDB_DATA_TYPE_BOOL) {
+      int8_t val = d % 2;
+      fillDataByData(p, &val, desc.bytes);
+    } else if (type == TSDB_DATA_TYPE_TINYINT) {
+      int8_t val = d % INT8_MAX;
+      fillDataByData(p, &val, desc.bytes);
+    } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+      int16_t val = d % INT16_MAX;
+      fillDataByData(p, &val, desc.bytes);
+    } else if (type == TSDB_DATA_TYPE_INT) {
+      int32_t val = d % INT32_MAX;
+      fillDataByData(p, &val, desc.bytes);
+    } else if (type == TSDB_DATA_TYPE_BIGINT) {
+      int64_t val = d % INT64_MAX;
+      fillDataByData(p, &val, desc.bytes);
+    }
+    p += desc.bytes;
+  }
+  return pBuf;
+}
+TEST(utilTest, compressAlg) {
+  int32_t  num = 4096;
   int64_t* pList = static_cast<int64_t*>(taosMemoryCalloc(num, sizeof(int64_t)));
   int64_t  iniVal = 17000;
 
@@ -149,10 +213,12 @@ TEST(utilTest, zstdtest) {
     iniVal += i;
     pList[i] = iniVal;
   }
+  printf("ordered data\n");
   {
     uint32_t cmprAlg = 0;
     setColCompress(&cmprAlg, 1);
     setColEncode(&cmprAlg, 1);
+    
 
     compressImplTest((void*)pList, 0, num, cmprAlg);
   }
@@ -170,5 +236,91 @@ TEST(utilTest, zstdtest) {
     setColEncode(&cmprAlg, 1);
 
     compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 1);
+    // setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 2);
+    // setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 3);
+    // setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+
+  printf("unoreder data\n");
+  for (int32_t i = 0; i < num; ++i) {
+    iniVal = taosRandR(&v);
+    pList[i] = iniVal;
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 1);
+    setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 2);
+    setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 3);
+    setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  printf("unoreder data, no encode\n");
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 1);
+    // setColEncode(&cmprAlg, 0);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 2);
+    // setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+  {
+    uint32_t cmprAlg = 0;
+    setColCompress(&cmprAlg, 3);
+    // setColEncode(&cmprAlg, 1);
+
+    compressImplTest((void*)pList, 0, num, cmprAlg);
+  }
+
+  {
+    for (int8_t type = 1; type <= 5; type++) {
+      printf("------summary, type: %s-------\n", tDataTypes[type].name);
+      char* p = (char*)genCompressData(type, num, 0);
+      for (int8_t i = 1; i <= 3; i++) {
+        uint32_t cmprAlg = 0;
+        setColCompress(&cmprAlg, i);
+        // setColEncode(&cmprAlg, 1);
+        compressImplTestByAlg(p, type, num, cmprAlg);
+      }
+      taosMemoryFree(p);
+      printf("-------------");
+    }
   }
 }
