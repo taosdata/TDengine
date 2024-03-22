@@ -188,22 +188,22 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "");
+      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "", true);
       TSDB_CHECK_CODE(code, lino, _exit);
       continue;
     }
 
-    SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE,};
+    SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE};
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
-    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray);
+    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true);
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;
 
       int32_t *index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -213,7 +213,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
         int32_t size = (int32_t)taosArrayGetSize(pReq->aSubmitTbData) - 1;
         taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
       } else {
-        code = setDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }

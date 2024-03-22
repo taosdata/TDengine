@@ -311,6 +311,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
+        pInput->blankFill = pBlock->info.blankFill;
 
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
@@ -325,6 +326,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
           pInput->totalRows = pBlock->info.rows;
           pInput->numOfRows = pBlock->info.rows;
           pInput->startRowIndex = 0;
+          pInput->blankFill = pBlock->info.blankFill;
 
           code = doCreateConstantValColumnInfo(pInput, pFuncParam, j, pBlock->info.rows);
           if (code != TSDB_CODE_SUCCESS) {
@@ -449,7 +451,7 @@ STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  win.ekey = taosTimeGetIntervalEnd(win.skey, pInterval);
   if (win.ekey < win.skey) {
     win.ekey = INT64_MAX;
   }

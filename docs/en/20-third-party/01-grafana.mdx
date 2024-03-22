@@ -194,11 +194,11 @@ Go back to the main interface to create a dashboard and click Add Query to enter
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
-- INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
+- INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_free) from log.taosd_dnodes_info where _ts >= $from and _ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
 - ALIAS BY: This allows you to set the current query alias.
 - GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
-- Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
-- Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_system_{{dnode_ep}}`.
+- Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_free), dnode_ep from log.taosd_dnodes_info where _ts>=$from and _ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
+- Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_free), dnode_ep from log.taosd_dnodes_info where _ts>=$from and _ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_free_{{dnode_ep}}`.
 
 :::note
 
@@ -206,11 +206,11 @@ Since the REST connection because is stateless. Grafana plugin can use &lt;db_na
 
 :::
 
-Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
+Follow the default prompt to query the average system free memory for the specified interval on the server where the current TDengine deployment is located as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
 
-The example to query the average system memory usage for the specified interval on each server as follows.
+The example to query the average system free memory for the specified interval on each server as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard3.webp)
 

@@ -1254,6 +1254,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
   int32_t len;
   SArray *formats = NULL;
+  int32_t code = 0;
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -1272,14 +1273,15 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       }
     }
     int32_t precision = pInput[0].columnData->info.precision;
-    taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
+    code = taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
+    if (code) break;
     varDataSetLen(out, strlen(varDataVal(out)));
     colDataSetVal(pOutput->columnData, i, out, false);
   }
   if (formats) taosArrayDestroy(formats);
   taosMemoryFree(format);
   taosMemoryFree(out);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /** Time functions **/
@@ -1786,6 +1788,7 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
   return true;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
   return TSDB_CODE_SUCCESS;
@@ -1795,6 +1798,7 @@ int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
@@ -1811,9 +1815,8 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char* p = colDataGetVarData(pInput->columnData, 0);
-
+int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char   *p = colDataGetData(pInput->columnData, 0);
   int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
   if (code) {
     return code;
@@ -1822,31 +1825,6 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t qTbUidFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char* p = colDataGetNumData(pInput->columnData, 0);
-
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
-  if (code) {
-    return code;
-  }
-  
-  pOutput->numOfRows += pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t qVgIdFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char* p = colDataGetNumData(pInput->columnData, 0);
-
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
-  if (code) {
-    return code;
-  }
-  
-  pOutput->numOfRows += pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
-}
-
 
 /** Aggregation functions **/
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -2425,9 +2403,19 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
     matrix12 /= matrix[1][1];
 
-    char   buf[64] = {0};
-    size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", matrix02,
-                          matrix12);
+    char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
+    char slopBuf[64] = {0};
+    char interceptBuf[64] = {0};
+    int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
+    if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+      snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
+    }
+    n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
+    if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+      snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
+    }
+    size_t len =
+        snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
     colDataSetVal(pOutputData, 0, buf, false);
   }

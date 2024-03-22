@@ -8,6 +8,7 @@ add_subdirectory(qcom)
 add_subdirectory(nodes)
 add_subdirectory(catalog)
 add_subdirectory(audit)
+add_subdirectory(monitorfw)
 
 add_subdirectory(scalar)
 add_subdirectory(function)

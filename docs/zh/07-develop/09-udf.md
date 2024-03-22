@@ -195,7 +195,7 @@ typedef struct SUdfInterBuf {
 ```
 数据结构说明如下：
 
-- SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 <= i <= numCols-1)表示每一列数据，类型为SUdfColumn*。
+- SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 \<= i \<= numCols-1)表示每一列数据，类型为SUdfColumn*。
 - SUdfColumn 包含列的数据类型定义 colMeta 和列的数据 colData。
 - SUdfColumnMeta 成员定义同 taos.h 数据类型定义。
 - SUdfColumnData 数据可以变长，varLenCol 定义变长数据，fixLenCol 定义定长数据。 
@@ -396,7 +396,7 @@ def finish(buf: bytes) -> output_type:
 1. 定义一个只接收一个整数的标量函数： 输入 n， 输出 ln(n^2 + 1)。
 2. 定义一个接收 n 个整数的标量函数， 输入 （x1, x2, ..., xn）, 输出每个值和它们的序号的乘积的和： x1 + 2 * x2 + ... + n * xn。
 3. 定义一个标量函数，输入一个时间戳，输出距离这个时间最近的下一个周日。完成这个函数要用到第三方库 moment。我们在这个示例中讲解使用第三方库的注意事项。
-4. 定义一个聚合函数，计算某一列最大值和最小值的差,  也就是实现 TDengien 内置的 spread 函数。
+4. 定义一个聚合函数，计算某一列最大值和最小值的差,  也就是实现 TDengine 内置的 spread 函数。
 同时也包含大量实用的 debug 技巧。
 本文假设你用的是 Linux 系统，且已安装好了 TDengine 3.0.4.0+ 和 Python 3.7+。
 

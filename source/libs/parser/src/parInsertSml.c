@@ -210,7 +210,15 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSmlKv*  kv = (SSmlKv*)data;
   if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
     ret = TSDB_CODE_SML_INVALID_DATA;
-    uInfo("SML smlBuildCol error col not same %s", pColSchema->name);
+    char* tmp = taosMemoryCalloc(kv->keyLen + 1, 1);
+    if(tmp){
+      memcpy(tmp, kv->key, kv->keyLen);
+      uInfo("SML data(name:%s type:%s) is not same like the db data(name:%s type:%s)",
+            tmp, tDataTypes[kv->type].name, pColSchema->name, tDataTypes[pColSchema->type].name);
+      taosMemoryFree(tmp);
+    }else{
+      uError("SML smlBuildCol out of memory");
+    }
     goto end;
   }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {

@@ -75,6 +75,7 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
+int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
 int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);
 
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
@@ -105,7 +106,7 @@ int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
 /// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
 /// @param out output buffer, should be initialized by memset
 /// @notes remember to free the generated formats
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
 /// @brief convert a formatted timestamp string to a timestamp
 /// @param format must null terminated
 /// @param [in, out] formats, see taosTs2Char

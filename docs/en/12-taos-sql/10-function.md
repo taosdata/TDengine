@@ -491,6 +491,8 @@ TO_CHAR(ts, format_str_literal)
 
 **Description**: Convert a ts column to string as the format specified
 
+**Version**: Since ver-3.2.2.0
+
 **Return value type**: VARCHAR
 
 **Applicable column types**: TIMESTAMP
@@ -549,6 +551,8 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
 
 **Description**: Convert a formated timestamp string to a timestamp
+
+**Version**: Since ver-3.2.2.0
 
 **Return value type**: TIMESTAMP
 
@@ -1158,7 +1162,7 @@ TDengine includes extensions to standard SQL that are intended specifically for 
 CSUM(expr)
 ```
 
-**Description**: The cumulative sum of each row for a specific column. The number of output rows is same as that of the input rows.
+**Description**: The cumulative sum of each row for a specific column, NULL value will be discard.
 
 **Return value type**: Long integer for integers; Double for floating points. uint64_t for unsigned integers
 

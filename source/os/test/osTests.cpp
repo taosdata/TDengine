@@ -72,7 +72,7 @@ TEST(osTest, osSystem) {
   const int sysLen = 64;
   char      osSysName[sysLen];
   int       ret = taosGetOsReleaseName(osSysName, NULL, NULL, sysLen);
-  printf("os systeme name:%s\n", osSysName);
+  printf("os system name:%s\n", osSysName);
   ASSERT_EQ(ret, 0);
 }
 

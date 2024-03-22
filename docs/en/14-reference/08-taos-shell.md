@@ -58,6 +58,7 @@ And many more parameters.
 
 - -a AUTHSTR: Authorization information to connect to the server.
 - -A: Obtain authorization information from username and password.
+- -B: Set BI mode , all outputs follow the format of BI tools for output if setting
 - -c CONFIGDIR: Specify the directory where configuration file exists. The default is `/etc/taos`, and the default name of the configuration file in this directory is `taos.cfg`
 - -C: Print the configuration parameters of `taos.cfg` in the default directory or specified by -c
 - -d DATABASE: Specify the database to use when connecting to the server

@@ -805,6 +805,12 @@ int64_t tsdbFSAllocEid(STFileSystem *fs) {
   return cid;
 }
 
+void tsdbFSUpdateEid(STFileSystem *fs, int64_t cid) {
+  taosThreadMutexLock(&fs->tsdb->mutex);
+  fs->neid = TMAX(fs->neid, cid);
+  taosThreadMutexUnlock(&fs->tsdb->mutex);
+}
+
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;

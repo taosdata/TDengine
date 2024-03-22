@@ -631,7 +631,6 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
-
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
       bool isNull = false;
       if (pBlock->pBlockAgg == NULL) {
@@ -866,9 +865,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema
+  // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
   // | each column length |
-  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
@@ -1436,6 +1435,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.capacity = 0;
   pBlock->info.rowSize = 0;
   pBlock->info.id = pDataBlock->info.id;
+  pBlock->info.blankFill = pDataBlock->info.blankFill;
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -2118,6 +2118,30 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
+void  buildCtbNameAddGroupId(char* ctbName, uint64_t groupId){
+  char tmp[TSDB_TABLE_NAME_LEN] = {0};
+  snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
+  strcat(ctbName, tmp);
+}
+
+// auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
+// the total length is fixed to be 34 bytes.
+bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_'); }
+
+bool alreadyAddGroupId(char* ctbName) {
+  size_t len = strlen(ctbName);
+  size_t _location = len - 1;
+  while (_location > 0) {
+    if (ctbName[_location] < '0' || ctbName[_location] > '9') {
+      break;
+    }
+    _location--;
+  }
+
+  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
+}
+
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {
@@ -2172,7 +2196,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = 1;
+  *version = BLOCK_VERSION_1;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2258,6 +2282,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     //    htonl(colSizes[col]), colSizes[col]);
   }
 
+  bool* blankFill = (bool*)data;
+  *blankFill = pBlock->info.blankFill;
+  data += sizeof(bool);
+
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
   ASSERT(dataLen > 0);
@@ -2269,7 +2297,6 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   int32_t version = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
-  ASSERT(version == 1);
 
   // total length sizeof(int32_t)
   int32_t dataLen = *(int32_t*)pStart;
@@ -2350,8 +2377,12 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     pStart += colLen[i];
   }
 
+  bool blankFill = *(bool*)pStart;
+  pStart += sizeof(bool);
+
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
+  pBlock->info.blankFill = blankFill;
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }

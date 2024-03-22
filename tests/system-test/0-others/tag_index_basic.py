@@ -88,6 +88,13 @@ class TDTestCase:
 
         tdLog.info(f" create {count} child tables ok.")    
     
+    def create_tagidx_check(self, stbname):
+        err_dict = {"NULL","",",","\"","\"\"","undef","t1,t2","t12,t12"}
+        for errs in err_dict:
+            sql = (f'create index idx_err_check on {stbname} (%s)'% (errs))
+            tdLog.info(f'  sql={sql}')
+            tdSql.error(f'{sql}')
+        tdLog.info(f' create tagidx check ok.')
     
     # create stable and child tables
     def create_tagidx(self, stbname):
@@ -231,6 +238,7 @@ class TDTestCase:
         count = 1000
         # do 
         self.create_table(stable, tbname, count)
+        self.create_tagidx_check(stable)
         self.create_tagidx(stable)
         self.insert_data(tbname)
         self.show_tagidx(stable)

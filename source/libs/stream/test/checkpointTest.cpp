@@ -39,7 +39,9 @@ int main(int argc, char **argv) {
     return -1;
   }
   strcpy(tsSnodeAddress, "127.0.0.1");
-  return RUN_ALL_TESTS();
+  int ret = RUN_ALL_TESTS();
+  s3CleanUp();
+  return ret;
 }
 
 TEST(testCase, checkpointUpload_Test) {

@@ -12,7 +12,7 @@
 
 [![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
+[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 <br />
 [![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
@@ -35,7 +35,7 @@ Learn more about our offerings:
 
 - [TDengine OSS](https://tdengine.com/oss/), a high-performance open-source time-series database
 - [TDengine Enterprise](https://tdengine.com/enterprise/), a next generation data historian for Industry 4.0 and the Industrial IoT
-- [TDengine Cloud](https://cloud.tdengine.com), a fully managed cloud service for industrial big data
+- [TDengine Cloud](https://cloud.tdengine.com), a fully managed cloud service for industrial big data 
 
 # Documentation
 

@@ -114,6 +114,7 @@ typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
   int32_t           startRowIndex;    // handle started row index
   int64_t           numOfRows;        // the number of rows needs to be handled
+  bool              blankFill;        // fill blank data to block for empty table
   int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
@@ -237,9 +238,9 @@ struct SScalarParam {
   int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
-void cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-bool isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
-bool isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
+#define cleanupResultRowEntry(p)  p->initialized = false
+#define isRowEntryCompleted(p)   (p->complete)
+#define isRowEntryInitialized(p) (p->initialized)
 
 typedef struct SPoint {
   int64_t key;
@@ -248,6 +249,10 @@ typedef struct SPoint {
 
 int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
+
+#define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25
+#define LEASTSQUARES_BUFF_LENGTH 128
+#define DOUBLE_PRECISION_DIGITS "16e"
 
 #ifdef __cplusplus
 }

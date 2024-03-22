@@ -539,7 +539,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
       if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
         QW_TASK_WLOG("last fetch still not processed, phase:%s", qwPhaseStr(phase));
-        QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
+        QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATED_OPERATION);
       }
 
       if (ctx->rspCode) {
@@ -732,6 +732,13 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }
+
+#if 0
+  SReadHandle* pReadHandle = qwMsg->node;
+  int64_t delay = 0;
+  bool fhFinish = false;
+  pReadHandle->api.tqReaderFn.tqGetStreamExecProgress(pReadHandle->vnode, 0, &delay, &fhFinish);
+#endif
 
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, sql, OPTR_EXEC_MODEL_BATCH);
   sql = NULL;
@@ -968,7 +975,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
     QW_TASK_WLOG_E("task already dropping");
-    QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
+    QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATED_OPERATION);
   }
 
   if (QW_QUERY_RUNNING(ctx)) {

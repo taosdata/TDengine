@@ -400,6 +400,9 @@ class TDTestCase:
 
         self.explain_check()
 
+        # coverage explain.c add
+        tdSql.query(f"explain verbose true select * from {dbname}.stb1 partition by c1 order by c2")
+
     def __test_error(self, dbname=DBNAME):
         
         ratio = random.uniform(0.001,1)

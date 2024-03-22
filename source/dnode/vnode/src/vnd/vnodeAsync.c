@@ -433,10 +433,12 @@ static int32_t vnodeAsyncLaunchWorker(SVAsync *async) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t vnodeAsync(SVAsync *async, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *),
                    void *arg, int64_t *taskId) {
   return vnodeAsyncC(async, 0, priority, execute, complete, arg, taskId);
 }
+#endif
 
 int32_t vnodeAsyncC(SVAsync *async, int64_t channelId, EVAPriority priority, int32_t (*execute)(void *),
                     void (*complete)(void *), void *arg, int64_t *taskId) {

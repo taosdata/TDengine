@@ -47,6 +47,8 @@
 
 #include "vnode.h"
 
+#include "taos_monitor.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -95,7 +97,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
-#if SUSPEND_RESUME_TEST        // only for test purpose
+#if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
 #else
 #define VNODE_BUFPOOL_SEGMENTS 3
@@ -103,6 +105,20 @@ typedef struct SQueryNode         SQueryNode;
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
+
+#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
+
+#define VNODE_METRIC_TAG_NAME_SQL_TYPE "sql_type"
+#define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_ID "dnode_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_EP "dnode_ep"
+#define VNODE_METRIC_TAG_NAME_VGROUP_ID "vgroup_id"
+#define VNODE_METRIC_TAG_NAME_USERNAME "username"
+#define VNODE_METRIC_TAG_NAME_RESULT "result"
+
+#define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
+//#define VNODE_METRIC_TAG_VALUE_INSERT "insert"
+//#define VNODE_METRIC_TAG_VALUE_DELETE "delete"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
@@ -214,10 +230,15 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
+int32_t tsdbCacheNewTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
+int32_t tsdbCacheDropTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
+int32_t tsdbCacheDropSubTables(STsdb* pTsdb, SArray* uids, tb_uid_t suid);
+int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
+int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
+int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
+int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
-// int32_t tsdbFinishCommit(STsdb* pTsdb);
-// int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -232,11 +253,14 @@ int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqScanWalAsync(STQ* pTq, bool ckPause);
+int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
@@ -269,8 +293,6 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaInit();
@@ -439,6 +461,13 @@ typedef struct SVCommitSched {
   int64_t maxWaitMs;
 } SVCommitSched;
 
+typedef struct SVMonitorObj{
+  char strClusterId[TSDB_CLUSTER_ID_LEN];
+  char strDnodeId[TSDB_NODE_ID_LEN];
+  char strVgId[TSDB_VGROUP_ID_LEN];
+  taos_counter_t *insertCounter;
+}SVMonitorObj;
+
 struct SVnode {
   char*     path;
   SVnodeCfg config;
@@ -477,6 +506,7 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
+  SVMonitorObj  monitor;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

@@ -33,7 +33,7 @@ int32_t schedulerInit() {
   schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
   schMgmt.cfg.maxNodeTableNum = tsQueryMaxConcurrentTables;
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
-  schMgmt.cfg.enableReSchedule = true;
+  schMgmt.cfg.enableReSchedule = false;
 
   qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
     schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);

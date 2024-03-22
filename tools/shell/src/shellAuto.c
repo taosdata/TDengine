@@ -84,8 +84,8 @@ SWords shellCommands[] = {
     {"alter topic", 0, 0, NULL},
     {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
-    {"balance vgroup;", 0, 0, NULL},
-    {"balance vgroup leader <vgroup_id>", 0, 0, NULL},
+    {"balance vgroup ;", 0, 0, NULL},
+    {"balance vgroup leader on <vgroup_id>", 0, 0, NULL},
 #endif
 
     // 20
@@ -531,8 +531,8 @@ void showHelp() {
   printf(
       "\n\n\
   ----- special commands on enterpise version ----- \n\
-    balance vgroup; \n\
-    balance vgroup leader <vgroup_id> \n\
+    balance vgroup ;\n\
+    balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;");

@@ -30,7 +30,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def getDataPath(self):
         selfPath = tdCom.getBuildPath()
@@ -123,7 +123,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  120,
+                    'pollDelay':  180,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}

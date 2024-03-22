@@ -91,7 +91,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTypeByName = metaGetTableTypeByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
-  pMeta->getTableSchema = tsdbGetTableSchema;  // todo refactor
+  pMeta->getTableSchema = vnodeGetTableSchema;
   pMeta->storeGetTableList = vnodeGetTableList;
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
@@ -128,14 +128,16 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
   pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
-  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
+//  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+//  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
-}
+
+  pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
+  }
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;
@@ -179,11 +181,16 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionPut = streamStateSessionPut;
   pStore->streamStateSessionGet = streamStateSessionGet;
   pStore->streamStateSessionDel = streamStateSessionDel;
+  pStore->streamStateSessionReset = streamStateSessionReset;
   pStore->streamStateSessionClear = streamStateSessionClear;
   pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
   pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
+  pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
+
+  pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
+  pStore->streamStateCountWinAdd = streamStateCountWinAdd;
 
   pStore->updateInfoInit = updateInfoInit;
   pStore->updateInfoFillBlockData = updateInfoFillBlockData;
@@ -201,6 +208,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
+  pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
 

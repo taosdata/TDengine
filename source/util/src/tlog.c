@@ -111,6 +111,7 @@ int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
+int32_t simDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -337,14 +338,10 @@ static int32_t taosOpenNewLogFile() {
 }
 
 void taosResetLog() {
-  char lastName[LOG_FILE_NAME_LEN + 20];
-  sprintf(lastName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-
   // force create a new log file
   tsLogObj.lines = tsNumOfLogLines + 10;
 
   taosOpenNewLogFile();
-  (void)taosRemoveFile(lastName);
 
   uInfo("==================================");
   uInfo("   reset log file ");
@@ -353,7 +350,7 @@ void taosResetLog() {
 static bool taosCheckFileIsOpen(char *logFileName) {
   TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
   if (pFile == NULL) {
-    if (errno == ENOENT) {
+    if (lastErrorIsFileNotExist()) {
       return false;
     } else {
       printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
@@ -576,6 +573,9 @@ void taosPrintSlowLog(const char *format, ...) {
   len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 - len, format, argpointer);
   va_end(argpointer);
 
+  if (len < 0 || len > LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2) {
+    len = LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2;
+  }
   buffer[len++] = '\n';
   buffer[len] = 0;
 

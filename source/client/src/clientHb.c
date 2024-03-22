@@ -30,7 +30,7 @@ typedef struct {
   };
 } SHbParam;
 
-static SClientHbMgr clientHbMgr = {0};
+SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
@@ -843,7 +843,7 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
     view->version = htonl(view->version);
   }
 
-  tscDebug("hb got %d expired view, valueLen:%lu", viewNum, sizeof(SViewVersion) * viewNum);
+  tscDebug("hb got %u expired view, valueLen:%lu", viewNum, sizeof(SViewVersion) * viewNum);
 
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
@@ -902,6 +902,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      taosHashPut(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(uint64_t), NULL, 0);
     }
 
     // invoke after hbGetExpiredUserInfo
@@ -1121,7 +1122,6 @@ static void *hbThreadFunc(void *param) {
       asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
       tFreeClientHbBatchReq(pReq);
       // hbClearReqInfo(pAppHbMgr);
-      taosHashPut(clientHbMgr.appHbHash, &pAppHbMgr->pAppInstInfo->clusterId, sizeof(uint64_t), NULL, 0);
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
 
@@ -1294,9 +1294,8 @@ void hbMgrCleanUp() {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
-  taosArrayDestroy(clientHbMgr.appHbMgrs);
+  clientHbMgr.appHbMgrs = taosArrayDestroy(clientHbMgr.appHbMgrs);
   taosThreadMutexUnlock(&clientHbMgr.lock);
-  clientHbMgr.appHbMgrs = NULL;
 }
 
 int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t clusterId) {
@@ -1335,19 +1334,18 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 }
 
 void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
-  SAppHbMgr    *pAppHbMgr = pTscObj->pAppInfo->pAppHbMgr;
-  SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-  if (pReq) {
-    tFreeClientHbReq(pReq);
-    taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-    taosHashRelease(pAppHbMgr->activeInfo, pReq);
+  taosThreadMutexLock(&clientHbMgr.lock);
+  SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
+  if (pAppHbMgr) {
+    SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+    if (pReq) {
+      tFreeClientHbReq(pReq);
+      taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      taosHashRelease(pAppHbMgr->activeInfo, pReq);
+      atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
+    }
   }
-
-  if (NULL == pReq) {
-    return;
-  }
-
-  atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 }
 
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner

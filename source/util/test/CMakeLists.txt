@@ -100,3 +100,11 @@ add_test(
     NAME talgoTest
     COMMAND talgoTest
 )
+
+# tbaseCodecTest
+add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
+target_link_libraries(tbaseCodecTest os util common gtest_main)
+add_test(
+    NAME tbaseCodecTest
+    COMMAND tbaseCodecTest
+)
