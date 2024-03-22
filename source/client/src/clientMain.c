@@ -342,27 +342,17 @@ void taos_free_result(TAOS_RES *res) {
     destroyRequest(pRequest);
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
-    taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
-    taosArrayDestroy(pRsp->rsp.blockDataLen);
-    taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
-    // taosx
-    taosArrayDestroy(pRsp->rsp.createTableLen);
-    taosArrayDestroyP(pRsp->rsp.createTableReq, taosMemoryFree);
-
+    tDeleteSTaosxRsp(&pRsp->rsp);
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
-    taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
-    taosArrayDestroy(pRsp->rsp.blockDataLen);
-    taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
+    tDeleteMqDataRsp(&pRsp->rsp);
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
-    taosMemoryFree(pRspObj->metaRsp.metaRsp);
+    tDeleteMqMetaRsp(&pRspObj->metaRsp);
     taosMemoryFree(pRspObj);
   }
 }

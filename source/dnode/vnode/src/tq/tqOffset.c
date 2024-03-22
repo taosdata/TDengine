@@ -60,7 +60,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
       return -1;
     }
 
-    STqOffset offset;
+    STqOffset offset = {0};
     SDecoder  decoder;
     tDecoderInit(&decoder, pMemBuf, size);
     if (tDecodeSTqOffset(&decoder, &offset) < 0) {
@@ -108,6 +108,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
     return NULL;
   }
 
+  taosHashSetFreeFp(pStore->pHash, tOffsetDestroy);
   char* fname = tqOffsetBuildFName(pStore->pTq->path, 0);
   if (tqOffsetRestoreFromFile(pStore, fname) < 0) {
     taosMemoryFree(fname);

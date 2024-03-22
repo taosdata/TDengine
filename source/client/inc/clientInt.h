@@ -225,6 +225,7 @@ typedef struct {
 } SMqRspObj;
 
 typedef struct {
+  int8_t     version;
   int8_t     resType;
   char       topic[TSDB_TOPIC_FNAME_LEN];
   char       db[TSDB_DB_FNAME_LEN];
@@ -233,6 +234,7 @@ typedef struct {
 } SMqMetaRspObj;
 
 typedef struct {
+  int8_t         version;
   int8_t         resType;
   char           topic[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];

@@ -247,6 +247,20 @@ END:
   return code;
 }
 
+bool tqGetTablePrimaryKey(STqReader* pReader){
+  return pReader->hasPrimaryKey;
+}
+
+void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid){
+  bool ret = false;
+  SSchemaWrapper *schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+    ret = true;
+  }
+  tDeleteSchemaWrapper(schema);
+  pReader->hasPrimaryKey = ret;
+}
+
 STqReader* tqReaderOpen(SVnode* pVnode) {
   STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
