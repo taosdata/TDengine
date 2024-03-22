@@ -16,7 +16,8 @@ Power BI Desktop has been installed and running. You can download and install th
 2. Install the TDengine client for Windows. The client package includes the TDengine ODBC driver and other necessary libraries for connecting via ODBC.
 
 :::note IMPORTANT
-To install the TDengine client, log in to [TDengine Cloud](https://cloud.tdengine.com) on a Windows machine. Open the Tools page and click the Power BI card. Under Install ODBC Connector, click the link to download the client and install it on your local machine.
+Please login [TDengine Cloud](https://cloud.tdengine.com) and select "Power BI" card of the "Tools" page. In the opened page, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
+
 :::
 
 ## Configure ODBC DataSource
@@ -31,7 +32,8 @@ To install the TDengine client, log in to [TDengine Cloud](https://cloud.tdengin
 4. Click "Test Connection" to test whether the connection to the data source is successful; if successful, it will prompt "Successfully connected to the URL".
 
 :::note IMPORTANT
-Please log in [TDengine Cloud](https://cloud.tdengine.com) and select "PowerBI" card of the "Tools" page. In the opened page, please copy the value in the "URL" field of the "Configure ODBC DataSource" part.
+Please log in [TDengine Cloud](https://cloud.tdengine.com) and select "PowerBI" card of the "Tools" page. In the opened opage, please copy the value in the "URL" field of the "Configure ODBC DataSource" part.
+
 :::
 
 ## Import Data from TDengine to Power BI
