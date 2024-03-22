@@ -397,6 +397,7 @@ typedef struct STUidTagInfo {
 int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 #define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
+#define TSMA_RES_CTB_PREFIX_LEN 33 // md5 output(32) and  _
 
 static inline bool isTsmaResSTb(const char* stbName) {
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
