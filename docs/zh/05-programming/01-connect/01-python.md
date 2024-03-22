@@ -67,7 +67,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 <token\> 和 <url\> 为 TDengine Cloud 的令牌和 URL 。
+替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL 。
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Python“。
 :::
 <!-- exclude-end -->
@@ -93,9 +93,9 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </TabItem>
 </Tabs>
 
-对于如何写入数据和查询输入，请参考<https://docs.taosdata.com/cloud/programming/insert/>和 <https://docs.taosdata.com/cloud/programming/query/>。
+对于如何写入数据和查询输入，请参考\<https://docs.taosdata.com/cloud/programming/insert/>和 \<https://docs.taosdata.com/cloud/programming/query/>。
 
-想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/connector/rest-api/).
+想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/client-libraries/rest-api/).
 
 ## Jupyter
 

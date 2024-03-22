@@ -216,7 +216,7 @@ let taos = pool.get()?;
 除此之外，该结构也是 [参数绑定](#参数绑定接口) 和 [行协议接口](#行协议接口) 的入口，使用方法请参考具体的 API 说明。
 
 
-其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/taos>。
+其他相关结构体 API 使用说明请移步 Rust 文档托管网页：\<https://docs.rs/taos>。
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2

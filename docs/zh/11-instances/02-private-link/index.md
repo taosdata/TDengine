@@ -78,8 +78,8 @@ PrivateLink 的架构如下：
    ![查看私有DNS](./connection-list.webp)
    <center><figcaption>图7. 查看私有DNS</figcaption></center>
 
-4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式:{终端节点IP} {私有DNS}。**
-5. 验证：curl -d "show databases;" **https**://{私有DNS}/rest/sql?token=${token} ，请参看[编程 - REST API](../../programming/connect/rest-api)。
+4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式:\{终端节点IP} \{私有DNS}。**
+5. 验证：curl -d "show databases;" **https**://\{私有DNS}/rest/sql?token=$\{token} ，请参看[编程 - REST API](../../programming/connect/rest-api)。
 
 ### 步骤5:使用私有 DNS 调用 TDengine Cloud 服务
 

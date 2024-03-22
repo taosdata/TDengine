@@ -89,23 +89,24 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 
 </TabItem>
 <TabItem value="spring" label="Spring">
+
 1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object:
 
-```
-{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
-```
+  ```java
+  {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
+  ```
 
 2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
 
-```
-{{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
+```xml
+{{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
 ```
 
-3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
+3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to [Spring Example](https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/)
 
 </TabItem>
 </Tabs>
 
-The client connection is then established. For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Tools](https://docs.tdengine.com/cloud/tools/).
+The client connection is then established. For how to write data and query data, please refer to [Insert](https://docs.tdengine.com/cloud/programming/insert/) and [Query](https://docs.tdengine.com/cloud/programming/query/).
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connector/rest-api/).

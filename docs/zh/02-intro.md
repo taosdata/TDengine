@@ -16,8 +16,8 @@ TDengine Cloud 的主要功能如下：
    - 支持 [数据采集代理](../data-in/dca/)。
 2. 数据浏览器： 可以浏览数据库和各种表，如果您已经登录，还可以直接执行 SQL 查询语句，创建数据库，修改数据库属性，创建和修改超级表以及子表等等。
 3. [编程](../programming/)
-    - 提供各种[连接器](../programming/connector/)，比如 Java，Python，Go，Rust，Node.js，R 等编程语言。
-    - 提供了[REST API](../programming/connector/rest-api/)。
+    - 提供各种[连接器](../programming/client-libraries/)，比如 Java，Python，Go，Rust，Node.js，R 等编程语言。
+    - 提供了[REST API](../programming/client-libraries/rest-api/)。
 4. [流计算](../stream/)：不仅支持连续查询，TDengine还支持基于事件驱动的流计算，无需安装 Flink/Spark 就可以处理时序数据。
 5. [数据订阅](../data-subscription/)： 用户的应用可以订阅一个数据库，一张表或者一组表。使用的 API 跟 Kafka 基本一致，但是您必须设置具体的过滤条件来定义一个主题，然后您可以和 TDengine Cloud 的其他用户或者用户组分享这个主题。
 6. [工具](../tools)

@@ -37,13 +37,13 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 
 当导入数据后，BI 工具会自动将数值类型设置为“度量”列，将文本类型设置为“维度”列。而在 TDengine 的超级表中，采用普通列作为数据的度量，采用标签列作为数据的维度，因此您可能需要在创建数据集时更改部分列的属性。TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，例如数据切分查询、窗口切分查询等，具体参考 [TDengine 特色查询功能介绍](https://docs.taosdata.com/taos-sql/distinguished/)。通过使用这些特色查询，当 BI 工具将 SQL 查询发送到 TDengine 数据库时，可以大大提高数据访问速度，减少网络传输带宽。
 
-在 BI 工具中，您可以创建“参数”并在 SQL 语句中使用，通过手动、定时的方式动态执行这些 SQL 语句，即可实现可视化报告的刷新效果。如下 SQL 语句   select _wstart ws, count(*) cnt from supertable where tbname=?{metric} and ts >= ?{from} and ts < ?{to} interval(?{interval})    可以从 TDengine 实时读取数据，其中:
+在 BI 工具中，您可以创建“参数”并在 SQL 语句中使用，通过手动、定时的方式动态执行这些 SQL 语句，即可实现可视化报告的刷新效果。如下 SQL 语句   select _wstart ws, count(*) cnt from supertable where tbname=?\{metric} and ts >= ?\{from} and ts < ?\{to} interval(?\{interval})    可以从 TDengine 实时读取数据，其中:
 
 - \_wstart 表示时间窗口起始时间。
 - count(*) 表示时间窗口内的聚合值。
-- ?{interval} 表示在 SQL 语句中引入名称为 interval 的参数，当 BI 工具查询数据时，会给 interval 参数赋值，如果取值为 1m，则表示按照 1 分钟的时间窗口降采样数据。
-- ?{metric} 该参数用来指定查询的数据表名称，当在 BI 工具中把某个“下拉参数组件”的 ID 也设置为 metric 时，该“下拉参数组件”的被选择项将会和该参数绑定在一起，实现动态选择的效果。
-- ?{from} ?{to} 这两个参数用来表示查询数据集的时间范围，可以与“文本参数组件”绑定。
+- ?\{interval} 表示在 SQL 语句中引入名称为 interval 的参数，当 BI 工具查询数据时，会给 interval 参数赋值，如果取值为 1m，则表示按照 1 分钟的时间窗口降采样数据。
+- ?\{metric} 该参数用来指定查询的数据表名称，当在 BI 工具中把某个“下拉参数组件”的 ID 也设置为 metric 时，该“下拉参数组件”的被选择项将会和该参数绑定在一起，实现动态选择的效果。
+- ?\{from} ?\{to} 这两个参数用来表示查询数据集的时间范围，可以与“文本参数组件”绑定。
 
 ## 制作可视化报告
 
