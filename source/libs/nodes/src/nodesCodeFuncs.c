@@ -7141,27 +7141,6 @@ static int32_t jsonToDropTSMAStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkShowCreateTSMAStmtDbName = "DbName";
-static const char* jkShowCreateTSMAStmtTsmaName = "TSMAName";
-
-static int32_t showCreateTSMAStmtToJson(const void* pObj, SJson* pJson) {
-  const SShowCreateTSMAStmt* pNode = (const SShowCreateTSMAStmt*)pObj;
-  int32_t code = tjsonAddStringToObject(pJson, jkShowCreateTSMAStmtDbName, pNode->dbName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkShowCreateTSMAStmtTsmaName, pNode->tsmaName);
-  }
-  return code;
-}
-
-static int32_t jsonToShowCreateTSMAStmt(const SJson* pJson, void* pObj) {
-  SShowCreateTSMAStmt* pNode = (SShowCreateTSMAStmt*)pObj;
-  int32_t code = tjsonGetStringValue(pJson, jkShowCreateTSMAStmtDbName, pNode->dbName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkShowCreateTSMAStmtTsmaName, pNode->tsmaName);
-  }
-  return code;
-}
-
 static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
   switch (nodeType(pObj)) {
     case QUERY_NODE_COLUMN:

@@ -155,7 +155,8 @@ static bool splIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
   }
 
   if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
-    return ((SMergeLogicNode*)pLogicNode)->srcGroupId == groupId;
+    return ((SMergeLogicNode*)pLogicNode)->srcGroupId <= groupId &&
+           ((SMergeLogicNode*)pLogicNode)->srcEndGroupId >= groupId;
   }
 
   SNode* pChild;
@@ -745,8 +746,9 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
     SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
-    if (pInfo->pSubplan->pTsmaChildren && LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) > 0) {
-      FOREACH(pNode, pInfo->pSubplan->pTsmaChildren) {
+    SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
+    if (LIST_LENGTH(pWindow->pTsmaSubplans) > 0) {
+      FOREACH(pNode, pWindow->pTsmaSubplans) {
         ++(pCxt->groupId);
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
@@ -759,7 +761,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
           pSubplan->pNode = pPartWindow;
         }
       }
-      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pInfo->pSubplan->pTsmaChildren);
+      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pWindow->pTsmaSubplans);
       pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     }
     pMerge->srcEndGroupId = pCxt->groupId;
@@ -980,7 +982,8 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 }
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) && (LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) == 0)) {
+  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
+      (LIST_LENGTH(((SWindowLogicNode*)pInfo->pSplitNode)->pTsmaSubplans) == 0)) {
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
@@ -1182,8 +1185,9 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
 
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
-    if (pInfo->pSubplan->pTsmaChildren && LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) >0) {
-      FOREACH(pNode, pInfo->pSubplan->pTsmaChildren) {
+    SAggLogicNode* pAgg = (SAggLogicNode*)pInfo->pSplitNode;
+    if (LIST_LENGTH(pAgg->pTsmaSubplans) > 0) {
+      FOREACH(pNode, pAgg->pTsmaSubplans) {
         ++(pCxt->groupId);
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
@@ -1195,7 +1199,7 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
         nodesDestroyNode((SNode*)pSubplan->pNode);
         pSubplan->pNode = pPartAgg;
       }
-      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pInfo->pSubplan->pTsmaChildren);
+      code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pAgg->pTsmaSubplans);
       pMergeNode->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     }
     pMergeNode->srcEndGroupId = pCxt->groupId;
@@ -1220,7 +1224,7 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
   if (TSDB_CODE_SUCCESS == code) {
     // if slimit was pushed down to agg, agg will be pipelined mode, add sort merge before parent agg
     if (pInfo->pSplitNode->forceCreateNonBlockingOptr)
-      code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg); //TODO tsma test slimit
+      code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg);
     else {
       code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
     }
@@ -1244,7 +1248,7 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
 }
 
 static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (LIST_LENGTH(pInfo->pSubplan->pTsmaChildren) > 0) {
+  if (LIST_LENGTH(((SAggLogicNode*)pInfo->pSplitNode)->pTsmaSubplans) > 0) {
     return stbSplSplitAggNodeForCrossTableMulSubplan(pCxt, pInfo);
   }
   if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode)) {

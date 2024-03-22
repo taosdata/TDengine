@@ -2396,8 +2396,12 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
 }
 
 uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
-  //TODO tsma
-  return 0;
+  if (!pTsmaInfo) return 0;
+  uint64_t size = sizeof(STableTSMAInfo);
+  if (pTsmaInfo->pFuncs) size += sizeof(STableTSMAFuncInfo) * pTsmaInfo->pFuncs->size;
+  if (pTsmaInfo->pTags) size += sizeof(SSchema) * pTsmaInfo->pTags->size;
+  if (pTsmaInfo->pUsedCols) size += sizeof(SSchema) * pTsmaInfo->pUsedCols->size;
+  return size;
 }
 
 bool hasOutOfDateTSMACache(SArray* pTsmas) {

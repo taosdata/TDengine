@@ -2803,20 +2803,6 @@ SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* 
   return (SNode*)pStmt;
 }
 
-SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
-  CHECK_PARSER_STATUS(pCxt);
-  SShowCreateTSMAStmt* pStmt = (SShowCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_SHOW_CREATE_TSMA_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-
-  SRealTableNode* pTableNode = (SRealTableNode*)pRealTable;
-
-  memcpy(pStmt->tsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
-  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
-
-  nodesDestroyNode(pRealTable);
-  return (SNode*)pStmt;
-}
-
 SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
   CHECK_PARSER_STATUS(pCxt);
 

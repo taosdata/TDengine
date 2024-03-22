@@ -4233,6 +4233,7 @@ typedef struct SDropCtbWithTsmaSingleVgReq {
 
 int32_t tEncodeSMDropTbReqOnSingleVg(SEncoder* pEncoder, const SMDropTbReqsOnSingleVg* pReq);
 int32_t tDecodeSMDropTbReqOnSingleVg(SDecoder* pDecoder, SMDropTbReqsOnSingleVg* pReq);
+void    tFreeSMDropTbReqOnSingleVg(void* p);
 
 typedef struct SDropTbsReq {
   SArray* pVgReqs; // SMDropTbReqsOnSingleVg
@@ -4240,6 +4241,7 @@ typedef struct SDropTbsReq {
 
 int32_t tSerializeSMDropTbsReq(void* buf, int32_t bufLen, const SMDropTbsReq* pReq);
 int32_t tDeserializeSMDropTbsReq(void* buf, int32_t bufLen, SMDropTbsReq* pReq);
+void    tFreeSMDropTbsReq(void*);
 
 typedef struct SVFetchTtlExpiredTbsRsp {
   SArray* pExpiredTbs;  // SVDropTbReq

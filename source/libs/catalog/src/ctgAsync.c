@@ -785,7 +785,6 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   }
 
   if (tbTsmaNum > 0) {
-    // TODO tsma when create recursive tsma, avoid get tb tsma task
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_TB_TSMA, pReq->pTableTSMAs, NULL));
   }
   if (tsmaNum > 0) {
@@ -2658,7 +2657,6 @@ int32_t ctgLaunchGetTbTSMATask(SCtgTask* pTask) {
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   int32_t fetchIdx = 0, baseResIdx = 0;
 
-  // TODO tsma test multi tables from multi dbs
   for (int32_t idx = 0; idx < dbNum; ++idx) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, idx);
     CTG_ERR_RET(ctgGetTbTSMAFromCache(pCtg, pCtx, idx, &fetchIdx, baseResIdx, pReq->pTables));
@@ -2879,7 +2877,6 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     } break;
     case TDMT_VND_GET_STREAM_PROGRESS: {
       // update progress into res
-      // TODO tsma pack all streams into one req, and handle all stream rsps together
       STableTSMAInfoRsp*  pTsmasRsp = pRes->pRes;
       SArray*             pTsmas = pTsmasRsp->pTsmas;
       SStreamProgressRsp* pRsp = pMsgCtx->out;
@@ -2937,7 +2934,6 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         ctgRemoveTbMetaFromCache(pCtg, pTbName, false);
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
-      // TODO tsma add tb meta to cache
       if (META_TYPE_BOTH_TABLE == pOut->metaType) {
         // rewrite tsma fetch table with it's super table name
         sprintf(pFetch->tsmaSourceTbName.tname, "%s", pOut->tbName);

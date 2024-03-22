@@ -1477,7 +1477,6 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  // TODO tsma fill sql
   pCxt->pDropStreamReq->sql = strdup(pCxt->pDropSmaReq->name);
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
@@ -1492,11 +1491,10 @@ static int32_t mndCreateTSMASetCreateStreamUndoAction(SMnode* pMnode) {
 
 static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   int32_t      code = -1;
-  // TODO tsma change the action name
-  STransAction redoAction = {0};
-  STransAction undoAction = {0};
-  // TODO tsma trans conflicting setting, maybe conflict with myself
-  STrans *pTrans = mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
+  STransAction createStreamRedoAction = {0};
+  STransAction createStreamUndoAction = {0};
+  STrans      *pTrans =
+      mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -1508,31 +1506,31 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   mInfo("trans:%d, used to create tsma:%s stream:%s", pTrans->id, pCxt->pCreateSmaReq->name,
         pCxt->pCreateStreamReq->name);
 
-  mndGetMnodeEpSet(pCxt->pMnode, &redoAction.epSet);
-  redoAction.acceptableCode = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-  redoAction.msgType = TDMT_STREAM_CREATE;
-  redoAction.contLen = tSerializeSCMCreateStreamReq(0, 0, pCxt->pCreateStreamReq);
-  redoAction.pCont = taosMemoryCalloc(1, redoAction.contLen);
-  if (!redoAction.pCont) {
+  mndGetMnodeEpSet(pCxt->pMnode, &createStreamRedoAction.epSet);
+  createStreamRedoAction.acceptableCode = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+  createStreamRedoAction.msgType = TDMT_STREAM_CREATE;
+  createStreamRedoAction.contLen = tSerializeSCMCreateStreamReq(0, 0, pCxt->pCreateStreamReq);
+  createStreamRedoAction.pCont = taosMemoryCalloc(1, createStreamRedoAction.contLen);
+  if (!createStreamRedoAction.pCont) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  if (redoAction.contLen != tSerializeSCMCreateStreamReq(redoAction.pCont, redoAction.contLen, pCxt->pCreateStreamReq)) {
+  if (createStreamRedoAction.contLen != tSerializeSCMCreateStreamReq(createStreamRedoAction.pCont, createStreamRedoAction.contLen, pCxt->pCreateStreamReq)) {
     mError("sma: %s, failed to create due to create stream req encode failure", pCxt->pCreateSmaReq->name);
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  undoAction.epSet = redoAction.epSet;
-  undoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
-  undoAction.actionType = TDMT_STREAM_DROP;
-  undoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
-  undoAction.pCont = taosMemoryCalloc(1, undoAction.contLen);
-  if (!undoAction.pCont) {
+  createStreamUndoAction.epSet = createStreamRedoAction.epSet;
+  createStreamUndoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
+  createStreamUndoAction.actionType = TDMT_STREAM_DROP;
+  createStreamUndoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
+  createStreamUndoAction.pCont = taosMemoryCalloc(1, createStreamUndoAction.contLen);
+  if (!createStreamUndoAction.pCont) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  if (undoAction.contLen != tSerializeSMDropStreamReq(undoAction.pCont, undoAction.contLen, pCxt->pDropStreamReq)) {
+  if (createStreamUndoAction.contLen != tSerializeSMDropStreamReq(createStreamUndoAction.pCont, createStreamUndoAction.contLen, pCxt->pDropStreamReq)) {
     mError("sma: %s, failed to create due to drop stream req encode failure", pCxt->pCreateSmaReq->name);
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -1541,9 +1539,8 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   if (mndSetCreateSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndSetCreateSmaUndoLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
-  if (mndTransAppendRedoAction(pTrans, &redoAction) != 0) goto _OVER;
-  if (mndTransAppendUndoAction(pTrans, &undoAction) != 0) goto _OVER;
-  //TODO tsma add drop stable undo action
+  if (mndTransAppendRedoAction(pTrans, &createStreamRedoAction) != 0) goto _OVER;
+  if (mndTransAppendUndoAction(pTrans, &createStreamUndoAction) != 0) goto _OVER;
   if (mndTransPrepare(pCxt->pMnode, pTrans) != 0) goto _OVER;
 
   code = TSDB_CODE_SUCCESS;
@@ -1745,11 +1742,10 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
     goto _OVER;
   }
 
-  // output stable is not drop when dropping stream, dropping it when dropping tsma
+  // output stable is not dropped when dropping stream, dropping it when dropping tsma
   SMDropStbReq dropStbReq = {0};
   dropStbReq.igNotExists = false;
   tstrncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  // TODO tsma fill sql, sql may be freed
   dropStbReq.sql = "drop";
   dropStbReq.sqlLen = 5;
 
@@ -1918,7 +1914,6 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     colDataSetVal(pColInfo, numOfRows, (const char*)(&pSma->createdTime), false);
 
     // interval
-    // TODO tsma replace 64
     char interval[64 + VARSTR_HEADER_SIZE] = {0};
     SDbObj* pSrcDb = mndAcquireDb(pMnode, pSma->db);
     int32_t len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
@@ -2058,7 +2053,6 @@ static int32_t mndGetDeepestBaseForTsma(SMnode* pMnode, SSmaObj* pSma, SSmaObj**
       return TSDB_CODE_MND_SMA_NOT_EXIST;
     }
     while (pRecursiveTsma->baseSmaName[0]) {
-      // TODO tsma test 2 level recursive tsma
       SSmaObj* pTmpSma = pRecursiveTsma;
       pRecursiveTsma = mndAcquireSma(pMnode, pTmpSma->baseSmaName);
       if (!pRecursiveTsma) {

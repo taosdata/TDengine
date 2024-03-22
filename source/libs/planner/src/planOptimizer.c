@@ -4348,13 +4348,10 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode) {
       default:
         return false;
     }
-    // TODO tsma may need to replace func conds in having
 
     assert(pFuncs);
     FOREACH(pTmpNode, pFuncs) {
       SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
-      // TODO tsma test other pseudo column funcs
-      // TODO tsma test funcs with multi params
       if (!fmIsTSMASupportedFunc(pFunc->funcId) && !fmIsPseudoColumnFunc(pFunc->funcId) &&
           !fmIsGroupKeyFunc(pFunc->funcId)) {
         return false;
@@ -4388,6 +4385,7 @@ typedef struct STSMAOptCtx {
   SArray*        pUsefulTsmas;  // SArray<STSMAOptUseFulTsma>, sorted by tsma interval from long to short
   SArray*        pUsedTsmas;
   SLogicSubplan* generatedSubPlans[2];
+  SNodeList**    ppParentTsmaSubplans;
 } STSMAOptCtx;
 
 static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
@@ -4412,10 +4410,12 @@ static int32_t fillTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
     pTsmaOptCtx->queryInterval->precision = pWindow->node.precision;
     pTsmaOptCtx->queryInterval->tz = tsTimezone;
     pTsmaOptCtx->pAggFuncs = pWindow->pFuncs;
+    pTsmaOptCtx->ppParentTsmaSubplans = &pWindow->pTsmaSubplans;
   } else {
     ASSERT(nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_AGG);
     SAggLogicNode* pAgg = (SAggLogicNode*)pTsmaOptCtx->pParent;
     pTsmaOptCtx->pAggFuncs = pAgg->pAggFuncs;
+    pTsmaOptCtx->ppParentTsmaSubplans = &pAgg->pTsmaSubplans;
   }
   pTsmaOptCtx->pUsefulTsmas = taosArrayInit(pScan->pTsmas->size, sizeof(STSMAOptUsefulTsma));
   pTsmaOptCtx->pUsedTsmas = taosArrayInit(3, sizeof(STSMAOptUsefulTsma));
@@ -4439,8 +4439,6 @@ static void clearTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx) {
 static bool tsmaOptCheckValidInterval(int64_t tsmaInterval, int8_t tsmaIntevalUnit, const STSMAOptCtx* pTsmaOptCtx) {
   if (!pTsmaOptCtx->queryInterval) return true;
 
-  // TODO tsma save tsmaInterval in table precision to avoid convertions
-  // TODO tsma save the right unit
   bool validInterval = pTsmaOptCtx->queryInterval->interval % tsmaInterval == 0;
   bool validSliding = pTsmaOptCtx->queryInterval->sliding % tsmaInterval == 0;
   bool validOffset = pTsmaOptCtx->queryInterval->offset % tsmaInterval == 0;
@@ -4454,7 +4452,6 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
   taosArrayClear(pTsmaScanCols);
   FOREACH(pNode, pQueryFuncs) {
     SFunctionNode* pQueryFunc = (SFunctionNode*)pNode;
-    // TODO tsma handle _wstart
     if (fmIsPseudoColumnFunc(pQueryFunc->funcId) || fmIsGroupKeyFunc(pQueryFunc->funcId)) continue;
     if (nodeType(pQueryFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
       failed = true;
@@ -4464,7 +4461,6 @@ static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQ
     found = false;
     int32_t notMyStateFuncId = -1;
     // iterate funcs
-    // TODO tsma if func is count, skip checking cols, test count(*)
     for (int32_t i = 0; i < pTsmaFuncs->size; i++) {
       STableTSMAFuncInfo* pTsmaFuncInfo = taosArrayGet(pTsmaFuncs, i);
       if (pTsmaFuncInfo->funcId == notMyStateFuncId) continue;
@@ -4540,7 +4536,6 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
       continue;
     }
     // filter with interval
-    // TODO tsma unit not right
     if (!tsmaOptCheckValidInterval(pTsma->interval, pTsma->unit, pTsmaOptCtx)) {
       continue;
     }
@@ -4556,7 +4551,6 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
     taosArrayPush(pTsmaOptCtx->pUsefulTsmas, &usefulTsma);
   }
   if (pTsmaScanCols) taosArrayDestroy(pTsmaScanCols);
-  // TODO tsma filter smaller tsmas that not aligned with the biggest tsma
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4596,8 +4590,7 @@ static void tsmaOptInitIntervalFromTsma(SInterval* pInterval, const STableTSMAIn
   pInterval->precision = precision;
 }
 
-// TODO tsma refactor, remove some params
-static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pScanRange, uint32_t tsmaStartIdx) {
+static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pScanRange) {
   bool                      needTailWindow = false;
   bool                      isSkeyAlignedWithTsma = true, isEkeyAlignedWithTsma = true;
   int64_t                   winSkey = TSKEY_MIN, winEkey = TSKEY_MAX;
@@ -4607,7 +4600,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   SInterval                 interval;
   STimeWindow               scanRange = *pScanRange;
   const SInterval*          pInterval = pTsmaOptCtx->queryInterval;
-  const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx);
+  const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pTsmaOptCtx->pUsefulTsmas, 0);
   const STableTSMAInfo*     pTsma = pUsefulTsma->pTsma;
 
   if (pScanRange->ekey <= pScanRange->skey) return;
@@ -4637,7 +4630,6 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
     isEkeyAlignedWithTsma = ((pScanRange->ekey + 1 - startOfEkeyFirstWin) % tsmaInterval == 0);
     if (startOfEkeyFirstWin > startOfSkeyFirstWin) {
       needTailWindow = true;
-      // TODO tsma add some notes
     }
   }
 
@@ -4647,7 +4639,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
         scanRange.ekey,
         taosTimeAdd(startOfSkeyFirstWin, pInterval->interval * 1, pInterval->intervalUnit, pTsmaOptCtx->precision) - 1);
     const STSMAOptUsefulTsma* pTsmaFound =
-        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, scanRange.skey - startOfSkeyFirstWin,
+        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, 1, scanRange.skey - startOfSkeyFirstWin,
                               (scanRange.ekey + 1 - startOfSkeyFirstWin), pTsmaOptCtx->precision);
     STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsmaFound ? pTsmaFound->pTsma : NULL,
                                      .scanRange = scanRange,
@@ -4672,7 +4664,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
     scanRange.skey = startOfEkeyFirstWin;
     scanRange.ekey = pScanRange->ekey;
     const STSMAOptUsefulTsma* pTsmaFound =
-        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, scanRange.skey - startOfEkeyFirstWin,
+        tsmaOptFindUsefulTsma(pTsmaOptCtx->pUsefulTsmas, 1, scanRange.skey - startOfEkeyFirstWin,
                               scanRange.ekey + 1 - startOfEkeyFirstWin, pTsmaOptCtx->precision);
     STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsmaFound ? pTsmaFound->pTsma : NULL,
                                      .scanRange = scanRange,
@@ -4698,7 +4690,6 @@ SNodeList* tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNod
     const int32_t* idx = taosArrayGet(pTsma->pTsmaScanCols, i);
     SColumnNode*   pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
     if (pCol) {
-      // TODO tsma why 2?
       pCol->colId = *idx + 2;
       pCol->tableType = TSDB_SUPER_TABLE;
       pCol->tableId = pTsma->targetTbUid;
@@ -4756,16 +4747,16 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
 
   if (pTsma && code == TSDB_CODE_SUCCESS) {
     // TODO tsma test child tbname too long
-    // if with tsma, we replace func tbname with substr(tbname, 34)
+    // if with tsma, we replace func tbname with substr(tbname, TSMA_RES_CTB_PREFIX_LEN)
     pRewrittenFunc->funcId = fmGetFuncId("substr");
     snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "substr");
     pValue->node.resType.type = TSDB_DATA_TYPE_INT;
     pValue->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
     pValue->literal = taosMemoryCalloc(1, 16);
-    pValue->datum.i = 34;
+    pValue->datum.i = TSMA_RES_CTB_PREFIX_LEN + 1;
     if (!pValue->literal) code = TSDB_CODE_OUT_OF_MEMORY;
     if (code == TSDB_CODE_SUCCESS) {
-      sprintf(pValue->literal, "%d", 34);
+      sprintf(pValue->literal, "%d", TSMA_RES_CTB_PREFIX_LEN + 1);
       code = nodesListMakeAppend(&pRewrittenFunc->pParameterList, *pTbNameNode);
     }
     if (code == TSDB_CODE_SUCCESS) {
@@ -4882,7 +4873,6 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     if (code == TSDB_CODE_SUCCESS) {
       nodesDestroyList(pNewScan->pScanCols);
       // normal cols
-      // TODO tsma last(ts), maybe i should put pk col after normal cols, if no pk col, then add it
       pNewScan->pScanCols = tsmaOptCreateTsmaScanCols(pTsma, pTsmaOptCtx->pAggFuncs);
       if (!pNewScan->pScanCols) code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -4920,7 +4910,6 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       }
     }
   } else {
-    // TODO tsma rewrite tagcond?
     FOREACH(pNode, pNewScan->pGroupTags) {
       // rewrite tbname recursively
       struct TsmaOptRewriteCtx ctx = {
@@ -4958,7 +4947,7 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   return code;
 }
 
-static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan,
+static int32_t tsmaOptRewriteParent(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan,
                                   const STSMAOptUsefulTsma* pTsma) {
   int32_t           code = 0;
   SColumnNode*      pColNode;
@@ -5003,7 +4992,6 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
     pColNode->node.resType = pPartial->node.resType;
     // currently we assume that the first parameter must be the scan column
     nodesListErase(pMerge->pParameterList, pMerge->pParameterList->pHead);
-    // TODO tsma STRICT
     nodesListPushFront(pMerge->pParameterList, nodesCloneNode((SNode*)pColNode));
 
     nodesDestroyNode((SNode*)pPartial);
@@ -5028,105 +5016,12 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
   return code;
 }
 
-static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan,
-                                 const STSMAOptUsefulTsma* pTsma) {
-  SNode *           pStateFuncNode, *pAggFuncNode;
-  SColumnNode*      pColNode;
-  SListCell*        pScanListCell = NULL;
-  int32_t           code = 0;
-  SNodeList*        pAggStateFuncs = NULL;
-  SNodeList*        pAggFuncs = NULL;
-  SWindowLogicNode* pWindow = NULL;
-  SAggLogicNode*    pAgg = NULL;
-  bool              isFirstMergeNode = pTsmaOptCtx->pScan == pScan;
-  bool              hasWStart = false;
-
-  if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
-    pWindow = (SWindowLogicNode*)pParent;
-    pAggFuncs = pWindow->pFuncs;
-  } else {
-    pAgg = (SAggLogicNode*)pParent;
-    pAggFuncs = pAgg->pAggFuncs;
-  }
-  if (isFirstMergeNode) {
-    pAggStateFuncs = nodesCloneList(pAggFuncs);
-    if (!pAggStateFuncs) return TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    pAggStateFuncs = pAggFuncs;
-  }
-  code = fmCreateStateFuncs(pAggStateFuncs);
-  if (code) return code;
-
-  pScanListCell = pScan->pScanCols->pHead;
-  FORBOTH(pStateFuncNode, pAggStateFuncs, pAggFuncNode, pAggFuncs) {
-    SFunctionNode* pStateFunc = (SFunctionNode*)pStateFuncNode;
-    SFunctionNode* pAggFunc = (SFunctionNode*)pAggFuncNode;
-    if (fmIsGroupKeyFunc(pAggFunc->funcId)) {
-      struct TsmaOptRewriteCtx ctx = {
-          .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
-      nodesRewriteExpr(&pAggFuncNode, tsmaOptNodeRewriter, &ctx);
-      if (ctx.code) {
-        code = ctx.code;
-      } else {
-        REPLACE_LIST2_NODE(pAggFuncNode);
-      }
-      continue;
-    } else if (fmIsPseudoColumnFunc(pAggFunc->funcId)) {
-      if (pAggFunc->funcType == FUNCTION_TYPE_WSTART) hasWStart = true;
-      continue;
-    }
-    pColNode = (SColumnNode*)pScanListCell->pNode;
-    pScanListCell = pScanListCell->pNext;
-    pColNode->node.resType = pStateFunc->node.resType;
-
-    nodesDestroyList(pAggFunc->pParameterList);
-    code = nodesListMakeStrictAppend(&pAggFunc->pParameterList, nodesCloneNode((SNode*)pColNode));
-    if (code) break;
-  }
-  if (code == TSDB_CODE_SUCCESS) code = fmCreateStateMergeFuncs(pAggFuncs);
-  if (pAggFuncs != pAggStateFuncs) nodesDestroyList(pAggStateFuncs);
-
-  if (code == TSDB_CODE_SUCCESS && pWindow) {
-    SColumnNode* pCol = (SColumnNode*)pScan->pScanCols->pTail->pNode;
-    assert(pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
-    nodesDestroyNode(pWindow->pTspk);
-    pWindow->pTspk = nodesCloneNode((SNode*)pCol);
-    if (!hasWStart && !isFirstMergeNode) {
-      SFunctionNode* pWStart = NULL;
-      code = tsmaOptCreateWStart(pWindow->node.precision, &pWStart);
-      if (TSDB_CODE_SUCCESS == code) {
-        nodesListAppend(pAggFuncs, (SNode*)pWStart);
-      }
-    }
-  }
-
-  if (code == TSDB_CODE_SUCCESS && pWindow) {
-    nodesDestroyList(pWindow->node.pTargets);
-    code = createColumnByRewriteExprs(pAggFuncs, &pWindow->node.pTargets);
-  }
-
-  if (code == TSDB_CODE_SUCCESS && pAgg) {
-    nodesDestroyList(pAgg->node.pTargets);
-    code = createColumnByRewriteExprs(pAggFuncs, &pAgg->node.pTargets);
-  }
-
-  if (code == TSDB_CODE_SUCCESS) {
-    nodesDestroyList(pScan->node.pTargets);
-    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
-  }
-  return code;
-}
-
 static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
   int32_t                   code = 0;
   const STSMAOptUsefulTsma* pTsma = NULL;
   SNodeList*                pAggFuncs = NULL;
   bool                      hasSubPlan = false;
 
-  // TODO tsma if no used tsmas skip generating plans
   for (int32_t i = 0; i < pTsmaOptCtx->pUsedTsmas->size; ++i) {
     STSMAOptUsefulTsma* pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, i);
     if (!pTsma->pTsma) continue;
@@ -5166,7 +5061,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
     SScanLogicNode* pScan = (SScanLogicNode*)pParent->pChildren->pHead->pNode;
     code = tsmaOptRewriteScan(pTsmaOptCtx, pScan, pTsma);
     if (code == TSDB_CODE_SUCCESS && pTsma->pTsma) {
-      code = tsmaOptRevisePlan2(pTsmaOptCtx, pParent, pScan, pTsma);
+      code = tsmaOptRewriteParent(pTsmaOptCtx, pParent, pScan, pTsma);
     }
   }
 
@@ -5175,7 +5070,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
     pTsmaOptCtx->pScan->needSplit = hasSubPlan;
     code = tsmaOptRewriteScan(pTsmaOptCtx, pTsmaOptCtx->pScan, pTsma);
     if (code == TSDB_CODE_SUCCESS && pTsma->pTsma) {
-      code = tsmaOptRevisePlan2(pTsmaOptCtx, pTsmaOptCtx->pParent, pTsmaOptCtx->pScan, pTsma);
+      code = tsmaOptRewriteParent(pTsmaOptCtx, pTsmaOptCtx->pParent, pTsmaOptCtx->pScan, pTsma);
     }
   }
 
@@ -5211,7 +5106,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
       // 2. sort useful tsmas with interval
       taosArraySort(tsmaOptCtx.pUsefulTsmas, tsmaInfoCompWithIntervalDesc);
       // 3. split windows
-      tsmaOptSplitWindows(&tsmaOptCtx, tsmaOptCtx.pTimeRange, 0);
+      tsmaOptSplitWindows(&tsmaOptCtx, tsmaOptCtx.pTimeRange);
       if (tsmaOptIsUsingTsmas(&tsmaOptCtx)) {
         // 4. create logic plan
         code = tsmaOptGeneratePlan(&tsmaOptCtx);
@@ -5221,14 +5116,15 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
             SLogicSubplan* pSubplan = tsmaOptCtx.generatedSubPlans[i];
             if (!pSubplan) continue;
             pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-            nodesListMakeAppend(&pLogicSubplan->pTsmaChildren, (SNode*)pSubplan);
+            nodesListMakeAppend(tsmaOptCtx.ppParentTsmaSubplans, (SNode*)pSubplan);
           }
+          pCxt->optimized = true;
         }
       }
     }
   }
+  pScan->pTsmas = NULL;
   clearTSMAOptCtx(&tsmaOptCtx);
-  // TODO tsma if any error occured, we should eat the error, skip the optimization, query with original table
   return code;
 }
 
