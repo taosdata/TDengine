@@ -1912,7 +1912,6 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block -----> stt block -----> imem -----> mem
-  //  if (ASCENDING_TRAVERSE(pReader->info.order)) {
   if (pkCompEx(compFn, &minKey, pfKey) == 0) {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
