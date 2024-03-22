@@ -73,6 +73,7 @@ run tsim/join/join_scalar.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim
+run tsim/join/join_explain.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -95,5 +96,6 @@ run tsim/join/join_scalar.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim
+run tsim/join/join_explain.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

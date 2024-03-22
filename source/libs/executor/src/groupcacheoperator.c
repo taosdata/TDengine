@@ -348,7 +348,7 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
   
   taosWLockLatch(&pCache->dirtyLock);
   pCache->blkCacheSize += pBufInfo->basic.bufSize;
-  qError("group cache total dirty block num:%d size:%" PRId64 , taosHashGetSize(pCache->pDirtyBlk), pCache->blkCacheSize);
+  qDebug("group cache total dirty block num:%d size:%" PRId64 , taosHashGetSize(pCache->pDirtyBlk), pCache->blkCacheSize);
 
   if (NULL == pCache->pDirtyHead) {
     pCache->pDirtyHead = pBufInfo;
@@ -664,7 +664,7 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
   }
 
   if (pBlock) {
-    qError("%s blk retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
+    qDebug("%s blk retrieved from group %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pBlock->info.id.groupId);
     
     pGCache->execInfo.pDownstreamBlkNum[downstreamIdx]++;
     if (NULL == pGCache->pDownstreams[downstreamIdx].pBaseBlock) {
@@ -803,7 +803,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
   }
   initNewGroupData(pCtx, *ppGrp, pParam->downstreamIdx, vgId, pGCache->batchFetch, pGcParam->needCache);
 
-  qError("new group %" PRIu64 " initialized, downstreamIdx:%d, vgId:%d, needCache:%d", uid, pParam->downstreamIdx, vgId, pGcParam->needCache);
+  qDebug("new group %" PRIu64 " initialized, downstreamIdx:%d, vgId:%d, needCache:%d", uid, pParam->downstreamIdx, vgId, pGcParam->needCache);
 
   if (pParam->pChildren) {
     SGcNewGroupInfo newGroup;
@@ -832,7 +832,7 @@ static int32_t addBlkToGroupCache(bool batchFetch, SGroupCacheData* pGroup, SGcB
   *pIdx = taosArrayGetSize(pGroup->blkList.pList) - 1;
   taosWUnLockLatch(&pGroup->blkList.lock);
 
-  qError("block added to group cache, total block num:%" PRId64, *pIdx + 1);
+  qDebug("block added to group cache, total block num:%" PRId64, *pIdx + 1);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -870,7 +870,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
   }
 
   if (pGroup->needCache) {
-    qError("add block to group cache");
+    qDebug("add block to group cache");
     
     SGcBlkBufInfo newBlkBuf;    
     code = addBlkToBufCache(pOperator, pBlock, pCtx, pGroup, &newBlkBuf);
@@ -883,7 +883,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
       return code;
     }
   } else {
-    qError("no need to add block to group cache");
+    qDebug("no need to add block to group cache");
     
     pGroup->pBlock = pBlock;
   }
@@ -1176,11 +1176,11 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
   
   code = getBlkFromSessionCache(pOperator, pGcParam->sessionId, pSession, ppRes);
   if (NULL == *ppRes) {
-    qError("session %" PRId64 " in downstream %d total got %" PRId64 " rows", pGcParam->sessionId, pCtx->id, pSession->resRows);
+    qDebug("session %" PRId64 " in downstream %d total got %" PRId64 " rows", pGcParam->sessionId, pCtx->id, pSession->resRows);
     taosHashRemove(pCtx->pSessions, &pGcParam->sessionId, sizeof(pGcParam->sessionId));
   } else {
     pSession->resRows += (*ppRes)->info.rows;
-    qError("session %" PRId64 " in downstream %d got %" PRId64 " rows in one block", pGcParam->sessionId, pCtx->id, (*ppRes)->info.rows);
+    qDebug("session %" PRId64 " in downstream %d got %" PRId64 " rows in one block", pGcParam->sessionId, pCtx->id, (*ppRes)->info.rows);
   }
 
   return code;

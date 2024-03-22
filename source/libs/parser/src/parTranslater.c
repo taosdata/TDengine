@@ -720,6 +720,28 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetHighLevelTranslateNamespace(STranslateContext* pCxt) {
+  if (NULL != pCxt->pNsLevel) {
+    size_t size = taosArrayGetSize(pCxt->pNsLevel);
+    int32_t levelNum = size - pCxt->currLevel;
+    if (levelNum <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    for (int32_t i = size - 1; i >= pCxt->currLevel; --i) {
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+    }
+    taosArrayPopTailBatch(pCxt->pNsLevel, levelNum);
+
+    return TSDB_CODE_SUCCESS;
+  }
+  pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  if (NULL == pCxt->pNsLevel) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t resetTranslateNamespace(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
     size_t size = taosArrayGetSize(pCxt->pNsLevel);
@@ -5384,6 +5406,8 @@ static int32_t appendTsForImplicitTsFunc(STranslateContext* pCxt, SSelectStmt* p
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
   SNodeList*         pProjectionList;
+  bool               nameMatch;
+  bool               notFound;
 } SReplaceOrderByAliasCxt;
 
 static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
@@ -5393,8 +5417,8 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
-      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias) && nodeType(*pNode) == nodeType(pProject)) {
-        if (QUERY_NODE_COLUMN == nodeType(pProject) && !nodesEqualNode(*pNode, pProject)) {
+      if (0 == strcmp(((SColumnNode*)*pNode)->colName, pExpr->userAlias)) {
+        if (!pCxt->nameMatch && (nodeType(*pNode) != nodeType(pProject) || (QUERY_NODE_COLUMN == nodeType(pProject) && !nodesEqualNode(*pNode, pProject)))) {
           continue;
         }
         SNode* pNew = nodesCloneNode(pProject);
@@ -5408,6 +5432,8 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
+
+    pCxt->notFound = true;
   } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
     STranslateContext* pTransCxt = pCxt->pTranslateCxt;
     SNode*             pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
@@ -5434,12 +5460,16 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList) {
+static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList, bool checkExists, bool nameMatch) {
   if (NULL == pOrderByList) {
     return TSDB_CODE_SUCCESS;
   }
-  SReplaceOrderByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pProjectionList};
+  SReplaceOrderByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pProjectionList, .nameMatch = nameMatch, .notFound = false};
   nodesRewriteExprsPostOrder(pOrderByList, replaceOrderByAliasImpl, &cxt);
+  if (checkExists && cxt.notFound) {
+    return TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR;
+  }
+  
   return pCxt->errCode;
 }
 
@@ -5458,7 +5488,7 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
 }
 
 static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  int32_t code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
+  int32_t code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, false, false);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     resetResultTimeline(pSelect);
   }
@@ -5599,10 +5629,16 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
-    if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_COLUMN == nodeType(pRight) &&
-        ((SColumnNode*)pLeft)->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
-        ((SColumnNode*)pRight)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-      ((SColumnNode*)pProj)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_COLUMN == nodeType(pRight)) {
+      SColumnNode* pLCol = (SColumnNode*)pLeft;
+      SColumnNode* pRCol = (SColumnNode*)pRight;
+      SColumnNode* pFCol = (SColumnNode*)pProj;
+      if (pLCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID && pRCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+        if (pLCol->isPrimTs && pRCol->isPrimTs) {
+          pFCol->isPrimTs = true;
+        }
+      }
     }
     if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, pProj)) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -5622,6 +5658,7 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 
   bool    other;
   int32_t code = translateOrderByPosition(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, &other);
+/*
   if (TSDB_CODE_SUCCESS == code) {
     if (other) {
       pCxt->currClause = SQL_CLAUSE_ORDER_BY;
@@ -5629,8 +5666,9 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
       code = translateExprList(pCxt, pSetOperator->pOrderByList);
     }
   }
+*/  
   if (TSDB_CODE_SUCCESS == code) {
-    code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList);
+    code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, true, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
@@ -5653,7 +5691,7 @@ static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
 static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
   if (TSDB_CODE_SUCCESS == code) {
-    code = resetTranslateNamespace(pCxt);
+    code = resetHighLevelTranslateNamespace(pCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(pCxt, pSetOperator->pRight);

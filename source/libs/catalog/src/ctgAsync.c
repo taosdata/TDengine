@@ -2821,7 +2821,7 @@ int32_t ctgLaunchJob(SCtgJob* pJob) {
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
 
     pTask = taosArrayGet(pJob->pTasks, i);
-    pTask->status = CTG_TASK_LAUNCHED;
+    atomic_val_compare_exchange_32((int32_t*)&pTask->status, 0, CTG_TASK_LAUNCHED);
   }
 
   if (taskNum <= 0) {

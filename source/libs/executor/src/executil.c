@@ -1143,7 +1143,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
           qDebug("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
         } else {
-          qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
+          qDebug("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
         }
       }
     }

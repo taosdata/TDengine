@@ -56,6 +56,7 @@ extern "C" {
 #define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
 #define EXPLAIN_OUTPUT_FORMAT "Output: "
+#define EXPLAIN_JOIN_PARAM_FORMAT "Join Param: "
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
@@ -93,7 +94,6 @@ extern "C" {
 #define EXPLAIN_SCAN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_SCAN_DATA_LOAD_FORMAT "data_load=%s"
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
-#define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
@@ -112,6 +112,11 @@ extern "C" {
 #define EXPLAIN_SRC_SCAN_FORMAT "src_scan=%d,%d"
 #define EXPLAIN_PLAN_BLOCKING "blocking=%d"
 #define EXPLAIN_MERGE_MODE_FORMAT "mode=%s"
+#define EXPLAIN_ASOF_OP_FORMAT "asof_op='%s'"
+#define EXPLAIN_WIN_OFFSET_FORMAT "window_offset=(%s, %s)"
+#define EXPLAIN_JLIMIT_FORMAT "jlimit=%" PRId64
+#define EXPLAIN_SEQ_WIN_GRP_FORMAT "seq_win_grp=%d"
+#define EXPLAIN_GRP_JOIN_FORMAT "group_join=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

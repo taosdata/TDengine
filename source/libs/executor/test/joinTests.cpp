@@ -868,7 +868,8 @@ SSDataBlock* createDummyBlock(int32_t blkId) {
 
   p->info.id.blockId = blkId;
   p->info.type = STREAM_INVALID;
-  p->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  p->info.calWin.skey = INT64_MIN;
+  p->info.calWin.ekey = INT64_MAX;
   p->info.watermark = INT64_MIN;
 
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
@@ -2442,15 +2443,18 @@ void joinTestReplaceRetrieveFp() {
     AddrAny                       any;
     std::map<std::string, void *> result;
     any.get_func_addr("getNextBlockFromDownstreamRemain", result);
+    for (const auto &f : result) {
+      stub.set(f.second, getDummyInputBlock);
+    }
 #endif
 #ifdef LINUX
     AddrAny                       any("libexecutor.so");
     std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^getNextBlockFromDownstreamRemain$", result);
-#endif
     for (const auto &f : result) {
       stub.set(f.second, getDummyInputBlock);
     }
+#endif
   }
 }
 
@@ -2858,7 +2862,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(10, 10, 10, 10, 3);
+  createDummyBlkList(20, 20, 20, 20, 3);
   
   while (contLoop) {
     rerunBlockedHere();

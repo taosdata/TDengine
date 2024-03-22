@@ -299,7 +299,7 @@ static void destroyHJoinKeyHash(SSHashObj** ppHash) {
 
 static void destroyHashJoinOperator(void* param) {
   SHJoinOperatorInfo* pJoinOperator = (SHJoinOperatorInfo*)param;
-  qError("hashJoin exec info, buildBlk:%" PRId64 ", buildRows:%" PRId64 ", probeBlk:%" PRId64 ", probeRows:%" PRId64 ", resRows:%" PRId64, 
+  qDebug("hashJoin exec info, buildBlk:%" PRId64 ", buildRows:%" PRId64 ", probeBlk:%" PRId64 ", probeRows:%" PRId64 ", resRows:%" PRId64, 
          pJoinOperator->execInfo.buildBlkNum, pJoinOperator->execInfo.buildBlkRows, pJoinOperator->execInfo.probeBlkNum, 
          pJoinOperator->execInfo.probeBlkRows, pJoinOperator->execInfo.resRows);
 
@@ -756,7 +756,7 @@ static void setHJoinDone(struct SOperatorInfo* pOperator) {
   SHJoinOperatorInfo* pInfo = pOperator->info;
   destroyHJoinKeyHash(&pInfo->pKeyHash);
 
-  qError("hash Join done");  
+  qDebug("hash Join done");  
 }
 
 static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator) {
@@ -916,7 +916,7 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doHashJoin, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
-  qError("create hash Join operator done");
+  qDebug("create hash Join operator done");
 
   return pOperator;
 

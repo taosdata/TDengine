@@ -1334,7 +1334,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType)) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType) && NULL == pJoin->addPrimEqCond) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
 

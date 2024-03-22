@@ -2632,12 +2632,13 @@ static FORCE_INLINE void mWinJoinPopFrontGroup(SMJoinWindowCtx* pCtx, SMJoinGrpR
 
 static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
   SMJoinWinCache* pCache = &pCtx->cache;
-  int32_t grpNum = taosArrayGetSize(pCache->grps);
+  SArray* pGrpArray = (NULL != pCache->grps) ? pCache->grps : pCache->grpsQueue;
+  int32_t grpNum = taosArrayGetSize(pGrpArray);
   if (grpNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayGetLast(pCache->grps);
+  SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayGetLast(pGrpArray);
   if (!pGrp->clonedBlk) {
     if (0 == pGrp->beginIdx) {
       pGrp->blk = createOneDataBlock(pGrp->blk, true);

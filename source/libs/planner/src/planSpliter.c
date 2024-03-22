@@ -1569,7 +1569,13 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
     ++(pCxt->groupId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    nodesDestroyList(pSubplanChildren);
+    if (NULL != pSubplanChildren) {
+      if (pSubplanChildren->length > 0) {
+        nodesListMakeStrictAppendList(&pUnionSubplan->pChildren, pSubplanChildren);
+      } else {
+        nodesDestroyList(pSubplanChildren);
+      }
+    }
     NODES_DESTORY_LIST(pSplitNode->pChildren);
   }
   return code;

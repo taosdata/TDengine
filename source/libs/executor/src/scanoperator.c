@@ -929,7 +929,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qError("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d", 
+  qDebug("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d", 
       pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList), pOperator->status);
 
   if (pParam->tableSeq) {
@@ -963,7 +963,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     }
 
     tableIdx++;
-    qError("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+    qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
   }
   
   return code;

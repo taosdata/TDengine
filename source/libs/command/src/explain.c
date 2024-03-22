@@ -22,6 +22,14 @@
 #include "systable.h"
 #include "functionMgt.h"
 
+char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
+           /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
+/*INNER*/  {"Inner Join",         NULL,                  NULL,                 NULL,                  NULL,                  NULL},
+/*LEFT*/   {"Left Join",          "Left Join",           "Left Semi Join",     "Left Anti Join",      "Left ASOF Join",      "Left Window Join"},
+/*RIGHT*/  {"Right Join",         "Right Join",          "Right Semi Join",    "Right Anti Join",     "Right ASOF Join",     "Right Window Join"},
+/*FULL*/   {"Full Join",          "Full Join",           NULL,                 NULL,                  NULL,                  NULL},
+};
+
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
 int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
 
@@ -35,6 +43,24 @@ char *qExplainGetDynQryCtrlType(EDynQueryType type) {
 
   return "unknown task";
 }
+
+char* qExplainGetAsofOpStr(int32_t opType) {
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN:
+      return ">";
+    case OP_TYPE_GREATER_EQUAL:
+      return ">=";
+    case OP_TYPE_LOWER_THAN:
+      return "<";
+    case OP_TYPE_LOWER_EQUAL:
+      return "<=";
+    case OP_TYPE_EQUAL:
+      return "=";    
+    default:
+      return "UNKNOWN";
+  }
+}
+
 
 void qExplainFreeResNode(SExplainResNode *resNode) {
   if (NULL == resNode) {
@@ -593,7 +619,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SSortMergeJoinPhysiNode *pJoinNode = (SSortMergeJoinPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, EXPLAIN_JOIN_STRING(pJoinNode->joinType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, gJoinTypeStr[pJoinNode->joinType][pJoinNode->subType]);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -619,6 +645,36 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND_SLIMIT(pJoinNode->node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        if (IS_ASOF_JOIN(pJoinNode->subType) || IS_WINDOW_JOIN(pJoinNode->subType)) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_PARAM_FORMAT);
+          if (IS_ASOF_JOIN(pJoinNode->subType)) {
+            EXPLAIN_ROW_APPEND(EXPLAIN_ASOF_OP_FORMAT, qExplainGetAsofOpStr(pJoinNode->asofOpType));
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (NULL != pJoinNode->pWindowOffset) {
+            SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pJoinNode->pWindowOffset;
+            SValueNode* pStart = (SValueNode*)pWinOffset->pStartOffset;
+            SValueNode* pEnd = (SValueNode*)pWinOffset->pEndOffset;
+            EXPLAIN_ROW_APPEND(EXPLAIN_WIN_OFFSET_FORMAT, pStart->literal, pEnd->literal);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (NULL != pJoinNode->pJLimit) {
+            SLimitNode* pJLimit = (SLimitNode*)pJoinNode->pJLimit;
+            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (IS_WINDOW_JOIN(pJoinNode->subType)) {
+            EXPLAIN_ROW_APPEND(EXPLAIN_SEQ_WIN_GRP_FORMAT, pJoinNode->seqWinGroup);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+
+          EXPLAIN_ROW_APPEND(EXPLAIN_GRP_JOIN_FORMAT, pJoinNode->grpJoin);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_END();
+          
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
 
         if (pJoinNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
@@ -1580,7 +1636,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:{
       SHashJoinPhysiNode *pJoinNode = (SHashJoinPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, EXPLAIN_JOIN_STRING(pJoinNode->joinType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, gJoinTypeStr[pJoinNode->joinType][pJoinNode->subType]);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));

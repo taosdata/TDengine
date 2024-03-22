@@ -1086,6 +1086,11 @@ if $data31 != @23-11-17 16:29:03.000@ then
   return -1
 endi
 
+sql select a.col1 from sta a left asof join sta b on a.col1 = b.col1 and a.t1 = b.t1;
+if $rows != 8 then
+  return -1
+endi
+
 sql select a.ts, b.ts from sta a left asof join sta b on a.ts > b.ts order by a.ts desc;
 if $rows != 8 then
   return -1

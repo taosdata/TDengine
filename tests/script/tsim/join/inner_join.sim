@@ -185,3 +185,13 @@ if $data11 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
+sql select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;
+if $rows != 6 then
+  return -1
+endi
+sql select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;
+if $rows != 144 then
+  return -1
+endi
+
+
