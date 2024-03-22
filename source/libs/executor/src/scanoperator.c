@@ -1198,16 +1198,17 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
 
   {  // todo :refactor:
+    SDataBlockInfo* pBlockInfo = &pInfo->pResBlock->info;
     for(int32_t i = 0; i < taosArrayGetSize(pInfo->base.matchInfo.pList); ++i) {
       SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, i);
       if (pItem->isPk) {
         SColumnInfoData* pInfoData = taosArrayGet(pInfo->pResBlock->pDataBlock, pItem->dstSlotId);
-        pInfo->pResBlock->info.pks[0].type = pInfoData->info.type;
-        pInfo->pResBlock->info.pks[1].type = pInfoData->info.type;
+        pBlockInfo->pks[0].type = pInfoData->info.type;
+        pBlockInfo->pks[1].type = pInfoData->info.type;
 
         if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
-          pInfo->pResBlock->info.pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
-          pInfo->pResBlock->info.pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+          pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+          pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
         }
       }
     }
