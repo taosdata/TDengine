@@ -37,21 +37,22 @@ KILL COMPACT compact_id；
 -   COMPACT 为异步，执行 COMPACT 命令后不会等 COMPACT 结束就会返回。如果上一个 COMPACT 没有完成则再发起一个 COMPACT 任务，则会等上一个任务完成后再返回。
 -   COMPACT 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
 
-## RAFT Leader 再平衡
+## Vgroup Leader 再平衡
 
 当多副本集群中的一个或多个节点因为升级或其它原因而重启后，有可能出现集群中各个 dnode 负载不均衡的现象，极端情况下会出现所有 vgroup 的 leader 都位于同一个 dnode 的情况。为了解决这个问题，可以使用下面的命令
 
 ```SQL
-balance vgroup leader;
+balance vgroup leader; # 再平衡所有 vgroup 的 leader
+balance vgroup leader on <vgroup_id>; # 再平衡一个 vgroup 的 leader
 ```
 
 ### 功能
 
-让所有的 vgroup 的 leade r在各自的replica节点上均匀分布。这个命令会让 vgroup 强制重新选举，通过重新选举，在选举的过程中，变换 vgroup 的leader，通过这个方式，最终让leader均匀分布。
+尝试让一个或所有 vgroup 的 leader在各自的replica节点上均匀分布。这个命令会让 vgroup 强制重新选举，通过重新选举，在选举的过程中，改变 vgroup 的leader，通过这个方式，最终让leader均匀分布。
 
 ### 注意
 
-Raft 选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。该命令的副作用是影响查询和写入，在vgroup重新选举时，从开始选举到选举出新的 leader 这段时间，这 个vgroup 无法写入和查询。选举过程一般在秒级完成。所有的vgroup会依次逐个重新选举。
+Vgroup 选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。该命令的副作用是影响查询和写入，在vgroup重新选举时，从开始选举到选举出新的 leader 这段时间，这 个vgroup 无法写入和查询。选举过程一般在秒级完成。所有的vgroup会依次逐个重新选举。
 
 ## 恢复数据节点
 
