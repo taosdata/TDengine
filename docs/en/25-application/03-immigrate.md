@@ -41,7 +41,7 @@ The agents deployed in the application nodes are responsible for providing opera
 
 - **TDengine installation and deployment**
 
-First of all, please install TDengine. Download the latest stable version of TDengine from the official website and install it. For help with using various installation packages, please refer to the blog ["Installation and Uninstallation of TDengine Multiple Installation Packages"](https://www.taosdata.com/blog/2019/08/09/566.html).
+First of all, please install TDengine. Download the latest stable version of TDengine from the official website and install it.
 
 Note that once the installation is complete, do not start the `taosd` service before properly configuring the parameters.
 
@@ -182,8 +182,6 @@ TDengine supports the standard JDBC 3.0 interface for manipulating databases, bu
 ### 1. Use the tool to migrate data automatically
 
 To facilitate historical data migration, we provide a plug-in for the data synchronization tool DataX, which can automatically write data into TDengine.The automatic data migration of DataX can only support the data migration process of a single value model.
-
-For the specific usage of DataX and how to use DataX to write data to TDengine, please refer to [DataX-based TDengine Data Migration Tool](https://www.taosdata.com/blog/2021/10/26/3156.html).
 
 After migrating via DataX, we found that we can significantly improve the efficiency of migrating historical data by starting multiple processes and migrating numerous metrics simultaneously. The following are some records of the migration process. We provide these as a reference for application migration.
 
@@ -411,7 +409,7 @@ TDengine provides a wealth of help documents to explain many aspects of cluster 
 
 ### Cluster Deployment
 
-The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it. Please refer to the blog ["Installation and Uninstallation of Various Installation Packages of TDengine"](https://www.taosdata.com/blog/2019/08/09/566.html) for the various installation package formats.
+The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it.
 
 Note that once the installation is complete, do not immediately start the `taosd` service, but start it after correctly configuring the parameters.
 
