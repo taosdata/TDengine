@@ -2361,7 +2361,7 @@ int32_t mergeRowsInSttBlocks(SSttBlockReader* pSttBlockReader, STableBlockScanIn
   }
 
   if (copied) {
-//    tRowKeyAssign(&pBlockScanInfo->lastProcKey, &sttKey);
+    tRowKeyAssign(&pBlockScanInfo->lastProcKey, &sttKey);
     return TSDB_CODE_SUCCESS;
   } else {
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
