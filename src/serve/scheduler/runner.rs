@@ -914,7 +914,7 @@ impl TaskJob {
                 let run_id = opts.runs.fetch_add(1, Ordering::Release);
                 let state = opts;
                 let mut waiting = 0;
-                let cancellation = state.cancellation.clone();
+                let cancellation = state.cancellation.child_token();
                 let drop_guard = cancellation.clone().drop_guard();
                 tracing::debug!(
                     "spawned new run_task, task.id={} task.rid={}",
