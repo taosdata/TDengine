@@ -170,16 +170,12 @@ Query OK, 8 row(s) in set (0.001154s)
 启动 CLI 程序 taos，执行：
 
 ```sql
-DROP DNODE "fqdn:port";
+DROP DNODE dnodeId; # 删除在线数据节点
+DROP DNODE dnodeId FORCE；# 删除只包含多副本 vnode 的离线数据节点
+DROP DNODE dnodeId UNSAFE；# 删除还包含单副本 vnode 的离线数据节点
 ```
 
-或者
-
-```sql
-DROP DNODE dnodeId;
-```
-
-通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
+通过 dnodeID 来指定一个具体的节点都是可以的。dnodeID 可以通过 SHOW DNODES 获得。
 
 :::warning
 
@@ -201,4 +197,4 @@ dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增
   3）如果前面两步都没有问题，这一步要检查新节点做为独立集群在运行了，可以使用 taos -h fqdn 连接上后，show dnodes; 命令查看.
     如果显示的列表与你主节点上显示的不一致，说明此节点自己单独成立了一个集群，解决的方法是停止新节点上的服务，然后清空新节点上 
     taos.cfg 中配置的 dataDir 目录下的所有文件，重新启动新节点服务即可解决。
-```  
+```
