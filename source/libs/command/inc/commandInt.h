@@ -53,7 +53,9 @@ extern "C" {
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
-#define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
+#define EXPLAIN_PRIM_CONDITIONS_FORMAT "Join Prim Cond: "
+#define EXPLAIN_ON_CONDITIONS_FORMAT "Join Full Cond: "
+#define EXPLAIN_COL_ON_CONDITIONS_FORMAT "Join Col Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
 #define EXPLAIN_OUTPUT_FORMAT "Output: "
 #define EXPLAIN_JOIN_PARAM_FORMAT "Join Param: "
@@ -72,6 +74,8 @@ extern "C" {
 #define EXPLAIN_DYN_QRY_CTRL_FORMAT "Dynamic Query Control for %s"
 #define EXPLAIN_COUNT_FORMAT "Count"
 #define EXPLAIN_COUNT_INFO_FORMAT "Window Count Info"
+#define EXPLAIN_JOIN_EQ_LEFT_FORMAT "Left Equal Cond: "
+#define EXPLAIN_JOIN_EQ_RIGHT_FORMAT "Right Equal Cond: "
 #define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%" PRId64
 #define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%" PRId64
 

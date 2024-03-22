@@ -684,18 +684,45 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
-        if (pJoinNode->pPrimKeyCond || pJoinNode->pFullOnCond) {
+        if (NULL != pJoinNode->pPrimKeyCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_PRIM_CONDITIONS_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pPrimKeyCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
+        }
+
+        if (NULL != pJoinNode->pEqLeft && pJoinNode->pEqLeft->length > 0) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_EQ_LEFT_FORMAT);
+          SNode* pCol = NULL;
+          FOREACH(pCol, pJoinNode->pEqLeft) {
+            EXPLAIN_ROW_APPEND("`%s`.`%s` ", ((SColumnNode*)pCol)->tableAlias, ((SColumnNode*)pCol)->colName);
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (NULL != pJoinNode->pEqRight && pJoinNode->pEqRight->length > 0) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_EQ_RIGHT_FORMAT);
+          SNode* pCol = NULL;
+          FOREACH(pCol, pJoinNode->pEqRight) {
+            EXPLAIN_ROW_APPEND("`%s`.`%s` ", ((SColumnNode*)pCol)->tableAlias, ((SColumnNode*)pCol)->colName);
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (NULL != pJoinNode->pFullOnCond) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);
-          if (pJoinNode->pPrimKeyCond) {
-            QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pPrimKeyCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
-          if (pJoinNode->pFullOnCond) {
-            if (pJoinNode->pPrimKeyCond) {
-              EXPLAIN_ROW_APPEND(" AND ");
-            }
-            QRY_ERR_RET(
+          QRY_ERR_RET(
                 nodesNodeToSQL(pJoinNode->pFullOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
+        }
+
+        if (NULL != pJoinNode->pColOnCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_COL_ON_CONDITIONS_FORMAT);
+          QRY_ERR_RET(
+                nodesNodeToSQL(pJoinNode->pColOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
         }

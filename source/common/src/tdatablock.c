@@ -541,7 +541,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         pDst->varmeta.allocLen = pDst->varmeta.length + allLen;
       }
       
-      memcpy(pDst->pData + pDst->varmeta.length, pSrc->pData, allLen);
+      memcpy(pDst->pData + pDst->varmeta.length, colDataGetVarData(pSrc, srcIdx), allLen);
       pDst->varmeta.length = pDst->varmeta.length + allLen;
     }
   } else {

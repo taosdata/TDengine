@@ -4415,6 +4415,18 @@ static int32_t stbJoinOptCreateTagHashJoinNode(SLogicNode* pOrig, SNodeList* pCh
     pScan->node.pParent = (SLogicNode*)pJoin;
   }
 
+  SNodeList* pCols = NULL;
+  nodesCollectColumnsFromNode(pJoin->pFullOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCols);
+
+  FOREACH(pNode, pCols) {
+    code = createColumnByRewriteExpr(pNode, &pJoin->node.pTargets);
+    if (code) {
+      break;
+    }
+  }
+
+  nodesDestroyList(pCols);
+
   if (TSDB_CODE_SUCCESS == code) {
     *ppLogic = (SLogicNode*)pJoin;
   } else {
