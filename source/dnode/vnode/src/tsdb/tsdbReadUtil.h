@@ -298,8 +298,10 @@ int32_t uidComparFunc(const void* p1, const void* p2);
 
 STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id);
 
-SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
+SSHashObj* createDataBlockScanInfo(STsdbReader* pReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
                                    STableUidList* pUidList, int32_t numOfTables);
+int32_t    initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
+                                  STsdbReader* pReader);
 void       clearBlockScanInfo(STableBlockScanInfo* p);
 void       destroyAllBlockScanInfo(SSHashObj* pTableMap);
 void       resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);

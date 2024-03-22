@@ -2315,6 +2315,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
   }
 
   if (copied) {
+    tRowKeyAssign(&pBlockScanInfo->lastProcKey, pKey);
     return TSDB_CODE_SUCCESS;
   } else {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
@@ -2822,10 +2823,19 @@ static void buildCleanBlockFromSttFiles(STsdbReader* pReader, STableBlockScanInf
   pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
   pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
 
-  ASSERT(0);
   pScanInfo->lastProcKey.ts = asc ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
-  pScanInfo->sttBlockReturned = true;
+  if (pScanInfo->lastProcKey.numOfPKs > 0) {
+    ASSERT(0);
+//    if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+//      pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
+//    } else {
+//      uint8_t* p = asc ? pBlockInfo->lastPk.pData : pBlockInfo->firstPk.pData;
+//      pKey->pks[0].nData = asc ? pBlockInfo->lastPKLen : pBlockInfo->firstPKLen;
+//      memcpy(pKey->pks[0].pData, p, pKey->pks[0].nData);
+//    }
+  }
 
+  pScanInfo->sttBlockReturned = true;
   pSttBlockReader->mergeTree.pIter = NULL;
 
   tsdbDebug("%p uid:%" PRId64 " return clean stt block as one, brange:%" PRId64 "-%" PRId64 " rows:%" PRId64 " %s",
@@ -4100,25 +4110,10 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
 
   STableKeyInfo* pList = (STableKeyInfo*)pTableList;
   for (int32_t i = 0; i < num; ++i) {
-    STableBlockScanInfo* pInfo = getPosInBlockInfoBuf(&pReader->blockInfoBuf, i);
-    pInfo->uid = pList[i].uid;
     pUidList->tableUidList[i] = pList[i].uid;
 
-    // todo extract method
-    if (ASCENDING_TRAVERSE(pReader->info.order)) {
-      int64_t skey = pReader->info.window.skey;
-      ASSERT(0);
-//      pInfo->lastProcKey = (skey > INT64_MIN) ? (skey - 1) : skey;
-      pInfo->sttKeyInfo.nextProcKey = skey;
-    } else {
-      int64_t ekey = pReader->info.window.ekey;
-      ASSERT(0);
-//      pInfo->lastProcKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-      pInfo->sttKeyInfo.nextProcKey = ekey;
-    }
-
-    pInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
-    tSimpleHashPut(pReader->status.pTableMap, &pInfo->uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+    STableBlockScanInfo* pInfo = getPosInBlockInfoBuf(&pReader->blockInfoBuf, i);
+    initTableBlockScanInfo(pInfo, pList[i].uid, pReader->status.pTableMap, pReader);
   }
 
   return TDB_CODE_SUCCESS;
@@ -4155,8 +4150,6 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStatus->fileIter.numOfFiles == 0) {
     pStatus->loadFromFile = false;
-    //  } else if (READER_EXEC_DATA == pReader->info.readMode) {
-    // DO NOTHING
   } else {
     code = initForFirstBlockInFile(pReader, pBlockIter);
   }
@@ -4429,7 +4422,7 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
   while ((p = tSimpleHashIterate(pStatus->pTableMap, p, &iter)) != NULL) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
     clearBlockScanInfo(pInfo);
-    ASSERT(0);
+//    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey.ts + step;
 //    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey + step;
   }
 
