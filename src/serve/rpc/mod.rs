@@ -539,7 +539,7 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         let remote = req.remote_addr();
         let (mut meta, extension, req) = req.into_parts();
-
+        tracing::info!("Receive do_exchange stream from {:?}", remote);
         let token = meta
             .get("x-token")
             .ok_or_else(|| Status::aborted("Token should be set"))?
@@ -553,7 +553,6 @@ impl FlightService for FlightServiceImpl {
             .map_err(|err| Status::permission_denied(format!("Agent connection error: {err}")))?;
 
         let agent_id = agent.id;
-
         let (tx, rx) = self.subscribe_agent_action_flight(agent_id);
 
         let connection_id = std::time::SystemTime::now()
@@ -570,6 +569,7 @@ impl FlightService for FlightServiceImpl {
             self.notify_sender
                 .send(AgentNotify::AgentConnected(agent_id))
                 .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+            tracing::debug!("Sent AgentNotify::AgentConnected, agent.id={agent_id}");
         }
 
         // dbg!(&agent);
