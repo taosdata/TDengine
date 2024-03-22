@@ -85,7 +85,6 @@ class TDSql:
         i=1
         while i <= queryTimes:
             try:
-                tdLog.info(sql)
                 self.affectedRows = self.cursor.execute(sql)
                 return self.affectedRows
             except Exception as e:
@@ -116,12 +115,14 @@ class TDSql:
         else:
             tdLog.info("sql:%s, check passed, no ErrInfo occurred" % (sql))
 
-    def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True):
+    def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True, show = False):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
 
-        try:
+        if show:
             tdLog.info("sql:%s" % (sql))
+
+        try:
             self.cursor.execute(sql)
         except BaseException as e:
             tdLog.info("err:%s" % (e))
@@ -164,12 +165,14 @@ class TDSql:
 
             return self.error_info
 
-    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
+    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None, show = False):
+        if show:
+            tdLog.info("sql:%s" % (sql))
+
         self.sql = sql
         i=1
         while i <= queryTimes:
             try:
-                tdLog.info(sql)
                 self.cursor.execute(sql)
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
