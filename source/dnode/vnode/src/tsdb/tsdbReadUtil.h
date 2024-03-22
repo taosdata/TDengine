@@ -87,8 +87,7 @@ typedef struct SSttKeyInfo {
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t    uid;
-//  TSKEY       lastProcKey;       // todo: refactor: add primary key
-  STsdbRowKey lastProcKey;
+  SRowKey     lastProcKey;
   SSttKeyInfo sttKeyInfo;
   SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
   SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
@@ -161,6 +160,8 @@ typedef struct SBlockLoadSuppInfo {
   int32_t             numOfCols;
   int32_t             numOfPks;
   SColumnInfo         pk;
+  int32_t             pkSrcSlot;
+  int32_t             pkDstSlot;
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
@@ -171,7 +172,7 @@ typedef struct SSttBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  STsdbRowKey        currentKey;
+  SRowKey            currentKey;
   int32_t            numOfPks;
   __compar_fn_t      pkComparFn;
 } SSttBlockReader;

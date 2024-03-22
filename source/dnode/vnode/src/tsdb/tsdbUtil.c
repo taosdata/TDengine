@@ -606,27 +606,13 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
     tRowGetKey(row->pTSRow, &key->key);
   } else {
     key->version = row->pBlockData->aVersion[row->iRow];
-    key->key.ts = row->pBlockData->aTSKEY[row->iRow];
-    key->key.numOfPKs = 0;
-    for (int32_t i = 0; i < row->pBlockData->nColData; i++) {
-      SColData *pColData = &row->pBlockData->aColData[i];
-      if (pColData->cflag & COL_IS_KEY) {
-        SColVal cv;
-        tColDataGetValue(pColData, row->iRow, &cv);
-        ASSERT(COL_VAL_IS_VALUE(&cv));
-        key->key.pks[key->key.numOfPKs] = cv.value;
-        key->key.numOfPKs++;
-      } else {
-        break;
-      }
-    }
+    tColRowGetKey(row->pBlockData, row->iRow, &key->key);
   }
 }
 
-void tsdbColRowGetKey(SBlockData* pBlock, int32_t irow, STsdbRowKey* key) {
-  key->version = pBlock->aVersion[irow];
-  key->key.ts = pBlock->aTSKEY[irow];
-  key->key.numOfPKs = 0;
+void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
+  key->ts = pBlock->aTSKEY[irow];
+  key->numOfPKs = 0;
 
   for (int32_t i = 0; i < pBlock->nColData; i++) {
     SColData *pColData = &pBlock->aColData[i];
@@ -634,37 +620,27 @@ void tsdbColRowGetKey(SBlockData* pBlock, int32_t irow, STsdbRowKey* key) {
       SColVal cv;
       tColDataGetValue(pColData, irow, &cv);
       ASSERT(COL_VAL_IS_VALUE(&cv));
-      key->key.pks[key->key.numOfPKs] = cv.value;
-      key->key.numOfPKs++;
+      key->pks[key->numOfPKs] = cv.value;
+      key->numOfPKs++;
     } else {
       break;
     }
   }
 }
 
-int32_t tsdbRowKeyAssign(STsdbRowKey *pDst, STsdbRowKey* pSrc) {
-  pDst->version = pSrc->version;
-
-  if (pSrc->key.numOfPKs == 0) {
-    pDst->key.ts = pSrc->key.ts;
-    pDst->key.numOfPKs = 0;
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+  if (pSrc->numOfPKs == 0) {
+    pDst->ts = pSrc->ts;
+    pDst->numOfPKs = 0;
   } else {
-    pDst->key = pSrc->key;
+    *pDst = *pSrc;
 
-    for (int32_t i = 0; i < pDst->key.numOfPKs; ++i) {
-      SValue *pVal = &pDst->key.pks[i];
+    for (int32_t i = 0; i < pDst->numOfPKs; ++i) {
+      SValue *pVal = &pDst->pks[i];
       if (IS_NUMERIC_TYPE(pVal->type)) {
         continue;
       }
-
-      uint8_t *p = taosMemoryMalloc(pVal->nData);
-      if (p == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return terrno;
-      }
-
-      memcpy(p, pVal->pData, pVal->nData);
-      pVal->pData = p;
+      memcpy(pVal->pData, pVal->pData, pVal->nData);
     }
   }
 
