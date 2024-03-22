@@ -530,7 +530,7 @@ export default {
     </ul>
     `,
     durationTip:
-      "The time range of data stored in a single file, its unit can be minute(m), hour(h), day(d), e.g. 50d, 100h， the default unit is day(d).",
+      "The time range of data stored in a single file, its unit can be minute(m), hour(h), day(d), e.g. 10d, 100h， the default unit is day(d).",
     walFsyncPeriodTip:
       "The time interval of performing sync when WAL_LEVEL is set to 2, the unit is millisecond(ms), the default value is 3,000, i.e. 3000 milliseconds.",
     maxRowsTip:

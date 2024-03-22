@@ -81,7 +81,7 @@ export const DBFILED = {
   cachemodel: { type: "string", alter: true, defaultValue: "none" },
   cachesize: { type: "number", alter: true, defaultValue: undefined },
   comp: { type: "number", alter: false, defaultValue: undefined },
-  duration: { type: "number", alter: false, defaultValue: "50d" },
+  duration: { type: "number", alter: false, defaultValue: "10d" },
   wal_fsync_period: { type: "number", alter: true, defaultValue: undefined },
   maxrows: { type: "number", alter: false, defaultValue: undefined },
   minrows: { type: "number", alter: false, defaultValue: undefined },

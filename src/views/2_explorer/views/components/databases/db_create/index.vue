@@ -240,7 +240,7 @@
                     controls-position="right"
                     class="form_item"
                     style="width: 130px"
-                    placeholder="50d"
+                    placeholder="10d"
                   ></el-input>
                 </el-form-item>
                 <el-form-item>
