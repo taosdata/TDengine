@@ -3101,6 +3101,7 @@ static void initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter) 
   SFileBlockDumpInfo* pDumpInfo = &pStatus->fBlockDumpInfo;
 
   if (pBlockInfo) {
+    // todo handle
 //    STableBlockScanInfo* pScanInfo = tSimpleHashGet(pBlockIter->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
 //    if (pScanInfo) {
 //      tsdbRowKeyAssign(&pDumpInfo->lastKey, &pScanInfo->lastProcKey);
@@ -4666,8 +4667,12 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
       tsdbReleaseReader(pReader);
     }
 
+    tsdbReaderSuspend2(pReader);
+    tsdbReaderResume2(pReader);
+
     return code;
   }
+
 
   if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
     // prepare for the next row scan
