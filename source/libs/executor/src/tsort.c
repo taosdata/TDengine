@@ -1509,6 +1509,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(sup.aRowIdx);
     taosMemoryFree(sup.aTs);
+    taosMemoryFree(sup.aBlks);
     return code;
   }
 
