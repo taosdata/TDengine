@@ -149,6 +149,7 @@ typedef enum {
   CONSUMER_REMOVE_REB,      // remove after rebalance
   CONSUMER_UPDATE_REC,      // update after recover
   CONSUMER_UPDATE_SUB,      // update after subscribe req
+  CONSUMER_INSERT_SUB,
 } ECsmUpdateType;
 
 typedef struct {
@@ -556,8 +557,9 @@ typedef struct {
   int32_t resetOffsetCfg;
 } SMqConsumerObj;
 
-SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool isDeleted);
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe);
+void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 

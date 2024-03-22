@@ -6201,9 +6201,8 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   return 0;
 }
 
-int32_t tDeatroySMqHbRsp(SMqHbRsp *pRsp) {
+void tDestroySMqHbRsp(SMqHbRsp *pRsp) {
   taosArrayDestroy(pRsp->topicPrivileges);
-  return 0;
 }
 
 int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
@@ -6250,13 +6249,12 @@ int32_t tDeserializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
   return 0;
 }
 
-int32_t tDeatroySMqHbReq(SMqHbReq *pReq) {
+void tDestroySMqHbReq(SMqHbReq *pReq) {
   for (int i = 0; i < taosArrayGetSize(pReq->topics); i++) {
     TopicOffsetRows *vgs = taosArrayGet(pReq->topics, i);
     if (vgs) taosArrayDestroy(vgs->offsetRows);
   }
   taosArrayDestroy(pReq->topics);
-  return 0;
 }
 
 int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {

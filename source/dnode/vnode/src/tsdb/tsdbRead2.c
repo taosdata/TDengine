@@ -790,11 +790,12 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
       colDataSetNULL(pColInfoData, rowIndex);
     } else {
       varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
-      if (pColVal->value.nData > pColInfoData->info.bytes) {
+      if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
         tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
                  pColInfoData->info.bytes);
         return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
       }
+
       if (pColVal->value.nData > 0) {  // pData may be null, if nData is 0
         memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
       }
@@ -5164,7 +5165,7 @@ int64_t tsdbGetNumOfRowsInMemTable2(STsdbReader* pReader) {
 
 int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;

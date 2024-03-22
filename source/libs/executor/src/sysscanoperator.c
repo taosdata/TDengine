@@ -14,6 +14,7 @@
  */
 
 #include "executorInt.h"
+#include "geosWrapper.h"
 #include "filter.h"
 #include "functionMgt.h"
 #include "querynodes.h"
@@ -464,7 +465,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, pInfo->req.filterTb);
 
     SMetaReader smrTable = {0};
-    pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+    pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
     int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -484,7 +485,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     if (smrTable.me.type == TSDB_CHILD_TABLE) {
       int64_t suid = smrTable.me.ctbEntry.suid;
       pAPI->metaReaderFn.clearReader(&smrTable);
-      pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+      pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&smrTable, suid);
       if (code != TSDB_CODE_SUCCESS) {
         // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -567,7 +568,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         schemaRow = *(SSchemaWrapper**)schema;
       } else {
         SMetaReader smrSuperTable = {0};
-        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
         int code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -656,7 +657,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, condTableName);
 
     SMetaReader smrChildTable = {0};
-    pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+    pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
     int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -713,7 +714,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
 
     SMetaReader smrSuperTable = {0};
-    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
     uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
     int32_t  code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -811,6 +812,8 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -854,6 +857,30 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, int32_t* nOutput) {
+  int32_t code = 0;
+  char*   outputWKT = NULL;
+
+  if (nGeom == 0) {
+    if (!(*output = strdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
+    *nOutput = 0;
+    return code;
+  }
+
+  if (TSDB_CODE_SUCCESS != (code = initCtxAsText()) ||
+      TSDB_CODE_SUCCESS != (code = doAsText(iGeom, nGeom, &outputWKT))) {
+    qError("geo text for systable failed:%s", getThreadLocalGeosCtx()->errMsg);
+    *output = NULL;
+    *nOutput = 0;
+    return code;
+  }
+
+  *output = outputWKT;
+  *nOutput = strlen(outputWKT);
+
+  return code;
+}
+
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock) {
@@ -889,13 +916,13 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     char tagTypeStr[VARSTR_HEADER_SIZE + 32];
     int  tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
-    if (tagType == TSDB_DATA_TYPE_VARCHAR) {
-      tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
-                            (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
-    } else if (tagType == TSDB_DATA_TYPE_NCHAR) {
+    if (tagType == TSDB_DATA_TYPE_NCHAR) {
       tagTypeLen += sprintf(
           varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
           (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_VAR_DATA_TYPE(tagType)) {
+      tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+                            (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
     colDataSetVal(pColInfoData, numOfRows, (char*)tagTypeStr, false);
@@ -910,7 +937,13 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     } else {
       bool exist = tTagGet((STag*)smrChildTable->me.ctbEntry.pTags, &tagVal);
       if (exist) {
-        if (IS_VAR_DATA_TYPE(tagType)) {
+        if (tagType == TSDB_DATA_TYPE_GEOMETRY) {
+          sysTableGetGeomText(tagVal.pData, tagVal.nData, &tagData, &tagLen);
+        } else if (tagType == TSDB_DATA_TYPE_VARBINARY) {
+          if (taosAscii2Hex(tagVal.pData, tagVal.nData, (void**)&tagData, &tagLen) < 0) {
+            qError("varbinary for systable failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+          }
+        } else if (IS_VAR_DATA_TYPE(tagType)) {
           tagData = (char*)tagVal.pData;
           tagLen = tagVal.nData;
         } else {
@@ -940,6 +973,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     colDataSetVal(pColInfoData, numOfRows, tagVarChar,
                   (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
+    if (tagType == TSDB_DATA_TYPE_GEOMETRY || tagType == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(tagData);
     taosMemoryFree(tagVarChar);
     ++numOfRows;
   }
@@ -1129,7 +1163,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     tb_uid_t* uid = taosArrayGet(pIdx->uids, i);
 
     SMetaReader mr = {0};
-    pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+    pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
     ret = pAPI->metaReaderFn.getTableEntryByUid(&mr, *uid);
     if (ret < 0) {
       pAPI->metaReaderFn.clearReader(&mr);
@@ -2170,7 +2204,7 @@ static int32_t doGetTableRowSize(SReadHandle* pHandle, uint64_t uid, int32_t* ro
   *rowLen = 0;
 
   SMetaReader mr = {0};
-  pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0, &pHandle->api.metaFn);
+  pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
   int32_t code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", uid, tstrerror(terrno), idstr);
