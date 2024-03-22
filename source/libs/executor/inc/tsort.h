@@ -56,10 +56,11 @@ typedef struct SMsortComparParam {
   bool    cmpGroupId;
 
   int32_t sortType;
-  // the following field to speed up when sortType == SORT_BLOCK_TS_MERGE
+  // the following fields to speed up sorting when sortType == SORT_BLOCK_TS_MERGE
   int32_t tsSlotId;
-  int32_t order;
-  __compar_fn_t cmpFn;
+  int32_t tsOrder;
+  __compar_fn_t cmpTsFn;
+  void* pPkOrder; // SBlockOrderInfo*
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
