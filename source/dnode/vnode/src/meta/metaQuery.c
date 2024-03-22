@@ -248,7 +248,7 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
   pTbCur->paused = 1;
-  metaResumeTbCursor(pTbCur, 1);
+  metaResumeTbCursor(pTbCur, 1, 0);
   return pTbCur;
 }
 
@@ -273,7 +273,7 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
     pTbCur->paused = 1;
   }
 }
-void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first) {
+void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
 
@@ -282,9 +282,11 @@ void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first) {
     if (first) {
       tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
     } else {
-      int c = 0;
+      int c = 1;
       tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
-      if (c < 0) {
+      if (c == 0) {
+        if (move) tdbTbcMoveToNext(pTbCur->pDbc);
+      } else if (c < 0) {
         tdbTbcMoveToPrev(pTbCur->pDbc);
       } else {
         tdbTbcMoveToNext(pTbCur->pDbc);

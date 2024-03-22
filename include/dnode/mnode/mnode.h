@@ -75,6 +75,9 @@ void mndStop(SMnode *pMnode);
 
 int32_t mndIsCatchUp(SMnode *pMnode);
 ESyncRole mndGetRole(SMnode *pMnode);
+int64_t   mndGetTerm(SMnode *pMnode);
+
+int32_t mndGetArbToken(SMnode *pMnode, char *outToken);
 
 /**
  * @brief Get mnode monitor info.

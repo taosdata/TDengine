@@ -539,7 +539,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   } else {
-    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0);
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
 
   if (pInfo->pSchema == NULL) {
@@ -555,14 +555,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  int32_t restore = pInfo->restore;
-  pInfo->restore = false;
 
-  while (restore || ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
-    if (restore) {
-      restore = false;
-    }
-
+  while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
@@ -616,7 +610,6 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
-      pInfo->restore = true;
 
       if (pInfo->pRes->info.rows > 0) {
         pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
@@ -724,7 +717,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   } else {
-    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0);
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
 
   bool blockFull = false;
@@ -750,7 +743,6 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
-      pAPI->metaFn.cursorPrev(pInfo->pCur, TSDB_TABLE_MAX);
       blockFull = true;
     } else {
       sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
@@ -1354,7 +1346,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
-    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0);
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
   }
 
   blockDataCleanup(pInfo->pRes);

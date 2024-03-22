@@ -189,7 +189,7 @@ int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
-bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) { 
+bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) {
   return pQnode->pDnode->id == dnodeId;
 }
 
@@ -434,7 +434,7 @@ _OVER:
   }
 
   mndReleaseQnode(pMnode, pObj);
-  tFreeSMCreateQnodeReq(&dropReq);
+  tFreeSDDropQnodeReq(&dropReq);
   return code;
 }
 
