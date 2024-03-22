@@ -537,15 +537,25 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
 
     bool    member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
     bool    member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
-    int32_t currentAssignedDnodeId = arbGroupDup.assignedLeader.dnodeId;
+    SArbAssignedLeader* pAssignedLeader = &arbGroupDup.assignedLeader;
+    int32_t currentAssignedDnodeId = pAssignedLeader->dnodeId;
 
-    // 1. both of the two members are timeout => skip
+    // 1. has assigned && is sync => send req
+    if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true) {
+      (void)mndSendArbSetAssignedLeaderReq(pMnode, currentAssignedDnodeId, vgId, arbToken, term,
+                                           pAssignedLeader->token);
+      mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, currentAssignedDnodeId);
+      sdbRelease(pSdb, pArbGroup);
+      continue;
+    }
+
+    // 2. both of the two members are timeout => skip
     if (member0IsTimeout && member1IsTimeout) {
       sdbRelease(pSdb, pArbGroup);
       continue;
     }
 
-    // 2. no member is timeout => check sync
+    // 3. no member is timeout => check sync
     if (member0IsTimeout == false && member1IsTimeout == false) {
       // no assigned leader and not sync
       if (currentAssignedDnodeId == 0 && !arbGroupDup.isSync) {
@@ -556,7 +566,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
       continue;
     }
 
-    // 3. one of the members is timeout => set assigned leader
+    // 4. one of the members is timeout => set assigned leader
     int32_t          candidateIndex = member0IsTimeout ? 1 : 0;
     SArbGroupMember *pMember = &arbGroupDup.members[candidateIndex];
 
@@ -581,26 +591,18 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
       continue;
     }
 
-    // no assigned leader => write to sdb
-    if (currentAssignedDnodeId == 0) {
-      SArbGroup newGroup = {0};
-      mndArbGroupDupObj(&arbGroupDup, &newGroup);
-      mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
-      if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
-        mError("vgId:%d, arb failed to pullup set assigned leader to dnodeId:%d, since %s", vgId, pMember->info.dnodeId,
-               terrstr());
-        sdbRelease(pSdb, pArbGroup);
-        return -1;
-      }
-
-      mInfo("vgId:%d, arb pull up set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
+    // is sync && no assigned leader => write to sdb
+    SArbGroup newGroup = {0};
+    mndArbGroupDupObj(&arbGroupDup, &newGroup);
+    mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
+    if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
+      mError("vgId:%d, arb failed to pullup set assigned leader to dnodeId:%d, since %s", vgId, pMember->info.dnodeId,
+             terrstr());
       sdbRelease(pSdb, pArbGroup);
-      continue;
+      return -1;
     }
 
-    // isSync == true && dnodeId match => send request to dnode
-    (void)mndSendArbSetAssignedLeaderReq(pMnode, pMember->info.dnodeId, vgId, arbToken, term, pMember->state.token);
-    mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
+    mInfo("vgId:%d, arb pull up set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
 
     sdbRelease(pSdb, pArbGroup);
   }
