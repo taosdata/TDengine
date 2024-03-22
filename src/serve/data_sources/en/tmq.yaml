@@ -46,7 +46,7 @@ groups:
       - name: group.id
         display: Group ID
         description: |
-          Group ID is a random string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      
+          Group ID is a random string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.
         hint:
           type: str
       - name: client.id
@@ -67,8 +67,23 @@ groups:
           - A duration string like `5s`, `1m` etc.
         placeholder: 5s
       - name: experimental.snapshot.enable
-        display: Enable Snapshot
+        display: TSDB Data
         description: |
-          Enable experimental snapshot feature to subscribe data from scratch.
+          - If enabled, the data that has been persisted in time series data storage files will be replicated too; otherwise, only the data still in WAL (write ahead log) will be replicated.
         hint:
           type: bool
+        value: true
+      - name: sync.meta.drop
+        display: Table Deletions
+        description: |
+          If enabled, the table deletion operations on the source side will be replayed on the sink side.
+        hint:
+          type: bool
+        value: true
+      - name: sync.meta.delete
+        display: Data Deletions
+        description: |
+          If enabled, the data deletion operations on the source side will be replayed on the sink side.
+        hint:
+          type: bool
+        value: true
