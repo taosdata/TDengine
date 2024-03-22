@@ -3440,9 +3440,7 @@ _error:
 
 // table merge scan operator
 
-// table merge scan operator
-
-static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* param) {
+static int32_t subTblRowCompareTsFn(const void* pLeft, const void* pRight, void* param) {
   int32_t left = *(int32_t*)pLeft;
   int32_t right = *(int32_t*)pRight;
   STmsSubTablesMergeInfo* pInfo = (STmsSubTablesMergeInfo*)param;
@@ -3459,8 +3457,35 @@ static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* p
   int64_t leftTs = pInfo->aInputs[left].aTs[leftIdx];
   int64_t rightTs = pInfo->aInputs[right].aTs[rightIdx];
   int32_t ret = leftTs>rightTs ? 1 : ((leftTs < rightTs) ? -1 : 0);
-  if (pInfo->pOrderInfo->order == TSDB_ORDER_DESC) {
+  if (pInfo->pTsOrderInfo->order == TSDB_ORDER_DESC) {
     ret = -1 * ret;
+  }
+  return ret;
+}
+
+static int32_t subTblRowCompareTsPkFn(const void* pLeft, const void* pRight, void* param) {
+  int32_t left = *(int32_t*)pLeft;
+  int32_t right = *(int32_t*)pRight;
+  STmsSubTablesMergeInfo* pInfo = (STmsSubTablesMergeInfo*)param;
+
+  int32_t leftIdx = pInfo->aInputs[left].rowIdx;
+  int32_t rightIdx = pInfo->aInputs[right].rowIdx;
+
+  if (leftIdx == -1) {
+    return 1;
+  } else if (rightIdx == -1) {
+    return -1;
+  }
+
+  int64_t leftTs = pInfo->aInputs[left].aTs[leftIdx];
+  int64_t rightTs = pInfo->aInputs[right].aTs[rightIdx];
+  int32_t ret = leftTs>rightTs ? 1 : ((leftTs < rightTs) ? -1 : 0);
+  if (pInfo->pTsOrderInfo->order == TSDB_ORDER_DESC) {
+    ret = -1 * ret;
+  }
+  if (ret == 0 && pInfo->pPkOrderInfo) {                               
+    ret = tsortComparBlockCell(pInfo->aInputs[left].pInputBlock, pInfo->aInputs[right].pInputBlock, 
+                              leftIdx, rightIdx, pInfo->pPkOrderInfo);
   }
   return ret;
 }
@@ -3573,11 +3598,12 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
       pInput->rowIdx = 0;
       pInput->pageIdx = -1;
     }
-    SSDataBlock* pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
-    SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pOrderInfo->slotId);
+    pInput->pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
+    SColumnInfoData* col = taosArrayGet(pInput->pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
     pInput->aTs = (int64_t*)col->pData;
   }
-  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, subTblRowCompareFn);
+  __merge_compare_fn_t mergeCompareFn = (!pSubTblsInfo->pPkOrderInfo) ? subTblRowCompareTsFn : subTblRowCompareTsPkFn;
+  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
   return  TSDB_CODE_SUCCESS;
 }
 
@@ -3587,7 +3613,12 @@ static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   if (pSubTblsInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pSubTblsInfo->pOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
+  pSubTblsInfo->pTsOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
+  if (taosArrayGetSize(pInfo->pSortInfo) == 2) {
+    pSubTblsInfo->pPkOrderInfo = taosArrayGet(pInfo->pSortInfo, 1);
+  } else {
+    pSubTblsInfo->pPkOrderInfo = NULL;
+  }
   pSubTblsInfo->numSubTables = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
   pSubTblsInfo->aInputs = taosMemoryCalloc(pSubTblsInfo->numSubTables, sizeof(STmsSubTableInput));
   if (pSubTblsInfo->aInputs == NULL) {
@@ -3679,7 +3710,8 @@ static int32_t adjustSubTableForNextRow(SOperatorInfo* pOperatorInfo, STmsSubTab
       adjustSubTableFromMemBlock(pOperatorInfo, pSubTblsInfo);
     }
     if (pInput->rowIdx != -1) {
-      SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pOrderInfo->slotId);
+      SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
+      pInput->pInputBlock = pInputBlock;
       pInput->aTs = (int64_t*)col->pData;
     }
   }

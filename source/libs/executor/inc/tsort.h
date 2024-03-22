@@ -212,6 +212,9 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
  * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
 */
 void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
+
+int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
+                      int32_t leftRowIndex, int32_t rightRowIndex, void* pOrder);
 #ifdef __cplusplus
 }
 #endif

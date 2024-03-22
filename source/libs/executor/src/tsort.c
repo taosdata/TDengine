@@ -636,7 +636,8 @@ static SSDataBlock* getSortedBlockDataInner(SSortHandle* pHandle, SMsortComparPa
 // TODO: improve this function performance
 
 int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
-                      int32_t leftRowIndex, int32_t rightRowIndex, SBlockOrderInfo* pOrder) {
+                      int32_t leftRowIndex, int32_t rightRowIndex, void* pCompareOrder) {
+  SBlockOrderInfo* pOrder = pCompareOrder;
   SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
   SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
 
@@ -1534,6 +1535,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
           taosArrayDestroy(aPgId);
           taosMemoryFree(sup.aRowIdx);
           taosMemoryFree(sup.aTs);
+          taosMemoryFree(sup.aBlks);
           return code;
         }
         nMergedRows += pHandle->pDataBlock->info.rows;
@@ -1578,6 +1580,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
         taosMemoryFree(pTree);
         taosMemoryFree(sup.aRowIdx);
         taosMemoryFree(sup.aTs);
+        taosMemoryFree(sup.aBlks);
         return code;
       }      
       nMergedRows += pHandle->pDataBlock->info.rows;
@@ -1597,6 +1600,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
 
   taosMemoryFree(sup.aRowIdx);
   taosMemoryFree(sup.aTs);
+  taosMemoryFree(sup.aBlks);
 
   tMergeTreeDestroy(&pTree);
 
