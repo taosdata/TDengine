@@ -130,6 +130,7 @@ class TDDnode:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
+            "DebugFlag": "131",
             "mDebugFlag": "143",
             "dDebugFlag": "143",
             "vDebugFlag": "143",
