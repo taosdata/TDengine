@@ -7586,7 +7586,7 @@ int32_t tDecodeSColCmprWrapperEx(SDecoder *pDecoder, SColCmprWrapper *pWrapper) 
   if (tDecodeI32v(pDecoder, &pWrapper->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pWrapper->version) < 0) return -1;
 
-  pWrapper->pColCmpr = (SColCmpr *)taosMemoryCalloc(1, pWrapper->nCols * sizeof(SColCmpr));
+  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) return -1;
 
   for (int i = 0; i < pWrapper->nCols; i++) {

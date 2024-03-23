@@ -370,7 +370,6 @@ _query:
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
       tDecoderClear(&dc);
-      taosMemoryFree(me.colCmpr.pColCmpr);
       goto _exit;
     }
   } else if (me.type == TSDB_CHILD_TABLE) {
@@ -381,12 +380,10 @@ _query:
     if (sver == -1 || sver == me.ntbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
       tDecoderClear(&dc);
-      taosMemoryFree(me.colCmpr.pColCmpr);
       goto _exit;
     }
   }
   tDecoderClear(&dc);
-  taosMemoryFree(me.colCmpr.pColCmpr);
 
   // query from skm db
   if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {

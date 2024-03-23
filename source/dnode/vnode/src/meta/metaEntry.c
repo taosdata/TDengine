@@ -32,7 +32,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   if (tDecodeI32v(pDecoder, &pWrapper->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pWrapper->version) < 0) return -1;
 
-  pWrapper->pColCmpr = (SColCmpr *)taosMemoryCalloc(1, pWrapper->nCols * sizeof(SColCmpr));
+  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) return -1;
 
   for (int i = 0; i < pWrapper->nCols; i++) {
@@ -44,6 +44,18 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 END:
   taosMemoryFree(pWrapper->pColCmpr);
   return -1;
+}
+static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
+                                                         SSchemaWrapper *pSchema) {
+  pCmpr->nCols = pSchema->nCols;
+  assert(!pCmpr->pColCmpr);
+  pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
+  for (int32_t i = 0; i < pCmpr->nCols; i++) {
+    SColCmpr *pColCmpr = &pCmpr->pColCmpr[i];
+    SSchema  *pColSchema = &pSchema->pSchema[i];
+    pColCmpr->id = pColSchema->colId;
+    pColCmpr->alg = 0;
+  }
 }
 
 int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
@@ -144,9 +156,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     TABLE_SET_COL_COMPRESSED(pME->flags);
   } else {
     if (pME->type == TSDB_SUPER_TABLE) {
-      tInitDefaultSColCmprWrapper(&pME->colCmpr, &pME->stbEntry.schemaRow);
+      metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
     } else if (pME->type == TSDB_NORMAL_TABLE) {
-      tInitDefaultSColCmprWrapper(&pME->colCmpr, &pME->ntbEntry.schemaRow);
+      metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow);
     }
   }
 
