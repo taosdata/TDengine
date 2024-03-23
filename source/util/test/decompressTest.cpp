@@ -125,9 +125,8 @@ void compressImplTest(void* pVal, int8_t type, int32_t sz, uint32_t cmprAlg) {
     int32_t len = tsCompressTimestamp2(pList, num * sizeof(int64_t), num, px, num * sizeof(int64_t) + 64, cmprAlg, pBuf,
                                        num * sizeof(int64_t) + 64);
     printf("compresess size: %d, actual size: %d\n", len, (int32_t)(num * sizeof(int64_t)));
-    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, num * sizeof(int64_t)));
+    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, num * sizeof(int64_t) + 64));
     memset(pBuf, 0, num * sizeof(int64_t) + 64);
-
 
     int32_t size = tsDecompressTimestamp2(px, len, num, pOutput, sizeof(int64_t) * num + 64, cmprAlg, pBuf,
                                           num * sizeof(int64_t) + 64);
@@ -156,7 +155,7 @@ void        compressImplTestByAlg(void* pVal, int8_t type, int32_t num, uint32_t
     int32_t len = compres.compFunc(pVal, bytes, num, px, externalSize, cmprAlg, pBuf, externalSize);
     printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, radio: %f\n", end[l1], alg[l2],
                   compres.name, len, bytes, (float)len / bytes);
-    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, bytes));
+    char* pOutput = static_cast<char*>(taosMemoryCalloc(1, externalSize));
     memset(pBuf, 0, externalSize);
     int32_t size = compres.decompFunc(px, len, num, pOutput, externalSize, cmprAlg, pBuf, externalSize);
 
@@ -218,7 +217,6 @@ TEST(utilTest, compressAlg) {
     uint32_t cmprAlg = 0;
     setColCompress(&cmprAlg, 1);
     setColEncode(&cmprAlg, 1);
-    
 
     compressImplTest((void*)pList, 0, num, cmprAlg);
   }
@@ -308,6 +306,7 @@ TEST(utilTest, compressAlg) {
 
     compressImplTest((void*)pList, 0, num, cmprAlg);
   }
+  taosMemoryFree(pList);
 
   {
     for (int8_t type = 1; type <= 5; type++) {
@@ -316,7 +315,7 @@ TEST(utilTest, compressAlg) {
       for (int8_t i = 1; i <= 3; i++) {
         uint32_t cmprAlg = 0;
         setColCompress(&cmprAlg, i);
-        // setColEncode(&cmprAlg, 1);
+        setColEncode(&cmprAlg, 0);
         compressImplTestByAlg(p, type, num, cmprAlg);
       }
       taosMemoryFree(p);
