@@ -63,7 +63,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
     goto _err;
   }
-  taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
+  // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
 
