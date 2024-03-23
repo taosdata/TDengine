@@ -127,6 +127,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
+  taosHashCleanup(writer->pColCmprObj);
   return code;
 }
 

@@ -8348,6 +8348,7 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
 
   if (pRsp->pMeta) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta->pSchemaExt);
     taosMemoryFree(pRsp->pMeta);
   }
 }

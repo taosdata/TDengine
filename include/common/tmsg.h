@@ -548,7 +548,6 @@ struct SSchemaExt {
   uint32_t compress;
 };
 
-
 //
 
 struct SSchema2 {
@@ -2810,6 +2809,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   } else if (req->type == TSDB_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
+  taosMemoryFreeClear(req->colCmpr.pColCmpr);
 }
 
 typedef struct {

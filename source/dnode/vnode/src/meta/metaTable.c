@@ -2562,6 +2562,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     return 0;
   }
   tDecoderClear(&dc);
+  taosMemoryFree(e.colCmpr.pColCmpr);
   tdbFree(pData);
   metaULock(pMeta);
 
