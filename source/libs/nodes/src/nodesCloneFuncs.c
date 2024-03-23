@@ -815,6 +815,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
+  COPY_SCALAR_FIELD(timeLineCurMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   CLONE_NODE_LIST_FIELD(pHint);

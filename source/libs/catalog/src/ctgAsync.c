@@ -2526,7 +2526,8 @@ int32_t ctgLaunchGetViewsTask(SCtgTask* pTask) {
   SCtgViewsCtx*     pCtx = (SCtgViewsCtx*)pTask->taskCtx;
   SCtgJob*          pJob = pTask->pJob;
   bool              tbMetaDone = false;
-  
+
+/*  
   ctgIsTaskDone(pJob, CTG_TASK_GET_TB_META_BATCH, &tbMetaDone);
   if (tbMetaDone) {
     CTG_ERR_RET(ctgBuildViewNullRes(pTask, pCtx));
@@ -2535,6 +2536,7 @@ int32_t ctgLaunchGetViewsTask(SCtgTask* pTask) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
   }
+*/
 
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   int32_t fetchIdx = 0;

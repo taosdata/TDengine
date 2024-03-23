@@ -497,6 +497,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
 
   if (IS_VAR_DATA_TYPE(pDst->info.type)) {
     int32_t allLen = 0;
+    void* srcAddr = NULL;
     if (pSrc->hasNull) {
       for (int32_t i = 0; i < numOfRows; ++i) {
         if (colDataIsNull_var(pSrc, srcIdx + i)) {
@@ -506,6 +507,9 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         }
 
         char* pData = colDataGetVarData(pSrc, srcIdx + i);
+        if (NULL == srcAddr) {
+          srcAddr = pData;
+        }
         int32_t dataLen = 0;
         if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
           dataLen = getJsonValueLen(pData);
@@ -540,8 +544,11 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         pDst->pData = tmp;
         pDst->varmeta.allocLen = pDst->varmeta.length + allLen;
       }
-      
-      memcpy(pDst->pData + pDst->varmeta.length, colDataGetVarData(pSrc, srcIdx), allLen);
+      if (pSrc->hasNull) {
+        memcpy(pDst->pData + pDst->varmeta.length, srcAddr, allLen);
+      } else {
+        memcpy(pDst->pData + pDst->varmeta.length, colDataGetVarData(pSrc, srcIdx), allLen);
+      }
       pDst->varmeta.length = pDst->varmeta.length + allLen;
     }
   } else {
@@ -787,11 +794,33 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 
   blockDataEnsureCapacity(pDst, rowCount);
 
+/* may have disorder varchar data, TODO
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
 
     colDataAssignNRows(pDstCol, 0, pColData, startIndex, rowCount);
+  }
+*/
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+    SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
+    for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
+      bool isNull = false;
+      if (pBlock->pBlockAgg == NULL) {
+        isNull = colDataIsNull_s(pColData, j);
+      } else {
+        isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
+      }
+
+      if (isNull) {
+        colDataSetNULL(pDstCol, j - startIndex);
+      } else {
+        char* p = colDataGetData(pColData, j);
+        colDataSetVal(pDstCol, j - startIndex, p, false);
+      }
+    }
   }
 
   pDst->info.rows = rowCount;

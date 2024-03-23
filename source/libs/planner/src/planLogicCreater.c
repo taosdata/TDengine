@@ -644,6 +644,14 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
     nodesDestroyList(pColList);
   }
+
+  if (NULL == pJoin->node.pTargets && NULL != pLeft) {
+    pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
+    if (NULL == pJoin->node.pTargets) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
 #endif
 
 
@@ -1384,11 +1392,10 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
   }
 
-/*
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
+//    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
   }
-*/
 
   if (TSDB_CODE_SUCCESS == code) {
     pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);

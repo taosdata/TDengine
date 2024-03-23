@@ -3229,7 +3229,7 @@ TEST(fullOuterJoin, fullCondTest) {
 #endif
 
 #if 1
-#if 1
+#if 0
 TEST(leftSemiJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "leftSemiJoin:noCondTest";

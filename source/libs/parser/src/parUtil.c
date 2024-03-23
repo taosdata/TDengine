@@ -733,6 +733,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
+  select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   select->pHint = pHint;

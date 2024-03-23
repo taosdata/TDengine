@@ -397,6 +397,7 @@ typedef struct SSelectStmt {
   uint8_t       precision;
   int32_t       selectFuncNum;
   int32_t       returnRows;  // EFuncReturnRows
+  ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
   bool          isEmptyResult;
   bool          isSubquery;

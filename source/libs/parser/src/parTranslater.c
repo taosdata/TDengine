@@ -889,9 +889,9 @@ static SNodeList* getProjectList(const SNode* pNode) {
 
 static bool isBlockTimeLineQuery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineResMode) ||
-           (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineResMode) ||
-           (TIME_LINE_BLOCK == ((SSelectStmt*)pStmt)->timeLineResMode);
+    return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
+           (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
+           (TIME_LINE_BLOCK == ((SSelectStmt*)pStmt)->timeLineCurMode);
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
     return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
   } else {
@@ -901,8 +901,8 @@ static bool isBlockTimeLineQuery(SNode* pStmt) {
 
 static bool isTimeLineQuery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineResMode) ||
-           (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineResMode);
+    return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
+           (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineCurMode);
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
     return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
   } else {
@@ -919,6 +919,17 @@ static bool isGlobalTimeLineQuery(SNode* pStmt) {
     return false;
   }
 }
+
+static bool isCurGlobalTimeLineQuery(SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineCurMode;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
+  } else {
+    return false;
+  }
+}
+
 
 static bool isBlockTimeLineAlignedQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
@@ -2129,7 +2140,7 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
       !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
       (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
-      (TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode))) {
+      (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function requires valid time series input", pFunc->functionName);
   }
@@ -3869,16 +3880,16 @@ static int32_t setJoinTimeLineResMode(STranslateContext* pCxt) {
   SJoinTableNode* pJoinTable = (SJoinTableNode*)pCurrSmt->pFromTable;
   if (JOIN_TYPE_FULL == pJoinTable->joinType) {
     pCurrSmt->timeLineResMode = TIME_LINE_NONE;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (TIME_LINE_NONE == pCurrSmt->timeLineResMode) {
+    pCurrSmt->timeLineCurMode = TIME_LINE_NONE;
     return TSDB_CODE_SUCCESS;
   }
 
   if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {
     if (joinNonPrimColCondContains(pJoinTable)) {
-      pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+      if (TIME_LINE_NONE != pCurrSmt->timeLineResMode) {
+        pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+      }
+      pCurrSmt->timeLineCurMode = TIME_LINE_BLOCK;
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -3888,7 +3899,10 @@ static int32_t setJoinTimeLineResMode(STranslateContext* pCxt) {
   }
 
   if (JOIN_STYPE_NONE == pJoinTable->subType && innerJoinTagEqCondContains(pJoinTable, pCurrSmt->pWhere)) {
-    pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+    if (TIME_LINE_NONE != pCurrSmt->timeLineResMode) {
+      pCurrSmt->timeLineResMode = TIME_LINE_BLOCK;
+    }
+    pCurrSmt->timeLineCurMode = TIME_LINE_BLOCK;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3930,6 +3944,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
         if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
           if (isSelectStmt(pCxt->pCurrStmt)) {
             ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
+            ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
           } else if (isDeleteStmt(pCxt->pCurrStmt)) {
             code = TSDB_CODE_TSC_INVALID_OPERATION;
             break;
@@ -3951,6 +3966,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           pCurrSmt->joinContains = ((SSelectStmt*)pTempTable->pSubquery)->joinContains;
           SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
           pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
+          pCurrSmt->timeLineCurMode = pSubStmt->timeLineResMode;
         }
         
         pCurrSmt->joinContains = (getJoinContais(pTempTable->pSubquery) ? true : false);
@@ -4833,7 +4849,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
       !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
       (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
-      (TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode)))) {
+      (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode)))) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
   }
 
@@ -4842,7 +4858,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
       !isBlockTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
       !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
       (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
-      (TIME_LINE_NONE == pSelect->timeLineResMode)))) {
+      (TIME_LINE_NONE == pSelect->timeLineCurMode)))) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
   }
 
@@ -5386,7 +5402,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
         !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
         !isTimeLineAlignedQuery(pCxt->pCurrStmt)) || 
         (NULL != pSelect->pFromTable && QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
-        (TIME_LINE_GLOBAL != pSelect->timeLineResMode && TIME_LINE_MULTI != pSelect->timeLineResMode))) {
+        (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode))) {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "%s function requires valid time series input", pFunc->functionName);
       return DEAL_RES_ERROR;                                     

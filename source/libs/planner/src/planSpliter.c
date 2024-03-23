@@ -1369,7 +1369,7 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
 }
 
 static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,
-                                        bool groupSort) {
+                                        bool groupSort, SStableSplitInfo* pInfo) {
   SLogicNode* pMergeScan = NULL;
   SNodeList*  pMergeKeys = NULL;
   int32_t     code = stbSplCreateMergeScanNode(pScan, &pMergeScan, &pMergeKeys);
@@ -1381,6 +1381,9 @@ static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSub
     code = stbSplCreateMergeNode(pCxt, pSubplan, (SLogicNode*)pScan, pMergeKeys, pMergeScan, groupSort, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if ((void*)pInfo->pSplitNode == (void*)pScan) {
+      pInfo->pSplitNode = NULL;
+    }
     nodesDestroyNode((SNode*)pScan);
     code = nodesListMakeStrictAppend(&pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pMergeScan, SPLIT_FLAG_STABLE_SPLIT));
@@ -1393,7 +1396,7 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   SScanLogicNode* pScan = (SScanLogicNode*)pInfo->pSplitNode;
   if (SCAN_TYPE_TABLE_MERGE == pScan->scanType) {
     pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
-    return stbSplSplitMergeScanNode(pCxt, pInfo->pSubplan, pScan, true);
+    return stbSplSplitMergeScanNode(pCxt, pInfo->pSubplan, pScan, true, pInfo);
   }
   if (NULL != pScan->pGroupTags) {
     return stbSplSplitScanNodeWithPartTags(pCxt, pInfo);
@@ -1401,7 +1404,7 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   return stbSplSplitScanNodeWithoutPartTags(pCxt, pInfo);
 }
 
-static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubplan, SJoinLogicNode* pJoin) {
+static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubplan, SJoinLogicNode* pJoin, SStableSplitInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pChild = NULL;
   FOREACH(pChild, pJoin->node.pChildren) {
@@ -1409,10 +1412,10 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
       //if (pJoin->node.dynamicOp) {
       //  code = TSDB_CODE_SUCCESS;
       //} else {
-        code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pJoin->grpJoin ? true : false);
+        code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pJoin->grpJoin ? true : false, pInfo);
       //}
     } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
-      code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild);
+      code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild, pInfo);
     } else {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
     }
@@ -1424,7 +1427,7 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
 }
 
 static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  int32_t code = stbSplSplitJoinNodeImpl(pCxt, pInfo->pSubplan, (SJoinLogicNode*)pInfo->pSplitNode);
+  int32_t code = stbSplSplitJoinNodeImpl(pCxt, pInfo->pSubplan, (SJoinLogicNode*)pInfo->pSplitNode, pInfo);
   if (TSDB_CODE_SUCCESS == code) {
     //if (!pInfo->pSplitNode->dynamicOp) {
       pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
@@ -1500,7 +1503,9 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  info.pSplitNode->splitDone = true;
+  if (info.pSplitNode) {
+    info.pSplitNode->splitDone = true;
+  }
   pCxt->split = true;
   return code;
 }

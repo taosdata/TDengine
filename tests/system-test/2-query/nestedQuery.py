@@ -1377,8 +1377,19 @@ class TDTestCase:
                 tdSql.query(sql)
                 self.cur1.execute(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['SAMPLE'])or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['HISTOGRAM'])  \
-                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['MAVG']) or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['UNIQUE']) or (mathlist == ['statecount','stateduration']) :
+                sql = "select  count(asct1) from  ( select  "
+                sql += "%s as asct1 " % math_fun_join_2
+                sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
+                sql += "%s " % random.choice(self.t_join_where)
+                sql += "and %s " % random.choice(self.t_u_where)
+                sql += "and %s " % random.choice(self.t_u_or_where)
+                sql += "%s " % random.choice(self.limit1_where)
+                sql += ") ;"
+                tdLog.info(sql)
+                tdLog.info(len(sql))
+                tdSql.error(sql)
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) (mathlist == ['MODE']) :
                 sql = "select  count(asct1) from  ( select  "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
@@ -1391,7 +1402,7 @@ class TDTestCase:
                 tdLog.info(len(sql))
                 tdSql.query(sql)
                 self.cur1.execute(sql)
-                self.explain_sql(sql)
+                self.explain_sql(sql)                
 
         self.restartDnodes()
         tdSql.query("select 1-10 as math_nest from stable_1 limit 1;")
@@ -3337,9 +3348,7 @@ class TDTestCase:
                 sql += ") ;"
                 tdLog.info(sql)
                 tdLog.info(len(sql))
-                tdSql.query(sql)
-                self.cur1.execute(sql)
-                self.explain_sql(sql)
+                tdSql.error(sql)
 
         self.restartDnodes()
         tdSql.query("select 1-10 as time_nest from stable_1 limit 1;")
