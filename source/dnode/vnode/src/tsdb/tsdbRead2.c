@@ -3628,7 +3628,6 @@ int32_t doMergeRowsInSttBlock(SSttBlockReader* pSttBlockReader, STableBlockScanI
       TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
       tsdbRowMergerAdd(pMerger, pRow1, NULL);
     } else {
-      ASSERT(ret < 0);
       tsdbTrace("uid:%" PRIu64 " last del index:%d, del range:%d, lastKeyInStt:%" PRId64 ", %s", pScanInfo->uid,
                 pScanInfo->sttBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline),
                 pScanInfo->sttKeyInfo.nextProcKey, idStr);
