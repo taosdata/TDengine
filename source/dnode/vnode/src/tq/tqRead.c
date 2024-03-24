@@ -701,20 +701,19 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
     int32_t targetIdx = 0;
     int32_t sourceIdx = 0;
     while (targetIdx < colActual) {
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
+
       if (sourceIdx >= numOfCols) {
-        tqError("tqRetrieveDataBlock sourceIdx:%d >= numOfCols:%d", sourceIdx, numOfCols);
-        return -1;
+        tqError("lostdata tqRetrieveDataBlock sourceIdx:%d >= numOfCols:%d", sourceIdx, numOfCols);
+        colDataSetNNULL(pColData, 0, numOfRows);
+        targetIdx++;
+        continue;
       }
 
       SColData*        pCol = taosArrayGet(pCols, sourceIdx);
-      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, targetIdx);
       SColVal          colVal;
 
-      if (pCol->nVal != numOfRows) {
-        tqError("tqRetrieveDataBlock pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
-        return -1;
-      }
-
+      tqTrace("lostdata colActual:%d, sourceIdx:%d, targetIdx:%d, numOfCols:%d, source cid:%d, dst cid:%d", colActual, sourceIdx, targetIdx, numOfCols, pCol->cid, pColData->info.colId);
       if (pCol->cid < pColData->info.colId) {
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
@@ -728,7 +727,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         sourceIdx++;
         targetIdx++;
       } else {
-        colDataSetNNULL(pColData, 0, pCol->nVal);
+        colDataSetNNULL(pColData, 0, numOfRows);
         targetIdx++;
       }
     }
@@ -747,9 +746,6 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
           SColVal colVal;
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
-            //            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in
-            //            schema:%d",
-            //                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {

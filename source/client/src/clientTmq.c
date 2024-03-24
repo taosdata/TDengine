@@ -2683,13 +2683,9 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
   if (pRspObj->resIter < pRspObj->rsp.blockNum) {
     SRetrieveTableRspForTmq* pRetrieveTmq = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
     if (pRspObj->rsp.withSchema) {
+      doFreeReqResultInfo(&pRspObj->resInfo);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
       setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
-      taosMemoryFreeClear(pRspObj->resInfo.row);
-      taosMemoryFreeClear(pRspObj->resInfo.pCol);
-      taosMemoryFreeClear(pRspObj->resInfo.length);
-      taosMemoryFreeClear(pRspObj->resInfo.convertBuf);
-      taosMemoryFreeClear(pRspObj->resInfo.convertJson);
     }
 
     pRspObj->resInfo.pData = (void*)pRetrieveTmq->data;

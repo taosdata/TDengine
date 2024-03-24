@@ -235,7 +235,6 @@ void taos_free_result(TAOS_RES *res) {
     taosArrayDestroy(pRsp->rsp.createTableLen);
     taosArrayDestroyP(pRsp->rsp.createTableReq, taosMemoryFree);
 
-    pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
@@ -244,7 +243,6 @@ void taos_free_result(TAOS_RES *res) {
     taosArrayDestroy(pRsp->rsp.blockDataLen);
     taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
     taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
-    pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
