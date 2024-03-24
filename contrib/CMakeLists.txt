@@ -110,7 +110,7 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # xz
-cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+#cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 #lzma2
 cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -263,12 +263,12 @@ target_include_directories(
 )
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
-add_subdirectory(xz EXCLUDE_FROM_ALL)
-target_include_directories(
-    xz
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz 
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz 
-)
+# add_subdirectory(xz EXCLUDE_FROM_ALL)
+# target_include_directories(
+#     xz
+#     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz 
+#     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz 
+# )
 
 # leveldb
 if(${BUILD_WITH_LEVELDB})

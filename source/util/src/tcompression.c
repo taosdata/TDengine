@@ -54,6 +54,7 @@
 #include "tlog.h"
 // #include "tmsg.h"
 
+#include "fast-lzma2.h"
 #include "zlib.h"
 #include "zstd.h"
 
