@@ -388,7 +388,8 @@ _exit:
   return (SNode*)val;
 }
 
-SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode *pLeft, SNode *pRight) {
+SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pLeft,
+                             SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
 

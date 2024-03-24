@@ -37,10 +37,6 @@ typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
-#if 0
-static bool isNullStr(SToken* pToken) { return ((pToken->type == TK_NK_STRING) && IS_NULL_STR(pToken->z)); }
-#endif
-
 static FORCE_INLINE bool isNullValue(int8_t dataType, SToken* pToken) {
   return TK_NULL == pToken->type ||
          (TK_NK_STRING == pToken->type && !IS_STR_DATA_TYPE(dataType) && IS_NULL_STR(pToken->z, pToken->n));
@@ -231,7 +227,8 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
     *isTs = true;
     if (taosParseTime(pToken->z, ts, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
-      if (pToken->type != TK_NK_STRING) {
+      if ((pToken->n == 0) ||
+          (pToken->type != TK_NK_STRING && pToken->type != TK_NK_HEX && pToken->type != TK_NK_BIN)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       if (IS_NOW_STR(pToken->z, pToken->n)) {
@@ -240,6 +237,8 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
       } else if (IS_TODAY_STR(pToken->z, pToken->n)) {
         *isTs = true;
         *ts = taosGetTimestampToday(timePrec);
+      } else if (TSDB_CODE_SUCCESS == toIntegerPure(pToken->z, pToken->n, 10, ts)) {
+        *isTs = true;
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
@@ -460,6 +459,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           *(int8_t*)(&val->i64) = TRUE_VALUE;
         } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           *(int8_t*)(&val->i64) = FALSE_VALUE;
+        } else if (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&iv)) {
+          *(int8_t*)(&val->i64) = (*(double*)&iv == 0 ? FALSE_VALUE : TRUE_VALUE);
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
@@ -467,6 +468,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         *(int8_t*)(&val->i64) = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if (pToken->type == TK_NK_FLOAT) {
         *(int8_t*)(&val->i64) = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+      } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
+                 (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&iv))) {
+        *(int8_t*)(&val->i64) = (*(double*)&iv == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }
@@ -885,7 +889,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
   for (int i = 0; TSDB_CODE_SUCCESS == code && i < pCxt->tags.numOfBound; ++i) {
@@ -930,7 +935,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pTag = NULL;
   }
 
-  for (int32_t i = 0; i < TARRAY_SIZE(pTagVals); ++i) {
+_exit:
+  for (int32_t i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFreeClear(p->pData);
@@ -1392,6 +1398,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
           pVal->value.val = TRUE_VALUE;
         } else if (IS_FALSE_STR(pToken->z, pToken->n)) {
           pVal->value.val = FALSE_VALUE;
+        } else if (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val)) {
+          *(int8_t*)(&pVal->value.val) = (*(double*)&pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
         } else {
           return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
         }
@@ -1399,6 +1407,9 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         pVal->value.val = ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? FALSE_VALUE : TRUE_VALUE);
       } else if (pToken->type == TK_NK_FLOAT) {
         pVal->value.val = ((taosStr2Double(pToken->z, NULL) == 0) ? FALSE_VALUE : TRUE_VALUE);
+      } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
+                 (TSDB_CODE_SUCCESS == toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&pVal->value.val))) {
+        *(int8_t*)(&pVal->value.val) = (*(double*)&pVal->value.val == 0 ? FALSE_VALUE : TRUE_VALUE);
       } else {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
       }
@@ -1604,11 +1615,10 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSDB_CODE_SUCCESS == code && pToken->n == 0 && IS_NUMERIC_TYPE(pSchema->type)) {
-    return buildSyntaxErrMsg(&pCxt->msg, "invalid numeric data", pToken->z);
-  }
-
   if (TSDB_CODE_SUCCESS == code) {
+    if (pToken->n == 0 && IS_NUMERIC_TYPE(pSchema->type)) {
+      return buildSyntaxErrMsg(&pCxt->msg, "invalid numeric data", pToken->z);
+    }
     code = parseValueTokenImpl(pCxt, pSql, pToken, pSchema, timePrec, pVal);
   }
 
