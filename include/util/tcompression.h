@@ -227,7 +227,7 @@ typedef int32_t (*__data_decompress_l1_fn_t)(const char *const input, const int3
                                              const char type);
 
 typedef int32_t (*__data_compress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
-                                           int32_t outputSize, const char type);
+                                           int32_t outputSize, const char type, int8_t level);
 typedef int32_t (*__data_decompress_l2_fn_t)(const char *const input, const int32_t nelements, char *const output,
                                              int32_t outputSize, const char type);
 

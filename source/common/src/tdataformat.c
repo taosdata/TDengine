@@ -4231,7 +4231,8 @@ int32_t tCompressData(void          *input,       // input
   extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= extraSizeNeeded);
 
-  if (info->cmprAlg == NO_COMPRESSION) {
+  DEFINE_VAR(info->cmprAlg)
+  if (info->cmprAlg == NO_COMPRESSION || (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
   } else if (info->cmprAlg == TWO_STAGE_COMP) {
@@ -4307,7 +4308,9 @@ int32_t tDecompressData(void                *input,       // input
 
   ASSERT(outputSize >= info->originalSize);
 
-  if (info->cmprAlg == NO_COMPRESSION) {
+  DEFINE_VAR(info->cmprAlg);
+
+  if (info->cmprAlg == NO_COMPRESSION || (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
     ASSERT(info->compressedSize == info->originalSize);
     memcpy(output, input, info->compressedSize);
   } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
