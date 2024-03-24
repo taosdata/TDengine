@@ -318,6 +318,12 @@ TEST(utilTest, compressAlg) {
         setColEncode(&cmprAlg, 0);
         compressImplTestByAlg(p, type, num, cmprAlg);
       }
+      {
+        uint32_t cmprAlg = 0;
+        setColCompress(&cmprAlg, 5);
+        setColEncode(&cmprAlg, 0);
+        compressImplTestByAlg(p, type, num, cmprAlg);
+      }
       taosMemoryFree(p);
       printf("-------------");
     }

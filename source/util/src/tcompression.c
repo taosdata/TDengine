@@ -238,13 +238,26 @@ int32_t l2ComressInitImpl_xz(char *lossyColumns, float fPrecision, double dPreci
                              uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
   return 0;
 }
-int32_t l2CompressImpl_xz(const char *const input, const int32_t nelements, char *const output, int32_t outputSize,
+int32_t l2CompressImpl_xz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
                           const char type, int8_t lvl) {
-  return 0;
+  size_t len = FL2_compress(output + 1, outputSize - 1, input, inputSize, 0);
+  if (len > inputSize) {
+    output[0] = 0;
+    memcpy(output + 1, input, inputSize);
+    return inputSize + 1;
+  }
+  output[0] = 1;
+  return len + 1;
 }
-int32_t l2DecompressImpl_xz(const char *const input, const int32_t nelements, char *const output, int32_t outputSize,
-                            const char type) {
-  return 0;
+int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSize, char *const output,
+                            int32_t outputSize, const char type) {
+  if (input[0] == 1) {
+    return FL2_decompress(output, outputSize, input + 1, compressedSize - 1);
+  } else if (input[0] == 0) {
+    memcpy(output, input + 1, compressedSize - 1);
+    return compressedSize - 1;
+  }
+  return -1;
 }
 
 TCompressL1FnSet compressL1Dict[] = {{"distabled", NULL, NULL, NULL},
