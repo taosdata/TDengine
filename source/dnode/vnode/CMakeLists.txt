@@ -133,7 +133,7 @@ else()
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
     if (${TD_LINUX})
-        target_include_directories(
+    target_include_directories(
             vnode 
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )

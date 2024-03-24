@@ -6,6 +6,7 @@ ExternalProject_Add(xz
         SOURCE_DIR "${TD_CONTRIB_DIR}/xz"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS 
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
