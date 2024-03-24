@@ -24,8 +24,8 @@ target_include_directories(
 target_link_libraries(
     util
     PUBLIC os
-    PUBLIC lz4_static
-    PUBLIC api cjson geos_c TSZ
+    PUBLIC lz4_static 
+    PUBLIC api cjson geos_c TSZ 
 )
 
 if(${BUILD_TEST})

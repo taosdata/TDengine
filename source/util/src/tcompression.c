@@ -246,18 +246,19 @@ int32_t l2DecompressImpl_xz(const char *const input, const int32_t nelements, ch
   return 0;
 }
 
-TCompressL1FnSet compressL1Dict[] = {{NULL, NULL, NULL},
-                                     {NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
-                                     {NULL, tsCompressINTImp2, tsDecompressINTImp2},
-                                     {NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2},
-                                     {NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
+TCompressL1FnSet compressL1Dict[] = {{"distabled", NULL, NULL, NULL},
+                                     {"timestamp", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
+                                     {"int", NULL, tsCompressINTImp2, tsDecompressINTImp2},
+                                     {"double", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2},
+                                     {"bool", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
                                      {NULL, NULL, NULL}};
-TCompressL2FnSet compressL2Dict[] = {{l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
-                                     {l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
-                                     {l2ComressInitImpl_zlib, l2CompressImpl_zlib, l2DecompressImpl_zlib},
-                                     {l2ComressInitImpl_zstd, l2CompressImpl_zstd, l2DecompressImpl_zstd},
-                                     {l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
-                                     {l2ComressInitImpl_xz, l2CompressImpl_xz, l2DecompressImpl_xz}};
+TCompressL2FnSet compressL2Dict[] = {
+    {"disabled", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
+    {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zlib", l2ComressInitImpl_zlib, l2CompressImpl_zlib, l2DecompressImpl_zlib},
+    {"zstd", l2ComressInitImpl_zstd, l2CompressImpl_zstd, l2DecompressImpl_zstd},
+    {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
+    {"xz", l2ComressInitImpl_xz, l2CompressImpl_xz, l2DecompressImpl_xz}};
 
 static const int32_t TEST_NUMBER = 1;
 #define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)

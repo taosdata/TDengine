@@ -2546,6 +2546,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   rc = metaDecodeEntry(&dc, &e);
   if (rc < 0) {
     tDecoderClear(&dc);
+    tdbFree(pData);
     metaULock(pMeta);
     taosHashClear(pColCmprObj);
     return -1;
@@ -2557,6 +2558,8 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
       taosHashPut(pColCmprObj, &pCmpr->id, sizeof(pCmpr->id), &pCmpr->alg, sizeof(pCmpr->alg));
     }
   } else {
+    tDecoderClear(&dc);
+    tdbFree(pData);
     metaULock(pMeta);
     taosHashClear(pColCmprObj);
     return 0;

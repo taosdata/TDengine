@@ -232,16 +232,17 @@ typedef int32_t (*__data_decompress_l2_fn_t)(const char *const input, const int3
                                              int32_t outputSize, const char type);
 
 typedef struct {
+  char                     *name;
   __data_compress_init      initFn;
   __data_compress_l1_fn_t   comprFn;
   __data_decompress_l1_fn_t decomprFn;
 } TCompressL1FnSet;
 
 typedef struct {
+  char                     *name;
   __data_compress_init      initFn;
   __data_compress_l2_fn_t   comprFn;
   __data_decompress_l2_fn_t decomprFn;
-
 } TCompressL2FnSet;
 
 typedef struct {

@@ -109,7 +109,8 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# zstd
+# xz
+cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 if (${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
@@ -258,6 +259,13 @@ target_include_directories(
 )
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
+add_subdirectory(xz EXCLUDE_FROM_ALL)
+target_include_directories(
+    xz
+    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz 
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz 
+)
+
 # leveldb
 if(${BUILD_WITH_LEVELDB})
     option(LEVELDB_BUILD_TESTS "" OFF)
@@ -392,7 +400,6 @@ endif()
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
     MESSAGE("build with s3: ${BUILD_WITH_S3}")
-
 # cos
 elseif(${BUILD_WITH_COS})
   if(${TD_LINUX})
@@ -432,8 +439,6 @@ if(${BUILD_PTHREAD})
 endif()
 
 
-#target_link_libraries(zstd)
-#target_include_directories()
 # jemalloc
 if(${JEMALLOC_ENABLED})
     include(ExternalProject)
