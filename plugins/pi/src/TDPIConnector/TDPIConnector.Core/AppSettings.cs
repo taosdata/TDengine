@@ -20,7 +20,7 @@ namespace TDPIConnector.Core
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }
             public int PIDataPipesInstances { get; set; } = 1;
-            public int AFDataPipesInstances { get; set; } = 1;
+            public int AFDataPipesInstances { get; set; } = 10;
             public string IPCStream { get; set; }
             public string SQLAPI { get; set; }
             public string AFTreeTagName { get; set; } = "location";
@@ -151,7 +151,7 @@ namespace TDPIConnector.Core
             WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
             WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
             BackfillQuitWait = GetIntegerFromAppSettings("BackfillQuitWait", 60);
-            MaxEventCountObserverFetchOnce = GetIntegerFromAppSettings("MaxEventCountObserverFetchOnce", 20000);
+            MaxEventCountObserverFetchOnce = GetIntegerFromAppSettings("MaxEventCountObserverFetchOnce", 10000);
 
             if (TDEnginePITablesPrefix == null)
             {
