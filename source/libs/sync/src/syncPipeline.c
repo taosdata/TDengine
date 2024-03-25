@@ -864,9 +864,14 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
   SyncTerm  term = -1;
   SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
   SyncIndex index = TMIN(pMsg->matchIndex, pNode->pLogBuf->matchIndex);
+  errno = 0;
 
   if (pMsg->matchIndex < pNode->pLogBuf->matchIndex) {
     term = syncLogReplGetPrevLogTerm(pMgr, pNode, index + 1);
+    if (term < 0 && (errno == ENFILE || errno == EMFILE)) {
+      sError("vgId:%d, failed to get prev log term since %s. index:%" PRId64, pNode->vgId, terrstr(), index + 1);
+      return -1;
+    }
     if ((index + 1 < firstVer) || (term < 0) ||
         (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
       ASSERT(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
