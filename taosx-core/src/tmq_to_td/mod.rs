@@ -832,19 +832,17 @@ pub async fn tmq_to_td(
                 .in_current_span(),
             );
             handles.push(handle);
-            tracing::info!("spawn consuming task with id {consumer_task_id}",);
+            tracing::info!("Spawn consuming task with id {consumer_task_id}",);
 
             consumer_task_id += 1;
         }
     }
 
-    tracing::info!("spawn consuming tasks {}", handles.len());
+    tracing::info!("Spawn consuming tasks {}", handles.len());
     for handle in handles {
         let _ = handle.await??;
     }
-    tracing::debug!("consumers tasks offsets: {:?}", offsets);
-
-    tracing::info!("stop all consumers({})", consumer_task_id);
+    tracing::info!("Stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
         tokio::spawn(async move {
@@ -862,7 +860,6 @@ pub async fn tmq_to_td(
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
     println!("{}", metrics);
-
     Ok(())
 }
 
