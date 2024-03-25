@@ -44,6 +44,7 @@ type UAClient struct {
 	closeChan                chan struct{}
 	once                     sync.Once
 	dumper                   *log.DataDump
+	maxAge                   float64
 }
 
 func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, collectConfig config.CollectConfig, index int, logger *logrus.Entry, onMessage client.OnMessage) (*UAClient, error) {
@@ -77,6 +78,10 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 			return nil, err
 		}
 	}
+	maxAge := float64(2000)
+	if connectConfig.MaxAge != nil {
+		maxAge = *connectConfig.MaxAge
+	}
 	return &UAClient{
 		onMessage:                onMessage,
 		conn:                     conn,
@@ -93,6 +98,7 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 		containsBad:              collectConfig.ContainsBad,
 		closeChan:                make(chan struct{}),
 		dumper:                   dataDumper,
+		maxAge:                   maxAge,
 	}, nil
 }
 
@@ -211,7 +217,7 @@ func (c *UAClient) getServerLimit(needMonitorLimit bool) error {
 	maxItemID, _ := ua.ParseNodeID("i=11714")         //MaxMonitoredItemsPerCall
 	maxNodesPerBrowse, _ := ua.ParseNodeID("i=11710") //MaxNodesPerBrowse
 	req := &ua.ReadRequest{
-		MaxAge: 2000,
+		MaxAge: c.maxAge,
 		NodesToRead: []*ua.ReadValueID{
 			{NodeID: maxReadID},
 			{NodeID: maxItemID},
@@ -505,7 +511,7 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDValue})
 	}
 	start := time.Now()
-	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
+	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: c.maxAge, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
 	if err != nil {
 		c.logger.WithError(err).Error("read value batch error")
 		return
@@ -591,7 +597,7 @@ func (c *UAClient) observe() error {
 				}
 				if len(values) == 0 {
 					c.logger.Warn("opcua read no values")
-					return
+					continue
 				}
 				if c.dumper != nil {
 					c.logger.Debug("opcua start to dump")
