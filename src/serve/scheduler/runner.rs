@@ -66,7 +66,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
             let cluster_id: Option<i64> = taos
                 .query_one("select id from information_schema.ins_cluster")
                 .await
-                .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))
                 .unwrap_or_default();
             // let license = taos.query_one(sql)
             let connector = match from.driver.as_str() {
@@ -1106,6 +1105,7 @@ impl TaskJob {
                                         }
                                     },
                                     "ipc-started" => {
+                                        ipc_in_progress = ipc_in_progress + 1;
                                         tracing::info!(
                                             "Start ingesting data with worker {}",
                                             ipc_in_progress
@@ -1117,7 +1117,6 @@ impl TaskJob {
                                                 ipc_in_progress
                                             ),
                                         ));
-                                        ipc_in_progress = ipc_in_progress + 1;
                                     }
                                     "ipc-finished" => {
                                         tracing::info!(

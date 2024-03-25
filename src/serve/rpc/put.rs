@@ -84,7 +84,9 @@ impl PutStream {
             let taos = TaosBuilder::from_dsn(&task.to)?.build().await?;
             taos.query_one("select id from information_schema.ins_cluster")
                 .await
-                .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                .map_err(|err| {
+                    anyhow::format_err!("Cannot retrieve cluster id in grpc putting stream: {err}")
+                })?
                 .unwrap()
         };
         let agent_id = task
@@ -238,8 +240,17 @@ impl PutStream {
 
             use futures::StreamExt;
             let limit = std::thread::available_parallelism()
-                .map(|v| v.get())
-                .unwrap_or(48);
+                .map(|v| {
+                    (v.get() / 4).max(1).min(
+                        std::env::var("GRPC_WORKERS_CONCURRENCY")
+                            .ok()
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or(8),
+                    )
+                })
+                .unwrap_or(4);
+            // Continue to process the next batch if the previous batch has error.
+            let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
                     let trace_id_str = get_data_trace_id_str(trace_id);
@@ -252,68 +263,126 @@ impl PutStream {
                     anyhow::Ok((
                         record,
                         trace_id,
+                        trace_id_str,
                         worker.clone(),
                         parser.clone(),
                         notify_sender.clone(),
                         tx.clone(),
                         abort_message_tx.clone(),
+                        contiguous_errors.clone(),
                     ))
                 })
                 .try_for_each_concurrent(
                     limit,
-                    |(record, trace_id, worker, parser, notify_sender, tx, abort_message_tx)| {
+                    |(
+                        record,
+                        trace_id,
+                        trace_id_str,
+                        worker,
+                        parser,
+                        notify_sender,
+                        tx,
+                        abort_message_tx,
+                        contiguous_errors,
+                    )| {
                         async move {
                             if let Err(err) = worker
                                 .process_record(
                                     record.clone(),
                                     parser.as_deref(),
                                     trace_id,
-                                    &get_data_trace_id_str(trace_id),
+                                    &trace_id_str,
                                     metrics,
                                 )
                                 .in_current_span()
                                 .await
                             {
+                                let last_errors = contiguous_errors
+                                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 metrics.add_failed_batches(1);
                                 tracing::warn!(
+                                    continuous_errors = last_errors,
                                     error = format!("{:#}", err),
                                     backtrace = %err.backtrace(),
                                     "Writing batch {} error",
-                                    get_data_trace_id_str(trace_id),
+                                    trace_id_str,
                                 );
+                                let period = match last_errors {
+                                    errors if errors < 8 => 8,
+                                    errors if errors < 16 => 16,
+                                    errors if errors < 32 => 32,
+                                    errors if errors < 64 => 64,
+                                    _ => 128,
+                                };
+                                tokio::time::sleep(std::time::Duration::from_millis(period * 8))
+                                    .await;
                                 let message =
-                                    format!("IPC processing record {trace_id} error: {err:#}");
+                                    format!("IPC processing record {trace_id_str} error: {err:#}");
                                 let _ = notify_sender.send(
                                     crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                         agent_id,
-                                        TaskActivity::error(task_id, message),
+                                        TaskActivity::warn(task_id, message),
                                     ),
                                 );
                                 if ipc_error_strategy.will_stop() {
-                                    abort_message_tx.send(Err(Status::data_loss(format!(
+                                    let _ = abort_message_tx.send(Err(Status::cancelled(format!(
                                         "IPC worker will be stopped since{err:#}"
-                                    ))))?;
-                                    notify_sender.send(
+                                    ))));
+                                    let _ = notify_sender.send(
                                         crate::serve::scheduler::agent::AgentNotify::WriterError(
                                             agent_id,
                                             task_id,
                                             format!("{err:#}"),
                                         ),
-                                    )?;
+                                    );
                                     bail!("IPC worker will be stopped since {err:#}");
                                 }
                                 if let Some(tx) = tx.upgrade() {
+                                    tracing::warn!(
+                                        trace_id = trace_id_str,
+                                        "Re-queue with {} rows record",
+                                        record.num_rows()
+                                    );
                                     tx.send_async((record, trace_id))
                                         .await
                                         .context("Re-queue error")?;
+                                } else {
+                                    tracing::warn!(
+                                        trace_id = trace_id_str,
+                                        "IPC channel is closed, cannot re-queue record {trace_id}"
+                                    );
                                 }
                             } else {
                                 metrics.add_processed_batches(1);
+                                let last_errors =
+                                    contiguous_errors.load(std::sync::atomic::Ordering::SeqCst);
+                                if last_errors > 0 {
+                                    tracing::info!(
+                                        continuous_errors = last_errors,
+                                        "Rescue from {} continuous errors",
+                                        last_errors
+                                    );
+                                    let _ = notify_sender.send(
+                                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                            agent_id,
+                                            TaskActivity::info(
+                                                task_id,
+                                                format!(
+                                                    "Rescue from {} continuous errors",
+                                                    last_errors
+                                                ),
+                                                "running",
+                                            ),
+                                        ),
+                                    );
+                                    contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
+                                } else {
+                                    tracing::debug!(
+                                        trace_id = trace_id_str,
+                                        "Writing batch success",
+                                    );
+                                }
                             }
-                            tracing::info!(
-                                "Writing batch {} success",
-                                get_data_trace_id_str(trace_id)
-                            );
                             Ok(())
                         }
                         .in_current_span()
