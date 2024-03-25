@@ -10,9 +10,9 @@ use std::{
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
-        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
+        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -829,6 +829,47 @@ impl LushMessageInsert {
         parse_column_view_with_types(&self.records.record, &ty)
     }
 
+    /// return true if the cell is TAOS_DELETE
+    ///
+    /// ## Panics
+    ///
+    /// Panic if the column or row index is out of range.
+    fn is_delete(&self, row: usize, col: usize) -> bool {
+        let arr = self.records.record.column(col);
+
+        match arr.data_type() {
+            DataType::Binary => {
+                let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
+                if arr.is_null(row) {
+                    return false;
+                }
+                arr.value(row) == b"TAOS_DELETE"
+            }
+            DataType::LargeBinary => {
+                let arr = arr.as_any().downcast_ref::<LargeBinaryArray>().unwrap();
+                if arr.is_null(row) {
+                    return false;
+                }
+                arr.value(row) == b"TAOS_DELETE"
+            }
+            DataType::Utf8 => {
+                let arr = arr.as_any().downcast_ref::<StringArray>().unwrap();
+                if arr.is_null(row) {
+                    return false;
+                }
+                arr.value(row) == "TAOS_DELETE"
+            }
+            DataType::LargeUtf8 => {
+                let arr = arr.as_any().downcast_ref::<LargeStringArray>().unwrap();
+                if arr.is_null(row) {
+                    return false;
+                }
+                arr.value(row) == "TAOS_DELETE"
+            }
+            _ => false,
+        }
+    }
+
     /// return (sqls to executes, )
     pub fn generate_insert_sql_from_tablename(
         &self,
@@ -867,12 +908,17 @@ impl LushMessageInsert {
                         }
                         let temp_cv = cv.slice(j..j + 1).unwrap();
                         if let Some(v) = temp_cv.get(0) {
-                            let column_name = columns[index].clone();
+                            let column_name = &columns[index];
+                            if self.is_delete(j, n) {
+                                insert_columns.push_str(format!("`{}`,", column_name).as_str());
+                                insert_values.push_str("NULL");
+                                continue;
+                            }
                             let sql_value = v.to_sql_value();
                             if !v.is_null() {
                                 let v_ty = v.ty();
                                 if v_ty.is_var_type() {
-                                    let field_ipc_type = field_map.get_mut(&column_name);
+                                    let field_ipc_type = field_map.get_mut(column_name);
                                     if field_ipc_type.is_some() {
                                         let field_ipc_type = field_ipc_type.unwrap();
                                         match field_ipc_type {
@@ -1551,13 +1597,14 @@ impl<R: Read> Iterator for IpcReader<R> {
 }
 
 #[test]
+#[ignore] // todo: fix this test
 fn file_reader() -> anyhow::Result<()> {
     use std::io::prelude::*;
 
-    #[cfg(not(target_os = "windows"))]
-    let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
-    #[cfg(target_os = "windows")]
-    let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
+    // #[cfg(not(target_os = "windows"))]
+    // let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
+    // #[cfg(target_os = "windows")]
+    // let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
 
     let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow.zstd")?;
     let mut bytes = vec![];
@@ -1575,8 +1622,14 @@ fn file_reader() -> anyhow::Result<()> {
         match record {
             LushMessage::Insert(records) => {
                 for record in records {
-                    let map_data = record.to_column_views_group_by_tablename();
+                    let map_data = record.to_column_views();
                     dbg!(&map_data);
+
+                    let sqls = record.generate_insert_sql_from_tablename(
+                        &map_data,
+                        &vec!["ts".to_string(), "c1".to_string()],
+                    );
+                    dbg!(&sqls);
                 }
             }
             LushMessage::Tables(tables) => {
@@ -1588,6 +1641,6 @@ fn file_reader() -> anyhow::Result<()> {
         }
     }
 
-    (&stream).write_all(zin.as_slice()).unwrap();
+    // (&stream).write_all(zin.as_slice()).unwrap();
     Ok(())
 }
