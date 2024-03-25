@@ -19,7 +19,7 @@
 #include "ttokendef.h"
 #include "tvariant.h"
 
-int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
+static int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
   // skip head 0b
   const char *p = z + 2;
   int32_t     l = n - 2;
@@ -45,7 +45,7 @@ int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *value) {
+static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *value, bool parseFloat) {
   // parse sign
   bool has_sign = false;
   if (z[0] == '-') {
@@ -65,8 +65,7 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
   }
 
   errno = 0;
-  char  *endPtr = NULL;
-  bool parsed = false;
+  char *endPtr = NULL;
   if (z[0] == '0' && n > 2) {
     if (z[1] == 'b' || z[1] == 'B') {
       // paring as binary
@@ -76,44 +75,87 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
     if (z[1] == 'x' || z[1] == 'X') {
       // parsing as hex
       *value = taosStr2UInt64(z, &endPtr, 16);
-      parsed = true;
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
     }
   }
 
-  if (!parsed) {
+  if (parseFloat) {
     // parsing as double
     double val = taosStr2Double(z, &endPtr);
+    if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      return TSDB_CODE_FAILED;
+    }
     if (val > UINT64_MAX) {
+      errno = ERANGE;
       return TSDB_CODE_FAILED;
     }
     *value = round(val);
-  }
-
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    return TSDB_CODE_FAILED;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
-  if (n == 0) {
-    *value = 0;
     return TSDB_CODE_SUCCESS;
   }
 
+  return TSDB_CODE_FAILED;
+}
+
+int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
+  if (n == 0) {
+    errno = EINVAL;
+    return TSDB_CODE_FAILED;
+  }
+
   errno = 0;
-  char* endPtr = NULL;
-  *value = taosStr2Double(z, &endPtr);
+  char *endPtr = NULL;
+  *value = taosStr2Double(z, &endPtr);  // 0x already converted here
+  if (errno == ERANGE || errno == EINVAL) return TSDB_CODE_FAILED;
+  if (endPtr - z == n) return TSDB_CODE_SUCCESS;
 
-  if (errno == ERANGE || errno == EINVAL) {
-    return TSDB_CODE_FAILED;
+  if (type == TK_NK_BIN || type == TK_NK_STRING) {
+    bool     is_neg = false;
+    uint64_t uv = 0;
+    if (TSDB_CODE_SUCCESS == parseSignAndUInteger(z, n, &is_neg, &uv, false)) {
+      *value = is_neg ? -(double)uv : uv;
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
-  if (endPtr - z != n) {
-    return TSDB_CODE_FAILED;
+  return TSDB_CODE_FAILED;
+}
+
+int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value) {
+  errno = 0;
+
+  char *endPtr = NULL;
+  *value = taosStr2Int64(z, &endPtr, base);
+  if (endPtr - z == n) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;
+
+  bool     is_neg = false;
+  uint64_t uv = 0;
+  int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv, false);  // support 0b/0x
+  if (code == TSDB_CODE_SUCCESS) {
+    if (is_neg) {
+      if (uv > 1ull + INT64_MAX) {
+        *value = INT64_MIN;
+        return TSDB_CODE_FAILED;
+      } else {
+        *value = -(int64_t)uv;
+      }
+    } else {
+      if (uv > INT64_MAX) {
+        *value = INT64_MAX;
+        return TSDB_CODE_FAILED;
+      }
+      *value = uv;
+    }
+  }
+
+  return code;
 }
 
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
@@ -144,8 +186,8 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   }
 
   if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
+    errno = EINVAL;
+    return TSDB_CODE_FAILED;
   }
 
   // 1. try to parse as integer
@@ -190,7 +232,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   // 2. parse as other 
   bool     is_neg = false;
   uint64_t uv = 0;
-  int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv);
+  int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv, true);
   if (code == TSDB_CODE_SUCCESS) {
     // truncate into int64
     if (is_neg) {
@@ -198,7 +240,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
         *value = INT64_MIN;
         return TSDB_CODE_FAILED;
       } else {
-        *value = -uv;
+        *value = -(int64_t)uv;
       }
     } else {
       if (uv > INT64_MAX) {
@@ -216,9 +258,6 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   errno = 0;
   char *endPtr = NULL;
   const char *p = z;
-  while (*p == ' ') {
-    p++;
-  }
   switch (type) {
     case TK_NK_INTEGER: {
       *value = taosStr2UInt64(p, &endPtr, 10);
@@ -246,24 +285,21 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   }
 
   if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
+    errno = EINVAL;
+    return TSDB_CODE_FAILED;
   }
 
   // 1. parse as integer
   *value = taosStr2UInt64(p, &endPtr, 10);
-  if (*p == '-' && *value) {
-    return TSDB_CODE_FAILED;
-  }
   if (endPtr - z == n) {
-    if (errno == ERANGE || errno == EINVAL) {
+    if (errno == ERANGE || errno == EINVAL || (*p == '-' && *value)) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
   } else if (errno == 0 && *endPtr == '.') {
     const char *s = endPtr + 1;
     const char *end = z + n;
-    bool pure = true;
+    bool        pure = true;
     while (s < end) {
       if (*s < '0' || *s > '9') {
         pure = false;
@@ -275,13 +311,16 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
       if (endPtr + 1 < end && endPtr[1] > '4' && *value < UINT64_MAX) {
         (*value)++;
       }
+      if (*p == '-' && *value) {
+        return TSDB_CODE_FAILED;
+      }
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  // 2. parse as other 
+  // 2. parse as other
   bool    is_neg = false;
-  int32_t code = parseSignAndUInteger(z, n, &is_neg, value);
+  int32_t code = parseSignAndUInteger(z, n, &is_neg, value, true);
   if (is_neg) {
     if (TSDB_CODE_SUCCESS == code && 0 == *value) {
       return TSDB_CODE_SUCCESS;

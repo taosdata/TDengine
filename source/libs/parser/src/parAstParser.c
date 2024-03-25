@@ -58,9 +58,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
-      case TK_NK_HEX:
-      case TK_NK_OCT:
-      case TK_NK_BIN: {
+      case TK_NK_OCT: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;

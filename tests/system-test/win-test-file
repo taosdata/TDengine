@@ -165,6 +165,7 @@ python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
 python3 ./test.py -f 1-insert/InsertFuturets.py
 python3 ./test.py -f 1-insert/insert_wide_column.py
+python3 ./test.py -f 1-insert/insert_column_value.py
 python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
 python3 ./test.py -f 1-insert/rowlength64k.py
 python3 ./test.py -f 1-insert/rowlength64k.py -R

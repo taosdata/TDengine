@@ -477,7 +477,7 @@ bool isHex(const char* z, uint32_t n){
 }
 
 bool isValidateHex(const char* z, uint32_t n){
-  if(n % 2 != 0) return false;
+  if ((n & 1) != 0) return false;
   for(size_t i = HEX_PREFIX_LEN; i < n; i++){
     if(isxdigit(z[i]) == 0){
       return false;
@@ -487,12 +487,15 @@ bool isValidateHex(const char* z, uint32_t n){
 }
 
 int32_t taosHex2Ascii(const char *z, uint32_t n, void** data, uint32_t* size){
-  n -= HEX_PREFIX_LEN;   // remove 0x
+  n -= HEX_PREFIX_LEN;  // remove 0x
   z += HEX_PREFIX_LEN;
   *size = n / HEX_PREFIX_LEN;
-  if(*size == 0) return 0;
-  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size, 1);
-  if(tmp == NULL) return -1;
+  if (*size == 0) {
+    if (!(*data = taosStrdup(""))) return -1;
+    return 0;
+  }
+  uint8_t *tmp = (uint8_t *)taosMemoryCalloc(*size, 1);
+  if (tmp == NULL) return -1;
   int8_t   num = 0;
   uint8_t *byte = tmp + *size - 1;
 
