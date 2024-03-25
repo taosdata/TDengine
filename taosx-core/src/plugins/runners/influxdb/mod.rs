@@ -392,7 +392,7 @@ async fn validate_source_influxdb(
         // 发送请求，获取结果
         client
             .get(url)
-            .header("Authorization", format!("Bearer {}", config.token.unwrap()))
+            .header("Authorization", format!("Token {}", config.token.unwrap()))
             .send()
             .await
     };
@@ -403,11 +403,22 @@ async fn validate_source_influxdb(
         let headers = response.headers();
         if status == 200 {
             // 获取版本
-            let version = format!(
-                "{} - {}",
-                headers.get("x-influxdb-build").unwrap().to_str().unwrap(),
-                headers.get("x-influxdb-version").unwrap().to_str().unwrap()
-            );
+            let x_build = headers.get("x-influxdb-build");
+            let x_version = headers.get("x-influxdb-version");
+            // 拼接版本
+            let version = if x_build.is_some() && x_version.is_some() {
+                format!(
+                    "{} - {}",
+                    x_build.unwrap().to_str().unwrap(),
+                    x_version.unwrap().to_str().unwrap()
+                )
+            } else if x_build.is_some() {
+                format!("{}", x_build.unwrap().to_str().unwrap())
+            } else if x_version.is_some() {
+                format!("{}", x_version.unwrap().to_str().unwrap())
+            } else {
+                "unknown".to_string()
+            };
             // 组装结果
             Ok(DataSourceValidation {
                 valid: true,
@@ -489,7 +500,10 @@ mod tests {
         assert_eq!(false, validation.support);
         assert_eq!("influxdb", validation.data_source);
         assert!(validation.version.is_none());
-        assert!(validation.message.unwrap().contains("plugin not found"));
+        assert!(validation
+            .message
+            .unwrap_or_default()
+            .contains("plugin not found"));
     }
 
     #[ignore]
@@ -564,6 +578,28 @@ mod tests {
             assert_eq!(true, dsv.support);
             assert_eq!("influxdb", dsv.data_source);
             assert_eq!("OSS - v2.7.1", dsv.version.unwrap());
+            dbg!(dsv.message);
+        }
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid_cloud() {
+        // token error
+        {
+            let dsn = Dsn::from_str("influxdb+https://us-east-1-1.aws.cloud2.influxdata.com:443/?version=2.7&orgId=18cda906d2dda66c&token=soX1nb8pVzjuYlNomO717q19aS0Aa-aA5M4Wnjf1pGYAeepm7M2OmuOfANWHX_Dd0HA8LVqe8SVV83d5-QCBeQ=").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(false, dsv.valid);
+            dbg!(dsv.message);
+        }
+        // success
+        {
+            let dsn = Dsn::from_str("influxdb+https://us-east-1-1.aws.cloud2.influxdata.com:443/?version=2.7&orgId=18cda906d2dda66c&token=soX1nb8pVzjuYlNomO717q19aS0Aa-aA5M4Wnjf1pGYAeepm7M2OmuOfANWHX_Dd0HA8LVqe8SVV83d5-QCBeQ==").unwrap();
+            let dsv = is_valid(&dsn).await;
+            assert_eq!(true, dsv.valid);
+            assert_eq!(true, dsv.support);
+            assert_eq!("influxdb", dsv.data_source);
+            assert_eq!("Cloud", dsv.version.unwrap());
             dbg!(dsv.message);
         }
     }
