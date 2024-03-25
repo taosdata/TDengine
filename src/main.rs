@@ -400,8 +400,9 @@ async fn init_tracing_layers(
                 .add_directive("tokio_tungstenite=warn".parse()?)
                 .add_directive("mio=warn".parse()?)
                 .add_directive("h2=warn".parse()?)
+                .add_directive("sqlx::query=warn".parse()?)
         } else {
-            event_filter
+            event_filter.add_directive("sqlx::query=warn".parse()?)
         };
         Ok(event_filter)
     }
