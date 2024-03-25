@@ -91,6 +91,25 @@ class TDTestCase:
         tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
+    def test_groupby_sub_table(self):
+        for i in range(self.tb_nums):
+            tbname = f"{self.dbname}.sub_{self.stable}_{i}"
+            ts = self.ts + i*10000
+            tdSql.query(f"select t1, t2, t3,count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} group by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+            
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
 
     def test_multi_group_key(self, check_num, nonempty_tb_num):
         # multi tag/tbname
@@ -235,11 +254,13 @@ class TDTestCase:
 
         self.test_groupby('group', self.tb_nums, nonempty_tb_num)
         self.test_groupby('partition', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_sub_table()
         self.test_innerSelect(self.tb_nums)
         self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
         self.test_multi_agg(self.tb_nums, nonempty_tb_num)
         self.test_window(nonempty_tb_num)
         self.test_event_window(nonempty_tb_num)
+
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)
