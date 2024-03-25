@@ -141,7 +141,7 @@ void compressImplTest(void* pVal, int8_t type, int32_t sz, uint32_t cmprAlg) {
 }
 
 const char* alg[] = {"disabled", "lz4", "zlib", "zstd", "tsz", "xz"};
-const char* end[] = {"disabled", "simppe8b", "delta"};
+const char* end[] = {"disabled", "simppe8b", "delta", "test", "test"};
 void        compressImplTestByAlg(void* pVal, int8_t type, int32_t num, uint32_t cmprAlg) {
   {
     tDataTypeCompress compres = tDataCompress[type];
@@ -188,13 +188,13 @@ void* genCompressData(int32_t type, int32_t num, bool order) {
       int8_t val = d % INT8_MAX;
       fillDataByData(p, &val, desc.bytes);
     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
-      int16_t val = d % INT16_MAX;
+      int16_t val = d % INT8_MAX;
       fillDataByData(p, &val, desc.bytes);
     } else if (type == TSDB_DATA_TYPE_INT) {
-      int32_t val = d % INT32_MAX;
+      int32_t val = d % INT8_MAX;
       fillDataByData(p, &val, desc.bytes);
     } else if (type == TSDB_DATA_TYPE_BIGINT) {
-      int64_t val = d % INT64_MAX;
+      int64_t val = d % INT8_MAX;
       fillDataByData(p, &val, desc.bytes);
     }
     p += desc.bytes;
@@ -309,23 +309,41 @@ TEST(utilTest, compressAlg) {
   taosMemoryFree(pList);
 
   {
-    for (int8_t type = 1; type <= 5; type++) {
+    for (int8_t type = 2; type <= 5; type++) {
       printf("------summary, type: %s-------\n", tDataTypes[type].name);
       char* p = (char*)genCompressData(type, num, 0);
       for (int8_t i = 1; i <= 3; i++) {
         uint32_t cmprAlg = 0;
         setColCompress(&cmprAlg, i);
-        setColEncode(&cmprAlg, 0);
+        setColEncode(&cmprAlg, 2);
         compressImplTestByAlg(p, type, num, cmprAlg);
       }
       {
         uint32_t cmprAlg = 0;
         setColCompress(&cmprAlg, 5);
-        setColEncode(&cmprAlg, 0);
+        setColEncode(&cmprAlg, 2);
         compressImplTestByAlg(p, type, num, cmprAlg);
       }
       taosMemoryFree(p);
       printf("-------------");
     }
+  }
+  for (int8_t type = 1; type <= 1; type++) {
+    printf("------summary, type: %s-------\n", tDataTypes[type].name);
+    char* p = (char*)genCompressData(type, num, 0);
+    for (int8_t i = 1; i <= 3; i++) {
+      uint32_t cmprAlg = 0;
+      setColCompress(&cmprAlg, i);
+      setColEncode(&cmprAlg, 4);
+      compressImplTestByAlg(p, type, num, cmprAlg);
+    }
+    {
+      uint32_t cmprAlg = 0;
+      setColCompress(&cmprAlg, 5);
+      setColEncode(&cmprAlg, 4);
+      compressImplTestByAlg(p, type, num, cmprAlg);
+    }
+    taosMemoryFree(p);
+    printf("-------------");
   }
 }
