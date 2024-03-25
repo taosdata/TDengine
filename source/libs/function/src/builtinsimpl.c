@@ -424,7 +424,8 @@ int32_t funcInputUpdate(SqlFunctionCtx* pCtx) {
   if (!pCtx->bInputFinished) {
     pIter->pInput = &pCtx->input;
     pIter->tsList = (TSKEY*)pIter->pInput->pPTS->pData;
-    pIter->pData = pIter->pInput->pData[0];
+    pIter->pDataCol = pIter->pInput->pData[0];
+    pIter->pPkCol = pIter->pInput->pPrimaryKey;
     pIter->rowIndex = pIter->pInput->startRowIndex;
     pIter->inputEndIndex = pIter->rowIndex + pIter->pInput->numOfRows - 1;
     pIter->pSrcBlock = pCtx->pSrcBlock; 
@@ -454,10 +455,16 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
       blockDataDestroy(pIter->pPrevRowBlock);
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pData->info.bytes);
-      char* srcData = colDataGetData(pIter->pData, pIter->inputEndIndex);
-      memcpy(pIter->pPrevData, srcData, pIter->pData->info.bytes);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
+
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
+
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
 
       pIter->hasPrev = true;
@@ -475,8 +482,9 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
         pRow->rowIndex = 0;
       } else {
         pRow->ts = pIter->tsList[idx - 1];
-        pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx - 1);
-        pRow->pData = colDataGetData(pIter->pData, idx - 1);
+        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx - 1);
+        pRow->pData = colDataGetData(pIter->pDataCol, idx - 1);
+        pRow->pPk = colDataGetData(pIter->pPkCol, idx - 1);
         pRow->block = pIter->pSrcBlock;
         pRow->rowIndex = idx - 1;
       }
@@ -492,20 +500,22 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->pData = colDataGetData(pIter->pDataCol, idx);
+      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = idx;
 
       pIter->rowIndex = idx + 1;
       return true;
     } else {
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
-      // TODO
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pData->info.bytes);
-      memcpy(pIter->pPrevData, colDataGetData(pIter->pData, pIter->inputEndIndex), pIter->pData->info.bytes);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex), pIter->pDataCol->info.bytes);
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
+
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
       return false;
     }
@@ -523,8 +533,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pData, idx);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->pData = colDataGetData(pIter->pDataCol, idx);
+      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
       pRow->rowIndex = idx;
 
@@ -535,8 +546,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   } else {
     if (pIter->rowIndex <= pIter->inputEndIndex) { 
       pRow->ts = pIter->tsList[pIter->rowIndex];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->rowIndex);
-      pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
+      pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
+      pRow->pPk = colDataGetData(pIter->pPkCol, pIter->rowIndex);
       pRow->block = pIter->pSrcBlock;
       pRow->rowIndex = pIter->rowIndex;
 
@@ -563,8 +575,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
 bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->rowIndex <= pIter->inputEndIndex) {
     pRow->ts = pIter->tsList[pIter->rowIndex];
-    pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->rowIndex);
-    pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+    pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
+    pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
+    pRow->pPk = NULL;
     pRow->block = pIter->pSrcBlock;
     pRow->rowIndex = pIter->rowIndex;
 
