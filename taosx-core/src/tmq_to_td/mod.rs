@@ -125,6 +125,10 @@ async fn write_data(
                 metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
                 metrics.add_suc_blocks(1);
             }
+            tracing::debug!(
+                "End writing data, current written rows {}",
+                metrics.written_rows()
+            );
             return Ok(0);
         }
     }
@@ -342,7 +346,7 @@ async fn write_data(
         }
     }
     tracing::debug!(
-        "End writing data, current records {}",
+        "End writing data, current written rows {}",
         metrics.written_rows()
     );
     Ok(0)
@@ -364,24 +368,24 @@ async fn write_meta(
     let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
     match &json_meta {
         JsonMeta::Delete(meta) => {
-            tracing::debug!("Meta: {meta}");
+            tracing::debug!("Start writting meta: {meta}");
             if !sync_meta_delete {
                 tracing::debug!("Ignor meta with type delete");
                 return anyhow::Ok(());
             }
         }
         JsonMeta::Drop(meta) => {
-            tracing::debug!("Meta: {meta}");
+            tracing::debug!("Start writing meta: {meta}");
             if !sync_meta_drop {
                 tracing::debug!("Ignore meta with type drop");
                 return anyhow::Ok(());
             }
         }
         JsonMeta::Alter(meta) => {
-            tracing::debug!("Meta: {meta}");
+            tracing::debug!("Start writing meta: {meta}");
         }
         JsonMeta::Create(meta) => {
-            tracing::debug!("Meta: {meta}");
+            tracing::debug!("Start writing meta: {meta}");
         }
     }
     if actions.is_empty() {
