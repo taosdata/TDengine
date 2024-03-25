@@ -9173,16 +9173,11 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   STag*   pTag = NULL;
   SToken  token;
-  char    tokenBuf[128];
-  char*   pTokenBuf = NULL;
+  char    tokenBuf[TSDB_MAX_TAGS_LEN];
   const char* tagStr = pStmt->pVal->literal;
   NEXT_TOKEN_WITH_PREV(tagStr, token);
-  if (TK_NK_STRING == token.type && token.n > tListLen(tokenBuf)) {
-    pTokenBuf = taosMemoryMalloc(token.n);
-    if (!pTokenBuf) code = TSDB_CODE_OUT_OF_MEMORY;
-  }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkAndTrimValue(&token, pTokenBuf ? pTokenBuf : tokenBuf, &pCxt->msgBuf, pSchema->type);
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
     if (TK_NK_VARIABLE == token.type && TSDB_CODE_SUCCESS == code) {
       code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
     }
