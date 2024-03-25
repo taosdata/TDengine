@@ -112,7 +112,13 @@ async fn main() -> anyhow::Result<()> {
                 .allow_any_header()
         } else {
             Cors::default()
-                .allow_any_origin()
+                .allowed_origin_fn(|origin, req_head| {
+                    req_head
+                        .headers()
+                        .get("Host")
+                        .map(|host| origin.as_bytes().ends_with(host.as_bytes()))
+                        .unwrap_or(false)
+                })
                 .allow_any_method()
                 .allow_any_header()
                 .max_age(3600)
