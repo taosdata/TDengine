@@ -836,6 +836,8 @@ struct SLDataIter {
   STimeWindow            timeWindow;
   SVersionRange          verRange;
   SSttBlockLoadInfo     *pBlockLoadInfo;
+  SRowKey                startRowKey;        // current row key
+  __compar_fn_t          comparFn;
   bool                   ignoreEarlierTs;
   struct SSttFileReader *pReader;
 };
@@ -846,7 +848,7 @@ struct SSttFileReader;
 typedef int32_t (*_load_tomb_fn)(STsdbReader *pReader, struct SSttFileReader *pSttFileReader,
                                  SSttBlockLoadInfo *pLoadInfo);
 
-typedef struct {
+typedef struct SMergeTreeConf {
   int8_t        backward;
   STsdb        *pTsdb;
   uint64_t      suid;
@@ -859,7 +861,9 @@ typedef struct {
   STSchema     *pSchema;
   int16_t      *pCols;
   int32_t       numOfCols;
+  SRowKey      *pCurRowKey;
   _load_tomb_fn loadTombFn;
+  __compar_fn_t comparFn;
   void         *pReader;
   void         *idstr;
   bool          rspRows;  // response the rows in stt-file, if possible
