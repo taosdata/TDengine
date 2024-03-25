@@ -176,12 +176,12 @@ pub(crate) async fn check_tmq_dsn(
     let use_topic_name = from.remove("use.topic.name");
     let use_table_name = from.remove("use.table.name");
 
-    let sync_meta_delete = if let Some(val) = from.remove("sync.meta.delete") {
+    let with_meta_delete = if let Some(val) = from.remove("with.meta.delete") {
         val == "true"
     } else {
         false
     };
-    let sync_meta_drop = if let Some(val) = from.remove("sync.meta.drop") {
+    let with_meta_drop = if let Some(val) = from.remove("with.meta.drop") {
         val == "true"
     } else {
         false
@@ -283,8 +283,8 @@ pub(crate) async fn check_tmq_dsn(
                 use_table_name: None,
                 topic_type: TopicType::DatabaseWithMeta,
             }],
-            sync_meta_delete,
-            sync_meta_drop,
+            with_meta_delete,
+            with_meta_drop,
         ));
     }
     let source_topics = source.topics().await?;
@@ -329,8 +329,8 @@ pub(crate) async fn check_tmq_dsn(
                     use_table_name: None,
                     topic_type: TopicType::from_sql(&topic.sql()),
                 }],
-                sync_meta_delete,
-                sync_meta_drop,
+                with_meta_delete,
+                with_meta_drop,
             ))
         } else if source
             .database_exists(&topic)
@@ -375,8 +375,8 @@ pub(crate) async fn check_tmq_dsn(
                     use_table_name: None,
                     topic_type: TopicType::DatabaseWithMeta,
                 }],
-                sync_meta_delete,
-                sync_meta_drop,
+                with_meta_delete,
+                with_meta_drop,
             ))
         } else if topic.contains('.') {
             // Extract `database.table` in format.
@@ -435,8 +435,8 @@ pub(crate) async fn check_tmq_dsn(
                                 use_table_name: None,
                                 topic_type: TopicType::StableWithMeta,
                             }],
-                            sync_meta_delete,
-                            sync_meta_drop,
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     } else {
                         source
@@ -484,8 +484,8 @@ pub(crate) async fn check_tmq_dsn(
                                 use_table_name: None,
                                 topic_type: TopicType::StableWithMeta,
                             }],
-                            sync_meta_delete,
-                            sync_meta_drop,
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     }
                 }
@@ -562,8 +562,8 @@ pub(crate) async fn check_tmq_dsn(
                                 use_table_name,
                                 topic_type: TopicType::StableWithMeta,
                             }],
-                            sync_meta_delete,
-                            sync_meta_drop,
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     } else {
                         let (_, sql): ((), String) = source
@@ -634,8 +634,8 @@ pub(crate) async fn check_tmq_dsn(
                                 use_table_name,
                                 topic_type: TopicType::Query,
                             }],
-                            sync_meta_delete,
-                            sync_meta_drop,
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     }
                 } else {
@@ -692,7 +692,7 @@ pub(crate) async fn check_tmq_dsn(
         }
         if topics.len() == out.len() {
             // ok;
-            return Ok((from, builder, out, sync_meta_delete, sync_meta_drop));
+            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
         } else {
             let invalids = topics
                 .into_iter()
@@ -735,7 +735,7 @@ pub(crate) async fn check_tmq_dsn(
                     });
                 }
             }
-            return Ok((from, builder, out, sync_meta_delete, sync_meta_drop));
+            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
         }
     }
 }

@@ -361,22 +361,22 @@ async fn write_meta(
     meta: &Meta,
     target_is_v3: bool,
     metrics: &TmqMetrics,
-    sync_meta_delete: bool,
-    sync_meta_drop: bool,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
     match &json_meta {
         JsonMeta::Delete(meta) => {
             tracing::debug!("Start writting meta: {meta}");
-            if !sync_meta_delete {
+            if !with_meta_delete {
                 tracing::debug!("Ignor meta with type delete");
                 return anyhow::Ok(());
             }
         }
         JsonMeta::Drop(meta) => {
             tracing::debug!("Start writing meta: {meta}");
-            if !sync_meta_drop {
+            if !with_meta_drop {
                 tracing::debug!("Ignore meta with type drop");
                 return anyhow::Ok(());
             }
@@ -501,8 +501,8 @@ async fn sync(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     _offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    sync_meta_delete: bool,
-    sync_meta_drop: bool,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
     let mut stream = consumer.stream();
@@ -529,13 +529,13 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, sync_meta_delete, sync_meta_drop).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
+                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
                             write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, sync_meta_delete, sync_meta_drop).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
+                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
                                 write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
@@ -571,13 +571,13 @@ pub async fn tmq_to_td(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     task_id: Option<String>,
 ) -> Result<()> {
-    let (mut from, builder, topics, sync_meta_delete, sync_meta_drop) = check_tmq_dsn(from).await?;
+    let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
     tracing::info!(
-        "source version: {}, sync_meta_delete: {}, sync_meta_drop: {}",
+        "source version: {}, with_meta_delete: {}, with_meta_drop: {}",
         version,
-        sync_meta_delete,
-        sync_meta_drop
+        with_meta_delete,
+        with_meta_drop
     );
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
@@ -824,8 +824,8 @@ pub async fn tmq_to_td(
                         cancellation,
                         metrics_arc.clone(),
                         offsets,
-                        sync_meta_delete,
-                        sync_meta_drop,
+                        with_meta_delete,
+                        with_meta_drop,
                     )
                     .await
                 }

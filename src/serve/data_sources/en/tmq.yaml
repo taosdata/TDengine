@@ -73,14 +73,14 @@ groups:
         hint:
           type: bool
         value: true
-      - name: sync.meta.drop
+      - name: with.meta.drop
         display: Table Deletions
         description: |
           If enabled, the table deletion operations on the source side will be replayed on the sink side.
         hint:
           type: bool
         value: true
-      - name: sync.meta.delete
+      - name: with.meta.delete
         display: Data Deletions
         description: |
           If enabled, the data deletion operations on the source side will be replayed on the sink side.
