@@ -439,7 +439,7 @@ typedef struct {
 
 typedef struct {
   col_id_t colId;
-  int32_t cmprAlg;
+  int32_t  cmprAlg;
 } SCmprObj;
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
@@ -469,7 +469,7 @@ typedef struct {
   char*     pAst2;
   SRWLatch  lock;
   int8_t    source;
-  SCmprObj* pCmpr;
+  SColCmpr* pCmpr;
 } SStbObj;
 
 typedef struct {
