@@ -114,20 +114,59 @@ async fn ipc_tcp_forward(
     info!(client, remote, "reading batches");
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id);
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
+
+    let mut cause_error = None;
+    const MAX_LAST_RETRIES: usize = 10; // allow 5 times retry in last 2 minutes;
+    const RETRY_DELAY: Duration = Duration::from_secs(5);
+    let mut last_retries: usize = 0;
+    let mut last_retry_time = std::time::Instant::now();
+    let last_retry_interval = Duration::from_secs(60 * 2);
+    macro_rules! last_retry_tick {
+        () => {
+            #[allow(unused_assignments)]
+            if last_retry_time.elapsed() <= last_retry_interval {
+                last_retries += 1;
+                tokio::time::sleep(RETRY_DELAY).await;
+            } else {
+                tracing::info!("Last retry has been 2m past, re-calc retries num");
+                last_retries = 1;
+                tokio::time::sleep(RETRY_DELAY).await;
+                last_retry_time = std::time::Instant::now();
+            }
+        };
+    }
     'start: loop {
         let stream_trace_id_u64 = stream_trace_id_u64;
         let cur_span = Span::current();
         let data_stream = ipc_stream.clone();
+        tracing::error!(error = ?cause_error, retries = last_retries);
+        if last_retries > MAX_LAST_RETRIES {
+            tracing::warn!(
+                "There're {} retries happened in 2m, break now",
+                last_retries
+            );
+            if let Some(err) = cause_error {
+                tracing::error!(error = ?err, "schema: {:?}", schema);
+                let stream = data_stream.take(3);
+
+                stream
+                    .for_each(|data| {
+                        tracing::warn!(error = ?err, "data: {:?}", data);
+                        futures::future::ready(())
+                    })
+                    .await;
+                return Err(err);
+            }
+        }
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
             .with_options(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
             )
-            .build(
-                data_stream
-                    // .inspect(|v| debug!("{:?}", v))
-                    .map_err(FlightError::from),
-            )
+            .build(data_stream.map_err(|err| {
+                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+                FlightError::from(err)
+            }))
             .enumerate()
             .map(move |(i, v)| {
                 let batch_number = i as u32 + 1;
@@ -146,9 +185,7 @@ async fn ipc_tcp_forward(
                 })
             });
 
-        const MAX_RETRIES: usize = 3;
-        const RETRY_DELAY: Duration = Duration::from_secs(5);
-
+        const MAX_RETRIES: usize = 5;
         let mut retries = 0;
         let channel = loop {
             match try_establish_channel(remote.clone()).await {
@@ -179,21 +216,50 @@ async fn ipc_tcp_forward(
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
         client.add_header("x-trace-id", stream_trace_id)?;
-        let _ = client
+        if let Err(err) = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
             .map_err(|err| match err {
-                FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+                FlightError::Tonic(status) => {
+                    tracing::error!(
+                        error.code = %status.code(),
+                        error.message = %status.message(),
+                        error.metadata = ?status.metadata(),
+                        "gRPC handshake error: {}", status
+                    );
+                    anyhow::anyhow!("gRPC handshake error: {}", status.message())
+                }
                 err => anyhow::anyhow!("Handshake error: {err:#}"),
-            })?;
+            })
+        {
+            last_retry_tick!();
+            cause_error.replace(err);
+            continue 'start;
+        }
         info!("Handshake done");
         // dbg!(res);
         info!("Do putting");
-        let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
+        let mut stream = match client.do_put(data).await.map_err(|err| match dbg!(err) {
             FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-            FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+            FlightError::Tonic(status) => {
+                tracing::error!(
+                    error.code = %status.code(),
+                    error.message = %status.message(),
+                    error.metadata = ?status.metadata(),
+                    "Put IPC stream error: {}", status
+                );
+                anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
+            }
             err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-        })?;
+        }) {
+            Ok(stream) => stream,
+            Err(err) => {
+                tracing::warn!("Try putting stream error: {:#}", err);
+                last_retry_tick!();
+                cause_error.replace(err);
+                continue 'start;
+            }
+        };
         info!("Get putting stream response");
 
         loop {
@@ -219,9 +285,14 @@ async fn ipc_tcp_forward(
                                 .message()
                                 .contains("stream closed because of a broken pipe")
                                 || status.message() == "ExternalError(Disconnected)"
+                                || status.message().contains("connection reset")
                             {
                                 tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
+                                cause_error.replace(anyhow::anyhow!(
+                                    "gRPC put stream disconnected: {err:#}"
+                                ));
+                                last_retry_tick!();
                                 continue 'start;
                             }
                             tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
@@ -245,8 +316,8 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     let endpoint = tonic::transport::Endpoint::try_from(remote)?
         .keep_alive_while_idle(true)
         .keep_alive_timeout(Duration::from_secs(300))
-        .http2_keep_alive_interval(Duration::from_secs(13))
-        .tcp_keepalive(Some(Duration::from_secs(7)));
+        .http2_keep_alive_interval(Duration::from_secs(39))
+        .tcp_keepalive(Some(Duration::from_secs(300)));
     let channel = endpoint.connect().await?;
     Ok(channel)
 }
