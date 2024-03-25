@@ -3981,7 +3981,12 @@ static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* p
   }
   if (TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
       !hasPartitionByTbname(pSelect->pPartitionByList)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "State window for stream on super table must patitioned by table name");
+  }
+  if ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Source table of State window must not has primary key");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -7969,6 +7974,13 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Event window for stream on super table must patitioned by table name");
   }
+
+  if (pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW &&
+      (SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Source table of Event window must not has primary key");
+  }
+
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !isTimeLineQuery(pStmt->pQuery) || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
       crossTableWithUdaf(pSelect) || hasJsonTypeProjection(pSelect)) {
@@ -8010,6 +8022,11 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     if (pStmt->pOptions->ignoreExpired != 1) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                     "Ignore expired data of Count window must be 1.");
+    }
+
+    if ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Source table of Count window must not has primary key");
     }
   }
 
@@ -8499,15 +8516,35 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
 static int32_t checkStreamDestTableSchema(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt*    pSelect = (SSelectStmt*)pStmt->pQuery;
-  SNode*          pProj = nodesListGetNode(pStmt->pCols, 0);
-  SColumnDefNode* pCol = (SColumnDefNode*)pProj;
+  SNode*          pNode = nodesListGetNode(pStmt->pCols, 0);
+  SColumnDefNode* pCol = (SColumnDefNode*)pNode;
   if (pCol && pCol->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
     pCol->dataType = (SDataType){.type = TSDB_DATA_TYPE_TIMESTAMP,
                                  .precision = 0,
                                  .scale = 0,
                                  .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   }
-  return checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL);
+  int32_t code = checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL);
+  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow &&
+      ((SRealTableNode*)pSelect->pFromTable && hasPkInTable(((SRealTableNode*)pSelect->pFromTable)->pMeta))) {
+    if (1 >= LIST_LENGTH(pStmt->pCols) || 1 >= LIST_LENGTH(pSelect->pProjectionList)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+    }
+
+    SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 1);
+    if (QUERY_NODE_COLUMN != nodeType(pProj) ||
+        0 != strcmp(((SColumnNode*)pProj)->colName, ((SRealTableNode*)pSelect->pFromTable)->pMeta->schema[1].name)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Source table has primary key, result must has primary key");
+    }
+
+    pNode = nodesListGetNode(pStmt->pCols, 1);
+    pCol = (SColumnDefNode*)pNode;
+    if (!pCol->is_pk) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Source table has primary key, dest table must has primary key");
+    }
+  }
+  return code;
 }
 
 static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
