@@ -341,10 +341,11 @@ static int32_t addDefaultScanCol(const STableMeta* pMeta, SNodeList** pCols) {
   if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
     return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols, pMeta);
   }
-  if (hasPkInTable(pMeta)) {
-    addPkCol(pMeta->uid, pMeta->schema + 1, pCols, pMeta);
+  int32_t code = addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols, pMeta);
+  if (code == TSDB_CODE_SUCCESS && hasPkInTable(pMeta)) {
+    code = addPkCol(pMeta->uid, pMeta->schema + 1, pCols, pMeta);
   }
-  return addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols, pMeta);
+  return code;
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
