@@ -105,16 +105,30 @@
       </section>
       <section class="extract">
         <div class="block-title top">
-          <span>{{ $t("datasource.transformer.parse") }}</span>
+          <span>{{
+            $store.state.app.currentDBType == "csv" ||
+            $store.state.app.currentDBType == "avevaHistorian"
+              ? $t("datasource.transformer.identified")
+              : $t("datasource.transformer.parse")
+          }}</span>
+          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop1">
+            <div style="position: relative">
+              <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('1')"></i>
+              <DocsContent
+                :style="docsStyle"
+                :content="$t('datasource.transformer.extractdesc')"
+              />
+            </div>
+            <span style="margin-left: 6px"
+              slot="reference"
+              v-if="
+                $store.state.app.currentDBType !== 'avevaHistorian' &&
+                $store.state.app.currentDBType !== 'csv'
+              "
+              ><i class="el-icon-info" @click="handleClickPop('1')"></i>
+            </span>
+          </el-popover>
         </div>
-        <div
-          v-if="
-            $store.state.app.currentDBType !== 'avevaHistorian' &&
-            $store.state.app.currentDBType !== 'csv'
-          "
-          class="transdescription"
-          v-html="$t('datasource.transformer.extractdesc')"
-        ></div>
         <div
           class="extrac-parse"
           v-if="
@@ -229,14 +243,19 @@
           style="justify-content: flex-start; align-items: baseline"
         >
           <span>{{ $t("datasource.transformer.extract") }}</span>
-          <el-tooltip placement="top" effect="light">
-            <template slot="content">
-              <div v-html="$t('datasource.transformer.subextractdesc')"></div>
-            </template>
+          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop2">
+            <div style="position: relative">
+              <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('2')"></i>
+              <DocsContent
+                :style="docsStyle"
+                :content="$t('datasource.transformer.subextractdesc')"
+              />
+            </div>
             <span style="margin-left: 6px"
-              ><i class="el-icon-warning"></i
-            ></span>
-          </el-tooltip>
+              slot="reference"
+              ><i class="el-icon-info" @click="handleClickPop('2')"></i>
+            </span>
+          </el-popover>
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -266,11 +285,20 @@
       <section class="filter">
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
+          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop3">
+            <div style="position: relative">
+              <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('3')"></i>
+              <DocsContent
+                :style="docsStyle"
+                :content="$t('datasource.transformer.filterdesc')"
+              />
+            </div>
+            <span style="margin-left: 6px"
+              slot="reference"
+              ><i class="el-icon-info" @click="handleClickPop('3')"></i>
+            </span>
+          </el-popover>
         </div>
-        <div
-          class="transdescription"
-          v-html="$t('datasource.transformer.filterdesc')"
-        ></div>
         <template v-for="(item, index) in filterArr">
           <FilterExpression
             :key="index"
@@ -558,6 +586,8 @@ import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData } from "../utils.js";
 import JsonEditor from "./jsonEditor.vue";
+import JSONbig from "json-bigint";
+import DocsContent from "@/views/support/components/editorContentDisplay.vue"
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -567,6 +597,7 @@ export default {
     CreateSTB,
     SplitExpression,
     JsonEditor,
+    DocsContent
   },
   props: {
     parent: {
@@ -735,6 +766,9 @@ export default {
       mappingParser: {},
       limitOffset: 5,
       request: false,
+      visiblePop1: false,
+      visiblePop2: false,
+      visiblePop3: false,
     };
   },
   computed: {
@@ -758,6 +792,12 @@ export default {
             message: this.$t("datasource.transformer.tablenametip"),
           },
         ],
+      };
+    },
+    docsStyle() {
+      return {
+        paddingRight: "20px",
+        wordBreak: "break-word"
       };
     },
   },
@@ -799,6 +839,28 @@ export default {
     this.statisticCol();
   },
   methods: {
+    handleClickPop(key) {
+      switch (key) {
+        case '1':
+          this.visiblePop1 = !this.visiblePop1
+          this.visiblePop2 = false
+          this.visiblePop3 = false
+          break;
+        case '2':
+          this.visiblePop1 = false
+          this.visiblePop2 = !this.visiblePop2
+          this.visiblePop3 = false
+          break;
+        case '3':
+          this.visiblePop1 = false
+          this.visiblePop2 = false
+          this.visiblePop3 = !this.visiblePop3
+          break;
+        default:
+          break;
+      }
+      
+    },
     getJsonText(data) {
       if (data instanceof Object) {
         this.isjson = true;

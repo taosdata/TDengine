@@ -1342,16 +1342,12 @@ export default {
       mappingvaildtip:
         "Please fill in the correct primary key, column, and tag",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-      extractdesc: `
-      <strong>taosX supports three kinds of extractor</strong>:<br/>
-1. <strong>JSON</strong>: User could use object name such as: name , or [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> query such as $.field.sub=new_name to extract multiple fields from one string(json) field.<br/>
-2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
-      `,
-      subextractdesc:`
-      <strong>taosX supports two kinds of extractor</strong>:<br/>
-1. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
-      `,
+      extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor</strong>:<br/>
+      1. <strong>JSON</strong>: User could use object name such as: name , or [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> query such as $.field.sub=new_name to extract multiple fields from one string(json) field.<br/>
+      2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>`,
+      subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
+      1. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
+      2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>`,
       filterdesc: `<strong>taosX supports a powerful expression engine to filter records. <em>false</em> records will be removed directly.</strong><br/>
       - <strong>Bool value</strong>: bool_value if bool_value is true/false.<br/>
       - <strong>Compare oprations</strong>: a > b with a and b fields exist, or c == "value" d > 1.1 and so on.<br/>

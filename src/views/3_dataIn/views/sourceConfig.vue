@@ -35,6 +35,21 @@
             </el-select>
           </el-form-item>
           <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
+            <template slot="label">
+              <el-tooltip placement="top" effect="light">
+                <template slot="content">
+                  <DocsContent
+                    :content="$t('dataIn.needAgentTip')"
+                  ></DocsContent>
+                </template>
+                <div>
+                  <span>{{ $t('agent') }}</span>
+                  <span style="margin-left: 4px">
+                    <i class="el-icon-info"></i>
+                  </span>
+                </div>
+              </el-tooltip>
+            </template>
             <el-select
               v-model="sourceForm.agent"
               :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
@@ -55,9 +70,6 @@
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
             >
-            <p class="custom-placeholder mt10">
-              {{ $t("dataIn.needAgentTip") }}
-            </p>
           </el-form-item>
           <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select

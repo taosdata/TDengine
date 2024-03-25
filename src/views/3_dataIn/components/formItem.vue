@@ -18,6 +18,24 @@
       :rules="timeFormats.includes(field) ? [...timeRules, ...rules] : rules"
       :prop="parent + field"
     >
+      <template slot="label">
+        <el-tooltip placement="top" effect="light">
+          <template slot="content">
+            <DocsContent
+              v-if="doscShow && !dataSetDocsShow"
+              :style="docsStyle"
+              :class="config.templateUrl ? 'noboder' : ''"
+              :content="config.description"
+            />
+          </template>
+          <span>
+            <span>{{ labelText }}</span>
+            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
+              <i class="el-icon-info"></i>
+            </span>
+          </span>
+        </el-tooltip>
+      </template>
       <el-input
         v-if="inputType.includes(config.type)"
         v-model="data[field]"
@@ -119,7 +137,7 @@
         </el-tooltip>
       </div>
       <DocsContent
-        v-if="doscShow"
+        v-if="dataSetDocsShow"
         :style="docsStyle"
         :class="config.templateUrl ? 'noboder' : ''"
         :content="config.description"
@@ -217,6 +235,9 @@ export default {
     },
     doscShow() {
       return this.config.description && !this.config.info;
+    },
+    dataSetDocsShow() {
+      return this.config.info2;
     },
     docsStyle() {
       const isTab = this.config.type == "tab";

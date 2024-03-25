@@ -18,6 +18,7 @@ const templateUrlMap = {
 const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
+const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 const SelectAllPoints = 'child_table_expression'
@@ -244,10 +245,11 @@ function handleAuthentication(authentication, paramsConfig) {
     };
     if (item.params) {
       item.params.forEach((param, index) => {
-        const { display, description, name, value: defaultValue, required = false } = param;
+        const { display, description, name, value: defaultValue, required = false, placeholder } = param;
         const config = {
           label: display,
           description,
+          placeholder,
           required: (_, originalData,currentDefinition) => {
             if (currentDefinition?.id?.startsWith('opcua')) {
               let authenticationData = originalData[authenticationField];
@@ -567,7 +569,7 @@ function handleDatasets(datasets, paramsConfig) {
         })
       : categories.map((item, index) => {
           const { category, display, description: desc, target, params: categoryParams } = item;
-          return {
+          const paramConfig = {
             label: display,
             name: category,
             labelShow: false,
@@ -624,6 +626,8 @@ function handleDatasets(datasets, paramsConfig) {
               }
             }
           };
+          handleInfoParams(paramConfig);
+          return paramConfig;
         })
   };
   if (categories) {
@@ -682,7 +686,7 @@ function handleGroups(groups, paramsConfig) {
   groups.forEach(group => {
     const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2 } = group;
     const paramChildren = [];
-    const config = { label: name, field: uuid(), description: d2 ?? d1, children: paramChildren };
+    const config = { label: name, field: uuid(), description: d1 ?? d2, children: paramChildren };
     if (collapsible) {
       config.type = 'switch';
       config.defaultValue = collapsed;
@@ -694,7 +698,7 @@ function handleGroups(groups, paramsConfig) {
       const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple, pattern, patternMsg } = param;
       const paramConfig = {
         label: display,
-        description: short_description ?? description,
+        description: description ?? short_description,
         field: handleField(name),
         // if: collapsible ? data => data[valueField] : true,
         if: currentData => {
@@ -873,7 +877,7 @@ function handleAdvanced(advanced, paramsConfig) {
     const config = { 
       label: display, 
       field: handleField(name), 
-      description: d2 ?? d1, 
+      description: d1 ?? d2, 
       defaultValue: value,
       if: !hidden,
       placeholder,
@@ -939,6 +943,10 @@ export function handleHintType(config, hint) {
 function handleInfoParams(config) {
   if (config?.field && InfoParams.includes(config.field)) {
     config.info = true;
+  }
+  // 目前是 dataset upload desc 直接展示
+  if (config?.field && Info2Params.includes(config.field)) {
+    config.info2 = true;
   }
 }
 // 生成表单初始化数据
