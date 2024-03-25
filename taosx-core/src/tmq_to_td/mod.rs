@@ -368,7 +368,7 @@ async fn write_meta(
     let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
     match &json_meta {
         JsonMeta::Delete(meta) => {
-            tracing::debug!("Start writting meta: {meta}");
+            tracing::debug!("Start writing meta: {meta}");
             if !with_meta_delete {
                 tracing::debug!("Ignor meta with type delete");
                 return anyhow::Ok(());
