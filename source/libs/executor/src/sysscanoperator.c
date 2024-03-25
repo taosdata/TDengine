@@ -879,7 +879,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
   char*   outputWKT = NULL;
 
   if (nGeom == 0) {
-    if (!(*output = strdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!(*output = taosStrdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
     *nOutput = 0;
     return code;
   }
