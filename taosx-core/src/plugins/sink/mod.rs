@@ -166,7 +166,7 @@ async fn ipc_tcp_forward(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
             )
             .build(data_stream.map_err(|err| {
-                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+                tracing::warn!(ipc.client.error = %err, "IPC receiving error: {err:#}");
                 FlightError::from(err)
             }))
             .enumerate()
@@ -175,7 +175,7 @@ async fn ipc_tcp_forward(
                 let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
-                    info!("Send batch {}", data_trace_id_str);
+                    debug!("Send batch {}", data_trace_id_str);
                 });
                 v.map(|message| {
                     message.with_app_metadata(
