@@ -362,21 +362,27 @@ async fn write_meta(
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
-    tracing::debug!("Meta: {:?}", meta);
-    match json_meta {
-        JsonMeta::Delete(_) => {
+    match &json_meta {
+        JsonMeta::Delete(meta) => {
+            tracing::debug!("Meta: {meta}");
             if !sync_meta_delete {
                 tracing::debug!("Ignor meta with type delete");
                 return anyhow::Ok(());
             }
         }
-        JsonMeta::Drop(_) => {
+        JsonMeta::Drop(meta) => {
+            tracing::debug!("Meta: {meta}");
             if !sync_meta_drop {
                 tracing::debug!("Ignore meta with type drop");
                 return anyhow::Ok(());
             }
         }
-        _ => (),
+        JsonMeta::Alter(meta) => {
+            tracing::debug!("Meta: {meta}");
+        }
+        JsonMeta::Create(meta) => {
+            tracing::debug!("Meta: {meta}");
+        }
     }
     if actions.is_empty() {
         if target_is_v3 {
