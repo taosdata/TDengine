@@ -230,21 +230,21 @@ namespace TDPIConnector.TDEngine.TaosxClient
             lock (stLock)
             {
                 if (builder.pointIds.Count == 0 && builder.tagVals.Count == 0) return;
-                log.Info($"Stable:{builder.stableName} Write tables into stream start...");
+                log.Debug($"Stable:{builder.stableName} Write tables into stream start...");
 
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName} Write tables into stream...");
+                log.Debug($"Stable:{builder.stableName} Write tables into stream...");
             }
         }
 
         public void send() {
             lock (stLock) {
                 if (builder.tableNameArrowArray.Length == 0) return;
-                log.Info($"Stable:{builder.stableName} Write records into stream start...");
+                log.Debug($"Stable:{builder.stableName} Write records into stream start...");
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName} Write records into stream end.");
+                log.Debug($"Stable:{builder.stableName} Write records into stream end.");
                 clear();
             }
         }
