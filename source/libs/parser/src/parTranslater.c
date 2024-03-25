@@ -6617,6 +6617,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       setColCompressByOption((uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
                              columnCompressVal(pStmt->pColOptions->compress),
                              columnLevelVal(pStmt->pColOptions->compressLevel));
+      taosArrayPush(pAlterReq->pFields, &field);
       break;
     }
     default:

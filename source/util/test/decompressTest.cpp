@@ -201,6 +201,44 @@ void* genCompressData(int32_t type, int32_t num, bool order) {
   }
   return pBuf;
 }
+void* genCompressData_float(int32_t type, int32_t num, bool order) {
+  tDataTypeDescriptor desc = tDataTypes[type];
+
+  int32_t cnt = num * (desc.bytes);
+
+  char*    pBuf = (char*)taosMemoryCalloc(1, cnt);
+  char*    p = pBuf;
+  uint32_t v = taosGetTimestampMs();
+  int64_t  iniVal = 0;
+  for (int32_t i = 0; i < num; i++) {
+    int64_t d = taosRandR(&v);
+    if (type == TSDB_DATA_TYPE_FLOAT) {
+      float f = d * 1.0 / 3;
+      fillDataByData(p, &f, desc.bytes);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double f = d * 1.0 / 3;
+      fillDataByData(p, &f, desc.bytes);
+    }
+    // if (type == TSDB_DATA_TYPE_BOOL) {
+    //   int8_t val = d % 2;
+    //   fillDataByData(p, &val, desc.bytes);
+    // } else if (type == TSDB_DATA_TYPE_TINYINT) {
+    //   int8_t val = d % INT8_MAX;
+    //   fillDataByData(p, &val, desc.bytes);
+    // } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+    //   int16_t val = d % INT8_MAX;
+    //   fillDataByData(p, &val, desc.bytes);
+    // } else if (type == TSDB_DATA_TYPE_INT) {
+    //   int32_t val = d % INT8_MAX;
+    //   fillDataByData(p, &val, desc.bytes);
+    // } else if (type == TSDB_DATA_TYPE_BIGINT) {
+    //   int64_t val = d % INT8_MAX;
+    //   fillDataByData(p, &val, desc.bytes);
+    // }
+    p += desc.bytes;
+  }
+  return pBuf;
+}
 TEST(utilTest, compressAlg) {
   int32_t  num = 4096;
   int64_t* pList = static_cast<int64_t*>(taosMemoryCalloc(num, sizeof(int64_t)));
@@ -328,6 +366,7 @@ TEST(utilTest, compressAlg) {
       printf("-------------");
     }
   }
+  // bool
   for (int8_t type = 1; type <= 1; type++) {
     printf("------summary, type: %s-------\n", tDataTypes[type].name);
     char* p = (char*)genCompressData(type, num, 0);
@@ -345,5 +384,35 @@ TEST(utilTest, compressAlg) {
     }
     taosMemoryFree(p);
     printf("-------------");
+  }
+  // float/double
+  float    fPresion = 1E-8;
+  double   dPresion = 1E-16;
+  uint32_t maxRange = 500;                      // max quantization intervals
+  uint32_t curRange = 100;                      // current quantization intervals
+  bool     ifAdtFse = false;                    // ADT-FSE algorithom or original huffman algorithom
+  char     compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
+
+  tsCompressInit((char*)"float|double", fPresion, dPresion, maxRange, curRange, ifAdtFse, compressor);
+  for (int8_t type = 6; type <= 7; type++) {
+    printf("------summary, type: %s-------\n", tDataTypes[type].name);
+    char* p = (char*)genCompressData_float(type, num, 0);
+    for (int8_t i = 1; i <= 3; i++) {
+      uint32_t cmprAlg = 0;
+      setColCompress(&cmprAlg, i);
+      setColEncode(&cmprAlg, 3);
+      setColLevel(&cmprAlg, 1);
+      compressImplTestByAlg(p, type, num, cmprAlg);
+    }
+    {
+      //   uint32_t cmprAlg = 0;
+      //   setColCompress(&cmprAlg, 4);
+      //   setColEncode(&cmprAlg, 3);
+      //   compressImplTestByAlg(p, type, num, cmprAlg);
+      // }
+      // taosMemoryFree(p);
+      // printf("-------------");
+    }
+    taosMemoryFree(p);
   }
 }
