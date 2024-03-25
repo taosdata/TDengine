@@ -67,10 +67,10 @@
         <el-table-column />
         <el-table-column
           :label="$t('topic.expire_time')"
-          prop="expireTime"
+          prop="expire"
         >
           <template slot-scope="scope">
-            <span>{{ expireTime(scope.row.expire) }}</span>
+            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : expireTime(scope.row.expire) }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -109,7 +109,7 @@
         v-if="!version_no_later_than_3230"
       >
         <template slot-scope="scope">
-          <span>{{ expireTime(scope.row.expireTime) }}</span>
+          <span>{{ scope.row.expireTime == 'unlimited' ? 'unlimited' : expireTime(scope.row.expireTime) }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -353,7 +353,7 @@ export default {
       if (this.version_no_later_than_3230) {
         return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
       } else {
-        return parsinginZone(data, "YYYY-MM-DD");
+        return parsinginZone(data, "YYYY-MM-DD hh:mm:ss");
       }
     },
     formatLimits(data) {
