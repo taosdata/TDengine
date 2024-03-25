@@ -115,7 +115,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
 
-EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow) {
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
@@ -128,7 +128,7 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
-    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
   }
 }
 
