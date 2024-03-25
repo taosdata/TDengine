@@ -546,8 +546,8 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      pDataBlock->info.pks[0].val = *(int64_t*) ekey;
-      pDataBlock->info.pks[1].val = *(int64_t*) skey;
+      pDataBlock->info.pks[0].val = *(int32_t*) ekey;
+      pDataBlock->info.pks[1].val = *(int32_t*) skey;
     } else {  // todo refactor
       memcpy(pDataBlock->info.pks[0].pData, varDataVal(ekey), varDataLen(ekey));
       pDataBlock->info.pks[0].nData = varDataLen(ekey);
