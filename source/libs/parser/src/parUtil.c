@@ -1169,7 +1169,7 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   tNameExtractFullName(pName, fullName);
   STableCfg* pCfg = NULL;
   int32_t    code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pCfg) {
     *pOutput = tableCfgDup(pCfg);
     if (NULL == *pOutput) {
       code = TSDB_CODE_OUT_OF_MEMORY;

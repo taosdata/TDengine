@@ -3767,7 +3767,7 @@ static int32_t stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
     taosMemoryFree(pSubTblsInfo);
     pInfo->pSubTablesMergeInfo = NULL;
 
-    taosMemoryTrim(0);
+    //taosMemoryTrim(0);
   }
   return TSDB_CODE_SUCCESS;
 }

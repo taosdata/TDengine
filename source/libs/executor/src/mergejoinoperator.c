@@ -60,6 +60,43 @@ int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBl
 }
 
 
+void mJoinTrimKeepFirstRow(SSDataBlock* pBlock) {
+  int32_t bmLen = BitmapLen(pBlock->info.rows);
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    // it is a reserved column for scalar function, and no data in this column yet.
+    if (pDst->pData == NULL || (IS_VAR_DATA_TYPE(pDst->info.type) && pDst->varmeta.length == 0)) {
+      continue;
+    }
+
+    if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+      pDst->varmeta.length = 0;
+
+      if (!colDataIsNull_var(pDst, 0)) {
+        char*   p1 = colDataGetVarData(pDst, 0);
+        int32_t len = 0;
+        if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+          len = getJsonValueLen(p1);
+        } else {
+          len = varDataTLen(p1);
+        }
+        pDst->varmeta.length = len;
+      }
+    } else {
+      bool isNull = colDataIsNull_f(pDst->nullbitmap, 0);
+
+      memset(pDst->nullbitmap, 0, bmLen);
+      if (isNull) {
+        colDataSetNull_f(pDst->nullbitmap, 0);
+      }
+    }
+  }
+
+  pBlock->info.rows = 1;
+}
+
 
 void mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
   //  int32_t totalRows = pBlock->info.rows;
@@ -341,6 +378,7 @@ int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInf
   
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     pBlock->info.rows = 1;
+    mJoinTrimKeepFirstRow(pBlock);
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
@@ -713,6 +751,7 @@ static int32_t mJoinInitColsInfo(int32_t* colNum, int64_t* rowSize, SMJoinColInf
   FOREACH(pNode, pList) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
     (*pCols)[i].srcSlot = pColNode->slotId;
+    (*pCols)[i].jsonData = TSDB_DATA_TYPE_JSON == pColNode->node.resType.type;
     (*pCols)[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
     (*pCols)[i].bytes = pColNode->node.resType.bytes;
     *rowSize += pColNode->node.resType.bytes;
@@ -1257,7 +1296,10 @@ bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *p
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
       return true;
     }
-    if (pTable->keyCols[0].vardata) {
+    if (pTable->keyCols[0].jsonData) {
+      pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
+      bufLen = getJsonValueLen(pData);
+    } else if (pTable->keyCols[0].vardata) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
       bufLen = varDataTLen(pData);
     } else {
@@ -1270,7 +1312,11 @@ bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *p
       if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
         return true;
       }
-      if (pTable->keyCols[i].vardata) {
+      if (pTable->keyCols[0].jsonData) {
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        memcpy(pTable->keyBuf + bufLen, pData, getJsonValueLen(pData));
+        bufLen += getJsonValueLen(pData);
+      } else if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
         memcpy(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
         bufLen += varDataTLen(pData);

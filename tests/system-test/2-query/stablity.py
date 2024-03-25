@@ -1239,7 +1239,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['SAMPLE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) or (mathlist == ['UNIQUE'])  :
                 sql = "select  %s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
                 sql += "%s " % random.choice(self.t_join_where)
@@ -1249,7 +1249,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['UNIQUE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) or (mathlist == ['statecount','stateduration']) :
                 sql = "select  %s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
                 sql += "%s " % random.choice(self.t_join_where)
@@ -1449,8 +1449,8 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['HISTOGRAM']) \
-                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['HISTOGRAM']) \
+                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) :
                 sql = "select  count(asct1) from  ( select  "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
@@ -1463,6 +1463,20 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) \
+                or (mathlist == ['statecount','stateduration']) :
+                sql = "select  count(asct1) from  ( select  "
+                sql += "%s as asct1 " % math_fun_join_2
+                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
+                sql += "%s " % random.choice(self.t_join_where)
+                sql += " and %s " % random.choice(self.qt_u_or_where)
+                sql += "%s " % random.choice(self.partiton_where_j)
+                sql += "%s " % random.choice(self.slimit1_where)
+                sql += ") "
+                sql += "%s ;" % random.choice(self.limit_u_where)
+                tdLog.info(sql)
+                tdSql.error(sql)
+                                
 
         #taos -f sql
         # startTime_taosf = time.time()

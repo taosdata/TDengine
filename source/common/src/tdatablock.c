@@ -229,7 +229,11 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
                          bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    len = varDataTLen(pData);
+    if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+      len = getJsonValueLen(pData);
+    } else {
+      len = varDataTLen(pData);
+    }  
     if (pColumnInfoData->varmeta.allocLen < (numOfRows * len + pColumnInfoData->varmeta.length)) {
       int32_t code = colDataReserve(pColumnInfoData, (numOfRows * len + pColumnInfoData->varmeta.length));
       if (code != TSDB_CODE_SUCCESS) {

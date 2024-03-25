@@ -956,7 +956,7 @@ static bool isTimeLineAlignedQuery(SNode* pStmt) {
     return false;
   }
   SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-  if (nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+  if (pSelect->pPartitionByList && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
     return true;
   }
   return false;
@@ -5397,6 +5397,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       return DEAL_RES_ERROR;                               
     }
 
+/*
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
     if ((NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
         !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
@@ -5407,6 +5408,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
                                      "%s function requires valid time series input", pFunc->functionName);
       return DEAL_RES_ERROR;                                     
     }
+*/
 
     SNode*         pPrimaryKey = NULL;
     SSHashObj*     pTableAlias = NULL;
@@ -5572,9 +5574,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkIsEmptyResult(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = appendTsForImplicitTsFunc(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
@@ -5586,6 +5585,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterp(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = appendTsForImplicitTsFunc(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);

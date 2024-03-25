@@ -57,6 +57,7 @@ typedef struct SMJoinColMap {
 typedef struct SMJoinColInfo {
   int32_t  srcSlot;
   int32_t  dstSlot;
+  bool     jsonData;
   bool     vardata;
   int32_t* offset;
   int32_t  bytes;
