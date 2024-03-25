@@ -8642,7 +8642,8 @@ void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
 }
 
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
-  if (tEncodeI8(pEncoder, (TQ_OFFSET_VERSION << 4) | pOffsetVal->type) < 0) return -1;
+  int8_t type = pOffsetVal->type < 0 ? pOffsetVal->type : (TQ_OFFSET_VERSION << 4) | pOffsetVal->type;
+  if (tEncodeI8(pEncoder, type) < 0) return -1;
   if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
@@ -8663,11 +8664,15 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
 
 int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
+  int8_t offsetVersion = 0;
+  if (pOffsetVal->type > 0){
+    offsetVersion = (pOffsetVal->type >> 4);
+    pOffsetVal->type = pOffsetVal->type & 0x0F;
+  }
   if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
-    if ((pOffsetVal->type >> 4) >= TQ_OFFSET_VERSION) {
-      pOffsetVal->type = pOffsetVal->type & 0x0F;
+    if (offsetVersion >= TQ_OFFSET_VERSION) {
       if (tDecodeI8(pDecoder, &pOffsetVal->primaryKey.type) < 0) return -1;
       if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
         if (tDecodeBinaryAlloc32(pDecoder, &pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData) < 0) return -1;
