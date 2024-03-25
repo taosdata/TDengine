@@ -597,7 +597,7 @@ func (c *UAClient) observe() error {
 				}
 				if len(values) == 0 {
 					c.logger.Warn("opcua read no values")
-					return
+					continue
 				}
 				if c.dumper != nil {
 					c.logger.Debug("opcua start to dump")
