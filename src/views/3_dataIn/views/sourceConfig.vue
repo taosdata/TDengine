@@ -443,7 +443,7 @@ export default {
           .then(() => {
             this.submit(true);
           })
-          .catch(() => {});
+          .catch(() => {this.loading = false});
       } else {
         this.submit(true);
       }
