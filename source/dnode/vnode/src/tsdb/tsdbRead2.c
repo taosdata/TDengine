@@ -1861,9 +1861,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pDelList, pReader);
   TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pDelList, pReader);
 
-  SRowKey* pSttKey = NULL;
+  SRowKey* pSttKey = &(SRowKey){0};
   if (hasDataInSttBlock(pBlockScanInfo) && (!pBlockScanInfo->cleanSttBlocks)) {
-    pSttKey = getCurrentKeyInSttBlock(pSttBlockReader);
+    tRowKeyAssign(pSttKey, getCurrentKeyInSttBlock(pSttBlockReader));
+  } else {
+    pSttKey = NULL;
   }
 
   SRowKey* pfKey = &(SRowKey){0};
@@ -1902,7 +1904,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     }
   }
 
-  SRowKey minKey;
+  SRowKey minKey = {0};
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
     minKey = k;  // let's find the minimum
 
@@ -1910,11 +1912,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = ik;
     }
 
-    if (pfKey != NULL && (pkCompEx(compFn, pfKey, &minKey) < 0)) {
+    if ((pfKey != NULL) && (pkCompEx(compFn, pfKey, &minKey) < 0)) {
       minKey = *pfKey;
     }
 
-    if (pSttKey != NULL && (pkCompEx(compFn, pSttKey, &minKey) < 0)) {
+    if ((pSttKey != NULL) && (pkCompEx(compFn, pSttKey, &minKey) < 0)) {
       minKey = *pSttKey;
     }
   } else {
@@ -1923,11 +1925,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = ik;
     }
 
-    if (pfKey != NULL && (pkCompEx(compFn, pfKey, &minKey) > 0)) {
+    if ((pfKey != NULL) && (pkCompEx(compFn, pfKey, &minKey) > 0)) {
       minKey = *pfKey;
     }
 
-    if (pSttKey != NULL && (pkCompEx(compFn, pSttKey, &minKey) > 0)) {
+    if ((pSttKey != NULL) && (pkCompEx(compFn, pSttKey, &minKey) > 0)) {
       minKey = *pSttKey;
     }
   }
