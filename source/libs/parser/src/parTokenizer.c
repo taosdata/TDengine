@@ -306,6 +306,7 @@ static SKeyword keywordTable[] = {
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
+    {"ARBGROUPS",            TK_ARBGROUPS},
 };
 // clang-format on
 
@@ -659,7 +660,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_ALIAS; // must be alias
         return i;
       }
-      if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
+      if (IS_TRUE_STR(z, i) || IS_FALSE_STR(z, i)) {
         *tokenId = TK_NK_BOOL;
         return i;
       }

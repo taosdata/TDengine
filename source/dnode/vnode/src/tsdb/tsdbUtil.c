@@ -629,18 +629,20 @@ void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
 }
 
 int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
-  if (pSrc->numOfPKs == 0) {
-    pDst->ts = pSrc->ts;
-    pDst->numOfPKs = 0;
-  } else {
-    *pDst = *pSrc;
+  pDst->ts = pSrc->ts;
+  pDst->numOfPKs = pSrc->numOfPKs;
 
+  if (pSrc->numOfPKs > 0) {
     for (int32_t i = 0; i < pDst->numOfPKs; ++i) {
       SValue *pVal = &pDst->pks[i];
+      pVal->type = pSrc->pks[i].type;
+
       if (IS_NUMERIC_TYPE(pVal->type)) {
-        continue;
+        pVal->val = pSrc->pks[i].val;
+      } else {
+        memcpy(pVal->pData, pVal->pData, pVal->nData);
+        pVal->nData = pSrc->pks[i].nData;
       }
-      memcpy(pVal->pData, pVal->pData, pVal->nData);
     }
   }
 

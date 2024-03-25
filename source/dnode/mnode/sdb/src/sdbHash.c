@@ -70,7 +70,9 @@ const char *sdbTableName(ESdbType type) {
       return "compact";
     case SDB_COMPACT_DETAIL:
       return "compact_detail";
-     default:
+    case SDB_ARBGROUP:
+      return "arb_group";
+    default:
       return "undefine";
   }
 }

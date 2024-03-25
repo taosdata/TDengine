@@ -445,7 +445,7 @@ char taosGetConsoleChar() {
   static char mbStr[5];
   static unsigned long bufLen = 0;
   static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
-  CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 1<<TAB_KEY, 0 };
+  CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 0, 0 };
   while (bufLen == 0) {
     ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);
     if (bufLen > 0 && buf[0] == 0) bufLen = 0;
@@ -500,13 +500,11 @@ int32_t shellReadCommand(char *command) {
       }
       shellInsertChar(&cmd, utf8_array, count);
       pressOtherKey(c);
-#ifndef WINDOWS
     } else if (c == TAB_KEY) {
       // press TAB key
       pressTabKey(&cmd);
-#endif
     } else if (c < '\033') {
-      pressOtherKey(c);      
+      pressOtherKey(c);
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
         case 0:

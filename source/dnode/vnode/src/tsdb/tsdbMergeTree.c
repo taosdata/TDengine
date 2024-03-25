@@ -437,7 +437,7 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
   code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
+  tsdbDebug("load the stt file blk info completed, elapsed time:%.2fms, %s", el, idStr);
   return code;
 }
 

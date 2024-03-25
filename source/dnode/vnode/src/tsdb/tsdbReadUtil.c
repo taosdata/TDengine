@@ -130,6 +130,46 @@ STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, c
   return *p;
 }
 
+static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
+  SRowKey* pRowKey = &pScanInfo->lastProcKey;
+  if (ASCENDING_TRAVERSE(pReader->info.order)) {
+    int64_t skey = pReader->info.window.skey;
+    pRowKey->ts = (skey > INT64_MIN) ? (skey - 1) : skey;
+    pScanInfo->sttKeyInfo.nextProcKey = skey;
+  } else {
+    int64_t ekey = pReader->info.window.ekey;
+    pRowKey->ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+    pScanInfo->sttKeyInfo.nextProcKey = ekey;
+  }
+
+  // only handle the first primary key.
+  pRowKey->numOfPKs = pReader->suppInfo.numOfPks;
+  if (pReader->suppInfo.numOfPks > 0) {
+    if (IS_VAR_DATA_TYPE(pReader->suppInfo.pk.type)) {
+      pRowKey->pks[0].pData = taosMemoryCalloc(1, pReader->suppInfo.pk.bytes);
+    }
+    pRowKey->pks[0].type = pReader->suppInfo.pk.type;
+  }
+}
+
+int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
+                               STsdbReader* pReader) {
+  pScanInfo->uid = uid;
+  INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+  INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
+
+  pScanInfo->cleanSttBlocks = false;
+  pScanInfo->sttBlockReturned = false;
+
+  initLastProcKey(pScanInfo, pReader);
+
+  pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
+  tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pReader, pScanInfo->uid,
+            pScanInfo->lastProcKey.ts, pReader->idStr);
+  return TSDB_CODE_SUCCESS;
+}
+
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
 SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
                                    STableUidList* pUidList, int32_t numOfTables) {
@@ -152,36 +192,10 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
   pUidList->currentIndex = 0;
 
   for (int32_t j = 0; j < numOfTables; ++j) {
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
-
-    pScanInfo->uid = idList[j].uid;
-    INIT_TIMEWINDOW(&pScanInfo->sttWindow);
-    INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
-
-    pScanInfo->cleanSttBlocks = false;
-    pScanInfo->sttBlockReturned = false;
-
     pUidList->tableUidList[j] = idList[j].uid;
 
-    if (ASCENDING_TRAVERSE(pTsdbReader->info.order)) {
-      int64_t skey = pTsdbReader->info.window.skey;
-      pScanInfo->lastProcKey.ts = (skey > INT64_MIN) ? (skey - 1) : skey;
-      pScanInfo->sttKeyInfo.nextProcKey = skey;
-    } else {
-      int64_t ekey = pTsdbReader->info.window.ekey;
-      pScanInfo->lastProcKey.ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-      pScanInfo->sttKeyInfo.nextProcKey = ekey;
-    }
-
-    pScanInfo->lastProcKey.numOfPKs = pTsdbReader->suppInfo.numOfPks;
-    if (pTsdbReader->suppInfo.numOfPks > 0 && IS_VAR_DATA_TYPE(pTsdbReader->suppInfo.pk.type)) {
-      pScanInfo->lastProcKey.pks[0].pData = taosMemoryCalloc(1, pTsdbReader->suppInfo.pk.bytes);
-    }
-
-    pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
-    tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
-    tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
-              pScanInfo->lastProcKey.ts, pTsdbReader->idStr);
+    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
+    initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -215,8 +229,7 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
     pInfo->lastProcKey.ts = ts;
-    ASSERT(0);
-
+    // todo check the nextProcKey info
     pInfo->sttKeyInfo.nextProcKey = ts + step;
   }
 }

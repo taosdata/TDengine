@@ -78,6 +78,8 @@ void        syncUtilMsgHtoN(void* msg);
 bool        syncUtilUserPreCommit(tmsg_t msgType);
 bool        syncUtilUserRollback(tmsg_t msgType);
 
+void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf);
+
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...);
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
                                 const char* format, ...);
