@@ -1801,6 +1801,7 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
       }
     }
 
+    // pKey == pSttKey
     tRowKeyAssign(&pBlockScanInfo->lastProcKey, pKey);
 
     // the following for key == sttKey->key.ts
@@ -1819,7 +1820,8 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
       return code;
     }
 
-    doMergeRowsInSttBlock(pSttBlockReader, pBlockScanInfo, pSttKey, pMerger, pkSrcSlot, &pReader->info.verRange,
+    // pSttKey will be changed when sttBlockReader iterates to the next row, so use pKey instead.
+    doMergeRowsInSttBlock(pSttBlockReader, pBlockScanInfo, pKey, pMerger, pkSrcSlot, &pReader->info.verRange,
                           pReader->idStr);
 
     code = tsdbRowMergerGetRow(pMerger, &pTSRow);
@@ -4675,10 +4677,6 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
       qTrace("tsdb/read: %p, unlock read mutex", pReader);
       tsdbReleaseReader(pReader);
     }
-
-//    tsdbReaderSuspend2(pReader);
-//    tsdbReaderResume2(pReader);
-
     return code;
   }
 
@@ -4904,6 +4902,8 @@ SSDataBlock* tsdbRetrieveDataBlock2(STsdbReader* pReader, SArray* pIdList) {
   qTrace("tsdb/read-retrieve: %p, unlock read mutex", pReader);
   tsdbReleaseReader(pReader);
 
+//  tsdbReaderSuspend2(pReader);
+//  tsdbReaderResume2(pReader);
   return ret;
 }
 
