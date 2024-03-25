@@ -633,7 +633,7 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
   pDst->numOfPKs = pSrc->numOfPKs;
 
   if (pSrc->numOfPKs > 0) {
-    for (int32_t i = 0; i < pDst->numOfPKs; ++i) {
+    for (int32_t i = 0; i < pSrc->numOfPKs; ++i) {
       SValue *pVal = &pDst->pks[i];
       pVal->type = pSrc->pks[i].type;
 

@@ -424,7 +424,8 @@ int32_t funcInputUpdate(SqlFunctionCtx* pCtx) {
   if (!pCtx->bInputFinished) {
     pIter->pInput = &pCtx->input;
     pIter->tsList = (TSKEY*)pIter->pInput->pPTS->pData;
-    pIter->pData = pIter->pInput->pData[0];
+    pIter->pDataCol = pIter->pInput->pData[0];
+    pIter->pPkCol = pIter->pInput->pPrimaryKey;
     pIter->rowIndex = pIter->pInput->startRowIndex;
     pIter->inputEndIndex = pIter->rowIndex + pIter->pInput->numOfRows - 1;
     pIter->pSrcBlock = pCtx->pSrcBlock; 
@@ -454,10 +455,16 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
       blockDataDestroy(pIter->pPrevRowBlock);
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pData->info.bytes);
-      char* srcData = colDataGetData(pIter->pData, pIter->inputEndIndex);
-      memcpy(pIter->pPrevData, srcData, pIter->pData->info.bytes);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
+
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
+
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
 
       pIter->hasPrev = true;
@@ -475,8 +482,9 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
         pRow->rowIndex = 0;
       } else {
         pRow->ts = pIter->tsList[idx - 1];
-        pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx - 1);
-        pRow->pData = colDataGetData(pIter->pData, idx - 1);
+        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx - 1);
+        pRow->pData = colDataGetData(pIter->pDataCol, idx - 1);
+        pRow->pPk = colDataGetData(pIter->pPkCol, idx - 1);
         pRow->block = pIter->pSrcBlock;
         pRow->rowIndex = idx - 1;
       }
@@ -492,20 +500,22 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->pData = colDataGetData(pIter->pDataCol, idx);
+      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = idx;
 
       pIter->rowIndex = idx + 1;
       return true;
     } else {
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
-      // TODO
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pData->info.bytes);
-      memcpy(pIter->pPrevData, colDataGetData(pIter->pData, pIter->inputEndIndex), pIter->pData->info.bytes);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex), pIter->pDataCol->info.bytes);
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
+
       pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
       return false;
     }
@@ -523,8 +533,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pData, idx);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->pData = colDataGetData(pIter->pDataCol, idx);
+      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
       pRow->rowIndex = idx;
 
@@ -535,8 +546,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   } else {
     if (pIter->rowIndex <= pIter->inputEndIndex) { 
       pRow->ts = pIter->tsList[pIter->rowIndex];
-      pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->rowIndex);
-      pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
+      pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
+      pRow->pPk = colDataGetData(pIter->pPkCol, pIter->rowIndex);
       pRow->block = pIter->pSrcBlock;
       pRow->rowIndex = pIter->rowIndex;
 
@@ -563,8 +575,9 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
 bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->rowIndex <= pIter->inputEndIndex) {
     pRow->ts = pIter->tsList[pIter->rowIndex];
-    pRow->isDataNull = colDataIsNull_f(pIter->pData->nullbitmap, pIter->rowIndex);
-    pRow->pData = colDataGetData(pIter->pData, pIter->rowIndex);
+    pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
+    pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
+    pRow->pPk = NULL;
     pRow->block = pIter->pSrcBlock;
     pRow->rowIndex = pIter->rowIndex;
 
@@ -2290,7 +2303,31 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   return TSDB_CODE_SUCCESS;
 }
 
-EFuncDataRequired firstDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
+// TODO: change this function when block data info pks changed
+static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal, int32_t order) {
+  char numVal[8] = {0};
+  switch (pkType) {
+    case TSDB_DATA_TYPE_INT:
+      *(int32_t*)numVal = (int32_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *(uint32_t*)numVal = (uint32_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *(int64_t*)numVal = (int64_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *(uint64_t*)numVal = (uint64_t)pVal->val;
+      break;
+    default:
+      break;
+  }
+  char*         blockData = (IS_NUMERIC_TYPE(pkType)) ? (char*) numVal : (char*)pVal->pData;
+  __compar_fn_t fn = getKeyComparFunc(pkType, order);
+  return fn(pkData, blockData);
+}
+
+EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 
   // not initialized yet, data is required
@@ -2299,14 +2336,21 @@ EFuncDataRequired firstDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
   }
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
-  if (pResult->hasResult && pResult->ts <= pTimeWindow->skey) {
-    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  if (pResult->hasResult) {
+    if (pResult->ts < pBlockInfo->window.skey) {
+      return FUNC_DATA_REQUIRED_NOT_LOAD;
+    } else if (pResult->ts == pBlockInfo->window.skey && pResult->pkData) {
+      if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 0, TSDB_ORDER_ASC) < 0) {
+        return FUNC_DATA_REQUIRED_NOT_LOAD;
+      }
+    }
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 }
 
-EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
+EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 
   // not initialized yet, data is required
@@ -2315,8 +2359,15 @@ EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
   }
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
-  if (pResult->hasResult && pResult->ts >= pTimeWindow->ekey) {
-    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  if (pResult->hasResult) {
+    if (pResult->ts > pBlockInfo->window.ekey) {
+      return FUNC_DATA_REQUIRED_NOT_LOAD;
+    } else if (pResult->ts == pBlockInfo->window.ekey && pResult->pkData) {
+      if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 1, TSDB_ORDER_DESC) < 0) {
+        return FUNC_DATA_REQUIRED_NOT_LOAD;
+      }
+    }
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }

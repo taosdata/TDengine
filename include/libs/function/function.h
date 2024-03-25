@@ -185,6 +185,7 @@ typedef struct SFuncInputRow {
   TSKEY ts;
   bool isDataNull;
   char* pData;
+  char* pPk;
 
   SSDataBlock* block; // prev row block or src block
   int32_t rowIndex; // prev row block ? 0 : rowIndex in srcBlock
@@ -198,7 +199,8 @@ typedef struct SFuncInputRowIter {
   bool  hasPrev;
  
   SInputColumnInfoData* pInput;
-  SColumnInfoData* pData;
+  SColumnInfoData* pDataCol;
+  SColumnInfoData* pPkCol;
   TSKEY* tsList;
   int32_t rowIndex;
   int32_t inputEndIndex;
@@ -207,6 +209,7 @@ typedef struct SFuncInputRowIter {
   TSKEY prevBlockTsEnd;
   bool prevIsDataNull;
   char* pPrevData;
+  char* pPrevPk;
   SSDataBlock* pPrevRowBlock; // pre one row block
 
   //TODO:
