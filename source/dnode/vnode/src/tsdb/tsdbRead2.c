@@ -709,9 +709,14 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       continue;
     }
 
-    int32_t ret = pkCompEx(pReader->pkComparFn, &pRecord->lastKey.key, &pScanInfo->lastProcKey);
-    if ((asc && ret <= 0) || (!asc && ret >= 0)) {
-      continue;
+    if (asc) {
+      if (pkCompEx(pReader->pkComparFn, &pRecord->lastKey.key, &pScanInfo->lastProcKey) <= 0) {
+        continue;
+      }
+    } else {
+      if (pkCompEx(pReader->pkComparFn, &pRecord->firstKey.key, &pScanInfo->lastProcKey) >= 0) {
+        continue;
+      }
     }
 
     // 2. version range check, version range is an CLOSED interval
