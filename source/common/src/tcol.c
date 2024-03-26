@@ -208,6 +208,7 @@ const char* columnLevelStr(uint8_t type) {
       level = TSDB_COLUMN_LEVEL_LOW;
       break;
     default:
+      level = TSDB_COLUMN_LEVEL_UNKNOWN;
       break;
   }
   return level;
@@ -286,8 +287,13 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 
 void setColCompressByOption(uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level) {
   setColEncode(compress, encode);
-  setColCompress(compress, compressType);
-  setColLevel(compress, level);
+  if (compressType == TSDB_COLVAL_COMPRESS_DISABLED) {
+    setColCompress(compress, compressType);
+    setColLevel(compress, TSDB_COLVAL_LEVEL_DISABLED);
+  } else {
+    setColCompress(compress, compressType);
+    setColLevel(compress, level);
+  }
   return;
 }
 

@@ -1685,7 +1685,8 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
     SColCmpr *pCmpr = &pNew->pCmpr[i];
     if (pCmpr->id == colId) {
       uint32_t dst = 0;
-      updated = tUpdateCompress(pCmpr->alg, p->bytes, &dst);
+      updated = tUpdateCompress(pCmpr->alg, p->bytes, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+                                TSDB_COLVAL_LEVEL_MEDIUM, &dst);
       if (updated) pCmpr->alg = dst;
       break;
     }
@@ -2351,6 +2352,8 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   taosRUnLockLatch(&pOld->lock);
   stbObj.pColumns = NULL;
   stbObj.pTags = NULL;
+  stbObj.pFuncs = NULL;
+  stbObj.pCmpr = NULL;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   bool updateTagIndex = false;

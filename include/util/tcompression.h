@@ -256,21 +256,21 @@ typedef struct {
 } TCompressPara;
 
 typedef enum L1Compress {
-  L1_DISABLED,
+  L1_UNKNOWN,
   L1_SIMPLE_8B,
   L1_XOR,
   L1_RLE,
-  L1_MAX,
+  L1_DISABLED = 0xFF,
 } EL1CompressFuncType;
 
 typedef enum L2Compress {
-  L2_DISABLED,
+  L2_UNKNOWN,
   L2_LZ4,
   L2_ZLIB,
   L2_ZSTD,
   L2_TSZ,
   L2_XZ,
-  L2_MAX,
+  L2_DISABLED = 0xFF,
 } EL2ComressFuncType;
 
 int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
@@ -289,7 +289,8 @@ int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t
     (cmpr) &= 0xFFFFFF00;               \
     (cmpr) |= (lvl);                    \
   } while (0)
-int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint32_t *dst);
+int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, uint8_t lvlDisabled, uint8_t lvlDefault,
+                       uint32_t *dst);
 #ifdef __cplusplus
 }
 #endif

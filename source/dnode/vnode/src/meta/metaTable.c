@@ -2187,7 +2187,8 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
     SColCmpr *p = &wp->pColCmpr[i];
     if (p->id == pReq->colId) {
       uint32_t dst = 0;
-      updated = tUpdateCompress(p->alg, pReq->compress, &dst);
+      updated = tUpdateCompress(p->alg, pReq->compress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+                                TSDB_COLVAL_LEVEL_MEDIUM, &dst);
       if (updated) {
         p->alg = dst;
       }
