@@ -164,7 +164,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             ts = value.Timestamp;
                             if (valDic.ContainsKey($"{columnName}_val"))
                             {
-                                log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
+                                if (valDic[$"{columnName}_val"] != value.ValueString)
+                                {
+                                    log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
+                                }
                                 continue;
                             }
                             if (value.Quality == 0)

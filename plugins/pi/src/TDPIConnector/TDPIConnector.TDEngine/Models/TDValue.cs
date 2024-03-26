@@ -33,7 +33,7 @@ namespace TDPIConnector.TDEngine.Models
         public string Name { get;  set; }
         public Object Value { get; set; }
         public DateTime Timestamp { get; set; }
-        public TDValueType ValueType { get; }
+        public TDValueType ValueType { get; set; }
         public int Quality { get; private set; }
         public string Status { get; private set; }
         public string ValueString
@@ -68,7 +68,7 @@ namespace TDPIConnector.TDEngine.Models
                     {
                         v = v.Substring(0, 100);
                     }
-                    return $"\'{v}\'";
+                    return $"{v}";
 
                 case TDValueType.Timestamp:
                     DateTimeOffset dateTimeOffset = new DateTimeOffset((DateTime)Value);
@@ -77,6 +77,13 @@ namespace TDPIConnector.TDEngine.Models
                     return Convert.ToBoolean(Value).ToString();
             }
             return string.Empty;
+        }
+        public void SetTDDeleted() {
+            ValueType = TDValueType.String;
+            Value = "TAOS_DELETE";
+        }
+        public bool IsTDDeleted() {
+            return Value.ToString() == "TAOS_DELETE";
         }
     }
 }
