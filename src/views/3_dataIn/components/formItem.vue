@@ -19,7 +19,7 @@
       :prop="parent + field"
     >
       <template slot="label">
-        <el-tooltip placement="top" effect="light">
+        <el-tooltip placement="top" effect="light" :open-delay="0">
           <template slot="content">
             <DocsContent
               v-if="doscShow && !dataSetDocsShow"
@@ -125,7 +125,7 @@
       />
       <div v-if="config.info" slot="label">
         {{ config.label }}
-        <el-tooltip class="item" effect="light" placement="top">
+        <el-tooltip class="item" effect="light" placement="top" :open-delay="0">
           <div
             v-dompurify-html="parseMarked(config.description)"
             slot="content"

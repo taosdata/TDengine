@@ -36,7 +36,7 @@
           </el-form-item>
           <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
             <template slot="label">
-              <el-tooltip placement="top" effect="light">
+              <el-tooltip placement="top" effect="light" :open-delay="0">
                 <template slot="content">
                   <DocsContent
                     :content="$t('dataIn.needAgentTip')"
