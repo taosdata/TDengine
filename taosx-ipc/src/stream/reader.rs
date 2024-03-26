@@ -601,7 +601,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<bool>()
                                 .map_err(|err| {
-                                    tracing::error!("parse bool from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse bool from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -616,7 +620,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u8>()
                                 .map_err(|err| {
-                                    tracing::error!("parse u8 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse u8 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -631,7 +639,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u16>()
                                 .map_err(|err| {
-                                    tracing::error!("parse u16 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse u16 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -646,7 +658,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u32>()
                                 .map_err(|err| {
-                                    tracing::error!("parse u32 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse u32 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -661,7 +677,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u64>()
                                 .map_err(|err| {
-                                    tracing::error!("parse u64 from `{}` error: {}", v, err,)
+                                    tracing::warn!("parse u64 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -676,7 +692,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i8>()
                                 .map_err(|err| {
-                                    tracing::error!("parse i8 from `{}` error: {}", v, err,)
+                                    tracing::warn!("parse i8 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -691,7 +707,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i16>()
                                 .map_err(|err| {
-                                    tracing::error!("parse i16 from `{}` error: {}", v, err,)
+                                    tracing::warn!("parse i16 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -706,7 +722,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i32>()
                                 .map_err(|err| {
-                                    tracing::error!("parse i32 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse i32 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -721,7 +741,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i64>()
                                 .map_err(|err| {
-                                    tracing::error!("parse i64 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse i64 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -736,7 +760,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<f32>()
                                 .map_err(|err| {
-                                    tracing::error!("parse f32 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse f32 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -751,7 +779,11 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<f64>()
                                 .map_err(|err| {
-                                    tracing::error!("parse f64 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse f64 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -767,7 +799,11 @@ mod arrow_to_taos {
                             // TODO: support parse timestamp from string
                             v.parse::<i64>()
                                 .map_err(|err| {
-                                    tracing::error!("parse i64 from `{}` error: {}", v, err,)
+                                    tracing::warn!(
+                                        "parse i64 from `{}` error: {}, fallback to null",
+                                        v,
+                                        err,
+                                    )
                                 })
                                 .ok()
                         })
@@ -834,9 +870,9 @@ impl LushMessageInsert {
     /// ## Panics
     ///
     /// Panic if the column or row index is out of range.
+    #[inline]
     fn is_delete(&self, row: usize, col: usize) -> bool {
         let arr = self.records.record.column(col);
-        tracing::warn!(row, col, "{:?}", self.records.record);
         match arr.data_type() {
             DataType::Binary => {
                 let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
@@ -871,11 +907,11 @@ impl LushMessageInsert {
     }
 
     /// return (sqls to executes, )
-    pub fn generate_insert_sql_from_tablename(
+    pub fn generate_insert_sql_from_tablename<'b>(
         &self,
         data: &Vec<ColumnView>,
-        columns: &Vec<String>,
-    ) -> Option<(Vec<String>, HashMap<String, IpcDataType>)> {
+        columns: &'b Vec<String>,
+    ) -> Option<(Vec<String>, HashMap<&'b String, IpcDataType>)> {
         let index = self
             .records
             .record
@@ -907,17 +943,15 @@ impl LushMessageInsert {
                             // is table_name
                             continue;
                         }
-                        let temp_cv = cv.slice(j..j + 1).unwrap();
-                        if let Some(v) = temp_cv.get(0) {
+                        if let Some(v) = cv.get(j) {
                             let column_name = &columns[index];
                             if self.is_delete(j, n) {
+                                metrics::counter!("ipc.stream.points", 1);
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
                                 insert_values.push_str("NULL,");
                                 tracing::warn!(row = j, col = n, "Set column to NULL");
-                                continue;
-                            }
-                            let sql_value = v.to_sql_value();
-                            if !v.is_null() {
+                            } else if !v.is_null() {
+                                let sql_value = v.to_sql_value();
                                 let v_ty = v.ty();
                                 if v_ty.is_var_type() {
                                     let field_ipc_type = field_map.get_mut(column_name);
@@ -933,7 +967,7 @@ impl LushMessageInsert {
                                         }
                                     } else {
                                         field_map.insert(
-                                            column_name.clone(),
+                                            column_name,
                                             IpcDataType::from_str(
                                                 format!("{}({})", v_ty.name(), sql_value.len())
                                                     .as_str(),
@@ -1627,10 +1661,8 @@ fn file_reader() -> anyhow::Result<()> {
                     let map_data = record.to_column_views();
                     dbg!(&map_data);
 
-                    let sqls = record.generate_insert_sql_from_tablename(
-                        &map_data,
-                        &vec!["ts".to_string(), "c1".to_string()],
-                    );
+                    let columns = vec!["ts".to_string(), "c1".to_string()];
+                    let sqls = record.generate_insert_sql_from_tablename(&map_data, &columns);
                     dbg!(&sqls);
                 }
             }
