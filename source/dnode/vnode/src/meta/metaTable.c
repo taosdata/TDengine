@@ -2131,6 +2131,58 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
 _err:
   return -1;
 }
+int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  // impl later
+  SMetaEntry  tbEntry = {0};
+  void       *pVal = NULL;
+  int         nVal = 0;
+  int         ret;
+  int         c;
+  tb_uid_t    suid;
+  int64_t     oversion;
+  const void *pData = NULL;
+  int         nData = 0;
+  SDecoder    dc = {0};
+  ret = tdbTbGet(pMeta->pNameIdx, pReq->tbName, strlen(pReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    return -1;
+  }
+  suid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  if (tdbTbGet(pMeta->pUidIdx, &suid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
+    ret = -1;
+    goto _err;
+  }
+
+  STbDbKey tbDbKey = {0};
+  tbDbKey.uid = suid;
+  tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
+  if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal) < 0) {
+    tdbFree(pVal);
+    goto _err;
+  }
+
+  tDecoderInit(&dc, pVal, nVal);
+  ret = metaDecodeEntry(&dc, &tbEntry);
+  if (ret < 0) {
+    tDecoderClear(&dc);
+    goto _err;
+  }
+  if (tbEntry.type != TSDB_NORMAL_TABLE && tbEntry.type != TSDB_SUPER_TABLE) {
+    tDecoderClear(&dc);
+    goto _err;
+  }
+  metaWLock(pMeta);
+
+  metaULock(pMeta);
+
+  return 0;
+_err:
+  return -1;
+}
 
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
   pMeta->changed = true;
@@ -2148,6 +2200,8 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaAddTagIndex(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_DROP_TAG_INDEX:
       return metaDropTagIndex(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      return metaUpdateTableColCompress(pMeta, version, pReq);
     default:
       terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
       return -1;
