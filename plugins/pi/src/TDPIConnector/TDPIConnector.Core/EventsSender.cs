@@ -83,7 +83,11 @@ namespace TDPIConnector.Core
                     !dpEvent.Value.Attribute.Unsupported())
                 {
                     log.Info($"element event delete {elementName}:{attributeName}:{timestamp}");
-                    this.tdEngineProxy.UpdateAFElementAttributeNULL(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, timestamp).Wait();
+                    tdValue.SetTDDeleted();
+                }
+                if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh && !dpEvent.Value.Attribute.Unsupported())
+                {
+                    // log.Info($"element event refresh {elementName}:{attributeName}:{timestamp}");
                     continue;
                 }
                 if (!columnNames.Contains(attributeName))
