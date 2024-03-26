@@ -88,6 +88,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LTRIM,
   FUNCTION_TYPE_RTRIM,
   FUNCTION_TYPE_SUBSTR,
+  FUNCTION_TYPE_MD5,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,

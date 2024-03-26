@@ -9,7 +9,7 @@ from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
 
-ROUND = 1000
+ROUND = 2000
 
 class TSMA:
     def __init__(self):
@@ -53,10 +53,7 @@ class UsedTsma:
     def setIsTsma(self):
         self.is_tsma_ = self.name.endswith(self.TSMA_RES_STB_POSTFIX)
         if not self.is_tsma_:
-            pos = self.name.find('_')  # for tsma output child table
-            if pos == 32:
-                self.is_tsma_ = True
-
+            self.is_tsma_ = len(self.name) == 32  # for tsma output child table
 
 class TSMAQueryContext:
     def __init__(self) -> None:
@@ -110,6 +107,11 @@ class TSMAQCBuilder:
         res = tdSql.queryResult[0][0]
         return res.timestamp() * 1000
 
+    def md5(self, buf: str) -> str:
+        tdSql.query(f'select md5("{buf}")')
+        res = tdSql.queryResult[0][0]
+        return res
+
     def should_query_with_table(self, tb_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX) -> 'TSMAQCBuilder':
         used_tsma: UsedTsma = UsedTsma()
         used_tsma.name = tb_name
@@ -118,10 +120,11 @@ class TSMAQCBuilder:
         used_tsma.is_tsma_ = False
         self.qc_.used_tsmas.append(used_tsma)
         return self
-    
-    def should_query_with_tsma_ctb(self, tb_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX) -> 'TSMAQCBuilder':
+
+    def should_query_with_tsma_ctb(self, db_name: str, tsma_name: str, ctb_name: str, ts_begin: str = UsedTsma.TS_MIN, ts_end: str = UsedTsma.TS_MAX) -> 'TSMAQCBuilder':
         used_tsma: UsedTsma = UsedTsma()
-        used_tsma.name = tb_name
+        name = f'1.{db_name}.{tsma_name}_{ctb_name}'
+        used_tsma.name = self.md5(name)
         used_tsma.time_range_start = self.to_timestamp(ts_begin)
         used_tsma.time_range_end = self.to_timestamp(ts_end)
         used_tsma.is_tsma_ = True
@@ -711,7 +714,7 @@ class TDTestCase:
             if ctx.has_tsma():
                 if ctx.used_tsmas[0].name == tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX:
                     break
-                elif ctx.used_tsmas[0].name.find('_') == 32 and ctx.used_tsmas[0].name[33:] == tb:
+                elif len(ctx.used_tsmas[0].name) == 32 and 1: ## select md5
                     break
                 else:
                     time.sleep(1)
@@ -768,14 +771,14 @@ class TDTestCase:
         self.test_query_child_table()
         self.test_skip_tsma_hint()
         self.test_long_tsma_name()
-        self.test_long_tb_name()
+        self.test_long_ctb_name()
         self.test_add_tag_col()
         self.test_modify_col_name_value()
 
     def test_union(self):
         ctxs = []
         sql = 'select avg(c1) from meters union select avg(c1) from norm_tb'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('d2f2c89f2b3378a2a48b4cadf9c3f927_norm_tb').get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('test', 'tsma5', 'norm_tb').get_qc()
         ctxs.append(ctx)
         sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000" union select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
@@ -793,7 +796,7 @@ class TDTestCase:
         tdSql.execute('insert into norm_tb values(now, 2)')
         self.create_tsma('tsma_db2_norm_t', 'db2', 'norm_tb', ['avg(c2)', 'last(ts)'], '10m')
         sql = 'select avg(c1) from test.meters union select avg(c2) from norm_tb'
-        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('e2d730bfc1242321c58c9ab7590ac060_norm_tb').get_qc()])
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('db2', 'tsma_db2_norm_t', 'norm_tb').get_qc()])
         tdSql.execute('drop database db2')
         tdSql.execute('use test')
 
@@ -844,8 +847,19 @@ class TDTestCase:
 
         tdSql.execute(f'drop tsma {name}')
 
-    def test_long_tb_name(self):
-        pass
+    def test_long_ctb_name(self):
+        tb_name = self.generate_random_string(192)
+        tsma_name = self.generate_random_string(178)
+        tdSql.execute('create database db2')
+        tdSql.execute('use db2')
+        tdSql.execute(f'create table {tb_name}(ts timestamp, c2 int)')
+        tdSql.execute(f'insert into {tb_name} values(now, 1)')
+        tdSql.execute(f'insert into {tb_name} values(now, 2)')
+        self.create_tsma(tsma_name, 'db2', tb_name, ['avg(c2)', 'last(ts)'], '10m')
+        sql = f'select avg(c2), last(ts) from {tb_name}'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('db2', tsma_name, tb_name).get_qc()])
+        tdSql.execute('drop database db2')
+        tdSql.execute('use test')
 
     def test_skip_tsma_hint(self):
         ctxs = []
@@ -858,12 +872,10 @@ class TDTestCase:
 
     def test_query_child_table(self):
         sql = 'select avg(c1) from t1'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
-            'e8945e7385834f8c22705546d4016539_t1', UsedTsma.TS_MIN, UsedTsma.TS_MAX, child_tb=True).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', 'tsma2', 't1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
         sql = 'select avg(c1) from t3'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
-            'e8945e7385834f8c22705546d4016539_t3', child_tb=True).get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', 'tsma2', 't3').get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
     def test_recursive_tsma(self):
@@ -1103,6 +1115,9 @@ class TDTestCase:
         self.init_data()
         self.test_ddl()
         self.test_query_with_tsma()
+
+    def test_ins_tsma(self):
+        pass
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name

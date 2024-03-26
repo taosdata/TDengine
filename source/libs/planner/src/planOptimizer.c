@@ -4736,57 +4736,46 @@ static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptU
 
 static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode,
                                     const STSMAOptUsefulTsma* pTsma) {
-  int32_t        code = 0;
-  SFunctionNode* pRewrittenFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  SValueNode*    pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  if (!pRewrittenFunc || !pValue) code = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t     code = 0;
+  SExprNode*  pRewrittenFunc = (SExprNode*)nodesMakeNode(pTsma ? QUERY_NODE_COLUMN : QUERY_NODE_FUNCTION);
+  SValueNode* pValue = NULL;
+  if (!pRewrittenFunc) code = TSDB_CODE_OUT_OF_MEMORY;
   if (code == TSDB_CODE_SUCCESS) {
-    pRewrittenFunc->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
-    pValue->translate = true;
+    pRewrittenFunc->resType = ((SExprNode*)(*pTbNameNode))->resType;
   }
 
   if (pTsma && code == TSDB_CODE_SUCCESS) {
-    // TODO tsma test child tbname too long
-    // if with tsma, we replace func tbname with substr(tbname, TSMA_RES_CTB_PREFIX_LEN)
-    pRewrittenFunc->funcId = fmGetFuncId("substr");
-    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "substr");
-    pValue->node.resType.type = TSDB_DATA_TYPE_INT;
-    pValue->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-    pValue->literal = taosMemoryCalloc(1, 16);
-    pValue->datum.i = TSMA_RES_CTB_PREFIX_LEN + 1;
-    if (!pValue->literal) code = TSDB_CODE_OUT_OF_MEMORY;
-    if (code == TSDB_CODE_SUCCESS) {
-      sprintf(pValue->literal, "%d", TSMA_RES_CTB_PREFIX_LEN + 1);
-      code = nodesListMakeAppend(&pRewrittenFunc->pParameterList, *pTbNameNode);
-    }
-    if (code == TSDB_CODE_SUCCESS) {
-      code = nodesListAppend(pRewrittenFunc->pParameterList, (SNode*)pValue);
-    }
+    nodesDestroyNode(*pTbNameNode);
+    SColumnNode* pCol = (SColumnNode*)pRewrittenFunc;
+    const SSchema* pSchema = taosArrayGet(pTsma->pTsma->pTags, pTsma->pTsma->pTags->size - 1);
+    strcpy(pCol->tableName, pTsma->targetTbName);
+    strcpy(pCol->tableAlias, pTsma->targetTbName);
+    pCol->tableId = pTsma->targetTbUid;
+    pCol->tableType = TSDB_SUPER_TABLE;
+    pCol->colId = pSchema->colId;
+    pCol->colType = COLUMN_TYPE_TAG;
   } else if (code == TSDB_CODE_SUCCESS) {
     // if no tsma, we replace func tbname with concat('', tbname)
-    pRewrittenFunc->funcId = fmGetFuncId("concat");
-    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "concat");
+    SFunctionNode* pFunc = (SFunctionNode*)pRewrittenFunc;
+    pFunc->funcId = fmGetFuncId("concat");
+    snprintf(pFunc->functionName, TSDB_FUNC_NAME_LEN, "concat");
+    pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    if (!pValue) code = TSDB_CODE_OUT_OF_MEMORY;
 
-    pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
-    pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
-    pValue->datum.p = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + VARSTR_HEADER_SIZE);
-    if (!pValue->literal || !pValue->datum.p) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (code == TSDB_CODE_SUCCESS) {
+      pValue->translate = true;
+      pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
+      pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
+      pValue->datum.p = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + VARSTR_HEADER_SIZE);
+      if (!pValue->literal || !pValue->datum.p) code = TSDB_CODE_OUT_OF_MEMORY;
+    }
 
-    if (0 && code == TSDB_CODE_SUCCESS) {
-      sprintf(pValue->literal, "%s.%s", pTsma->pTsma->dbFName, pTsma->pTsma->name);
-      int32_t len = taosCreateMD5Hash(pValue->literal, strlen(pValue->literal));
-      pValue->literal[len] = '_';
-      strcpy(pValue->datum.p, pValue->literal);
-      pValue->node.resType.bytes = len + 1;
-      varDataSetLen(pValue->datum.p, pValue->node.resType.bytes);
-      strncpy(pValue->datum.p, pValue->literal, pValue->node.resType.bytes);
-      pRewrittenFunc->node.resType.bytes += pValue->node.resType.bytes;
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pValue);
+      pValue = NULL;
     }
     if (code == TSDB_CODE_SUCCESS) {
-      code = nodesListMakeAppend(&pRewrittenFunc->pParameterList, (SNode*)pValue);
-    }
-    if (code == TSDB_CODE_SUCCESS) {
-      code = nodesListStrictAppend(pRewrittenFunc->pParameterList, *pTbNameNode);
+      code = nodesListStrictAppend(pFunc->pParameterList, *pTbNameNode);
     }
   }
 
@@ -4794,7 +4783,7 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
     *pTbNameNode = (SNode*)pRewrittenFunc;
   } else {
     nodesDestroyNode((SNode*)pRewrittenFunc);
-    nodesDestroyNode((SNode*)pValue);
+    if (pValue) nodesDestroyNode((SNode*)pValue);
   }
 
   return code;
@@ -4888,7 +4877,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       strcpy(pNewScan->tableName.tname, pTsma->targetTbName);
     }
     if (code == TSDB_CODE_SUCCESS) {
-      code = tsmaOptRewriteNodeList(pNewScan->pScanPseudoCols, pTsmaOptCtx, pTsma, false, true);
+      code = tsmaOptRewriteNodeList(pNewScan->pScanPseudoCols, pTsmaOptCtx, pTsma, true, true);
     }
     if (code == TSDB_CODE_SUCCESS) {
       code = tsmaOptRewriteNode(&pNewScan->pTagCond, pTsmaOptCtx, pTsma, true, true);

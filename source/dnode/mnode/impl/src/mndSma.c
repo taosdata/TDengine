@@ -70,7 +70,7 @@ typedef struct SCreateTSMACxt {
   const SDbObj *      pDb;
   SStbObj *           pSrcStb;
   SSmaObj *           pSma;
-  const SSmaObj *     pRecursiveSma;
+  const SSmaObj *     pBaseSma;
   SCMCreateStreamReq *pCreateStreamReq;
   SMDropStreamReq *   pDropStreamReq;
   const char *        streamName;
@@ -1396,7 +1396,7 @@ static void initSMAObj(SCreateTSMACxt* pCxt) {
   memcpy(pCxt->pSma->name, pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->stb, pCxt->pCreateSmaReq->stb, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->db, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
-  if (pCxt->pRecursiveSma) memcpy(pCxt->pSma->baseSmaName, pCxt->pRecursiveSma->name, TSDB_TABLE_FNAME_LEN);
+  if (pCxt->pBaseSma) memcpy(pCxt->pSma->baseSmaName, pCxt->pBaseSma->name, TSDB_TABLE_FNAME_LEN);
   pCxt->pSma->createdTime = taosGetTimestampMs();
   pCxt->pSma->uid = mndGenerateUid(pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
 
@@ -1448,7 +1448,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->fillHistory = STREAM_FILL_HISTORY_ON;
   pCxt->pCreateStreamReq->maxDelay = 10000;
   pCxt->pCreateStreamReq->watermark = 0;
-  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags : 0;
+  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags + 1 : 1;
   pCxt->pCreateStreamReq->checkpointFreq = 0;
   pCxt->pCreateStreamReq->createStb = 1;
   pCxt->pCreateStreamReq->targetStbUid = 0;
@@ -1460,10 +1460,10 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
 
   // construct tags
+  pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
+  SField f = {0};
   if (pCxt->pSrcStb) {
-    pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pSrcStb->numOfTags, sizeof(SField));
     for (int32_t idx = 0; idx < pCxt->pSrcStb->numOfTags; ++idx) {
-      SField   f = {0};
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
       f.bytes = pSchema->bytes;
       f.type = pSchema->type;
@@ -1472,6 +1472,11 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
     }
   }
+  f.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
+  f.flags = COL_SMA_ON;
+  f.type = TSDB_DATA_TYPE_BINARY;
+  tstrncpy(f.name, "tbname", strlen("tbname") + 1);
+  taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
 }
 
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
@@ -1604,7 +1609,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   SDbObj *       pDb = NULL;
   SStbObj *      pStb = NULL;
   SSmaObj *      pSma = NULL;
-  SSmaObj *      pRecursiveTsma = NULL;
+  SSmaObj *      pBaseTsma = NULL;
   SStreamObj *   pStream = NULL;
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateSmaReq createReq = {0};
@@ -1673,8 +1678,8 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   }
 
   if (createReq.recursiveTsma) {
-    pRecursiveTsma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.baseTsmaName);
-    if (!pRecursiveTsma) {
+    pBaseTsma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.baseTsmaName);
+    if (!pBaseTsma) {
       mError("base tsma: %s not found when creating recursive tsma", createReq.baseTsmaName);
       terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
       goto _OVER;
@@ -1690,7 +1695,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     .pDb = pDb,
     .pRpcReq = pReq,
     .pSma = NULL,
-    .pRecursiveSma = pRecursiveTsma,
+    .pBaseSma = pBaseTsma,
     .pSrcStb = pStb,
   };
 
@@ -1703,7 +1708,7 @@ _OVER:
   }
 
   if (pStb) mndReleaseStb(pMnode, pStb);
-  if (pRecursiveTsma) mndReleaseSma(pMnode, pRecursiveTsma);
+  if (pBaseTsma) mndReleaseSma(pMnode, pBaseTsma);
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
@@ -1871,8 +1876,9 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   while (numOfRows < rows) {
     pIter->pSmaIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
     if (pIter->pSmaIter == NULL) break;
+    SDbObj* pSrcDb = mndAcquireDb(pMnode, pSma->db);
 
-    if (pDb && pSma->dbUid != pDb->uid) {
+    if ((pDb && pSma->dbUid != pDb->uid) || !pSrcDb) {
       sdbRelease(pMnode->pSdb, pSma);
       continue;
     }
@@ -1915,7 +1921,6 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     // interval
     char interval[64 + VARSTR_HEADER_SIZE] = {0};
-    SDbObj* pSrcDb = mndAcquireDb(pMnode, pSma->db);
     int32_t len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
                            getPrecisionUnit(pSrcDb->cfg.precision));
     varDataSetLen(interval, len);
