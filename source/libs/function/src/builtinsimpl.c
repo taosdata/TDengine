@@ -6223,12 +6223,17 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
   }
 }
 
-static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo) {
+static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
   if (pCtx->hasPrimaryKey) {
-    pRateInfo->pkType = pCtx->input.pPrimaryKey->info.type;
-    pRateInfo->pkBytes = pCtx->input.pPrimaryKey->info.bytes;
-    pRateInfo->firstPk = pRateInfo->pkData;
-    pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    if (!isMerge) {
+      pRateInfo->pkType = pCtx->input.pPrimaryKey->info.type;
+      pRateInfo->pkBytes = pCtx->input.pPrimaryKey->info.bytes;
+      pRateInfo->firstPk = pRateInfo->pkData;
+      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    } else {
+      pRateInfo->firstPk = pRateInfo->pkData;
+      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    }
   } else {
     pRateInfo->firstPk = NULL;
     pRateInfo->lastPk = NULL;
@@ -6246,7 +6251,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
   funcInputUpdate(pCtx);
   
-  initializeRateInfo(pCtx, pRateInfo);
+  initializeRateInfo(pCtx, pRateInfo, false);
 
   int32_t numOfElems = 0;
   int32_t type = pInputCol->info.type;
@@ -6368,13 +6373,13 @@ int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  initializeRateInfo(pCtx, pInfo);
+  initializeRateInfo(pCtx, pInfo, true);
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*        data = colDataGetData(pCol, i);
     SRateInfo*   pInputInfo = (SRateInfo*)varDataVal(data);
-    initializeRateInfo(pCtx, pInfo);
+    initializeRateInfo(pCtx, pInfo, true);
     if (pInputInfo->hasResult) {
       int32_t code = irateTransferInfo(pInputInfo, pInfo);
       if (code != TSDB_CODE_SUCCESS) {

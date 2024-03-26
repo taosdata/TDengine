@@ -1632,7 +1632,7 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   if (isPartial) {
-    if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    if (3 != LIST_LENGTH(pFunc->pParameterList) && 4 != LIST_LENGTH(pFunc->pParameterList)) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (!IS_NUMERIC_TYPE(colType)) {
