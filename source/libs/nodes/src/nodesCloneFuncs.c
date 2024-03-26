@@ -490,6 +490,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(allEqTags);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(hasSubQuery);
+  COPY_SCALAR_FIELD(isLowLevelJoin);
   COPY_SCALAR_FIELD(seqWinGroup);
   COPY_SCALAR_FIELD(grpJoin);
   return TSDB_CODE_SUCCESS;

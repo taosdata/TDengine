@@ -57,6 +57,22 @@ sql insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 11
 sql insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
 sql insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
 
+sql drop database if exists testc;
+sql create database testc vgroups 3;
+sql use testc;
+
+sql create table stc1(ts timestamp, f int) tags (t json);
+sql insert into ctb11 using stc1 tags("{\"tag1\":\"1-11\",\"tag2\":1}") values('2023-10-16 09:10:11', 11);
+sql insert into ctb11 using stc1 tags("{\"tag1\":\"1-11\",\"tag2\":1}") values('2023-10-16 09:10:12', 12);
+sql insert into ctb12 using stc1 tags("{\"tag1\":\"1-12\",\"tag2\":2}") values('2023-10-16 09:10:11', 21);
+sql insert into ctb12 using stc1 tags("{\"tag1\":\"1-12\",\"tag2\":2}") values('2023-10-16 09:10:12', 22);
+
+sql create table stc2(ts timestamp, f int) tags (t json);
+sql insert into ctb21 using stc2 tags("{\"tag1\":\"1-21\",\"tag2\":1}") values('2023-10-16 09:10:11', 110);
+sql insert into ctb21 using stc2 tags("{\"tag1\":\"1-21\",\"tag2\":1}") values('2023-10-16 09:10:12', 120);
+sql insert into ctb22 using stc2 tags("{\"tag1\":\"1-22\",\"tag2\":2}") values('2023-10-16 09:10:11', 210);
+sql insert into ctb22 using stc2 tags("{\"tag1\":\"1-22\",\"tag2\":2}") values('2023-10-16 09:10:12', 220);
+
 run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
 run tsim/join/right_join.sim
@@ -74,6 +90,7 @@ run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim
 run tsim/join/join_explain.sim
+run tsim/join/join_json.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -97,5 +114,6 @@ run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim
 run tsim/join/join_explain.sim
+run tsim/join/join_json.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

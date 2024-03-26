@@ -881,17 +881,33 @@ static bool pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* allT
     return false;
   }
   SOperatorNode* pOper = (SOperatorNode*)pCond;
-  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || NULL == pOper->pRight || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
+  if ((QUERY_NODE_COLUMN != nodeType(pOper->pLeft) && !(QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) && OP_TYPE_JSON_GET_VALUE ==((SOperatorNode*)pOper->pLeft)->opType)) 
+      || NULL == pOper->pRight || 
+      (QUERY_NODE_COLUMN != nodeType(pOper->pRight) && !(QUERY_NODE_OPERATOR == nodeType(pOper->pRight) && OP_TYPE_JSON_GET_VALUE ==((SOperatorNode*)pOper->pRight)->opType))) {
     return false;
   }
-  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
-  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
-
-  *allTags = (COLUMN_TYPE_TAG == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType);
-
+  
   if (OP_TYPE_EQUAL != pOper->opType) {
     return false;
   }
+
+  if ((QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) || QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) &&
+      !(IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType))) {
+    return false;
+  }
+  
+  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
+  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
+
+  if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft)) {
+    pLeft = (SColumnNode*)((SOperatorNode*)pOper->pLeft)->pLeft;
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) {
+    pRight = (SColumnNode*)((SOperatorNode*)pOper->pRight)->pLeft;
+  }
+  
+  *allTags = (COLUMN_TYPE_TAG == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType);
 
   if (pLeft->node.resType.type != pRight->node.resType.type ||
       pLeft->node.resType.bytes != pRight->node.resType.bytes) {
@@ -900,17 +916,17 @@ static bool pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* allT
   SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
   SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
   bool isEqual = false;
-  if (pdcJoinColInTableColList(pOper->pLeft, pLeftCols)) {
-    isEqual = pdcJoinColInTableColList(pOper->pRight, pRightCols);
+  if (pdcJoinColInTableColList((SNode*)pLeft, pLeftCols)) {
+    isEqual = pdcJoinColInTableColList((SNode*)pRight, pRightCols);
     if (isEqual) {
       nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, nodesCloneNode(pOper->pLeft));
       nodesListMakeStrictAppend(&pJoin->pRightEqNodes, nodesCloneNode(pOper->pRight));
     }
-  } else if (pdcJoinColInTableColList(pOper->pLeft, pRightCols)) {
-    isEqual = pdcJoinColInTableColList(pOper->pRight, pLeftCols);
+  } else if (pdcJoinColInTableColList((SNode*)pLeft, pRightCols)) {
+    isEqual = pdcJoinColInTableColList((SNode*)pRight, pLeftCols);
     if (isEqual) {
-      nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, nodesCloneNode(pOper->pRight));
-      nodesListMakeStrictAppend(&pJoin->pRightEqNodes, nodesCloneNode(pOper->pLeft));
+      nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, nodesCloneNode(pOper->pLeft));
+      nodesListMakeStrictAppend(&pJoin->pRightEqNodes, nodesCloneNode(pOper->pRight));
     }
   }
 

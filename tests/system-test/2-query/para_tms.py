@@ -1239,7 +1239,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['SAMPLE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE'])  or (mathlist == ['UNIQUE']) or (mathlist == ['TAIL']) :
                 sql = "select /*+ para_tables_sort() */ %s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
                 sql += "%s " % random.choice(self.t_join_where)
@@ -1249,7 +1249,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['MAVG']) or (mathlist == ['UNIQUE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['CSUM']) or (mathlist == ['MAVG']) or (mathlist == ['statecount','stateduration']) :
                 sql = "select /*+ para_tables_sort() */ %s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
                 sql += "%s " % random.choice(self.t_join_where)
@@ -1449,7 +1449,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['UNIQUE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) or (mathlist == ['statecount','stateduration']) :
                 sql = "select /*+ para_tables_sort() */ count(asct1) from  ( select /*+ para_tables_sort() */ "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
@@ -1461,7 +1461,7 @@ class TDTestCase:
                 sql += "%s ;" % random.choice(self.limit_u_where)
                 tdLog.info(sql)
                 tdSql.error(sql)
-            elif (mathlist == ['SAMPLE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['UNIQUE']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) :
                 sql = "select /*+ para_tables_sort() */ count(asct1) from  ( select /*+ para_tables_sort() */ "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "

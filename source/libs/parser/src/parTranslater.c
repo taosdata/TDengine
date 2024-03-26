@@ -3677,8 +3677,8 @@ EDealRes joinCondsValidater(SNode* pNode, void* pContext) {
       if (OP_TYPE_EQUAL < pOp->opType || OP_TYPE_GREATER_THAN > pOp->opType) {
         break;
       }
-      if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_FUNCTION != nodeType(pOp->pLeft)) ||
-          (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_FUNCTION != nodeType(pOp->pRight))){
+      if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_FUNCTION != nodeType(pOp->pLeft) && !(QUERY_NODE_OPERATOR == nodeType(pOp->pLeft) && OP_TYPE_JSON_GET_VALUE ==((SOperatorNode*)pOp->pLeft)->opType)) ||
+          (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_FUNCTION != nodeType(pOp->pRight) && !(QUERY_NODE_OPERATOR == nodeType(pOp->pRight) && OP_TYPE_JSON_GET_VALUE ==((SOperatorNode*)pOp->pRight)->opType))){
         break;
       }
       if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) {

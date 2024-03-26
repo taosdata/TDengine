@@ -1251,6 +1251,7 @@ static int32_t stbSplSplitSortNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   }
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode((SNode*)pInfo->pSplitNode);
+    pInfo->pSplitNode = NULL;
     if (groupSort) {
       stbSplSetScanPartSort(pPartSort);
     }
