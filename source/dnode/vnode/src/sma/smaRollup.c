@@ -954,7 +954,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   }
 
   int64_t nRsmaTables = 0;
-  metaReaderDoInit(&mr, SMA_META(pSma), 0);
+  metaReaderDoInit(&mr, SMA_META(pSma), META_READER_LOCK);
   if (!(uidStore.tbUids = taosArrayInit(1024, sizeof(tb_uid_t)))) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
