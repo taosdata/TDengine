@@ -943,17 +943,15 @@ impl LushMessageInsert {
                             // is table_name
                             continue;
                         }
-                        let temp_cv = cv.slice(j..j + 1).unwrap();
-                        if let Some(v) = temp_cv.get(0) {
+                        if let Some(v) = cv.get(j) {
                             let column_name = &columns[index];
                             if self.is_delete(j, n) {
+                                metrics::counter!("ipc.stream.points", 1);
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
                                 insert_values.push_str("NULL,");
                                 tracing::warn!(row = j, col = n, "Set column to NULL");
-                                continue;
-                            }
-                            let sql_value = v.to_sql_value();
-                            if !v.is_null() {
+                            } else if !v.is_null() {
+                                let sql_value = v.to_sql_value();
                                 let v_ty = v.ty();
                                 if v_ty.is_var_type() {
                                     let field_ipc_type = field_map.get_mut(column_name);
