@@ -2194,6 +2194,8 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
       mndReleaseStream(pMnode, pStream);
     } else {
       // todo: wait for the create stream trans completed, and launch the checkpoint trans
+      // SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
+      // sleep(500ms)
     }
 
     // remove this entry
