@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_sum() {
         let map: Map =
-            serde_json::from_str(r#"{"col_new_sum":{"sum":["a","d"],"as":"INT"}}"#).unwrap();
+            serde_json::from_str(r#"{"col_new_sum":{"sum":["a","c"],"as":"INT"}}"#).unwrap();
         let batch = RecordBatch::try_from_iter([
             ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),

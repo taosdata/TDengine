@@ -135,6 +135,7 @@ pub fn spawn_rest_service(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn service() -> anyhow::Result<()> {
     use taos::{AsyncTBuilder, TaosBuilder};
     let taos = TaosBuilder::from_dsn("taos+ws://localhost:6041/test")
