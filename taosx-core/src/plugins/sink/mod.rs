@@ -139,7 +139,6 @@ async fn ipc_tcp_forward(
         let stream_trace_id_u64 = stream_trace_id_u64;
         let cur_span = Span::current();
         let data_stream = ipc_stream.clone();
-        tracing::error!(error = ?cause_error, retries = last_retries);
         if last_retries > MAX_LAST_RETRIES {
             tracing::warn!(
                 "There're {} retries happened in 2m, break now",
@@ -157,6 +156,8 @@ async fn ipc_tcp_forward(
                     .await;
                 return Err(err);
             }
+        } else if last_retries > 0 {
+            tracing::error!(error = ?cause_error, retries = last_retries, "Retry connections");
         }
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
@@ -1292,7 +1293,7 @@ async fn consume_point_record(
     trace_id_str: &str,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
-    tracing::debug!("consume point record, opc model config: {:?}", config);
+    tracing::trace!("consume point record, opc model config: {:?}", config);
 
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
