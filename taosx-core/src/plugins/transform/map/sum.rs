@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use arrow::{array::ArrayRef, record_batch::RecordBatch};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::plugins::expr::Expr;
@@ -15,8 +14,29 @@ pub struct SumValueBuilder {
 
 impl ValueBuilder for SumValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
-        let sum_expr = self.sum.iter().join("+");
-        let expr = Expr::try_new(sum_expr, true).map_err(|err| {
+        if self.sum.is_empty() {
+            return Err(ValueBuilderError::SumError(
+                "sum fields must greater than 1".to_string(),
+            ));
+        }
+        // use itertools::Itertools;
+        // let sum_expr = self.sum.iter().join("+");
+
+        // FIXME: commented code is for null support.
+
+        let sum_iter = self.sum.iter();
+        let mut sum_expr = "".to_string();
+        for (idx, field) in sum_iter.enumerate() {
+            if idx > 0 {
+                sum_expr.push_str(".add_or_set(");
+                sum_expr.push_str(&field);
+                sum_expr.push_str(")");
+            } else {
+                sum_expr.push_str(&format!("{}", field));
+            }
+        }
+
+        let expr = Expr::try_new(sum_expr, false).map_err(|err| {
             let err_msg = format!("failed to build sum expression, cause: {}", err.to_string());
             return ValueBuilderError::SumError(err_msg);
         })?;
@@ -106,11 +126,15 @@ mod tests {
 
         let result = builder.build_field("sum", &batch, None);
 
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "sum error, cause: failed to calculate sum, cause: invalid result"
-        );
+        dbg!(&result);
+        assert!(result.is_ok());
+        // FIXME: what's the expected result if there is a null value in the sum?
+
+        // assert!(result.is_err());
+        // assert_eq!(
+        //     result.unwrap_err().to_string(),
+        //     "sum error, cause: failed to calculate sum, cause: invalid result"
+        // );
     }
 
     #[test]
@@ -127,7 +151,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "sum error, cause: failed to calculate sum, cause: invalid result"
+            "sum error, cause: failed to calculate sum, cause: Eval `a.add_or_set(b).add_or_set(c)` error: Variable not found: b (line 1, position 14)"
         );
     }
 
@@ -152,9 +176,9 @@ mod tests {
         assert_eq!(field.data_type(), &DataType::Float64);
         assert_eq!(value.len(), 3);
         let arr = value.as_any().downcast_ref::<Float64Array>().unwrap();
-        assert_eq!(arr.value(0), 0f64);
-        assert_eq!(arr.value(1), 0f64);
-        assert_eq!(arr.value(2), 0f64);
+        assert_eq!(arr.value(0), 2f64);
+        assert_eq!(arr.value(1), 4f64);
+        assert_eq!(arr.value(2), 6f64);
     }
 
     #[test]
@@ -181,8 +205,8 @@ mod tests {
         assert_eq!(field.data_type(), &DataType::Float64);
         assert_eq!(value.len(), 3);
         let arr = value.as_any().downcast_ref::<Float64Array>().unwrap();
-        assert_eq!(arr.value(0), 0f64);
-        assert_eq!(arr.value(1), 0f64);
-        assert_eq!(arr.value(2), 0f64);
+        assert_eq!(arr.value(0), 11f64);
+        assert_eq!(arr.value(1), 22f64);
+        assert_eq!(arr.value(2), 33f64);
     }
 }

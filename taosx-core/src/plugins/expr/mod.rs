@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, BooleanArray};
+use arrow::array::{Array, ArrayRef, BooleanArray, NullArray};
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 
 use arrow::datatypes::DataType;
@@ -108,8 +108,10 @@ impl Expr {
         engine.register_fn("replace", functions::replace);
         engine.register_fn("replace", functions::replacen);
         engine.register_fn("truncate", functions::truncate);
+        engine.register_fn("add_or_set", functions::add_or_set);
         let engine = Arc::new(engine);
-        let ast = engine.compile_expression(&expr)?;
+        let ast = engine.compile(&expr)?;
+        // let ast = engine.compile_expression(&expr)?;
         Ok(Self {
             expr,
             null_if_error,
@@ -145,7 +147,7 @@ impl Expr {
                 let column = &columns[cix];
 
                 if column.is_null(rix) {
-                    // scope.set_or_push(name, Dynamic::UNIT);
+                    scope.set_or_push(name, Dynamic::UNIT);
                     continue;
                 }
 
@@ -278,7 +280,12 @@ impl Expr {
         match _as {
             None => {
                 let values = self.eval_inner(records)?;
-                array_from_rhai_dynamics(values).ok_or(EvalError::InvalidResult)
+                let result = array_from_rhai_dynamics(values);
+                if self.null_if_error {
+                    Ok(result.unwrap_or_else(|| Arc::new(NullArray::new(records.num_rows())) as _))
+                } else {
+                    result.ok_or(EvalError::InvalidResult)
+                }
             }
             Some(as_type) => self.eval_as(records, as_type),
         }
