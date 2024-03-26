@@ -2156,6 +2156,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     mWarn("failed to find the stream:0x%" PRIx64 ", not handle the checkpoint req, try to acquire in buf", req.streamId);
 
     // not in meta-store yet, try to acquire the task in exec buffer
+    // the checkpoint req arrives too soon before the completion of the create stream trans.
     STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
     void* p = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
     if (p == NULL) {
