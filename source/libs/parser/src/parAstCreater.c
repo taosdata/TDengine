@@ -1418,6 +1418,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_KEEP_TIME_OFFSET: {
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
+    case DB_OPTION_ENCRYPT_ALGORITHM:
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
+      break;
     }
     default:
       break;
@@ -2089,6 +2092,16 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   SDropUserStmt* pStmt = (SDropUserStmt*)nodesMakeNode(QUERY_NODE_DROP_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  return (SNode*)pStmt;
+}
+
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateEncryptKeyStmt* pStmt = (SCreateEncryptKeyStmt*)nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_KEY_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  if (NULL != pValue) {
+    trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
+  }
   return (SNode*)pStmt;
 }
 

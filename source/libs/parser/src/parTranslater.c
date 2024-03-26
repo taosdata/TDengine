@@ -295,6 +295,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -5274,6 +5280,20 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if ('\0' != pOptions->encryptAlgorithmStr[0]) {
+    if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
+      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
+    } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
+      pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_ROW;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option encryptAlgorithm: %s", pOptions->encryptAlgorithmStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkDbPrecisionOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->precisionStr[0]) {
     if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MILLI_STR)) {
@@ -5461,6 +5481,9 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
       checkDbRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCacheModelOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbEncryptAlgorithmOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code =

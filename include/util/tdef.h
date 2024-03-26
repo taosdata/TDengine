@@ -293,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
+#define TSDB_ENCRYPT_KEY_LEN     16
+
 #define TSDB_CLUSTER_VALUE_LEN   1000
 #define TSDB_GRANT_LOG_COL_LEN   15600
 
@@ -387,6 +389,14 @@ typedef enum ELogicConditionType {
 #define TSDB_CACHE_MODEL_LAST_ROW       1
 #define TSDB_CACHE_MODEL_LAST_VALUE     2
 #define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_ENCRYPT_ALGO_STR_LEN       16
+#define TSDB_ENCRYPT_ALGO_NONE_STR      "none"
+#define TSDB_ENCRYPT_ALGO_SM4_STR       "sm4"
+#define TSDB_ENCRYPT_ALGO_NONE          0
+#define TSDB_ENCRYPT_ALGO_SM1           1
+#define TSDB_ENCRYPT_ALGO_SM2           2
+#define TSDB_ENCRYPT_ALGO_SM3           3
+#define TSDB_ENCRYPT_ALGO_SM4           4
 #define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
