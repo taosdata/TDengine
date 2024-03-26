@@ -2673,10 +2673,10 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     if (l1 != L1_DISABLED && l2 == L2_DISABLED) {                                                             \
       if (compress) {                                                                                         \
         uTrace("encode:%s, compress:%s, level:%d", compressL1Dict[l1].name, "disabled", "disabled");          \
-        return compressL1Dict[l1].comprFn(pIn, nEle, pBuf, type);                                             \
+        return compressL1Dict[l1].comprFn(pIn, nEle, pOut, type);                                             \
       } else {                                                                                                \
         uTrace("dencode:%s, compress:%s, level:%d", compressL1Dict[l1].name, "disabled", "disabled");         \
-        return compressL1Dict[l1].decomprFn(pIn, nEle, pBuf, type);                                           \
+        return compressL1Dict[l1].decomprFn(pIn, nEle, pOut, type);                                           \
       }                                                                                                       \
     } else if (l1 != L1_DISABLED && l2 != L2_DISABLED) {                                                      \
       if (compress) {                                                                                         \
