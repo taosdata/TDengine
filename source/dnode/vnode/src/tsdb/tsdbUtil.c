@@ -642,8 +642,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
       return &pIter->cv;
     }
 
-    if (pIter->iColData < pIter->pRow->pBlockData->nColData) {
-      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData], pIter->pRow->iRow, &pIter->cv);
+    if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
+      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
       ++pIter->iColData;
       return &pIter->cv;
     } else {

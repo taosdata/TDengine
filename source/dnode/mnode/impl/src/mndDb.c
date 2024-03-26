@@ -397,11 +397,11 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
-  #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
-  #else
+#else
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
-  #endif
+#endif
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
@@ -438,13 +438,14 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   if (pNewCfg->daysToKeep0 < pNewCfg->daysPerFile) return -1;
   if (pNewCfg->daysToKeep0 > pNewCfg->daysToKeep1) return -1;
   if (pNewCfg->daysToKeep1 > pNewCfg->daysToKeep2) return -1;
-  if (pNewCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pNewCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return -1;
+  if (pNewCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pNewCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET)
+    return -1;
   if (pNewCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pNewCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
   if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
   if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
   if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
   if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
-  #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
   if (pNewCfg->replications == 2 && pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR) {
     if (pOldCfg->replications != 1 && pOldCfg->replications != 2) {
@@ -452,9 +453,13 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
       return -1;
     }
   }
-  #else
+  if (pNewCfg->replications != 2 && pOldCfg->replications == 2) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return -1;
+  }
+#else
   if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
-  #endif
+#endif
   if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
   if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
@@ -940,7 +945,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
-  if (pAlter->withArbitrator != pDb->cfg.withArbitrator) {
+  if (pAlter->withArbitrator >= TSDB_MIN_DB_WITH_ARBITRATOR && pAlter->withArbitrator != pDb->cfg.withArbitrator) {
     pDb->cfg.withArbitrator = pAlter->withArbitrator;
     pDb->vgVersion++;
     terrno = 0;
