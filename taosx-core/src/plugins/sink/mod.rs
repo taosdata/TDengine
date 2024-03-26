@@ -1,5 +1,6 @@
 use std::{
     any::Any,
+    cell::Cell,
     collections::{HashMap, HashSet},
     io::{Read, Write},
     iter::zip,
@@ -723,7 +724,7 @@ async fn consume_lush_record(
                         info!("written [{count}] records");
                     }
                 } else {
-                    unreachable!("lush message insert sqls should not be none");
+                    error!("lush message insert sqls should not be none");
                 }
             }
             // drop(guard);
@@ -2669,12 +2670,13 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
 pub fn generate_alter_sql_diff_desc(
     tablename: &str,
     desc: &Describe,
-    fields: &Vec<(String, IpcDataType)>,
+    fields: &Vec<(impl AsRef<str>, IpcDataType)>,
     is_tag: bool,
 ) -> Option<Vec<String>> {
     let mut alter_sql = Vec::new();
     // diff columns and tags
     for (name, ty) in fields {
+        let name = name.as_ref();
         if name == "__table_name__" {
             continue;
         }
@@ -2986,7 +2988,6 @@ pub async fn handle_lush_message_init(
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
 pub struct IpcStreamWorker {
     pool: TaosPool,
     pub parser: IpcParser,
@@ -2997,8 +2998,31 @@ pub struct IpcStreamWorker {
     opc_table_config: OnceCell<OpcModelConfig>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
+    taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
+    target_precision: taos::Precision,
     span: tracing::Span,
-    // stmt: Arc<UnsafeCell<Stmt>>,
+}
+
+unsafe impl Send for IpcStreamWorker {}
+unsafe impl Sync for IpcStreamWorker {}
+
+impl Clone for IpcStreamWorker {
+    fn clone(&self) -> Self {
+        Self {
+            pool: self.pool.clone(),
+            parser: self.parser.clone(),
+            lock: self.lock.clone(),
+            task: self.task,
+            from: self.from.clone(),
+            config: self.config.clone(),
+            opc_table_config: self.opc_table_config.clone(),
+            license: self.license.clone(),
+            transferred: self.transferred.clone(),
+            span: self.span.clone(),
+            taos: Cell::new(None),
+            target_precision: self.target_precision,
+        }
+    }
 }
 
 impl IpcStreamWorker {
@@ -3021,18 +3045,22 @@ impl IpcStreamWorker {
                 })
                 .await?;
         }
+        let taos = pool.get().await?;
+        let target_precision = get_current_precision(&taos).await?;
 
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
             pool,
             from,
             parser: IpcParser::new(schema),
-            lock: lock,
+            lock,
             task,
             config: None,
             opc_table_config,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
+            taos: Cell::new(Some(taos)),
+            target_precision,
             span,
         })
     }
@@ -3053,8 +3081,10 @@ impl IpcStreamWorker {
         trace_id_str: &str,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
-        let taos = self.pool.get().await?;
-        let target_precision = get_current_precision(&taos).await?;
+        let taos = unsafe { &mut *self.taos.as_ptr() };
+        if taos.is_none() {
+            *taos = Some(self.pool.get().await?);
+        }
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
                 todo!()
@@ -3075,7 +3105,7 @@ impl IpcStreamWorker {
                     parser, // todo: license
                     self.license.as_deref(),
                     self.transferred.as_deref(),
-                    target_precision,
+                    self.target_precision,
                     data_trace_id,
                     trace_id_str,
                     metrics,
@@ -3133,7 +3163,7 @@ impl IpcStreamWorker {
                     self.opc_table_config.get().ok_or_else(|| {
                         anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str)
                     })?,
-                    target_precision,
+                    self.target_precision,
                     data_trace_id,
                     trace_id_str,
                     metrics,
