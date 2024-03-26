@@ -1679,27 +1679,14 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
-  DEFINE_VAR((uint32_t)(p->bytes));
 
   int8_t updated = 0;
   for (int i = 0; i < pNew->numOfColumns; i++) {
     SColCmpr *pCmpr = &pNew->pCmpr[i];
     if (pCmpr->id == colId) {
-      uint32_t cmprAlg = pCmpr->alg;
-      uint8_t  tl1 = COMPRESS_L1_TYPE_U32(cmprAlg);
-      uint8_t  tl2 = COMPRESS_L2_TYPE_U32(cmprAlg);
-      uint8_t  tlvl = COMPRESS_L2_TYPE_LEVEL_U32(cmprAlg);
-      if (l1 != 0) {
-        updated = 1;
-        setColCompressByOption((uint32_t *)&cmprAlg, l1, tl2, tlvl);
-      } else if (l2 != 0) {
-        updated = 1;
-        setColCompressByOption((uint32_t *)&cmprAlg, tl1, l2, tlvl);
-      } else if (lvl != 0) {
-        updated = 1;
-        setColCompressByOption((uint32_t *)&cmprAlg, tl1, tl2, lvl);
-      }
-      if (updated == 1) pCmpr->alg = cmprAlg;
+      uint32_t dst = 0;
+      updated = tUpdateCompress(pCmpr->alg, p->bytes, &dst);
+      if (updated) pCmpr->alg = dst;
       break;
     }
   }
@@ -1708,8 +1695,8 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
     terrno = TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST;
     return -1;
   }
-
   pNew->colVer++;
+
   return 0;
 }
 static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {

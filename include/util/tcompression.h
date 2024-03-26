@@ -280,6 +280,16 @@ int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t
   uint8_t l2 = COMPRESS_L2_TYPE_U32(cmprAlg); \
   uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U32(cmprAlg);
 
+#define SET_COMPRESS(l1, l2, lvl, cmpr) \
+  do {                                  \
+    (cmpr) &= 0x00FFFFFF;               \
+    (cmpr) |= ((l1) << 24);             \
+    (cmpr) &= 0xFF0000FF;               \
+    (cmpr) |= ((l2) << 8);              \
+    (cmpr) &= 0xFFFFFF00;               \
+    (cmpr) |= (lvl);                    \
+  } while (0)
+int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint32_t *dst);
 #ifdef __cplusplus
 }
 #endif

@@ -2153,6 +2153,7 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
   pVal = NULL;
 
   if (tdbTbGet(pMeta->pUidIdx, &suid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
+    terrno = TSDB_CODE_INVALID_MSG;
     ret = -1;
     goto _err;
   }
@@ -2161,6 +2162,7 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
   tbDbKey.uid = suid;
   tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
   if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
     tdbFree(pVal);
     goto _err;
   }
@@ -2168,16 +2170,46 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
   tDecoderInit(&dc, pVal, nVal);
   ret = metaDecodeEntry(&dc, &tbEntry);
   if (ret < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tdbFree(pVal);
     tDecoderClear(&dc);
     goto _err;
   }
   if (tbEntry.type != TSDB_NORMAL_TABLE && tbEntry.type != TSDB_SUPER_TABLE) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tdbFree(pVal);
     tDecoderClear(&dc);
     goto _err;
   }
+  int8_t           updated = 0;
+  SColCmprWrapper *wp = &tbEntry.colCmpr;
+  for (int32_t i = 0; i < wp->nCols; i++) {
+    SColCmpr *p = &wp->pColCmpr[i];
+    if (p->id == pReq->colId) {
+      uint32_t dst = 0;
+      updated = tUpdateCompress(p->alg, pReq->compress, &dst);
+      if (updated) {
+        p->alg = dst;
+      }
+    }
+  }
+  if (updated == 0) {
+    tdbFree(pVal);
+    tDecoderClear(&dc);
+    terrno = TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST;
+    goto _err;
+  }
+  tbEntry.version = version;
+
   metaWLock(pMeta);
+  metaSaveToTbDb(pMeta, &tbEntry);
+  metaUpdateUidIdx(pMeta, &tbEntry);
+  metaUpdateChangeTime(pMeta, suid, pReq->ctimeMs);
 
   metaULock(pMeta);
+
+  tdbFree(pVal);
+  tDecoderClear(&dc);
 
   return 0;
 _err:

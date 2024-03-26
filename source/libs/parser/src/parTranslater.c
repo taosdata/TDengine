@@ -10735,6 +10735,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   }
 
   pReq->colName = taosStrdup(pStmt->colName);
+  pReq->colId = pSchema->colId;
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
