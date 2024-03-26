@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "geosWrapper.h"
 #include "parInsertUtil.h"
 #include "parToken.h"
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "geosWrapper.h"
 
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
@@ -29,7 +29,7 @@ typedef struct SInsertParseContext {
   bool           usingDuplicateTable;
   bool           forceUpdate;
   bool           needTableTagVal;
-  bool           needRequest;       // whether or not request server
+  bool           needRequest;  // whether or not request server
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -154,19 +154,15 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   return code;
 }
 
-typedef enum {
-  BOUND_TAGS,
-  BOUND_COLUMNS,
-  BOUND_ALL_AND_TBNAME
-} EBoundColumnsType;
+typedef enum { BOUND_TAGS, BOUND_COLUMNS, BOUND_ALL_AND_TBNAME } EBoundColumnsType;
 
 static int32_t getTbnameSchemaIndex(STableMeta* pTableMeta) {
   return pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns;
 }
 
 // pStmt->pSql -> field1_name, ...)
-static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, EBoundColumnsType boundColsType, STableMeta* pTableMeta,
-                                 SBoundColInfo* pBoundInfo) {
+static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, EBoundColumnsType boundColsType,
+                                 STableMeta* pTableMeta, SBoundColInfo* pBoundInfo) {
   SSchema* pSchema = NULL;
   if (boundColsType == BOUND_TAGS) {
     pSchema = getTableTagSchema(pTableMeta);
@@ -202,8 +198,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
-    if (boundColsType == BOUND_ALL_AND_TBNAME &&
-        token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
+    if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
       pUseCols[tbnameSchemaIndex] = true;
       ++pBoundInfo->numOfBound;
@@ -230,7 +225,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   if (TSDB_CODE_SUCCESS == code && (BOUND_TAGS != boundColsType) && !pUseCols[0]) {
     code = buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column can not be null");
   }
-  if (TSDB_CODE_SUCCESS == code && (BOUND_ALL_AND_TBNAME == boundColsType) &&!pUseCols[tbnameSchemaIndex]) {
+  if (TSDB_CODE_SUCCESS == code && (BOUND_ALL_AND_TBNAME == boundColsType) && !pUseCols[tbnameSchemaIndex]) {
     code = buildInvalidOperationMsg(&pCxt->msg, "tbname column can not be null");
   }
   taosMemoryFree(pUseCols);
@@ -285,10 +280,11 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
   int32_t     index = 0, i = 0;
   int64_t     interval = 0, tempInterval = 0;
   int64_t     ts = 0, tempTs = 0;
-  bool firstIsTS = false, secondIsTs = false;
+  bool        firstIsTS = false, secondIsTs = false;
   const char* pTokenEnd = *end;
 
-  if (TSDB_CODE_SUCCESS != parseTimestampOrInterval(&pTokenEnd, pToken, timePrec, &ts, &interval, pMsgBuf, &firstIsTS)) {
+  if (TSDB_CODE_SUCCESS !=
+      parseTimestampOrInterval(&pTokenEnd, pToken, timePrec, &ts, &interval, pMsgBuf, &firstIsTS)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
   }
 
@@ -330,8 +326,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
     if (pTokenEnd[i] == ' ' || pTokenEnd[i] == '\t') {
       i++;
       continue;
-    }
-    else if (pTokenEnd[i] == ',' || pTokenEnd[i] == ')') {
+    } else if (pTokenEnd[i] == ',' || pTokenEnd[i] == ')') {
       *end = pTokenEnd + i;
       if (!firstIsTS) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
@@ -362,7 +357,8 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
       valueToken.n = len;
     }
 
-    if (TSDB_CODE_SUCCESS != parseTimestampOrInterval(&pTokenEnd, &valueToken, timePrec, &tempTs, &tempInterval, pMsgBuf, &secondIsTs)) {
+    if (TSDB_CODE_SUCCESS !=
+        parseTimestampOrInterval(&pTokenEnd, &valueToken, timePrec, &tempTs, &tempInterval, pMsgBuf, &secondIsTs)) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
 
@@ -376,7 +372,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       ts = tempTs;
-    }else {
+    } else {
       // not support operator between tow interval, such as 2h + 3s
       if (!firstIsTS) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
@@ -413,7 +409,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
 }
 
 // need to call geosFreeBuffer(*output) later
-static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
+static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
   int32_t code = TSDB_CODE_FAILED;
 
   //[ToDo] support to parse WKB as well as WKT
@@ -432,19 +428,19 @@ static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
   return code;
 }
 
-static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, int32_t bytes){
-  if(pToken->type != TK_NK_STRING){
+static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
+  if (pToken->type != TK_NK_STRING) {
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
 
-  if(isHex(pToken->z + 1, pToken->n - 2)){
-    if(!isValidateHex(pToken->z + 1, pToken->n - 2)){
+  if (isHex(pToken->z + 1, pToken->n - 2)) {
+    if (!isValidateHex(pToken->z + 1, pToken->n - 2)) {
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
 
-    void* data = NULL;
+    void*    data = NULL;
     uint32_t size = 0;
-    if(taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0){
+    if (taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
@@ -454,7 +450,7 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, 
     }
     *pData = data;
     *nData = size;
-  }else{
+  } else {
     *pData = taosMemoryCalloc(1, pToken->n);
     int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
     *nData = len;
@@ -633,7 +629,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
     case TSDB_DATA_TYPE_VARBINARY: {
       code = parseVarbinary(pToken, &val->pData, &val->nData, pSchema->bytes);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         return generateSyntaxErrMsg(pMsgBuf, code, pSchema->name);
       }
       break;
@@ -759,8 +755,8 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
 int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type) {
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
-       pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT &&
-       pToken->type != TK_NK_BIN && pToken->type != TK_NK_VARIABLE) ||
+       pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
+       pToken->type != TK_NK_VARIABLE) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
@@ -1114,8 +1110,8 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, 
   return code;
 }
 
-static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMeta** pTableMeta,
-                            bool* pMissCache, bool bUsingTable) {
+static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMeta** pTableMeta, bool* pMissCache,
+                            bool bUsingTable) {
   SParseContext* pComCxt = pCxt->pComCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pComCxt->async) {
@@ -1220,7 +1216,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
     pCxt->missCache = true;
     return TSDB_CODE_SUCCESS;
   }
-  SNode* pTagCond = NULL;
+  SNode*  pTagCond = NULL;
   int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &pTagCond);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
@@ -1365,13 +1361,11 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
     }
     // pStmt->pSql -> field1_name, ...)
-    return parseBoundColumns(pCxt, &pStmt->pSql, BOUND_COLUMNS, pStmt->pTableMeta,
-                             &pTableCxt->boundColsInfo);
+    return parseBoundColumns(pCxt, &pStmt->pSql, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
   }
 
   if (NULL != pStmt->pBoundCols) {
-    return parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta,
-                             &pTableCxt->boundColsInfo);
+    return parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1679,34 +1673,35 @@ static void clearColValArray(SArray* pCols) {
 typedef struct SStbRowsDataContext {
   SName stbName;
 
-  STableMeta* pStbMeta;
-  SNode* pTagCond;
+  STableMeta*   pStbMeta;
+  SNode*        pTagCond;
   SBoundColInfo boundColsInfo;
 
   // the following fields are for each stb row
-  SArray* aTagVals;
-  SArray* aColVals;
-  SArray* aTagNames;
-  SName ctbName;
-  STag* pTag;
-  STableMeta* pCtbMeta;
+  SArray*        aTagVals;
+  SArray*        aColVals;
+  SArray*        aTagNames;
+  SName          ctbName;
+  STag*          pTag;
+  STableMeta*    pCtbMeta;
   SVCreateTbReq* pCreateCtbReq;
   bool           hasTimestampTag;
   bool           isJsonTag;
 } SStbRowsDataContext;
 
-typedef union SRowsDataContext{
-  STableDataCxt* pTableDataCxt;
+typedef union SRowsDataContext {
+  STableDataCxt*       pTableDataCxt;
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
-static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken, bool* pFoundCtbName) {
+static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
+                                bool* pFoundCtbName) {
   *pFoundCtbName = false;
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, TSDB_DATA_TYPE_BINARY);
   if (TK_NK_VARIABLE == pToken->type) {
     code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
   }
-  if (code == TSDB_CODE_SUCCESS){
+  if (code == TSDB_CODE_SUCCESS) {
     if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
       return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be null value");
     }
@@ -1717,7 +1712,7 @@ static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* 
           if (pToken->z[i] == '.') {
             return buildInvalidOperationMsg(&pCxt->msg, "tbname can not contain '.'");
           } else {
-            pStbRowsCxt->ctbName.tname[i] = pToken->z[i]; 
+            pStbRowsCxt->ctbName.tname[i] = pToken->z[i];
           }
         }
         pStbRowsCxt->ctbName.tname[pToken->n] = '\0';
@@ -1733,9 +1728,8 @@ static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* 
 }
 
 static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
-                                            SStbRowsDataContext* pStbRowsCxt, bool ctbFirst,
-                                          const SToken* tagTokens, SSchema* const* tagSchemas,
-                                            int numOfTagTokens) {
+                                          SStbRowsDataContext* pStbRowsCxt, bool ctbFirst, const SToken* tagTokens,
+                                          SSchema* const* tagSchemas, int numOfTagTokens) {
   int32_t code = TSDB_CODE_SUCCESS;
   uint8_t precision = pStmt->pTableMeta->tableInfo.precision;
 
@@ -1749,8 +1743,8 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       }
 
       if (code == TSDB_CODE_SUCCESS) {
-        code = parseTagValue(&pCxt->msg, NULL, precision, pTagSchema, pTagToken, pStbRowsCxt->aTagNames, pStbRowsCxt->aTagVals,
-                             &pStbRowsCxt->pTag);
+        code = parseTagValue(&pCxt->msg, NULL, precision, pTagSchema, pTagToken, pStbRowsCxt->aTagNames,
+                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag);
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
@@ -1765,9 +1759,9 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 }
 
 static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
-                                 SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
-                                 const SBoundColInfo* pCols, const SSchema* pSchemas,
-                                 SToken* tagTokens, SSchema** tagSchemas, int* pNumOfTagTokens, bool* bFoundTbName) {
+                                 SStbRowsDataContext* pStbRowsCxt, SToken* pToken, const SBoundColInfo* pCols,
+                                 const SSchema* pSchemas, SToken* tagTokens, SSchema** tagSchemas, int* pNumOfTagTokens,
+                                 bool* bFoundTbName) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagNames = pStbRowsCxt->aTagNames;
   SArray* pTagVals = pStbRowsCxt->aTagVals;
@@ -1791,10 +1785,10 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
     if (pCols->pColIndex[i] < numOfCols) {
       const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
-      SColVal* pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
+      SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
       code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, precision, pVal);
       if (TK_NK_VARIABLE == pToken->type) {
-          code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
+        code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
       }
     } else if (pCols->pColIndex[i] < tbnameIdx) {
       const SSchema* pTagSchema = &pSchemas[pCols->pColIndex[i]];
@@ -1808,11 +1802,11 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
         }
         if (code == TSDB_CODE_SUCCESS) {
-          code = parseTagValue(&pCxt->msg, ppSql, precision, (SSchema*)pTagSchema, pToken, pTagNames, pTagVals, &pStbRowsCxt->pTag);
+          code = parseTagValue(&pCxt->msg, ppSql, precision, (SSchema*)pTagSchema, pToken, pTagNames, pTagVals,
+                               &pStbRowsCxt->pTag);
         }
       }
-    }
-    else if (pCols->pColIndex[i] == tbnameIdx) {
+    } else if (pCols->pColIndex[i] == tbnameIdx) {
       code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, bFoundTbName);
     }
 
@@ -1826,22 +1820,21 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
   return code;
 }
 
-static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
-                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow,
-                               SToken* pToken, bool *pCtbFirst) {
+static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
+                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken, bool* pCtbFirst) {
   SBoundColInfo* pCols = &pStbRowsCxt->boundColsInfo;
   SSchema*       pSchemas = getTableColumnSchema(pStbRowsCxt->pStbMeta);
 
-  bool bFoundTbName = false;
+  bool        bFoundTbName = false;
   const char* pOrigSql = *ppSql;
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken tagTokens[TSDB_MAX_TAGS] = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SToken   tagTokens[TSDB_MAX_TAGS] = {0};
   SSchema* tagSchemas[TSDB_MAX_TAGS] = {0};
-  int numOfTagTokens = 0;
+  int      numOfTagTokens = 0;
 
-  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, tagTokens,
-                    tagSchemas, &numOfTagTokens, &bFoundTbName);
+  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, tagTokens, tagSchemas,
+                           &numOfTagTokens, &bFoundTbName);
 
   if (code == TSDB_CODE_SUCCESS && !bFoundTbName) {
     code = buildSyntaxErrMsg(&pCxt->msg, "tbname value expected", pOrigSql);
@@ -1870,7 +1863,8 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return code;
 }
 
-static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SStbRowsDataContext* pStbRowsCxt) {
+static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                                SStbRowsDataContext* pStbRowsCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
@@ -1878,16 +1872,16 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
   if (code == TSDB_CODE_SUCCESS) {
-    insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag, pStbRowsCxt->pStbMeta->uid,
-                        pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames, getNumOfTags(pStbRowsCxt->pStbMeta),
-                        TSDB_DEFAULT_TABLE_TTL);
+    insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
+                        pStbRowsCxt->pStbMeta->uid, pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames,
+                        getNumOfTags(pStbRowsCxt->pStbMeta), TSDB_DEFAULT_TABLE_TTL);
     pStbRowsCxt->pTag = NULL;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
     char ctbFName[TSDB_TABLE_FNAME_LEN];
     tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
-    SVgroupInfo vg;
+    SVgroupInfo      vg;
     SRequestConnInfo conn = {.pTrans = pCxt->pComCxt->pTransporter,
                              .requestId = pCxt->pComCxt->requestId,
                              .requestObjRefId = pCxt->pComCxt->requestRid,
@@ -1906,7 +1900,6 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
   }
   return code;
 }
-
 
 static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   if (pStbRowsCxt == NULL) return;
@@ -1938,7 +1931,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
-      code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
+    code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
   }
 
   code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
@@ -1948,7 +1941,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
     code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
-      insCheckTableDataOrder(*ppTableDataCxt, TD_ROW_KEY(*pRow));
+      SRowKey key;
+      tRowGetKey(*pRow, &key);
+      insCheckTableDataOrder(*ppTableDataCxt, &key);
     }
   }
 
@@ -1957,11 +1952,12 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   clearStbRowsDataContext(pStbRowsCxt);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
-static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow, SToken* pToken) {
+static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
+                       SToken* pToken) {
   SBoundColInfo* pCols = &pTableCxt->boundColsInfo;
   bool           isParseBindParam = false;
   SSchema*       pSchemas = getTableColumnSchema(pTableCxt->pMeta);
@@ -2014,7 +2010,9 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
-      insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+      SRowKey key;
+      tRowGetKey(*pRow, &key);
+      insCheckTableDataOrder(pTableCxt, &key);
     }
   }
 
@@ -2112,10 +2110,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
         code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
       } else {
         STableDataCxt* pTableDataCxt = NULL;
-        code = parseOneStbRow(pCxt, pStmt, (const char**)&pRow, rowsDataCxt.pStbRowsCxt, &gotRow, &token, &pTableDataCxt);
+        code =
+            parseOneStbRow(pCxt, pStmt, (const char**)&pRow, rowsDataCxt.pStbRowsCxt, &gotRow, &token, &pTableDataCxt);
         if (code == TSDB_CODE_SUCCESS) {
           SStbRowsDataContext* pStbRowsCxt = rowsDataCxt.pStbRowsCxt;
-          void* pData = pTableDataCxt;
+          void*                pData = pTableDataCxt;
           taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid), &pData,
                       POINTER_BYTES);
         }
@@ -2149,11 +2148,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
   return code;
 }
 
-static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SRowsDataContext rowsDataCxt) {
+static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                     SRowsDataContext rowsDataCxt) {
   // init only for file
   if (NULL == pStmt->pTableCxtHashObj) {
-    pStmt->pTableCxtHashObj =
-        taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    pStmt->pTableCxtHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
   int32_t numOfRows = 0;
   int32_t code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
@@ -2267,7 +2266,7 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
   cloneTableMeta(pStbRowsCxt->pStbMeta, &pStbRowsCxt->pCtbMeta);
   pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
   pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
-  
+
   pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
   pStbRowsCxt->aTagVals = taosArrayInit(8, sizeof(STagVal));
 
@@ -2285,7 +2284,8 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
 static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pStmt->pBoundCols) {
-    return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion", pStmt->pSql);
+    return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion",
+                             pStmt->pSql);
   }
 
   SStbRowsDataContext* pStbRowsCxt = NULL;
@@ -2297,7 +2297,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
     pStbRowsCxt->hasTimestampTag = false;
     for (int32_t i = 0; i < pStbRowsCxt->boundColsInfo.numOfBound; ++i) {
       int16_t schemaIndex = pStbRowsCxt->boundColsInfo.pColIndex[i];
-      if (schemaIndex != getTbnameSchemaIndex(pStmt->pTableMeta) && schemaIndex >= getNumOfColumns(pStmt->pTableMeta) ) {
+      if (schemaIndex != getTbnameSchemaIndex(pStmt->pTableMeta) && schemaIndex >= getNumOfColumns(pStmt->pTableMeta)) {
         if (pStmt->pTableMeta->schema[schemaIndex].type == TSDB_DATA_TYPE_TIMESTAMP) {
           pStbRowsCxt->hasTimestampTag = true;
         }
@@ -2326,8 +2326,8 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
     return buildInvalidOperationMsg(&pCxt->msg, "insert into super table syntax is not supported for stmt");
   }
   if (!pStmt->stbSyntax) {
-    STableDataCxt* pTableCxt = NULL;
-    int32_t        code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
+    STableDataCxt*   pTableCxt = NULL;
+    int32_t          code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
     SRowsDataContext rowsDataCxt;
     rowsDataCxt.pTableDataCxt = pTableCxt;
     if (TSDB_CODE_SUCCESS == code) {
@@ -2442,7 +2442,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
   bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
   if (fileOnly) {
-    // none data, skip merge & buildvgdata 
+    // none data, skip merge & buildvgdata
     if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
       pCxt->needRequest = false;
       return TSDB_CODE_SUCCESS;
@@ -2503,7 +2503,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
-  
+
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     pStmt->pTableBlockHashObj =
@@ -2625,7 +2625,7 @@ static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModif
 }
 
 static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
-                                          SVnodeModifyOpStmt* pStmt, bool isStb) {
+                                              SVnodeModifyOpStmt* pStmt, bool isStb) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
@@ -2767,11 +2767,11 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 }
 
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SRowsDataContext rowsDataCxt;
 
   if (!pStmt->stbSyntax) {
-    STableDataCxt*   pTableCxt = NULL;
+    STableDataCxt* pTableCxt = NULL;
     code = getTableDataCxt(pCxt, pStmt, &pTableCxt);
     rowsDataCxt.pTableDataCxt = pTableCxt;
   } else {

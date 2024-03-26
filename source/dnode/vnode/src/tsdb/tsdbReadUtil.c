@@ -130,25 +130,46 @@ STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, c
   return *p;
 }
 
+static int32_t initSRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len) {
+  pKey->numOfPKs = numOfPks;
+  pKey->ts = ts;
+
+  if (numOfPks > 0) {
+    pKey->pks[0].type = type;
+    if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+      pKey->pks[0].val = INT64_MIN;
+    } else {
+      pKey->pks[0].pData = taosMemoryCalloc(1, len);
+      pKey->pks[0].nData = 0;
+
+      if (pKey->pks[0].pData == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
+  int32_t numOfPks = pReader->suppInfo.numOfPks;
+
   SRowKey* pRowKey = &pScanInfo->lastProcKey;
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
     int64_t skey = pReader->info.window.skey;
-    pRowKey->ts = (skey > INT64_MIN) ? (skey - 1) : skey;
-    pScanInfo->sttKeyInfo.nextProcKey = skey;
+    int64_t ts = (skey > INT64_MIN) ? (skey - 1) : skey;
+
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes);
   } else {
     int64_t ekey = pReader->info.window.ekey;
-    pRowKey->ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-    pScanInfo->sttKeyInfo.nextProcKey = ekey;
-  }
+    int64_t ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
 
-  // only handle the first primary key.
-  pRowKey->numOfPKs = pReader->suppInfo.numOfPks;
-  if (pReader->suppInfo.numOfPks > 0) {
-    if (IS_VAR_DATA_TYPE(pReader->suppInfo.pk.type)) {
-      pRowKey->pks[0].pData = taosMemoryCalloc(1, pReader->suppInfo.pk.bytes);
-    }
-    pRowKey->pks[0].type = pReader->suppInfo.pk.type;
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes);
   }
 }
 
@@ -230,7 +251,7 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
     pInfo->lastProcKey.ts = ts;
     // todo check the nextProcKey info
-    pInfo->sttKeyInfo.nextProcKey = ts + step;
+    pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
   }
 }
 

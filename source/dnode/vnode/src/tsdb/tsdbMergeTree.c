@@ -479,6 +479,9 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   pIter->verRange.maxVer = pConf->verRange.maxVer;
   pIter->timeWindow.skey = pConf->timewindow.skey;
   pIter->timeWindow.ekey = pConf->timewindow.ekey;
+  pIter->comparFn = pConf->comparFn;
+
+  tRowKeyAssign(&pIter->startRowKey, pConf->pCurRowKey);
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
@@ -618,17 +621,39 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
     }
 
     int64_t ts = pData->aTSKEY[i];
-    if (!pIter->backward) {               // asc
+    if (!pIter->backward) {              // asc
       if (ts > pIter->timeWindow.ekey) {  // no more data
         break;
-      } else if (ts < pIter->timeWindow.skey) {
-        continue;
+      } else {
+        if (ts < pIter->timeWindow.skey) {
+          continue;
+        }
+
+        if (ts == pIter->timeWindow.skey && pIter->startRowKey.numOfPKs > 0) {
+          SRowKey key;
+          tColRowGetKey(pData, i, &key);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          if (ret < 0) {
+            continue;
+          }
+        }
       }
     } else {
       if (ts < pIter->timeWindow.skey) {
         break;
-      } else if (ts > pIter->timeWindow.ekey) {
-        continue;
+      } else {
+        if (ts > pIter->timeWindow.ekey) {
+          continue;
+        }
+
+        if (ts == pIter->timeWindow.ekey && pIter->startRowKey.numOfPKs > 0) {
+          SRowKey key;
+          tColRowGetKey(pData, i, &key);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          if (ret > 0) {
+            continue;
+          }
+        }
       }
     }
 
@@ -802,8 +827,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
       STimeWindow w = {0};
       int64_t     numOfRows = 0;
+      int64_t     cid = pSttLevel->fobjArr->data[i]->f->cid;
 
-      int64_t cid = pSttLevel->fobjArr->data[i]->f->cid;
       code = tLDataIterOpen2(pIter, pSttFileReader, cid, pMTree->backward, pConf, pLoadInfo, &w, &numOfRows,
                              pMTree->idStr);
       if (code != TSDB_CODE_SUCCESS) {

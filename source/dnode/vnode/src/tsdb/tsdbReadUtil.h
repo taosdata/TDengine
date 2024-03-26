@@ -77,7 +77,9 @@ typedef enum ESttKeyStatus {
 
 typedef struct SSttKeyInfo {
   ESttKeyStatus status;           // this value should be updated when switch to the next fileset
-  int64_t       nextProcKey;   // todo remove this attribute, since it is impossible to set correct nextProcKey value
+  SRowKey       nextProcKey;
+  //  int64_t       nextProcKey;   // todo remove this attribute, since it is impossible to set correct nextProcKey
+  //  value
 } SSttKeyInfo;
 
 // clean stt file blocks:
@@ -333,6 +335,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
                               const char* pstr);
 bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
 bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
+int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2);
 
 typedef struct {
   SArray* pTombData;
