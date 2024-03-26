@@ -432,95 +432,113 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
   return false;
 }
 
-static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
-
+static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBlock* dataBlock, char* dbname) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
   SSysTableScanInfo* pInfo = pOperator->info;
-  if (pOperator->status == OP_EXEC_DONE) {
+  int32_t            numOfRows = 0;
+
+  char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(tableName, pInfo->req.filterTb);
+
+  SMetaReader smrTable = {0};
+  pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
+  if (code != TSDB_CODE_SUCCESS) {
+    // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+    pAPI->metaReaderFn.clearReader(&smrTable);
+    pInfo->loadInfo.totalRows = 0;
     return NULL;
   }
 
-  blockDataCleanup(pInfo->pRes);
-  int32_t numOfRows = 0;
+  if (smrTable.me.type == TSDB_SUPER_TABLE) {
+    pAPI->metaReaderFn.clearReader(&smrTable);
+    pInfo->loadInfo.totalRows = 0;
+    return NULL;
+  }
 
-  SSDataBlock* dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
-  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
+  if (smrTable.me.type == TSDB_CHILD_TABLE) {
+    int64_t suid = smrTable.me.ctbEntry.suid;
+    pAPI->metaReaderFn.clearReader(&smrTable);
+    pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    code = pAPI->metaReaderFn.getTableEntryByUid(&smrTable, suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+      pAPI->metaReaderFn.clearReader(&smrTable);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+  }
 
+  char            typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  SSchemaWrapper* schemaRow = NULL;
+  if (smrTable.me.type == TSDB_SUPER_TABLE) {
+    schemaRow = &smrTable.me.stbEntry.schemaRow;
+    STR_TO_VARSTR(typeName, "CHILD_TABLE");
+  } else if (smrTable.me.type == TSDB_NORMAL_TABLE) {
+    schemaRow = &smrTable.me.ntbEntry.schemaRow;
+    STR_TO_VARSTR(typeName, "NORMAL_TABLE");
+  }
+
+  sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
+  pAPI->metaReaderFn.clearReader(&smrTable);
+
+  if (numOfRows > 0) {
+    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+    numOfRows = 0;
+  }
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  setOperatorCompleted(pOperator);
+
+  qDebug("get cols success, total rows:%" PRIu64 ", current:%" PRId64 " %s", pInfo->loadInfo.totalRows,
+         pInfo->pRes->info.rows, GET_TASKID(pTaskInfo));
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
+int32_t doExtractDbName(char* dbname, SSysTableScanInfo* pInfo, SStorageAPI* pAPI) {
+  SName sn = {0};
   const char* db = NULL;
   int32_t     vgId = 0;
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
-
-  SName sn = {0};
-  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
 
   tNameGetDbName(&sn, varDataVal(dbname));
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-  // optimize when sql like where table_name='tablename' and xxx.
-  if (pInfo->req.filterTb[0]) {
-    char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tableName, pInfo->req.filterTb);
+  return TSDB_CODE_SUCCESS;
+}
 
-    SMetaReader smrTable = {0};
-    pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
-    if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-      pAPI->metaReaderFn.clearReader(&smrTable);
-      blockDataDestroy(dataBlock);
-      pInfo->loadInfo.totalRows = 0;
-      return NULL;
-    }
+static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            numOfRows = 0;
+  int32_t            ret = 0;
+  char               dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  SSDataBlock*       pDataBlock = NULL;
 
-    if (smrTable.me.type == TSDB_SUPER_TABLE) {
-      pAPI->metaReaderFn.clearReader(&smrTable);
-      blockDataDestroy(dataBlock);
-      pInfo->loadInfo.totalRows = 0;
-      return NULL;
-    }
-
-    if (smrTable.me.type == TSDB_CHILD_TABLE) {
-      int64_t suid = smrTable.me.ctbEntry.suid;
-      pAPI->metaReaderFn.clearReader(&smrTable);
-      pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-      code = pAPI->metaReaderFn.getTableEntryByUid(&smrTable, suid);
-      if (code != TSDB_CODE_SUCCESS) {
-        // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-        pAPI->metaReaderFn.clearReader(&smrTable);
-        blockDataDestroy(dataBlock);
-        pInfo->loadInfo.totalRows = 0;
-        return NULL;
-      }
-    }
-
-    char            typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    SSchemaWrapper* schemaRow = NULL;
-    if (smrTable.me.type == TSDB_SUPER_TABLE) {
-      schemaRow = &smrTable.me.stbEntry.schemaRow;
-      STR_TO_VARSTR(typeName, "CHILD_TABLE");
-    } else if (smrTable.me.type == TSDB_NORMAL_TABLE) {
-      schemaRow = &smrTable.me.ntbEntry.schemaRow;
-      STR_TO_VARSTR(typeName, "NORMAL_TABLE");
-    }
-
-    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
-    pAPI->metaReaderFn.clearReader(&smrTable);
-
-    if (numOfRows > 0) {
-      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
-      numOfRows = 0;
-    }
-    blockDataDestroy(dataBlock);
-    pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-    setOperatorCompleted(pOperator);
-    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
   }
 
-  int32_t ret = 0;
+  blockDataCleanup(pInfo->pRes);
+
+  pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
+  blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
+  doExtractDbName(dbname, pInfo, pAPI);
+
+  // optimize when sql like where table_name='tablename' and xxx.
+  if (pInfo->req.filterTb[0]) {
+    SSDataBlock* p = doOptimizeTableNameFilter(pOperator, pDataBlock, dbname);
+    blockDataDestroy(pDataBlock);
+    return p;
+  }
+
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+  } else {
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
 
   if (pInfo->pSchema == NULL) {
@@ -531,26 +549,20 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   if (!pInfo->pCur || !pInfo->pSchema) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     qError("sysTableScanUserCols failed since %s", terrstr(terrno));
-    blockDataDestroy(dataBlock);
+    blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
     return NULL;
   }
 
-  int32_t restore = pInfo->restore;
-  pInfo->restore = false;
 
-  while (restore || ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
-    if (restore) {
-      restore = false;
-    }
-
+  while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
     SSchemaWrapper* schemaRow = NULL;
 
     if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
-      qDebug("sysTableScanUserCols cursor get super table");
+      qDebug("sysTableScanUserCols cursor get super table, %s", GET_TASKID(pTaskInfo));
       void* schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if (schema == NULL) {
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
@@ -558,7 +570,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       }
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
-      qDebug("sysTableScanUserCols cursor get child table");
+      qDebug("sysTableScanUserCols cursor get child table, %s", GET_TASKID(pTaskInfo));
+
       STR_TO_VARSTR(typeName, "CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
@@ -567,13 +580,14 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         schemaRow = *(SSchemaWrapper**)schema;
       } else {
         SMetaReader smrSuperTable = {0};
-        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
         int code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-          qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d", suid, code);
+          qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code, GET_TASKID(pTaskInfo));
+
           pAPI->metaReaderFn.clearReader(&smrSuperTable);
-          blockDataDestroy(dataBlock);
+          blockDataDestroy(pDataBlock);
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
@@ -583,34 +597,35 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
       }
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
-      qDebug("sysTableScanUserCols cursor get normal table");
+      qDebug("sysTableScanUserCols cursor get normal table, %s", GET_TASKID(pTaskInfo));
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
       STR_TO_VARSTR(typeName, "NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
     } else {
-      qDebug("sysTableScanUserCols cursor get invalid table");
+      qDebug("sysTableScanUserCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
       continue;
     }
 
     if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
-      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
-      pInfo->restore = true;
 
       if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
     } else {
-      sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
+      sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName);
     }
   }
 
   if (numOfRows > 0) {
-    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
+    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo);
     numOfRows = 0;
   }
 
-  blockDataDestroy(dataBlock);
+  blockDataDestroy(pDataBlock);
   if (ret != 0) {
     pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
@@ -618,8 +633,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   }
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
-  qDebug("sysTableScanUserCols get cols success, rows:%" PRIu64, pInfo->loadInfo.totalRows);
-
+  qDebug("get cols success, rows:%" PRIu64 " %s", pInfo->loadInfo.totalRows, GET_TASKID(pTaskInfo));
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
@@ -701,6 +715,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+  } else {
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
 
   bool blockFull = false;
@@ -726,7 +742,6 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
-      pAPI->metaFn.cursorPrev(pInfo->pCur, TSDB_TABLE_MAX);
       blockFull = true;
     } else {
       sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
@@ -740,6 +755,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
 
@@ -748,6 +764,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   }
 
   if (numOfRows > 0) {
+    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
     relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
     numOfRows = 0;
   }
@@ -1295,7 +1312,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
-    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0);
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
   }
 
   blockDataCleanup(pInfo->pRes);
