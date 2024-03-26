@@ -2343,6 +2343,11 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
   if (pResult->hasResult) {
+    if (pResult->pkBytes > 0) {
+      pResult->pkData = pResult->buf + pResult->bytes;
+    } else {
+      pResult->pkData = NULL;
+    }    
     if (pResult->ts < pBlockInfo->window.skey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
     } else if (pResult->ts == pBlockInfo->window.skey && pResult->pkData) {
@@ -2366,6 +2371,11 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
   if (pResult->hasResult) {
+    if (pResult->pkBytes > 0) {
+      pResult->pkData = pResult->buf + pResult->bytes;
+    } else {
+      pResult->pkData = NULL;
+    }
     if (pResult->ts > pBlockInfo->window.ekey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
     } else if (pResult->ts == pBlockInfo->window.ekey && pResult->pkData) {

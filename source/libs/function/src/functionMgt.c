@@ -415,6 +415,8 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
   taosCreateMD5Hash(name, len);
   strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
+  (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -453,7 +455,8 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
   } else {
     nodesDestroyList(pParameterList);
   }
-
+  (*pMidFunc)->hasPk = pPartialFunc->hasPk;
+  (*pMidFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 
@@ -482,7 +485,8 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   } else {
     nodesDestroyList(pParameterList);
   }
-
+  (*pMergeFunc)->hasPk = pPartialFunc->hasPk;
+  (*pMergeFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 
