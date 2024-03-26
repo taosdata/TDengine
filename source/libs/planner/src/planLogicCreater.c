@@ -496,7 +496,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
   }
   pScan->isCountByTag = isCountByTag;
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pSelect->hasCountFunc && pScan->tableType == TSDB_CHILD_TABLE) {
     pScan->isCountByTag = true;
   }
 
