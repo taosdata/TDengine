@@ -392,6 +392,7 @@ typedef struct STUidTagInfo {
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
+#define PRIMARY_KEY_COLUMN_INDEX        7
 
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0

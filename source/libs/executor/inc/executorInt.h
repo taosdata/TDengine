@@ -453,6 +453,7 @@ typedef struct SStreamScanInfo {
   SExprSupp     tbnameCalSup;
   SExprSupp     tagCalSup;
   int32_t       primaryTsIndex;  // primary time stamp slot id
+  int32_t       primaryKeyIndex;
   SReadHandle   readHandle;
   SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
   SColMatchInfo matchInfo;
@@ -873,10 +874,8 @@ bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, STimeWindowAggSupp* pTwSup,
                            SStateStore* pStore);
-void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
+void appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
-void appendAllColumnToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, TSKEY* pCalStartTs,
-                                                TSKEY* pCalEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName);
 
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
