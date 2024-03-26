@@ -100,22 +100,18 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);    \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                                        \
-  do {                                                                           \
-    ++cols;                                                                      \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                           \
-    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                       \
-      if ((unit) <= 32) {                                                        \
-        sprintf(tmp1, "%d/%d", (int32_t)(cur), (int32_t)(limit));                \
-      } else {                                                                   \
-        sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit)); \
-      }                                                                          \
-      src = tmp1;                                                                \
-    } else {                                                                     \
-      src = "unlimited";                                                         \
-    }                                                                            \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                              \
-    colDataSetVal(pColInfo, numOfRows, tmp, false);                              \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                      \
+  do {                                                                         \
+    ++cols;                                                                    \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                         \
+    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                     \
+      sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit)); \
+    } else {                                                                   \
+      sprintf(tmp1, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S); \
+    }                                                                          \
+    src = tmp1;                                                                \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                            \
+    colDataSetVal(pColInfo, numOfRows, tmp, false);                            \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -169,7 +165,7 @@ static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "storage", "backup_restore"};
 
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
-    "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
+    "basic", "service_time", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
@@ -572,7 +568,7 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
   int32_t code = 0;
   if (recheckClusterTime) {
     int64_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
-    if (clusterCreateTime > 0) {
+    if (clusterCreateTime != 0) {
       COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
       recheckClusterTime = false;
     } else {
@@ -630,7 +626,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 
   gStatus.officialVersion = grantObj.officialVersion;
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, grantClusterEpoch);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SERVICE], gStatus.serviceExpireSec, 86400, grantClusterEpoch);
   GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
   GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
   GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
@@ -2071,7 +2067,7 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
              "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
              curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
-    snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
+    snprintf(qBuf, colLen, "%" PRIi64 "/%s", curVal, GRANT_UNIQ_UNLIMITED_S);
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
     snprintf(qBuf, colLen, "%" PRIi64 "/%" PRIi64, curVal, limit);
   } else {
@@ -2090,7 +2086,19 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SGrantStatus *pStatus = &gStatus;
 
   if (pShow->numOfRows < 1) {
+    // sevice
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE], gGrantDisplay[GRANT_OPT_SERVICE],
+                             pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     // with expire and limits
+    int64_t basicExpireSec =
+        pStatus->grantState == GRANT_STATE_REVOKED ? pStatus->revokedExpireSec : pStatus->basicExpireSec;
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "timeseries", basicExpireSec, pStatus->curTimeSeries,
+                             pStatus->limitTimeSeries, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "dnodes", basicExpireSec, pStatus->curDnodes,
+                             pStatus->limitDnodes, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "cpu_cores", basicExpireSec, pStatus->curCpuCores,
+                             pStatus->limitCpuCores, false);
+
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
                              pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
@@ -2301,19 +2309,23 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
 
     SDnodeObj *pDnode = NULL;
-    bool       first = true;
+    int32_t    index = 0;
     while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
       if (pDnode->machineId[0] == 0) continue;
-      if (first) {
+      if (index == 0) {
         snprintf(qBuf, TSDB_MACHINE_ID_LEN + 1, "%s", pDnode->machineId);
-        first = false;
         qBuf += TSDB_MACHINE_ID_LEN;
       } else {
         snprintf(qBuf, TSDB_MACHINE_ID_LEN + 2, ",%s", pDnode->machineId);
         qBuf += (TSDB_MACHINE_ID_LEN + 1);
       }
+      ++index;
       sdbRelease(pSdb, pDnode);
     }
+    colDataSetVal(pColInfo, numOfRows, (const char *)&index, false);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
     colDataSetVal(pColInfo, numOfRows, pBuf, false);
 
