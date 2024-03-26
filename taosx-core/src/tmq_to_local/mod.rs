@@ -278,7 +278,7 @@ pub async fn tmq_to_local(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     task_id: Option<String>,
 ) -> Result<()> {
-    let (mut from, builder, topics) = check_tmq_dsn(from).await?;
+    let (mut from, builder, topics, _, _) = check_tmq_dsn(from).await?;
 
     let version = builder.server_version().await?.to_owned();
 

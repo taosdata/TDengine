@@ -164,7 +164,9 @@ impl FromStr for StopAt {
 ///     4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
 ///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///     4.5            else, bail unexpected input topics error to upstream.
-pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>)> {
+pub(crate) async fn check_tmq_dsn(
+    mut from: Dsn,
+) -> Result<(Dsn, TaosBuilder, Vec<Topic>, bool, bool)> {
     // let origin = from.clone();
     let database = from.subject.take().ok_or(RawError::new(
         Code::FAILED,
@@ -173,6 +175,18 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     // dbg!(&from, &database);
     let use_topic_name = from.remove("use.topic.name");
     let use_table_name = from.remove("use.table.name");
+
+    let with_meta_delete = if let Some(val) = from.remove("with.meta.delete") {
+        val == "true"
+    } else {
+        false
+    };
+    let with_meta_drop = if let Some(val) = from.remove("with.meta.drop") {
+        val == "true"
+    } else {
+        false
+    };
+
     if from.get("timeout").is_none() {
         from.set("timeout", "5s");
     }
@@ -269,6 +283,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                 use_table_name: None,
                 topic_type: TopicType::DatabaseWithMeta,
             }],
+            with_meta_delete,
+            with_meta_drop,
         ));
     }
     let source_topics = source.topics().await?;
@@ -313,6 +329,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     use_table_name: None,
                     topic_type: TopicType::from_sql(&topic.sql()),
                 }],
+                with_meta_delete,
+                with_meta_drop,
             ))
         } else if source
             .database_exists(&topic)
@@ -357,6 +375,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     use_table_name: None,
                     topic_type: TopicType::DatabaseWithMeta,
                 }],
+                with_meta_delete,
+                with_meta_drop,
             ))
         } else if topic.contains('.') {
             // Extract `database.table` in format.
@@ -415,6 +435,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 use_table_name: None,
                                 topic_type: TopicType::StableWithMeta,
                             }],
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     } else {
                         source
@@ -462,6 +484,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 use_table_name: None,
                                 topic_type: TopicType::StableWithMeta,
                             }],
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     }
                 }
@@ -538,6 +562,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 use_table_name,
                                 topic_type: TopicType::StableWithMeta,
                             }],
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     } else {
                         let (_, sql): ((), String) = source
@@ -608,6 +634,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 use_table_name,
                                 topic_type: TopicType::Query,
                             }],
+                            with_meta_delete,
+                            with_meta_drop,
                         ));
                     }
                 } else {
@@ -664,7 +692,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
         }
         if topics.len() == out.len() {
             // ok;
-            return Ok((from, builder, out));
+            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
         } else {
             let invalids = topics
                 .into_iter()
@@ -707,7 +735,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     });
                 }
             }
-            return Ok((from, builder, out));
+            return Ok((from, builder, out, with_meta_delete, with_meta_drop));
         }
     }
 }
@@ -749,7 +777,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
                 err.to_string()
             ),
         ),
-        Ok((_dsn, builder, _topics)) => {
+        Ok((_dsn, builder, _topics, _, _)) => {
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
@@ -791,7 +819,7 @@ mod tests {
     #[tokio::test]
     async fn test_replica() {
         let dsn = Dsn::from_str("tmq:///db1?replica").unwrap();
-        let (dsn, _, topics) = check_tmq_dsn(dsn).await.unwrap();
+        let (dsn, _, topics, _, _) = check_tmq_dsn(dsn).await.unwrap();
         assert_eq!(true, dsn.params.contains_key("msg.consume.excluded"));
         assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());
         assert_eq!("replica", dsn.params.get("group.id").unwrap());

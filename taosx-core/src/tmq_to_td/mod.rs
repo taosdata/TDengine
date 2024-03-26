@@ -125,6 +125,10 @@ async fn write_data(
                 metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
                 metrics.add_suc_blocks(1);
             }
+            tracing::debug!(
+                "End writing data, current written rows {}",
+                metrics.written_rows()
+            );
             return Ok(0);
         }
     }
@@ -342,7 +346,7 @@ async fn write_data(
         }
     }
     tracing::debug!(
-        "End writing data, current records {}",
+        "End writing data, current written rows {}",
         metrics.written_rows()
     );
     Ok(0)
@@ -357,16 +361,35 @@ async fn write_meta(
     meta: &Meta,
     target_is_v3: bool,
     metrics: &TmqMetrics,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
-    tracing::debug!("Start writing meta {cur}");
+    let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
+    match &json_meta {
+        JsonMeta::Delete(meta) => {
+            tracing::debug!("Start writing meta: {meta}");
+            if !with_meta_delete {
+                tracing::debug!("Ignor meta with type delete");
+                return anyhow::Ok(());
+            }
+        }
+        JsonMeta::Drop(meta) => {
+            tracing::debug!("Start writing meta: {meta}");
+            if !with_meta_drop {
+                tracing::debug!("Ignore meta with type drop");
+                return anyhow::Ok(());
+            }
+        }
+        JsonMeta::Alter(meta) => {
+            tracing::debug!("Start writing meta: {meta}");
+        }
+        JsonMeta::Create(meta) => {
+            tracing::debug!("Start writing meta: {meta}");
+        }
+    }
     if actions.is_empty() {
         if target_is_v3 {
-            let jm = meta.as_json_meta().await.context("Fetch json meta error");
-            match &jm {
-                Ok(meta) => tracing::debug!("meta: {:?}", meta),
-                Err(err) => tracing::warn!("meta: {:#}", err),
-            };
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
                 metrics.add_write_raw_fails(1);
@@ -376,8 +399,7 @@ async fn write_meta(
                 match code {
                     // Table not exist error codes.
                     0x0218 | 0x2603 | 0x036D | 0x0618 => {
-                        let meta = jm.context("Can't parse meta")?;
-                        match meta {
+                        match json_meta {
                             JsonMeta::Create(create) => match create {
                                 MetaCreate::Super {
                                     table_name,
@@ -427,7 +449,7 @@ async fn write_meta(
                             // Do nothing if not create
                             JsonMeta::Alter(_) | JsonMeta::Drop(_) | JsonMeta::Delete(_) => {
                                 tracing::warn!(
-                                    "Unexpected error {err:#} for meta: ```{meta}```, do nothing."
+                                    "Unexpected error {err:#} for meta: ```{json_meta}```, do nothing."
                                 );
                             }
                         }
@@ -441,22 +463,13 @@ async fn write_meta(
                 }
             }
         } else {
-            let meta = meta
-                .as_json_meta()
-                .await
-                .context("Fetch json meta error for v2 target")?;
-            taos.exec(meta.to_string()).await?;
+            taos.exec(json_meta.to_string()).await?;
         }
     } else {
-        let mut meta = meta
-            .as_json_meta()
-            .await
-            .context("Fetch json meta error for transform")?;
-        tracing::debug!("Meta: {:?}", meta);
         for action in actions {
-            action.mutate_meta(&mut meta)?;
+            action.mutate_meta(&mut json_meta)?;
         }
-        let sql = meta.to_string();
+        let sql = json_meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
             metrics.add_write_raw_fails(1);
             let errstr = err.to_string();
@@ -488,7 +501,8 @@ async fn sync(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     _offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    _version: String,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
     let mut stream = consumer.stream();
@@ -515,13 +529,13 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
+                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
                             write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
+                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
                                 write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
@@ -557,10 +571,14 @@ pub async fn tmq_to_td(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     task_id: Option<String>,
 ) -> Result<()> {
-    let (mut from, builder, topics) = check_tmq_dsn(from).await?;
-
+    let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
-
+    tracing::info!(
+        "source version: {}, with_meta_delete: {}, with_meta_drop: {}",
+        version,
+        with_meta_delete,
+        with_meta_drop
+    );
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
@@ -591,7 +609,7 @@ pub async fn tmq_to_td(
     let target_pool = target_builder.pool()?;
 
     // check if the from database and the targe database have the same precision for each topic
-    tracing::debug!("check precision of source and target database");
+    tracing::debug!("Check precision of source and target database.");
     for topic in &topics {
         let source_database = &topic.database;
         let target_database = if let Some(target) = target_database.as_ref() {
@@ -603,30 +621,30 @@ pub async fn tmq_to_td(
         let precision_of_to = target_taos.query_one::<String, String>(format!("select `precision` from information_schema.ins_databases where name='{target_database}'")).await;
         if let Err(err) = precision_of_to {
             // 可能因为当前用户没有权限查询 information_schema, 此时忽略错误。
-            tracing::debug!(err = ?err, "get precision of target database {target_database} failed.");
+            tracing::debug!(err = ?err, "Get precision of target database {target_database} failed.");
             continue;
         }
         let precision_of_to = precision_of_to.unwrap();
         if precision_of_to.is_none() {
             // 可能因为目标数据库不存在，此时会自动创建和源库相同精度的数据库,也忽略。
-            tracing::debug!("get precision of target database {target_database} failed: None");
+            tracing::debug!("Get precision of target database {target_database} failed: None");
             continue;
         }
         let precision_of_to = precision_of_to.unwrap();
         tracing::debug!(
-            "precision of target database {}: {}",
+            "Precision of target database {}: {}",
             target_database,
             precision_of_to
         );
         let source_taos = source_pool.get().await?;
         let precision_of_from = source_taos.query_one::<String, String>(format!("select `precision` from information_schema.ins_databases where name='{source_database}'")).await;
         if let Err(err) = precision_of_from {
-            tracing::debug!(err = ?err, "get precision of source database {source_database} failed.");
+            tracing::debug!(err = ?err, "Get precision of source database {source_database} failed.");
             continue;
         }
         let precision_of_from = precision_of_from.unwrap();
         if precision_of_from.is_none() {
-            tracing::debug!("get precision of source database {source_database} failed: None");
+            tracing::debug!("Get precision of source database {source_database} failed: None");
             continue;
         }
         let precision_of_from = precision_of_from.unwrap();
@@ -641,7 +659,7 @@ pub async fn tmq_to_td(
             );
         }
     }
-    tracing::debug!("precision check done");
+    tracing::debug!("Precision check done");
 
     let target_taos = target_pool.get().await?;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
@@ -791,7 +809,6 @@ pub async fn tmq_to_td(
             let cancellation = cancel.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
-            let version = version.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
             let handle = tokio::spawn(
@@ -807,26 +824,25 @@ pub async fn tmq_to_td(
                         cancellation,
                         metrics_arc.clone(),
                         offsets,
-                        version,
+                        with_meta_delete,
+                        with_meta_drop,
                     )
                     .await
                 }
                 .in_current_span(),
             );
             handles.push(handle);
-            tracing::info!("spawn consuming task with id {consumer_task_id}",);
+            tracing::info!("Spawn consuming task with id {consumer_task_id}",);
 
             consumer_task_id += 1;
         }
     }
 
-    tracing::info!("spawn consuming tasks {}", handles.len());
+    tracing::info!("Spawn consuming tasks {}", handles.len());
     for handle in handles {
         let _ = handle.await??;
     }
-    tracing::debug!("consumers tasks offsets: {:?}", offsets);
-
-    tracing::info!("stop all consumers({})", consumer_task_id);
+    tracing::info!("Stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
         tokio::spawn(async move {
@@ -844,13 +860,12 @@ pub async fn tmq_to_td(
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
     println!("{}", metrics);
-
     Ok(())
 }
 
 #[instrument(skip_all)]
 pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<Assignment>>> {
-    let (from, _, topics) = check_tmq_dsn(from).await?;
+    let (from, _, topics, _, _) = check_tmq_dsn(from).await?;
     let tmq = TmqBuilder::from_dsn(&from)?;
     let mut consumer = tmq.build().await?;
     consumer
