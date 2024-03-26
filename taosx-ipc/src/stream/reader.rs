@@ -836,7 +836,7 @@ impl LushMessageInsert {
     /// Panic if the column or row index is out of range.
     fn is_delete(&self, row: usize, col: usize) -> bool {
         let arr = self.records.record.column(col);
-
+        tracing::warn!(row, col, "{:?}", self.records.record);
         match arr.data_type() {
             DataType::Binary => {
                 let arr = arr.as_any().downcast_ref::<BinaryArray>().unwrap();
@@ -895,6 +895,7 @@ impl LushMessageInsert {
                 debug_assert!(columns.len() == data.len() - 1);
                 let mut sqls = Vec::new();
                 let mut field_map = HashMap::new();
+                // column iter
                 for (j, bv) in c.into_iter().enumerate() {
                     let table_name = bv.to_string().unwrap();
                     // sql.push_str(format!("{} VALUES (", &table_name, ).as_str());
@@ -911,7 +912,8 @@ impl LushMessageInsert {
                             let column_name = &columns[index];
                             if self.is_delete(j, n) {
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
-                                insert_values.push_str("NULL");
+                                insert_values.push_str("NULL,");
+                                tracing::warn!(row = j, col = n, "Set column to NULL");
                                 continue;
                             }
                             let sql_value = v.to_sql_value();
