@@ -144,7 +144,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx);
 int32_t irateFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t getIrateInfoSize();
+int32_t getIrateInfoSize(int32_t pkBytes);
 
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx);
 
