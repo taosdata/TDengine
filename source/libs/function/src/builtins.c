@@ -2496,6 +2496,20 @@ static int32_t translateTableCountPseudoColumn(SFunctionNode* pFunc, char* pErrB
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateMd5(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (para1Type != TSDB_DATA_TYPE_VARCHAR) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = MD5_OUTPUT_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -4083,6 +4097,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc = functionSetup,
     .processFunc = hllFunctionMerge,
     .finalizeFunc = hllPartialFinalize,
+  },
+  {
+    .name = "md5",
+    .type = FUNCTION_TYPE_MD5,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateMd5,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = md5Function,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on
