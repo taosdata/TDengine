@@ -1638,7 +1638,8 @@ static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     if (!IS_NUMERIC_TYPE(colType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
-    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
+    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize(pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != LIST_LENGTH(pFunc->pParameterList)) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
