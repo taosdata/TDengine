@@ -1892,8 +1892,12 @@ void appendOneRowToSpecialBlockImpl(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY*
 
 void appendPkToSpecialBlock(SSDataBlock* pBlock, TSKEY* pTsArray, SColumnInfoData* pPkCol, int32_t rowId,
                             uint64_t* pUid, uint64_t* pGp, void* pTbName) {
+  void* pVal = NULL;
+  if (pPkCol) {
+    pVal = colDataGetData(pPkCol, rowId);
+  }
   appendOneRowToSpecialBlockImpl(pBlock, pTsArray + rowId, pTsArray + rowId, pTsArray + rowId, pTsArray + rowId, pUid,
-                                 pGp, pTbName, colDataGetData(pPkCol, rowId));
+                                 pGp, pTbName, pVal);
 }
 
 void appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp,
