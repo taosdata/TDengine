@@ -260,6 +260,14 @@ int32_t mndSetCreateArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup) {
   return 0;
 }
 
+int32_t mndSetDropArbGroupPrepareLogs(STrans *pTrans, SArbGroup *pGroup) {
+  SSdbRaw *pRedoRaw = mndArbGroupActionEncode(pGroup);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetDropArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup) {
   SSdbRaw *pRedoRaw = mndArbGroupActionEncode(pGroup);
   if (pRedoRaw == NULL) return -1;
@@ -535,10 +543,10 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     int32_t vgId = arbGroupDup.vgId;
     int64_t nowMs = taosGetTimestampMs();
 
-    bool    member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
-    bool    member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
-    SArbAssignedLeader* pAssignedLeader = &arbGroupDup.assignedLeader;
-    int32_t currentAssignedDnodeId = pAssignedLeader->dnodeId;
+    bool                member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
+    bool                member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
+    SArbAssignedLeader *pAssignedLeader = &arbGroupDup.assignedLeader;
+    int32_t             currentAssignedDnodeId = pAssignedLeader->dnodeId;
 
     // 1. has assigned && is sync => send req
     if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true) {
@@ -667,9 +675,16 @@ static int32_t mndProcessArbUpdateGroupReq(SRpcMsg *pReq) {
   memcpy(newGroup.assignedLeader.token, req.assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
   newGroup.version = req.version;
 
-  SMnode *pMnode = pReq->info.node;
+  SMnode    *pMnode = pReq->info.node;
+  SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
+  if (!pOldGroup) {
+    mInfo("vgId:%d, arb skip to update arbgroup, since no obj found", newGroup.vgId);
+    return 0;
+  }
+  sdbRelease(pMnode->pSdb, pOldGroup);
+
   if (mndArbGroupUpdateTrans(pMnode, &newGroup) != 0) {
-    mError("vgId:%d, arb failed to update arbgroup, since %s", req.vgId, terrstr());
+    mError("vgId:%d, arb failed to update arbgroup, since %s", newGroup.vgId, terrstr());
     ret = -1;
   }
 
