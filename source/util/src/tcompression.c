@@ -2667,39 +2667,45 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
   }
 }
 
-#define FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmrlAlg, pBuf, nBuf, type, compress)                   \
-  do {                                                                                                        \
-    DEFINE_VAR(cmprAlg)                                                                                       \
-    if (l1 != L1_DISABLED && l2 == L2_DISABLED) {                                                             \
-      if (compress) {                                                                                         \
-        uTrace("encode:%s, compress:%s, level:%s", compressL1Dict[l1].name, "disabled", "disabled");          \
-        return compressL1Dict[l1].comprFn(pIn, nEle, pOut, type);                                             \
-      } else {                                                                                                \
-        uTrace("dencode:%s, compress:%s, level:%s", compressL1Dict[l1].name, "disabled", "disabled");         \
-        return compressL1Dict[l1].decomprFn(pIn, nEle, pOut, type);                                           \
-      }                                                                                                       \
-    } else if (l1 != L1_DISABLED && l2 != L2_DISABLED) {                                                      \
-      if (compress) {                                                                                         \
-        uTrace("encode:%s, compress:%s, level:%d", compressL1Dict[l1].name, compressL2Dict[l2].name, lvl);    \
-        int32_t len = compressL1Dict[l1].comprFn(pIn, nEle, pBuf, type);                                      \
-        return compressL2Dict[l2].comprFn(pBuf, len, pOut, nOut, type, lvl);                                  \
-      } else {                                                                                                \
-        uTrace("dencode:%s, decompress:%s, level:%d", compressL1Dict[l1].name, compressL2Dict[l2].name, lvl); \
-        if (compressL2Dict[l2].decomprFn(pIn, nIn, pBuf, nBuf, type) < 0) return -1;                          \
-        return compressL1Dict[l1].decomprFn(pBuf, nEle, pOut, type);                                          \
-      }                                                                                                       \
-    } else if (l1 == L1_DISABLED && l2 != L2_DISABLED) {                                                      \
-      if (compress) {                                                                                         \
-        uTrace("encode:%s, compress:%s, level:%d", "disabled", compressL2Dict[l1].name, lvl);                 \
-        return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, lvl);                                   \
-      } else {                                                                                                \
-        uTrace("dencode:%s, dcompress:%s, level:%d", "disabled", compressL2Dict[l1].name, lvl);               \
-        return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                      \
-      }                                                                                                       \
-    } else {                                                                                                  \
-      ASSERT(0);                                                                                              \
-    }                                                                                                         \
-    return -1;                                                                                                \
+#define FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, alg, pBuf, nBuf, type, compress)                               \
+  do {                                                                                                                \
+    DEFINE_VAR(alg)                                                                                                   \
+    if (l1 != L1_DISABLED && l2 == L2_DISABLED) {                                                                     \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%s, type:%s", compressL1Dict[l1].name, "disabled", "disabled",          \
+               tDataTypes[type].name);                                                                                \
+        return compressL1Dict[l1].comprFn(pIn, nEle, pOut, type);                                                     \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, compress:%s, level:%s, type:%s", compressL1Dict[l1].name, "disabled", "disabled",         \
+               tDataTypes[type].name);                                                                                \
+        return compressL1Dict[l1].decomprFn(pIn, nEle, pOut, type);                                                   \
+      }                                                                                                               \
+    } else if (l1 != L1_DISABLED && l2 != L2_DISABLED) {                                                              \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%d, type:%s, l1:%d", compressL1Dict[l1].name, compressL2Dict[l2].name,  \
+               lvl, tDataTypes[type].name, l1);                                                                       \
+        int32_t len = compressL1Dict[l1].comprFn(pIn, nEle, pBuf, type);                                              \
+        return compressL2Dict[l2].comprFn(pBuf, len, pOut, nOut, type, lvl);                                          \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", compressL1Dict[l1].name, compressL2Dict[l2].name, lvl, \
+               tDataTypes[type].name);                                                                                \
+        if (compressL2Dict[l2].decomprFn(pIn, nIn, pBuf, nBuf, type) < 0) return -1;                                  \
+        return compressL1Dict[l1].decomprFn(pBuf, nEle, pOut, type);                                                  \
+      }                                                                                                               \
+    } else if (l1 == L1_DISABLED && l2 != L2_DISABLED) {                                                              \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,                 \
+               tDataTypes[type].name);                                                                                \
+        return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, lvl);                                           \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, dcompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
+               tDataTypes[type].name);                                                                                \
+        return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                              \
+      }                                                                                                               \
+    } else {                                                                                                          \
+      ASSERT(0);                                                                                                      \
+    }                                                                                                                 \
+    return -1;                                                                                                        \
   } while (1)
 
 /*************************************************************************
@@ -2779,45 +2785,89 @@ int32_t tsDecompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
 // Bool =====================================================
 int32_t tsCompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                         int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 1);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != 4) {
+    SET_COMPRESS(4, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 1);
 }
 
 int32_t tsDecompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 0);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != 4) {
+    SET_COMPRESS(4, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 0);
 }
 
 // Tinyint =====================================================
 int32_t tsCompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                            int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 1);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_XOR) {
+    SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 1);
 }
 
 int32_t tsDecompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                              void *pBuf, int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 0);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_XOR) {
+    SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 0);
 }
 
 // Smallint =====================================================
 int32_t tsCompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                             void *pBuf, int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 1);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_XOR) {
+    SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 1);
 }
 
 int32_t tsDecompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                               void *pBuf, int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 0);
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_XOR) {
+    SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 0);
 }
 
 // Int =====================================================
 int32_t tsCompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                        int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 1);
+  uint32_t tCmprAlg = 0;
+  {
+    DEFINE_VAR(cmprAlg)
+    if (l1 != L1_XOR) {
+      SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+    }
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 1);
 }
 
 int32_t tsDecompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
-  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 0);
+  uint32_t tCmprAlg = 0;
+  {
+    DEFINE_VAR(cmprAlg)
+    if (l1 != L1_XOR) {
+      SET_COMPRESS(L1_XOR, l2, lvl, tCmprAlg);
+    }
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 0);
 }
 
 // Bigint =====================================================
@@ -2841,9 +2891,9 @@ int32_t tsCompressImpl(int8_t type, void *pIn, int32_t nIn, int32_t nEle, void *
   if (tsFindCompressAlg(type, cmprAlg, &fn1, &fn2)) return -1;
 
   int32_t len = 0;
-  int8_t  l1 = COMPRESS_L1_TYPE_U8(cmprAlg);
-  int8_t  l2 = COMPRESS_L2_TYPE_U8(cmprAlg);
-  int8_t  lvl = COMPRESS_L2_TYPE_LEVEL_U8(cmprAlg);
+  uint8_t l1 = COMPRESS_L1_TYPE_U8(cmprAlg);
+  uint8_t l2 = COMPRESS_L2_TYPE_U8(cmprAlg);
+  uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(cmprAlg);
 
   if (l2 == L2_DISABLED) {
     len = fn1.comprFn(pIn, nEle, pOut, type);

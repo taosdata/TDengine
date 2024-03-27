@@ -256,7 +256,7 @@ typedef struct {
 } TCompressPara;
 
 typedef enum L1Compress {
-  L1_UNKNOWN,
+  L1_UNKNOWN = 0,
   L1_SIMPLE_8B,
   L1_XOR,
   L1_RLE,
@@ -264,7 +264,7 @@ typedef enum L1Compress {
 } EL1CompressFuncType;
 
 typedef enum L2Compress {
-  L2_UNKNOWN,
+  L2_UNKNOWN = 0,
   L2_LZ4,
   L2_ZLIB,
   L2_ZSTD,
