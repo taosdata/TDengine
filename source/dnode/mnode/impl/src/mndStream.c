@@ -2188,10 +2188,8 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     int64_t checkpointId = mndStreamGenChkpId(pMnode);
     mInfo("stream:0x%" PRIx64 " all tasks req checkpoint, start checkpointId:%" PRId64, req.streamId, checkpointId);
 
-    if (pStream != NULL) {
-      // TODO:handle error
+    if (pStream != NULL) { // TODO:handle error
       int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
-      mndReleaseStream(pMnode, pStream);
     } else {
       // todo: wait for the create stream trans completed, and launch the checkpoint trans
       // SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
@@ -2203,6 +2201,10 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
     mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", req.streamId, numOfStreams);
+  }
+
+  if (pStream != NULL) {
+    mndReleaseStream(pMnode, pStream);
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
