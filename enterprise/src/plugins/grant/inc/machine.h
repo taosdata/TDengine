@@ -320,7 +320,7 @@ typedef struct {
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
 
-  // extention
+  // extension
   char *encrypt;
 } SGrantUniqObj;
 
