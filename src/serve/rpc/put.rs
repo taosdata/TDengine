@@ -102,7 +102,7 @@ impl PutStream {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
         // data channel
-        let (tx, rx) = flume::bounded(4096);
+        let (tx, rx) = flume::bounded(1024);
         let tx = Arc::new(tx);
         // response channel
         let schema = stream
@@ -126,6 +126,12 @@ impl PutStream {
             "opcda" => Some("opc_da"),
             "opcua" => Some("opc_ua"),
             "pi" => Some("pi"),
+            "pibackfill" => Some("pi"),
+            "influxdb" => Some("influxdb"),
+            "opentsdb" => Some("opentsdb"),
+            taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
+            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
+            "mqtt" => Some("mqtt"),
             _ => None,
         };
 
@@ -239,13 +245,15 @@ impl PutStream {
             let stream = rx.stream();
 
             use futures::StreamExt;
+
+            // limit = cores/2 in [4, 32], default 4.
             let limit = std::thread::available_parallelism()
                 .map(|v| {
-                    (v.get() / 4).max(1).min(
+                    (v.get() / 2).max(4).min(
                         std::env::var("GRPC_WORKERS_CONCURRENCY")
                             .ok()
                             .and_then(|s| s.parse().ok())
-                            .unwrap_or(8),
+                            .unwrap_or(32),
                     )
                 })
                 .unwrap_or(4);
