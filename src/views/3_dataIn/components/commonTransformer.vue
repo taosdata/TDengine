@@ -414,14 +414,15 @@
                       v-if="scope.row.exprname == 'join'"
                       size="small"
                       :key="'exprjoin'"
-                      style="width: 100px;"
-                      v-model="joinwith"
+                      class="mapping-rule-extra"
+                      v-model="scope.row.joinwith"
                     >
                       <template slot="prepend">with</template>
                     </el-input>
                     <el-input
                       v-if="scope.row.exprname == 'mapping' && params_columns.includes(scope.row['Name'])"
                       size="small"
+                      :key="'default-value-of-' + scope.row['Name']"
                       v-model="scope.row.default"
                       class="mapping-rule-extra"
                     >
@@ -545,7 +546,6 @@ export default {
       pageCount: 10,
       currentPage: 1,
       isbreak: false, //tranformer创建是否出错
-      joinwith: "",
       isCSV: false,
       mapExpressionList: [
         "value",
@@ -555,8 +555,7 @@ export default {
         "sum",
         "expr",
       ],
-      showFilterSect: false,
-      enable: true, //只针对ts的expression的input
+
       timestampExpr: "",
       options: [],
       mappingcolumns: [],
@@ -1057,6 +1056,7 @@ export default {
           return item;
         }
       })[0];
+      // TODO: 加入 default value
       if (identifiedColObj?.extract) {
         Object.entries(identifiedColObj.extract).forEach((item) => {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
@@ -1109,13 +1109,12 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
-            if (expreKey == "join") {
-              this.joinwith = val[1]["with"];
-            }
             return {
               columnname: val[0],
               type: expreKey,
               expression: val[1][expreKey],
+              default: val[1]["default"] || "",
+              joinwith: val[1]["with"] || "",
             };
           });
         }
@@ -1131,9 +1130,7 @@ export default {
             newarr.push(this.$refs.extract[i].submitExtract());
           }
           await this.$refs.extract[0].submitExtract(true);
-          await Promise.all(newarr).then((val) => {
-            console.log(val, "获取映射字段");
-          });
+          await Promise.all(newarr);
         }
         if (isincludeFilter) {
           await this.$refs.filter[0].submitFilter();
@@ -1276,7 +1273,7 @@ export default {
               as: item["Type"],
             };
             if (key == "join") {
-              expreitem["with"] = this.joinwith;
+              expreitem["with"] = item.joinwith;
             }
             if (item.exprname == "mapping" && this.params_columns.includes(item["Name"])) {
               expreitem["default"] = item.default;
@@ -1356,18 +1353,6 @@ export default {
     //设置extract的name
     setExtractName(index, name) {
       this.$set(this.extractArr[index], "columnname", name);
-    },
-    changeMapColumn(scope) {
-      if (scope.row.maptype[1][0] == "mapping") {
-        this.enable = false;
-        this.$set(
-          this.tableData[scope.$index],
-          "Expression",
-          scope.row.maptype[1][1]
-        );
-      } else {
-        this.enable = true;
-      }
     },
     //给filter赋值
     changeFilter(key, value) {
@@ -1573,6 +1558,7 @@ export default {
         },
         input: [].concat(this.generateInput()),
       };
+      
       this.getParserData(parserData);
     },
     closeDialog() {
@@ -1614,7 +1600,7 @@ export default {
               selected_db: this.$store.state.app.currentDBName,
               stable_form: this.$refs.createstb.stable_form,
             };
-                        let result = await createStableReq(payload);
+            let result = await createStableReq(payload);
             if (result?.desc) {
               this.$error(this.$t(result.desc));
               return;
@@ -1679,6 +1665,13 @@ export default {
             item["Expression"] = ["sum", "join"].includes(item.exprname)
               ? echoData.tableData[idx].expression
               : echoData.tableData[idx].expression.toString();
+            
+            if (echoData.tableData[idx].default) {
+              this.$set(item, "default", echoData.tableData[idx].default);
+            }
+            if (echoData.tableData[idx].joinwith) {
+              this.$set(item, "joinwith", echoData.tableData[idx].joinwith);
+            }
           }
           return item;
         });
@@ -1703,9 +1696,7 @@ export default {
           this.$error(res.desc);
           return;
         }
-        if (this.extractArr.length > 0) {
-          // await this.getAllExtract(true);
-        }
+  
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
@@ -1913,12 +1904,6 @@ export default {
           this.$refs.sruleForm.clearValidate();
           if (this.$refs.subtb) this.$refs.subtb[0]?.clearValidate();
         });
-      },
-    },
-    joinwith: {
-      deep: true,
-      handler(val) {
-        this.$store.commit("app/SET_MAPPING_JOIN", val);
       },
     },
     //csv需要单独处理
