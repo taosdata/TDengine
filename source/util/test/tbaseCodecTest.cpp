@@ -17,11 +17,6 @@ using namespace std;
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
-
 static void checkBase58Codec(uint8_t *pRaw, int32_t rawLen, int32_t index) {
   int64_t start = taosGetTimestampUs();
   char   *pEnc = base58_encode((const uint8_t *)pRaw, rawLen);
