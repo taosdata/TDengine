@@ -414,7 +414,6 @@ pub(crate) async fn get_sample_impl(
     let via = query.via;
     let dsn = query.dsn.clone();
 
-
     match via {
         None => plugins::get_sample(dsn).await,
         Some(agent) => controller.get_sample_via_agent(agent, dsn).await,

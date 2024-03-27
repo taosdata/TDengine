@@ -4,7 +4,12 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
 use metrics::gauge;
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
 use tokio::task::JoinHandle;
@@ -276,6 +281,35 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         }
         err = async {
             let ret: anyhow::Result<()>;
+            struct ErrorGate {
+                error_queue: std::collections::VecDeque<(Instant, anyhow::Error)>,
+                duration: Duration,
+                limit: usize,
+            }
+            impl ErrorGate {
+                fn new(limit: usize, duration: Duration) -> Self {
+                    Self {
+                        error_queue: std::collections::VecDeque::with_capacity(limit),
+                        duration,
+                        limit,
+                    }
+                }
+                fn tick(&mut self, err: impl Into<anyhow::Error>) -> anyhow::Result<()> {
+                    let now = std::time::Instant::now();
+                    let err = err.into();
+                    if self.error_queue.len() >= self.limit {
+                        let (first_err_time, first_err) = self.error_queue.pop_front().unwrap();
+                        if now.duration_since(first_err_time) < self.duration {
+                            anyhow::bail!("Too many errors in {:?}, first error: {:#}; last error: {:#}",
+                                self.duration, first_err, err
+                            );
+                        }
+                    }
+                    self.error_queue.push_back((now, err));
+                    Ok(())
+                }
+            }
+            let mut error_gate = ErrorGate::new(12, Duration::from_secs(60 * 2));
             loop {
                 let sender = sender.clone();
                 let heartbeat = spawn_heartbeat_task(resp_tx.clone());
@@ -289,6 +323,11 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         break;
                     } else {
                         tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
+                        if let Err(err) = error_gate.tick(err) {
+                            tracing::info!("Connection failed: {err:#}");
+                            ret = Err(err);
+                            break;
+                        }
                     }
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;

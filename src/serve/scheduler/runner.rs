@@ -60,7 +60,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
     let token = tokio_util::sync::CancellationToken::new();
     let cloned_token = token.clone();
     match from.driver.as_str() {
-        "opcua" | "opcda" | "pi" => {
+        "opcua" | "opcda" | "pi" | "pibackfill" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
             let cluster_id: Option<i64> = taos
                 .query_one("select id from information_schema.ins_cluster")
@@ -70,7 +70,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
             let connector = match from.driver.as_str() {
                 "opcua" => "opc_ua",
                 "opcda" => "opc_da",
-                "pi" => "pi",
+                "pi" | "pibackfill" => "pi",
                 _ => unreachable!(),
             };
             // get tdengine server version and handle compatibility
