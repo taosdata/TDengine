@@ -1944,8 +1944,9 @@ static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param) {
   if (pMsg == NULL) {
     return;
   }
-  if (param != NULL) {
-    SCliThrd* pThrd = param;
+
+  SCliThrd* pThrd = param;
+  if (pMsg->msg.info.notFreeAhandle == 0 && pThrd != NULL) {
     if (pThrd->destroyAhandleFp) (*pThrd->destroyAhandleFp)(pMsg->msg.info.ahandle);
   }
   destroyCmsg(pMsg);
@@ -1957,12 +1958,9 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
 
-  tDebug("destroy Ahandle A");
-  if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
-    tDebug("destroy Ahandle B");
+  if (pMsg->msg.info.notFreeAhandle == 0 && pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
     pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
   }
-  tDebug("destroy Ahandle C");
 
   transDestroyConnCtx(pMsg->ctx);
   transFreeMsg(pMsg->msg.pCont);
