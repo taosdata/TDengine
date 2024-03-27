@@ -275,11 +275,10 @@ pub async fn tmq_to_local(
     jobs: usize,
     force: bool,
     cancel: CancellationToken,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
     task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics, _, _) = check_tmq_dsn(from).await?;
-
+    let offsets = Arc::new(DashMap::new());
     let version = builder.server_version().await?.to_owned();
 
     let mut from_params = from.drain_params();
@@ -487,7 +486,6 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         "local:./tmq_to_local_out".parse()?,
         1,
         true,
-        Default::default(),
         Default::default(),
         None,
     )

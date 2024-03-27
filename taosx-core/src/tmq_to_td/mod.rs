@@ -7,9 +7,9 @@ use crate::{
     tmq::{tmq_metric::TmqMetrics, *},
     Action,
 };
-use anyhow::{bail, Context, Result};
-use dashmap::DashMap;
+use anyhow::{anyhow, bail, Context, Result};
 use linked_hash_map::LinkedHashMap;
+use serde::Serialize;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
@@ -140,7 +140,7 @@ async fn write_data(
         has_blocks = true;
         let source_table_name = raw
             .table_name()
-            .ok_or_else(|| anyhow::anyhow!("Table name not found while subscribing from source"))?
+            .ok_or_else(|| anyhow!("Table name not found while subscribing from source"))?
             .to_string();
         if let Some(name) = table {
             if actions.is_empty() {
@@ -500,11 +500,10 @@ async fn sync(
     actions: Vec<Action>,
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
-    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
     with_meta_delete: bool,
     with_meta_drop: bool,
 ) -> Result<()> {
-    tracing::info!("[{id}] task start");
+    tracing::info!("Task start");
     let mut stream = consumer.stream();
     let mut rows = 0;
     let mut messages = 0;
@@ -513,10 +512,12 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
+    let refresh_pgrogress_interval =
+        crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                tracing::warn!("[sync: {id}] cancelled");
+                tracing::warn!("Sync cancelled");
                 break;
             }
             next = stream.try_next() => {
@@ -525,7 +526,7 @@ async fn sync(
                     let total = metrics.messages.load(SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
-                        tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                        tracing::info!("Received {messages} messages ({:.2})", messages as f64 / total as f64);
                     }
                     match message {
                         MessageSet::Meta(meta) => {
@@ -542,10 +543,21 @@ async fn sync(
                         }
                     }
                     if let Err(err) = consumer.commit(offset).await {
-                        tracing::warn!(
-                            consumer.worker.id = id,
-                            "[{id}] commit error: {err:?}"
-                        );
+                        tracing::warn!("Commit error: {err:?}");
+                    } else {
+                        if refresh_pgrogress_interval.ticked() {
+                            let assignments = consumer.assignments().await;
+                            match assignments {
+                                Some(assignments) => {
+                                    for (topic, assignments) in assignments {
+                                        metrics.update_progress(topic, assignments);
+                                    }
+                                }
+                                None => {
+                                    tracing::warn!("Failed to get assignments");
+                                }
+                            }
+                        }
                     }
                 } else {
                     break;
@@ -553,7 +565,7 @@ async fn sync(
             }
         }
     }
-    tracing::info!("[{id}] task done");
+    tracing::info!("Task done");
 
     // do not drop consumer when single task done.
     drop(stream);
@@ -568,17 +580,11 @@ pub async fn tmq_to_td(
     mut to: Dsn,
     jobs: usize,
     cancel: CancellationToken,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
     task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
-    tracing::info!(
-        "source version: {}, with_meta_delete: {}, with_meta_drop: {}",
-        version,
-        with_meta_delete,
-        with_meta_drop
-    );
+    tracing::info!("Source version: {version}");
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
@@ -586,12 +592,8 @@ pub async fn tmq_to_td(
         if let Some(v) = to_params.get("token") {
             to.set("token", v);
         }
-
         let group_id = group_id_hash(&from, &to);
-        tracing::info!(
-            "group.id not set, will use automatically generated group id: {}",
-            group_id
-        );
+        tracing::info!("group.id not set, will use automatically generated group id: {group_id}");
         from_params.insert("group.id".to_string(), group_id);
         to.params = to_params;
     }
@@ -631,11 +633,7 @@ pub async fn tmq_to_td(
             continue;
         }
         let precision_of_to = precision_of_to.unwrap();
-        tracing::debug!(
-            "Precision of target database {}: {}",
-            target_database,
-            precision_of_to
-        );
+        tracing::debug!("Precision of target database {target_database}: {precision_of_to}");
         let source_taos = source_pool.get().await?;
         let precision_of_from = source_taos.query_one::<String, String>(format!("select `precision` from information_schema.ins_databases where name='{source_database}'")).await;
         if let Err(err) = precision_of_from {
@@ -648,15 +646,9 @@ pub async fn tmq_to_td(
             continue;
         }
         let precision_of_from = precision_of_from.unwrap();
-        tracing::debug!(
-            "precision of source database {}: {}",
-            source_database,
-            precision_of_from
-        );
+        tracing::debug!("precision of source database {source_database}: {precision_of_from}");
         if precision_of_from != precision_of_to {
-            bail!(
-                "The precision of the source database {source_database} and the target database {target_database} are different: source={precision_of_from}, to={precision_of_to}"
-            );
+            bail!("The precision of the source database {source_database} and the target database {target_database} are different: source={precision_of_from}, to={precision_of_to}");
         }
     }
     tracing::debug!("Precision check done");
@@ -808,7 +800,6 @@ pub async fn tmq_to_td(
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
             let sender = consumers_sender.clone();
-            let offsets = offsets.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
             let handle = tokio::spawn(
@@ -823,7 +814,6 @@ pub async fn tmq_to_td(
                         actions,
                         cancellation,
                         metrics_arc.clone(),
-                        offsets,
                         with_meta_delete,
                         with_meta_drop,
                     )
@@ -833,7 +823,6 @@ pub async fn tmq_to_td(
             );
             handles.push(handle);
             tracing::info!("Spawn consuming task with id {consumer_task_id}",);
-
             consumer_task_id += 1;
         }
     }
@@ -877,4 +866,96 @@ pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<
         .unwrap_or_default()
         .into_iter()
         .collect())
+}
+
+#[derive(Debug, Serialize)]
+pub struct TableProgress {
+    pub table_name: String,
+    pub from_last_ts: u64,
+    pub to_last_ts: u64,
+    pub from_count: u64,
+    pub to_count: u64,
+}
+#[instrument(skip_all)]
+pub async fn get_table_progress(
+    from: &String,
+    to: &String,
+    table: &str,
+    start: Option<&String>,
+    _end: Option<&String>,
+) -> anyhow::Result<TableProgress> {
+    let mut from: Dsn = from.parse()?;
+    let _ = from.remove("use.topic.name");
+    let _ = from.remove("use.table.name");
+    let _ = from.remove("with.meta.delete");
+    let _ = from.remove("with.meta.drop");
+    let from_db = from
+        .subject
+        .clone()
+        .ok_or(anyhow!("No database found in source dsn"))?;
+    let to: Dsn = to.parse()?;
+    let to_db = to
+        .subject
+        .clone()
+        .ok_or(anyhow!("No database found in target dsn"))?;
+    let from_builder = TaosBuilder::from_dsn(&from)?;
+    let to_builder = TaosBuilder::from_dsn(&to)?;
+    let from_taos = from_builder.build().await?;
+    let to_taos = to_builder.build().await?;
+    let start = if let Some(start) = start {
+        start
+    } else {
+        "1970-01-01 00:00:00"
+    };
+    let end = if let Some(end) = _end {
+        format!("'{end}'")
+    } else {
+        "now".to_string()
+    };
+    let end = end.as_str();
+    let from_sql = format!(
+        "SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < {end}",
+    );
+    let to_sql = format!(
+        "SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < {end}",
+    );
+    tracing::debug!("from_sql:\n {from_sql}, to_sql:\n {to_sql}");
+    let from_result = from_taos
+        .query_one::<String, (u64, u64)>(from_sql)
+        .await?
+        .ok_or(anyhow!("No data found in source database"))?;
+    let to_result = to_taos
+        .query_one::<String, (u64, u64)>(to_sql)
+        .await?
+        .ok_or(anyhow!("No data found in target database"))?;
+    Ok(TableProgress {
+        table_name: table.to_string(),
+        from_last_ts: from_result.0,
+        to_last_ts: to_result.0,
+        from_count: from_result.1,
+        to_count: to_result.1,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_table_progress() {
+        let from = "tmq+ws://192.168.0.31:6041/t1?with.meta.delete=true&with.meta.drop=true";
+        let to = "taos+ws://192.168.0.31:6041/t2";
+        let table = "heart";
+        let start: Option<String> = None;
+        let end: Option<String> = None;
+        let result = get_table_progress(
+            &from.to_string(),
+            &to.to_string(),
+            table,
+            start.as_ref(),
+            end.as_ref(),
+        )
+        .await;
+        println!("{:?}", result);
+    }
 }

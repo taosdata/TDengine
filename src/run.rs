@@ -146,7 +146,6 @@ impl Cli {
             cancel: cancel.clone(),
             with_agent: None,
             breakpoints: None,
-            offsets: Default::default(),
             transferred: Default::default(),
             span: span.clone(),
             task_id: None,

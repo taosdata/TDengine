@@ -1100,7 +1100,6 @@ impl TaskController {
                     cancel: Default::default(),
                     with_agent: None,
                     breakpoints: None,
-                    offsets: Arc::new(Default::default()),
                     transferred: None,
                     span: tracing::info_span!(
                         "task::delete",
