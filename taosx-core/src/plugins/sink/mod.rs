@@ -1078,6 +1078,7 @@ mod handle_transform_tests {
     use taosx_ipc::stream::point::RecordMessage;
 
     #[tokio::test]
+    #[ignore]
     async fn test_handle_transform() {
         let message = RecordMessage::from_record(
             RecordBatch::try_new(

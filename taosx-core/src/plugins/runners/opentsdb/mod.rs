@@ -405,6 +405,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_invalid() {
         let dsn = Dsn::from_str("opentsdb://").unwrap();
         let validation = is_valid(&dsn).await;

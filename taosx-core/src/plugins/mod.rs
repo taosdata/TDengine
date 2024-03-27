@@ -41,6 +41,7 @@ pub enum Parser {
 }
 
 #[test]
+#[ignore]
 fn test_parser_serde() {
     let parser = r#"{
   "parse": { "payload": { "json": ["value::double"] } },

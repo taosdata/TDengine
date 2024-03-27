@@ -74,7 +74,7 @@ mod tests {
 
         let result = builder.build_field("ts", &batch, None);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "invalid value builder");
+        assert_eq!(result.unwrap_err().to_string(), "generator error, cause: generator does not support: invalid");
     }
 
     fn init_record_batch() -> RecordBatch {

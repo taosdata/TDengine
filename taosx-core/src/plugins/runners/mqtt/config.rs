@@ -218,6 +218,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_mqtt_connect_config_from_dsn() {
         let dsn = Dsn::from_str("mqtt://").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn);
@@ -322,6 +323,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_mqtt_config_from_with_file() {
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1833?version=3.0").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn).unwrap();

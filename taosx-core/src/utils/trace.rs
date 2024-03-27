@@ -357,3 +357,165 @@ impl RequestID {
         self.inner.fetch_add(1, Ordering::Acquire) + 1
     }
 }
+
+/// Stream Trace ID is 16 bits random number in hex format.
+///
+/// It is used to identify the stream of data.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct TraceStreamId(u16);
+
+impl std::fmt::Display for TraceStreamId {
+    /// Display the stream id in hex format.
+    ///
+    /// For example, 0x1234_0000_0000_0000 will be displayed as 1234.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:04x}", self.0)
+    }
+}
+
+impl std::fmt::Debug for TraceStreamId {
+    /// Format the stream id in hex format.
+    ///
+    /// If the alternate flag is set, the stream id will be displayed with 0x prefix.
+    ///
+    /// For example, stream 0x1234 will be displayed as 0x1234 with "{:#}".
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "{:#04x}", self.0)
+        } else {
+            write!(f, "{:04x}", self.0)
+        }
+    }
+}
+
+impl TraceStreamId {
+    /// Create a new stream id with the given id.
+    #[inline]
+    pub fn new(id: u16) -> Self {
+        TraceStreamId(id)
+    }
+
+    /// Create a random stream id.
+    #[inline]
+    pub fn random() -> Self {
+        let id = random::<u16>();
+        TraceStreamId(id)
+    }
+
+    #[inline]
+    pub fn from_hex(hex: &str) -> Self {
+        let id = u16::from_str_radix(hex, 16).unwrap();
+        TraceStreamId(id)
+    }
+
+    #[inline]
+    pub fn with_data_id(self, data_id: u32) -> TraceDataId {
+        TraceDataId((u64::from(self.0) << 48) & (u64::from(data_id) << 16))
+    }
+
+    #[inline]
+    pub fn to_data_id(self) -> TraceDataId {
+        TraceDataId((self.0 as u64) << 48)
+    }
+}
+
+/// Data Trace ID is 48 bits stream id + 16 bits data id in hex format.
+///
+/// Data Trance ID contains 2-bytes stream id + 4-bytes data id (u32).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct TraceDataId(pub u64);
+
+impl std::fmt::Display for TraceDataId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#014x}", self.0 >> 16)
+    }
+}
+impl std::fmt::Debug for TraceDataId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#014x}", self.0 >> 16)
+    }
+}
+
+impl TraceDataId {
+    /// Get the stream id from the data trace id.
+    pub fn stream_id(self) -> TraceStreamId {
+        TraceStreamId((self.0 >> 48) as u16)
+    }
+
+    /// Get the data id(or batch id) from the data trace id.
+    pub fn data_id(self) -> u32 {
+        (self.0 & 0x0000_FFFF_FFFF_FFFF >> 16) as u32
+    }
+
+    /// It is used to generate next data id for the same stream id.
+    ///
+    /// The data id is increased by 1. For example,
+    ///
+    /// ```rust
+    /// use taosx_core::utils::trace::TraceDataId;
+    /// let trace_data_id = TraceDataId(0x1234_0000_5678_0000);
+    /// let next_data_id = trace_data_id.next();
+    /// println!("{}", next_data_id);
+    /// assert_eq!(next_data_id, TraceDataId(0x1234_0000_5679_0000));
+    /// ```
+    ///
+    /// It's not safe when the data id is overflowed (> u32::MAX).
+    pub fn next(self) -> Self {
+        TraceDataId(self.0 + (1 << 16))
+    }
+}
+
+/// Request ID to TDengine: 2-bytes stream id + 4-bytes data id + 2-bytes request id.
+///
+/// Request ID is used to identify the request in TDengine(both with taosc or http).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct TraceRequestId(pub u64);
+
+impl std::fmt::Display for TraceRequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
+impl std::fmt::Debug for TraceRequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
+
+impl TraceRequestId {
+    /// Get the stream id from the data trace id.
+    pub fn stream_id(self) -> TraceStreamId {
+        TraceStreamId((self.0 >> 48) as u16)
+    }
+
+    /// Get the data id(or batch id) from the data trace id.
+    pub fn data_id(self) -> TraceDataId {
+        TraceDataId(self.0)
+    }
+
+    /// Get the underlying u64 of the current request id.
+    pub fn into_inner(self) -> u64 {
+        self.0
+    }
+
+    /// It is used to generate next data id for the same stream id.
+    ///
+    /// The data id is increased by 1. For example,
+    ///
+    /// ```rust
+    /// use taosx_core::utils::trace::TraceRequestId;
+    /// let id = TraceRequestId(0x1234_0000_5678_0000);
+    /// let next = id.next();
+    /// println!("{}", next);
+    /// assert_eq!(next.to_string(), "0x1234000056780001");
+    /// assert_eq!(next, TraceRequestId(0x1234_0000_5678_0001));
+    /// ```
+    ///
+    /// It's not safe when the request id is overflowed (> u16::MAX).
+    pub fn next(self) -> Self {
+        TraceRequestId(self.0 + 1)
+    }
+}

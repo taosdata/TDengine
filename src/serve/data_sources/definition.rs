@@ -962,17 +962,16 @@ impl DataSourceDefinition {
 fn test() {
     use std::str::FromStr;
     let json = include_str!("en/tmq.yaml");
-    let mut def: Vec<DataSourceDefinition> = serde_yaml::from_str(json).unwrap();
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
     let json2 = serde_json::to_string(&def).unwrap();
     dbg!(&json2);
-    let toml = toml::to_string_pretty(&def[0]).unwrap();
+    let toml = toml::to_string_pretty(&def).unwrap();
     println!("{}", &toml);
 
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
     let dsn = Dsn::from_str(&dsn).unwrap();
-    let tmq = &mut def[0];
-    let new = tmq.clone().values_from(dsn);
-    dbg!(tmq, new);
+    let new = def.clone().values_from(dsn);
+    dbg!(def, new);
 }
 #[test]
 fn influxdb() {
@@ -1153,14 +1152,14 @@ fn test_pi_backfill() {
     let tmq = &mut def;
     let new = tmq.clone().values_from(dsn);
     dbg!(&tmq, &new);
-    assert_eq!(new.groups[0].params[2].value, Some("auto".to_string()));
+    assert_eq!(new.groups[0].params[0].value, Some("auto".to_string()));
     let dsn = "pibackfill://PIserver?BackfillStartTime=2023-01-01T00:00:00Z";
     let dsn = Dsn::from_str(&dsn).unwrap();
     let tmq = &mut def;
     let new = tmq.clone().values_from(dsn);
     dbg!(&tmq, &new);
     assert_eq!(
-        new.groups[0].params[2].value,
+        new.groups[0].params[0].value,
         Some("2023-01-01T00:00:00Z".to_string())
     );
 

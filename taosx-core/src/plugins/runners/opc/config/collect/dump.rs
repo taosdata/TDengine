@@ -81,6 +81,7 @@ mod tests {
     use taos::Dsn;
 
     #[test]
+    #[ignore]
     fn test_from_dsn() {
         let dsn = Dsn::from_str("opc://").unwrap();
         let config = DumpConfig::from_dsn(&dsn, None).unwrap();

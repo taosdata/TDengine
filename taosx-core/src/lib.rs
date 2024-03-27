@@ -556,10 +556,16 @@ mod tests {
         dbg!(format!("test start: {}", chrono::Local::now()));
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = TaosBuilder::from_dsn(to)?;
-        let _ = builder
+        let now = chrono::Local::now();
+        let res = builder
             .build()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }
@@ -570,10 +576,16 @@ mod tests {
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
-        let _ = pool
+        let now = chrono::Local::now();
+        let res = pool
             .get()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }

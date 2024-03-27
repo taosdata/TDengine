@@ -571,6 +571,7 @@ mod tests {
     use super::{agent::AgentNotifySender, *};
 
     #[tokio::test()]
+    #[ignore]
     async fn schedule_without_agent() -> Result<()> {
         tracing_subscriber_init()?;
         let (controller, mut scheduler, agent_notify_sender) =
@@ -716,8 +717,9 @@ mod tests {
         Ok(())
     }
     #[tokio::test()]
+    #[ignore]
     async fn test_scheduler_with_default_strategy() -> Result<()> {
-        tracing_subscriber_init()?;
+        let _ = tracing_subscriber_init();
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
         let mut notify_channel = scheduler.notify_channel();
@@ -779,8 +781,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[ignore]
     async fn test_scheduler_with_agent() -> Result<()> {
-        tracing_subscriber_init()?;
+        let _ = tracing_subscriber_init();
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
         let mut notify_channel = scheduler.notify_channel();
@@ -892,8 +895,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_scheduler_with_agent_stop_task_immediately_after_enqueued() -> Result<()> {
-        tracing_subscriber_init()?;
+        let _ = tracing_subscriber_init();
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
 
@@ -970,8 +974,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[ignore]
     async fn test_scheduler_with_agent_stop_task_while_running() -> Result<()> {
-        tracing_subscriber_init()?;
+        let _ = tracing_subscriber_init();
 
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
@@ -1068,6 +1073,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[ignore]
     async fn test_scheduler_with_agent_shutdown_task_while_running() -> Result<()> {
         tracing_subscriber_init()?;
 

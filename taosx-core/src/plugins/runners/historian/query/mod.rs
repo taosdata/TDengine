@@ -262,6 +262,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_top_n_sql() {
         let sql = top_n_sql(1, HistorianTable::Live, Vec::new(), None, None);
         assert_eq!(

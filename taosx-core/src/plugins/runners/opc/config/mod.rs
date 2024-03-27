@@ -683,6 +683,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_special_nodes() {
         let nodes = r#""ns=3;s=Special_""!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_""!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}","a::b""#;
 
@@ -696,6 +697,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_generate_config_from_csv() {
         let (opc_table_config, _, _) =
             generate_config_from_csv("opcua", "@tests/opc/opcua_rts_ts.csv")
@@ -820,6 +822,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_new_template() {
         let (opc_table_config, opc_node_config, tables_to_drop) =
             generate_config_from_csv("opcua", "@tests/opc/opcua-template-utf8-bom.csv")

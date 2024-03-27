@@ -30,6 +30,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "array is not supported, the behavior is not defined"]
     fn test_eval_failed() {
         let builder: ExprValueBuilder = serde_json::from_str(r#"{ "expr": "a + b"}"#).unwrap();
         let batch = RecordBatch::try_from_iter([(

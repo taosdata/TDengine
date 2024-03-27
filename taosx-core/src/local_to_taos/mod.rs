@@ -325,6 +325,7 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();

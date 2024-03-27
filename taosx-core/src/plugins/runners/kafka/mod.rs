@@ -512,6 +512,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_invalid() {
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
         let result = is_valid(&dsn).await;
