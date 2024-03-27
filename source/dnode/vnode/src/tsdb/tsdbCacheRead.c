@@ -209,7 +209,7 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr,
-                                SArray* pFuncTypeList) {
+                                SArray* pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -225,6 +225,15 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->pCidList = pCidList;
   p->pSlotIds = pSlotIds;
   p->pFuncTypeList = pFuncTypeList;
+
+  p->rowKey.numOfPKs = numOfPks;
+  if (numOfPks > 0) {
+    p->pkComparFn = getComparFunc(pPkCol->type, 0);
+    p->rowKey.pks[0].type = pPkCol->type;
+    if (IS_VAR_DATA_TYPE(pPkCol->type)) {
+      p->rowKey.pks[0].pData = taosMemoryCalloc(1, pPkCol->bytes);
+    }
+  }
 
   if (numOfTables == 0) {
     *pReader = p;
@@ -359,10 +368,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     int32_t bytes;
-    if (slotIds[j] == -1)
+    if (slotIds[j] == -1) {
       bytes = 1;
-    else
+    } else {
       bytes = pr->pSchema->columns[slotIds[j]].bytes;
+    }
 
     pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);

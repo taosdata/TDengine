@@ -369,6 +369,8 @@ typedef struct SCacheRowsReader {
   char*                   idstr;
   int64_t                 lastTs;
   SArray*                 pFuncTypeList;
+  __compar_fn_t           pkComparFn;
+  SRowKey                 rowKey;
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);

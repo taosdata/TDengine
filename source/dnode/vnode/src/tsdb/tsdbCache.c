@@ -2288,6 +2288,8 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .loadTombFn = loadSttTomb,
       .pReader = pr,
       .idstr = pr->idstr,
+      .comparFn = pr->pkComparFn,
+      .pCurRowKey = &pr->rowKey,
   };
 
   code = tMergeTreeOpen2(&iter->mergeTree, &conf, NULL);
