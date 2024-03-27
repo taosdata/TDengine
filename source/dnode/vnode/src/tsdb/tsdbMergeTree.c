@@ -365,7 +365,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
-        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.suids, i * sizeof(int64_t)), rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)), rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pFirstKey,
                           tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)), rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pLastKey,
