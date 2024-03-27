@@ -63,7 +63,7 @@ Click the **Preview** button to view the split result.
 #### 3.3 Mapping
 
 In the **Target Super Table** drop-down list, select a target super table, or click the **+Create STable** button on the
-right to [Create Super Table](#Create STable).
+right to Create Super Table.
 
 In the **Mapping** area, fill in the sub-table name in the target super table, for example: `t_${groupid}`。
 
