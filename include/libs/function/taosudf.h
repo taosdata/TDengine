@@ -111,7 +111,9 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY) || ((t) == TSDB_DATA_TYPE_BLOB))
-#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_STR_DATA_TYPE(t)                                                                                 \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
+   ((t) == TSDB_DATA_TYPE_BLOB))
 
 static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
