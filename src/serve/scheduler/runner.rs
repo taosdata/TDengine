@@ -59,8 +59,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
 
     let token = tokio_util::sync::CancellationToken::new();
     let cloned_token = token.clone();
-    let offsets = Arc::new(DashMap::new());
-
     match from.driver.as_str() {
         "opcua" | "opcda" | "pi" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
@@ -130,7 +128,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
             // port_pool: ONCE,
             with_agent: None,
             breakpoints,
-            offsets,
             transferred: None,
             span: span.clone(),
             task_id: Some(id.to_string()),

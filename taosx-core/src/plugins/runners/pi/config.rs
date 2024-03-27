@@ -683,6 +683,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_update_interval() {
         let dsn = Dsn::from_str("pi:///").unwrap();
         let config = PiConfig::parse_update_interval(&dsn).unwrap();

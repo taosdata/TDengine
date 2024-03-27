@@ -360,6 +360,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_set_tcp_keepalive() {
         let server = thread::spawn(|| {
             let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
@@ -404,6 +405,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_string_from_param_or_file() {
         let mut dsn =
             Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();

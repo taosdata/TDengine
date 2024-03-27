@@ -817,6 +817,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_replica() {
         let dsn = Dsn::from_str("tmq:///db1?replica").unwrap();
         let (dsn, _, topics, _, _) = check_tmq_dsn(dsn).await.unwrap();

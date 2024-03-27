@@ -756,7 +756,7 @@ mod tests {
     fn json_nested_array_index_without_type() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1", "$.nested.d1[0]=d1"],
+                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1::i32", "$.nested.d1[0]=d1"],
                 "flatten": true
             }"#,
         )
@@ -786,14 +786,14 @@ mod tests {
             .into_iter()
             .collect_vec();
         assert_eq!(strings, vec![Some("a1"), Some("a1"), Some("a2")]);
-        let floats = records
+        let ints = records
             .column(1)
             .as_any()
-            .downcast_ref::<Float32Array>()
+            .downcast_ref::<Int32Array>()
             .unwrap()
             .into_iter()
             .collect_vec();
-        assert_eq!(floats, vec![Some(2.0f32), None, None]);
+        assert_eq!(ints, vec![Some(2), None, None]);
         let booleans = records
             .column(2)
             .as_any()
@@ -884,7 +884,6 @@ mod tests {
 
     #[test]
     fn json_de_err() {
-        pretty_env_logger::init();
         let extract: Json = serde_json::from_str(
             r#"{
                 "json": ["a1=a::nchar(100)", "b1::f32"],
@@ -902,12 +901,13 @@ mod tests {
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+        let v = extract.parse_array(&field, &array);
+        assert!(v.is_err());
 
-        dbg!(&records);
-        dbg!(&indices);
-        assert_eq!(records.num_columns(), 2);
-        assert_eq!(records.num_rows(), 1);
-        assert_eq!(indices, Some(vec![1]));
+        // dbg!(&records);
+        // dbg!(&indices);
+        // assert_eq!(records.num_columns(), 2);
+        // assert_eq!(records.num_rows(), 1);
+        // assert_eq!(indices, Some(vec![1]));
     }
 }

@@ -24,6 +24,7 @@ use tokio::sync::oneshot;
 use tracing::{instrument, Instrument};
 
 /// MetricsType is an enum to store all supported metrics data structure.
+#[derive(Serialize, Deserialize, Debug)]
 pub enum CoreMetrics {
     Legacy(LegacyToTaosMetrics),
     TMQ(TmqMetrics),

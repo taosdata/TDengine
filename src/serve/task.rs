@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
@@ -18,6 +19,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use taosx_core::core_metrics::CoreMetrics;
 use taosx_core::{get_data_dir, get_file_upload_home_dir};
 use tracing::instrument;
 use utoipa::*;
@@ -473,133 +475,9 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
-// #[get("/tasks/{id}/metrics")]
-// #[instrument(skip_all)]
-// pub(super) async fn get_task_metrics(
-//     snapshotter: Data<Snapshotter>,
-//     task_store: Data<TaskControllerRef>,
-//     id: Path<i64>,
-// ) -> impl Responder {
-//     let task_id = id.into_inner();
-//     if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
-//         data
-//     } else if let Some(data) = get_task_metrics_from_db(task_id) {
-//         data
-//     } else {
-//         "{}".to_string()
-//     }
-// }
-
-// pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
-//     tracing::info!("get task metrics from MetricsDb");
-//     let new_db_result = MetricsDb::new(task_id.to_string().as_str());
-//     match new_db_result {
-//         Ok(metrics_db) => {
-//             let get_result = metrics_db.get();
-//             match get_result {
-//                 Ok(result) => match result {
-//                     Some(metrics_json) => {
-//                         let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
-//                         Some(metrics.to_task_metrics_json())
-//                     }
-//                     None => None,
-//                 },
-//                 Err(err) => {
-//                     tracing::error!("Get metrics from db error: {}", err);
-//                     None
-//                 }
-//             }
-//         }
-//         Err(err) => {
-//             tracing::warn!("{:?}", err);
-//             None
-//         }
-//     }
-// }
-
-// pub(crate) async fn get_task_metrics_from_snapshot(
-//     snapshotter: &Data<Snapshotter>,
-//     task_store: &Data<TaskControllerRef>,
-//     task_id: i64,
-// ) -> Option<String> {
-//     let snapshot = snapshotter.snapshot().into_hashmap();
-//     // dbg!(&snapshot);
-//     let mut map = snapshot
-//         .into_iter()
-//         .filter(|(k, _)| {
-//             k.key()
-//                 .labels()
-//                 .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
-//                 .is_some()
-//         })
-//         .map(|(k, v)| {
-//             (
-//                 // k.key().description().to_string(),
-//                 k.key().name().to_string(),
-//                 match v.2 {
-//                     metrics_util::debugging::DebugValue::Gauge(c) => {
-//                         serde_json::Number::from_f64(c.0)
-//                     }
-//                     metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-//                     _ => None,
-//                 },
-//             )
-//         })
-//         .collect::<std::collections::BTreeMap<_, _>>();
-//     if map.is_empty() {
-//         return None;
-//     }
-//     let task_started_timestamp = map.get(METRICS_TIME_START);
-//     if task_started_timestamp.is_some() {
-//         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-//         let task = task_store.get(task_id).await.unwrap().unwrap();
-//         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-//             let time_elapsed = (Utc::now().timestamp_millis()
-//                 - task_started_timestamp.as_f64().unwrap() as i64)
-//                 / 1000;
-//             if time_elapsed < 1 {
-//                 Some(1)
-//             } else {
-//                 Some(time_elapsed)
-//             }
-//         } else {
-//             if task.task.finished_at.is_some() {
-//                 let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
-//                     - task_started_timestamp.as_f64().unwrap() as i64)
-//                     / 1000;
-//                 if time_elapsed < 1 {
-//                     Some(1)
-//                 } else {
-//                     Some(time_elapsed)
-//                 }
-//             } else {
-//                 None
-//             }
-//         };
-//         if let Some(elapsed_seconds) = time_elapsed_in_seconds {
-//             map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
-//             let records_vec = map
-//                 .iter()
-//                 .filter(|(k, _v)| k.contains("records"))
-//                 .map(|(_k, v)| v)
-//                 .collect_vec();
-//             let records = records_vec.get(0);
-//             if let Some(Some(records)) = records {
-//                 let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
-//                 map.insert(
-//                     METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-//                     serde_json::Number::from_f64(speed),
-//                 );
-//             }
-//         }
-//     }
-//     Some(serde_json::to_string(&map).unwrap())
-// }
-
+/// Get metrics json string of a task for displaying on the web UI
 #[get("/tasks/{id}/metrics")]
 #[instrument(skip_all)]
-/// New API for task metrics. will repacle the old one when all test passed
-/// Get metrics json string of a task for displaying on the web UI
 pub(super) async fn get_task_metrics(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
@@ -621,6 +499,90 @@ pub(super) async fn get_task_metrics(
         Err(err) => {
             tracing::error!("get task metrics error: {}", err);
             "{}".to_string()
+        }
+    }
+}
+
+/// Get tmq task progress by given task ID in respect of the vgroup consume progress.
+#[get("/tasks/{id}/vgroup_progress")]
+#[instrument(skip_all)]
+pub(super) async fn get_tmq_task_vgroup_progress(
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+) -> impl Responder {
+    let task_id = id.into_inner();
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(task)) => {
+            let metrics = try_get_metrics_from_task_detail(&task);
+            match metrics {
+                Some(metrics) => match metrics.as_ref() {
+                    CoreMetrics::TMQ(tmq_metrics) => tmq_metrics.get_progress_string(),
+                    _ => {
+                        tracing::error!("Expect TmqMetrics, but got: {:?}", metrics);
+                        "{}".to_string()
+                    }
+                },
+                None => {
+                    tracing::info!("Not found metrics for task: {}", task_id);
+                    "{}".to_string()
+                }
+            }
+        }
+        Ok(None) => {
+            tracing::info!("Not found task by id: {}", task_id);
+            "{}".to_string()
+        }
+        Err(err) => {
+            tracing::error!("Get task error: {}", err);
+            "{}".to_string()
+        }
+    }
+}
+
+/// Get tmq task progress by given task ID in respect of latest data in specific table.
+#[get("/tasks/{id}/table_progress")]
+#[instrument(skip_all)]
+pub(super) async fn get_tmq_task_table_progress(
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+    query: Query<HashMap<String, String>>,
+) -> impl Responder {
+    let task_id = id.into_inner();
+    let table = query.get("table");
+    if table.is_none() {
+        return Err(Failed {
+            code: Code::FAILED,
+            message: "table name is required".to_string(),
+        });
+    }
+    let table = table.unwrap().as_str();
+    let start = query.get("start");
+    let end = query.get("end");
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(task)) => {
+            let from = &task.task.from;
+            let to = &task.task.to;
+            let table_progress = taosx_core::get_table_progress(from, to, table, start, end).await;
+            match table_progress {
+                Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
+                Err(err) => {
+                    tracing::error!("Get table progress error: {}", err);
+                    Err(Failed {
+                        code: Code::FAILED,
+                        message: format!("{:#}", err),
+                    })
+                }
+            }
+        }
+        Ok(None) => {
+            tracing::info!("Not found task by id: {}", task_id);
+            Ok("{}".to_string())
+        }
+        Err(err) => {
+            tracing::error!("Get task error: {}", err);
+            Ok("{}".to_string())
         }
     }
 }

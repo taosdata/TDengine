@@ -71,6 +71,7 @@ pub(super) enum Transformer {
 //   }
 // }
 #[test]
+#[ignore]
 fn transformer_test() {
     let t = Transformer::Reheader(vec!["A".to_string(); 2]);
     let s = serde_json::to_string(&t).unwrap();

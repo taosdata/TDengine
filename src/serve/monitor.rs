@@ -183,7 +183,7 @@ impl Monitor {
                         continue;
                     }
                     let body = stable2json(stables);
-                    tracing::debug!("data send to taoskeeper: {}", &body);
+                    tracing::trace!("data send to taoskeeper: {}", &body);
                     exporter.push_taoskeeper(body).await;
                 }
             });

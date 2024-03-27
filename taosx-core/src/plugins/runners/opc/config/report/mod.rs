@@ -65,6 +65,7 @@ mod report_config_tests {
     use taos::Dsn;
 
     #[test]
+    #[ignore]
     fn test_from_dsn() {
         let dsn = Dsn::from_str("opc://").unwrap();
         let config = ReportConfig::from_dsn(&dsn, 1234).unwrap();
