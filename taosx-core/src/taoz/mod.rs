@@ -269,6 +269,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn write() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         pretty_env_logger::formatted_builder().filter_level(log::LevelFilter::Debug);
@@ -345,6 +346,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn read() -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([

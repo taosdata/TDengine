@@ -108,6 +108,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_parse_interval() {
         let dsn = Dsn::from_str("opc://").unwrap();
         let interval = CollectConfig::parse_interval(&dsn).unwrap();

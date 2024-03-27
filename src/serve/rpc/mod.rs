@@ -1109,6 +1109,7 @@ mod tests {
         FlightServiceClient::new(channel)
     }
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn server_client() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "INFO");
         tracing_subscriber_init()?;

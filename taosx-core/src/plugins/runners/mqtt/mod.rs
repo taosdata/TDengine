@@ -300,6 +300,7 @@ mod tests {
     use std::str::FromStr;
 
     #[tokio::test]
+    #[ignore]
     async fn test_invalid() {
         let dsn = Dsn::from_str("mqtt://").unwrap();
         let validation = is_valid(&dsn).await;

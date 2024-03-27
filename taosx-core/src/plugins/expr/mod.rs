@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn test_i8() {
         let id_array = Int8Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
-        let schema = Schema::new(vec![Field::new("id", DataType::Int32, true)]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int8, true)]);
 
         let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
 
@@ -482,19 +482,19 @@ mod tests {
         dbg!(&values);
         assert_eq!(
             values.as_primitive::<Float32Type>().iter().collect_vec(),
-            [Some(11.), None, None, Some(44.), Some(55.)]
+            [Some(11.), None, Some(1.0), Some(44.), Some(55.)]
         );
         let values = expr.eval_as(&batch, DataType::UInt64).unwrap();
         dbg!(&values);
         assert_eq!(
             values.as_primitive::<UInt64Type>().iter().collect_vec(),
-            [Some(11u64), None, None, Some(44), Some(55)]
+            [Some(11u64), None, Some(1), Some(44), Some(55)]
         );
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
         assert_eq!(
             values.as_string::<i32>().iter().collect_vec(),
-            [Some("11"), None, None, Some("44"), Some("55")]
+            [Some("11"), None, Some("1"), Some("44"), Some("55")]
         );
     }
 

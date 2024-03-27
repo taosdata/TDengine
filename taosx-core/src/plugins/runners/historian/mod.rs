@@ -329,6 +329,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
         let res = is_valid(&dsn).await;

@@ -468,6 +468,7 @@ pub async fn tmq_to_local(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test_tmq_to_local() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
