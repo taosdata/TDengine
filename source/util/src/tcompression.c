@@ -2672,10 +2672,10 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     DEFINE_VAR(cmprAlg)                                                                                       \
     if (l1 != L1_DISABLED && l2 == L2_DISABLED) {                                                             \
       if (compress) {                                                                                         \
-        uTrace("encode:%s, compress:%s, level:%d", compressL1Dict[l1].name, "disabled", "disabled");          \
+        uTrace("encode:%s, compress:%s, level:%s", compressL1Dict[l1].name, "disabled", "disabled");          \
         return compressL1Dict[l1].comprFn(pIn, nEle, pOut, type);                                             \
       } else {                                                                                                \
-        uTrace("dencode:%s, compress:%s, level:%d", compressL1Dict[l1].name, "disabled", "disabled");         \
+        uTrace("dencode:%s, compress:%s, level:%s", compressL1Dict[l1].name, "disabled", "disabled");         \
         return compressL1Dict[l1].decomprFn(pIn, nEle, pOut, type);                                           \
       }                                                                                                       \
     } else if (l1 != L1_DISABLED && l2 != L2_DISABLED) {                                                      \
@@ -2760,6 +2760,9 @@ int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
 int32_t tsCompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
+  if (l2 == L2_DISABLED) {
+    l2 = 0;
+  }
   return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, TSDB_DATA_TYPE_BINARY, lvl);
 }
 
@@ -2767,6 +2770,9 @@ int32_t tsDecompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
                             void *pBuf, int32_t nBuf) {
   // return 0;
   DEFINE_VAR(cmprAlg)
+  if (l2 == L2_DISABLED) {
+    l2 = 0;
+  }
   return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, TSDB_DATA_TYPE_BINARY);
 }
 
