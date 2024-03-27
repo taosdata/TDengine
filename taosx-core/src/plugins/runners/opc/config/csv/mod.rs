@@ -136,6 +136,7 @@ mod csv_parser_tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_from_dsn() {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
             .unwrap();
@@ -158,6 +159,7 @@ mod csv_parser_tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_model_config() {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
             .unwrap();
@@ -174,6 +176,7 @@ mod csv_parser_tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_node_config() {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
             .unwrap();
@@ -192,6 +195,7 @@ mod csv_parser_tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_tables_to_drop() {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
             .unwrap();

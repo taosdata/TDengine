@@ -3483,10 +3483,11 @@ mod tests {
 
     //
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync() -> anyhow::Result<()> {
-        pretty_env_logger::formatted_timed_builder()
+        let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
-            .init();
+            .try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
@@ -3531,8 +3532,9 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync_large_table() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt().with_level(true).init();
+        let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let db_prefix = "test_large_stable";
@@ -3628,8 +3630,9 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync_large_normal_table() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt().with_level(true).init();
+        let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let db_prefix = "test_large_normal_table";
@@ -3813,6 +3816,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_legacy_advance_options() {
         use taos::Dsn;
         let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10";

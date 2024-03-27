@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, BooleanArray};
+use arrow::array::{Array, ArrayRef, BooleanArray, NullArray};
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 
 use arrow::datatypes::DataType;
@@ -108,8 +108,10 @@ impl Expr {
         engine.register_fn("replace", functions::replace);
         engine.register_fn("replace", functions::replacen);
         engine.register_fn("truncate", functions::truncate);
+        engine.register_fn("add_or_set", functions::add_or_set);
         let engine = Arc::new(engine);
-        let ast = engine.compile_expression(&expr)?;
+        let ast = engine.compile(&expr)?;
+        // let ast = engine.compile_expression(&expr)?;
         Ok(Self {
             expr,
             null_if_error,
@@ -145,7 +147,7 @@ impl Expr {
                 let column = &columns[cix];
 
                 if column.is_null(rix) {
-                    // scope.set_or_push(name, Dynamic::UNIT);
+                    scope.set_or_push(name, Dynamic::UNIT);
                     continue;
                 }
 
@@ -278,7 +280,12 @@ impl Expr {
         match _as {
             None => {
                 let values = self.eval_inner(records)?;
-                array_from_rhai_dynamics(values).ok_or(EvalError::InvalidResult)
+                let result = array_from_rhai_dynamics(values);
+                if self.null_if_error {
+                    Ok(result.unwrap_or_else(|| Arc::new(NullArray::new(records.num_rows())) as _))
+                } else {
+                    result.ok_or(EvalError::InvalidResult)
+                }
             }
             Some(as_type) => self.eval_as(records, as_type),
         }
@@ -386,7 +393,7 @@ mod tests {
     #[test]
     fn test_i8() {
         let id_array = Int8Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
-        let schema = Schema::new(vec![Field::new("id", DataType::Int32, true)]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int8, true)]);
 
         let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
 
@@ -475,19 +482,19 @@ mod tests {
         dbg!(&values);
         assert_eq!(
             values.as_primitive::<Float32Type>().iter().collect_vec(),
-            [Some(11.), None, None, Some(44.), Some(55.)]
+            [Some(11.), None, Some(1.0), Some(44.), Some(55.)]
         );
         let values = expr.eval_as(&batch, DataType::UInt64).unwrap();
         dbg!(&values);
         assert_eq!(
             values.as_primitive::<UInt64Type>().iter().collect_vec(),
-            [Some(11u64), None, None, Some(44), Some(55)]
+            [Some(11u64), None, Some(1), Some(44), Some(55)]
         );
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
         assert_eq!(
             values.as_string::<i32>().iter().collect_vec(),
-            [Some("11"), None, None, Some("44"), Some("55")]
+            [Some("11"), None, Some("1"), Some("44"), Some("55")]
         );
     }
 

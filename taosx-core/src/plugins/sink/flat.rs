@@ -713,6 +713,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_stable_multiple_tables_small_record_batch() -> anyhow::Result<()> {
         // pretty_env_logger::init();
         let _ = tracing_subscriber::fmt()

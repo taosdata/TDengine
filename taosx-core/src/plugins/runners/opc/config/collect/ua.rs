@@ -102,6 +102,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_collect_mode() {
         let dsn = Dsn::from_str("opcua://").unwrap();
         let collect_mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();

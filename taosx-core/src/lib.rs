@@ -7,10 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use chrono::NaiveDate;
-use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::taos_query::tmq::Assignment;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -21,7 +19,7 @@ pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
-pub use tmq_to_td::{tmq_offsets, tmq_to_td};
+pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
 
@@ -200,7 +198,6 @@ pub struct TaskOpts {
     pub cancel: CancellationToken,
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
-    pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
     pub breakpoints: Option<String>,
     pub transferred: Option<Arc<Transferred>>,
     pub span: tracing::Span,
@@ -235,7 +232,6 @@ impl TaskOpts {
             with_agent,
             // port_pool,
             breakpoints,
-            offsets,
             transferred,
             span,
             task_id,
@@ -288,7 +284,6 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         cancel.clone(),
-                        offsets.clone(),
                         task_id.clone(),
                     )
                     .in_current_span()
@@ -301,7 +296,6 @@ impl TaskOpts {
                         *jobs,
                         *force,
                         cancel.clone(),
-                        offsets.clone(),
                         task_id.clone(),
                     )
                     .await?;
@@ -556,10 +550,16 @@ mod tests {
         dbg!(format!("test start: {}", chrono::Local::now()));
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = TaosBuilder::from_dsn(to)?;
-        let _ = builder
+        let now = chrono::Local::now();
+        let res = builder
             .build()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }
@@ -570,10 +570,16 @@ mod tests {
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
-        let _ = pool
+        let now = chrono::Local::now();
+        let res = pool
             .get()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }

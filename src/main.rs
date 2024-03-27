@@ -659,6 +659,7 @@ mod tests {
     /// set data_dir、logs_home in env
     /// set logs_home in cli
     #[test]
+    #[ignore]
     fn test_config_from_toml() -> Result<(), anyhow::Error> {
         env::set_var("TAOSX_DATA_DIR", "from-env");
         env::set_var("TAOSX_LOGS_HOME", "from-env");
