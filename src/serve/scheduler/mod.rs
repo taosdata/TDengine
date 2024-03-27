@@ -11,8 +11,9 @@ use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use anyhow::{Context, Result};
-use taos::Dsn;
+use taos::{Dsn, IntoDsn};
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::transform::sample::DsSampleIn;
 use tracing::{info, instrument};
 
 use crate::serve::scheduler::runner::{TaskJob, TaskState};
@@ -533,6 +534,14 @@ impl TaskScheduler {
             .agent_runtime
             .check(agent, dsn.to_string())
             .await
+    }
+
+    pub async fn get_sample_via_agent(
+        &self,
+        agent: i64,
+        dsn: String,
+    ) -> anyhow::Result<DsSampleIn> {
+        self.global_state.agent_runtime.get_sample(agent, dsn).await
     }
 
     pub(crate) async fn suspend_all(&self) {

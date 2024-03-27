@@ -20,8 +20,8 @@ use tonic::transport::Endpoint;
 use tracing::info;
 
 use taosx_core::{
-    list_datasets_from, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, RespAction,
+    list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, RespAction, SampleResponse,
 };
 
 use crate::runner::Action;
@@ -502,6 +502,23 @@ impl Client {
                                 tracing::error!(
                                     "Can't send data source validation response to server: {err:#}"
                                 );
+                            }
+                        });
+                    }
+                    "sample" => {
+                        let dsn: String = serde_json::from_str(&context).unwrap();
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let sample = plugins::get_sample(dsn.clone()).await.map_err(Fail::new);
+                            let send_ok = resp_tx
+                                .send_async(RespAction::SampleOk(SampleResponse {
+                                    req_id,
+                                    req: dsn,
+                                    res: sample,
+                                }))
+                                .await;
+                            if let Err(err) = send_ok {
+                                tracing::error!("Can't send GetSample response to server: {err:#}");
                             }
                         });
                     }

@@ -20,7 +20,7 @@ use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
 
@@ -123,6 +124,7 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
 pub type DsvSender = Sender<DataSourceValidation>;
+pub type StringSender = Sender<Response<String>>;
 
 #[derive(Debug, Clone)]
 pub enum AgentAction {
@@ -139,6 +141,8 @@ pub enum AgentAction {
     RetrieveDataSets(DataSetsReq, Vec<DataSet>),
     /// check data source validation
     Check(String, DsvSender),
+    /// get sample data
+    GetSample(String, StringSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
@@ -1560,6 +1564,19 @@ impl TaskController {
             Ok(dsv) => dsv,
             Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
         }
+    }
+
+    pub async fn get_sample_via_agent(
+        &self,
+        agent: i64,
+        dsn: String,
+    ) -> anyhow::Result<DsSampleIn> {
+        let scheduler = self.scheduler.clone();
+        if !self.agent_alive(agent).await {
+            bail!("Agent {} is not alive", agent);
+        }
+
+        scheduler.get_sample_via_agent(agent, dsn).await
     }
 
     pub async fn cluster_transferred(
