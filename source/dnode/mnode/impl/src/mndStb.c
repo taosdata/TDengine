@@ -1112,8 +1112,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           goto _OVER;
         } else if ((tagDelta == 1 && colDelta == 0) ||
                    (tagDelta == 0 && colDelta == 1) ||
-                    pStb->colVer == 1 ||
-                    pStb->tagVer == 1) {
+                   (pStb->colVer == 1 && createReq.colVer > 1) ||
+                   (pStb->tagVer == 1 && createReq.tagVer > 1)) {
           isAlter = true;
           mInfo("stb:%s, schema version is only increased by 1 number, do alter operation", createReq.name);
         } else {
