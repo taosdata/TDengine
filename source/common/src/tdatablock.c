@@ -2228,6 +2228,10 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, 
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) return dumpBuf;
         } break;
+        default:
+          uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
+          ASSERT(0);
+          break;
       }
     }
     len += snprintf(dumpBuf + len, size - len, "%d\n", j);

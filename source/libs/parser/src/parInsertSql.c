@@ -436,8 +436,42 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
   return code;
 }
 
-static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
+static int32_t parseHexBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
   if (pToken->type != TK_NK_STRING) {
+    return TSDB_CODE_PAR_INVALID_VARBINARY;
+  }
+
+  if (isHex(pToken->z, pToken->n)) {
+    if (!isValidateHex(pToken->z, pToken->n)) {
+      return TSDB_CODE_PAR_INVALID_VARBINARY;
+    }
+
+    void*    data = NULL;
+    uint32_t size = 0;
+    if (taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (size + VARSTR_HEADER_SIZE > bytes) {
+      taosMemoryFree(data);
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = data;
+    *nData = size;
+  } else {
+    *pData = taosMemoryCalloc(1, pToken->n);
+    int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
+    *nData = len;
+
+    if (*nData + VARSTR_HEADER_SIZE > bytes) {
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, int32_t bytes){
+  if(pToken->type != TK_NK_STRING){
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
 
@@ -1576,7 +1610,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_BLOB: {
-      int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      int32_t code = parseHexBlob(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
       if (code != TSDB_CODE_SUCCESS) {
         return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
       }

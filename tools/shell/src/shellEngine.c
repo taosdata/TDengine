@@ -689,6 +689,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         }
       }
       break;
+    case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_VARBINARY:{
       void* data = NULL;
       uint32_t size = 0;
@@ -895,6 +896,12 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
         return TMAX(23, width);  // '2020-01-01 00:00:00.000'
       }
 
+    case TSDB_DATA_TYPE_BLOB:
+      if (field->bytes > shell.args.displayWidth) {
+        return TMAX(shell.args.displayWidth, width);
+      } else {
+        return TMAX(field->bytes + 2, width);
+      }
     default:
       ASSERT(false);
   }

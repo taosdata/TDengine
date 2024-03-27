@@ -66,6 +66,11 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         return false;
       }
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_BLOB) {
+        if (pSchema[i].bytes > TSDB_MAX_BLOB_LEN) {
+            //TODO: check length of blob
+           //return false;
+        }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         return false;
@@ -87,7 +92,9 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
       }
     }
 
-    rowLen += pSchema[i].bytes;
+    if (pSchema[i].type != TSDB_DATA_TYPE_BLOB) {
+        rowLen += pSchema[i].bytes;
+    }
   }
 
   return rowLen <= maxLen;

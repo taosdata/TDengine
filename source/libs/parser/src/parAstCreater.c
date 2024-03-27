@@ -1787,7 +1787,7 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createBlobDataType(uint8_t type) {
-  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = 1024 * 1024 * 20};
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = TSDB_MAX_BLOB_LEN};
   return dt;
 }
 
