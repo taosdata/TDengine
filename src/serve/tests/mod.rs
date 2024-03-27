@@ -74,6 +74,9 @@ pub(crate) async fn generate_scheduler_for_test(
                         crate::serve::controller::AgentAction::Check(_, _) => {
                             // TODO
                         }
+                        crate::serve::controller::AgentAction::GetSample(_, _) => {
+                            // TODO
+                        }
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
