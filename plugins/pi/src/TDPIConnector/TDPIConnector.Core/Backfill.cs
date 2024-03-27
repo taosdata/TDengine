@@ -8,6 +8,7 @@ using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Conversions;
 using log4net;
+using System.Threading;
 
 namespace TDPIConnector.Core
 {
@@ -17,12 +18,20 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PIServerManager piServerManager;
         private PISystemManager piSystemManager;
+        int backfillWait = 0;  // ms
 
         public Backfill(TDEngineProxy tdEngineProxy, PIServerManager piServerManager, PISystemManager piSystemManager)
         {
             this.tdEngineProxy = tdEngineProxy;
             this.piServerManager = piServerManager;
             this.piSystemManager = piSystemManager;
+
+            string taosPiBackfillWait = Environment.GetEnvironmentVariable("TAOSXPIBACKFILLWAIT");
+            if (!int.TryParse(taosPiBackfillWait, out backfillWait))
+            {
+                backfillWait = 10;
+            }
+            log.Info($"TAOSXPIBACKFILLWAIT set to {backfillWait}.");
         }
 
 
@@ -160,6 +169,7 @@ namespace TDPIConnector.Core
                 IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, 10000);
                 bool found = false;
                 DateTime smallLastAttributeTime = endTime;
+                int count = 0;
                 foreach (AFValuesWrapper values in valuesList)
                 {
                     if (values.Count > 0)
@@ -185,9 +195,11 @@ namespace TDPIConnector.Core
                         {
                             smallLastAttributeTime = values[values.Count - 1].Timestamp.LocalTime;
                         }
+                        count += values.Count;
                     }
                 }
                 log.Info($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
+                if (count >= 10000) Thread.Sleep(backfillWait);
 
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
                 currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
