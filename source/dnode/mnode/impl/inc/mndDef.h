@@ -141,6 +141,7 @@ typedef enum {
   DND_REASON_CHARSET_NOT_MATCH,
   DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH,
   DND_REASON_ENABLE_WHITELIST_NOT_MATCH,
+  DND_REASON_ENCRYPTION_KEY_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
 
@@ -214,6 +215,7 @@ typedef struct {
   int64_t    memAvail;
   int64_t    memUsed;
   EDndReason offlineReason;
+  int8_t     encryptionKeyStat;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
@@ -379,6 +381,7 @@ typedef struct {
   int64_t walRetentionSize;
   int64_t walSegmentSize;
   int8_t  withArbitrator;
+  int8_t  encryptAlgorithm;
 } SDbCfg;
 
 typedef struct {

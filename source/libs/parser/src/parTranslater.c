@@ -5152,6 +5152,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
+  pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -5285,12 +5286,13 @@ static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseO
     if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
       pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
     } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
-      pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_ROW;
+      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_SM4;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option encryptAlgorithm: %s", pOptions->encryptAlgorithmStr);
+                                     "Invalid option encrypt_algorithm: %s", pOptions->encryptAlgorithmStr);
     }
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5570,6 +5572,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "withArbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR,
                              TSDB_MAX_DB_WITH_ARBITRATOR);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbEnumOption(pCxt, "encryptionAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
+                             TSDB_MAX_ENCRYPT_ALGO);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);

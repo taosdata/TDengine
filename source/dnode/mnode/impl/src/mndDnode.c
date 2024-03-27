@@ -47,6 +47,8 @@ static const char *offlineReason[] = {
     "locale not match",
     "charset not match",
     "ttlChangeOnWrite not match",
+    "enableWhiteList not match",
+    "encryptionKey not match",
     "unknown",
 };
 
@@ -462,8 +464,14 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
   int8_t enable = tsEnableWhiteList ? 1 : 0;
   if (pCfg->enableWhiteList != enable) {
-    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    mError("dnode:%d, enableWhiteList:%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
     return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
+  }
+
+  if (pCfg->encryptionKeyStat != tsEncryptionKeyStat) {
+    mError("dnode:%d, encryptionKey:%d inconsistent with cluster:%d", pDnode->id, pCfg->encryptionKeyStat,
+           tsEncryptionKeyStat);
+    return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
   }
 
   return 0;
@@ -1550,7 +1558,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
-  char       buf[TSDB_CONN_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE];  // make sure TSDB_CONN_ACTIVE_KEY_LEN >= TSDB_EP_LEN
+  char       buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);

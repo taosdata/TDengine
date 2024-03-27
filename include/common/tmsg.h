@@ -1158,6 +1158,7 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
+  int8_t  encryptAlgorithm;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1300,6 +1301,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
+  int8_t  encryptAlgorithm;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;
@@ -1498,6 +1500,7 @@ typedef struct {
   char    charset[TD_LOCALE_LEN];     // tsCharset
   int8_t  ttlChangeOnWrite;
   int8_t  enableWhiteList;
+  int8_t  encryptionKeyStat;
 } SClusterCfg;
 
 typedef struct {

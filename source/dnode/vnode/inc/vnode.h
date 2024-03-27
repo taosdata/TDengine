@@ -302,6 +302,7 @@ struct SVnodeCfg {
   int8_t      isRsma;
   int8_t      hashMethod;
   int8_t      standby;
+  int8_t      encryptAlgorithm;
   STsdbCfg    tsdbCfg;
   SWalCfg     walCfg;
   SSyncCfg    syncCfg;

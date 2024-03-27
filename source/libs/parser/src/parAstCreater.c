@@ -1264,6 +1264,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   return (SNode*)pOptions;
 }
 
