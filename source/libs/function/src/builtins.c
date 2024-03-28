@@ -46,7 +46,7 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
 #define TIME_UNIT_TOO_SMALL 2
 
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
-  if (!pVal->isDuration) {
+  if (!IS_DURATION_VAL(pVal->flag)) {
     return TIME_UNIT_INVALID;
   }
 
@@ -225,7 +225,6 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   }
 
   pVal->literal = strndup(buf, len);
-  pVal->isDuration = false;
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
@@ -245,7 +244,6 @@ static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   }
 
   pVal->literal = NULL;
-  pVal->isDuration = false;
   pVal->translate = true;
   pVal->notReserved = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
@@ -547,6 +545,9 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   for (int32_t i = 1; i < numOfParams; ++i) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+    if (QUERY_NODE_VALUE != nodeType(pValue)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
     pValue->notReserved = true;
 
     uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;

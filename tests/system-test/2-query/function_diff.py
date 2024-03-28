@@ -295,7 +295,7 @@ class TDTestCase:
             "table_expr": "db.stb1 as stable1, db.stb2 as stable2",
             "condition": "where stable1.ts=stable2.ts and stable1.st1=stable2.st2 order by stable1.ts"
         }
-        tdSql.query(self.diff_query_form(**stb_join))           # stb join
+        tdSql.error(self.diff_query_form(**stb_join))           # stb join
         interval_sql = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }

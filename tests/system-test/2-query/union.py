@@ -253,8 +253,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
-        tdSql.error(f"select first(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
-        tdSql.error(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.query(f"select first(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.query(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select irate(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select elapsed(ts) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")

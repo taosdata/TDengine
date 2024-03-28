@@ -158,6 +158,7 @@ int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
 SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
 void    destoryCatalogReq(SCatalogReq *pCatalogReq);
+bool    isPrimaryKeyImpl(SNode* pExpr);
 
 #ifdef __cplusplus
 }

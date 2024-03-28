@@ -36,20 +36,16 @@ typedef struct SHJoinCtx {
   int32_t      probeIdx;
 } SHJoinCtx;
 
-typedef struct SRowLocation {
-  SSDataBlock* pDataBlock;
-  int32_t      pos;
-} SRowLocation;
-
 typedef struct SHJoinColInfo {
-  int32_t  srcSlot;
-  int32_t  dstSlot;
-  bool     keyCol;
-  bool     vardata;
-  int32_t* offset;
-  int32_t  bytes;
-  char*    data;
-  char*    bitMap;
+  int32_t          srcSlot;
+  int32_t          dstSlot;
+  bool             keyCol;
+  bool             vardata;
+  int32_t*         offset;
+  int32_t          bytes;
+  char*            data;
+  char*            bitMap;
+  SColumnInfoData* colData;
 } SHJoinColInfo;
 
 typedef struct SBufPageInfo {

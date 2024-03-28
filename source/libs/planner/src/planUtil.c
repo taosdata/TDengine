@@ -19,7 +19,7 @@
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
-      return "left.ts = right.ts is expected in join expression";
+      return "primary timestamp equal condition is expected in join conditions";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
@@ -566,3 +566,27 @@ bool keysHasCol(SNodeList* pKeys) {
   nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
+
+SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (pFunc) {
+    strcpy(pFunc->functionName, "_group_key");
+    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
+    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode((SNode*)pGroupCol));
+    if (code == TSDB_CODE_SUCCESS) {
+      code = fmGetFuncInfo(pFunc, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pFunc);
+      pFunc = NULL;
+    }
+    char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+    taosCreateMD5Hash(name, len);
+    strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  }
+  return pFunc;
+}
+
+
