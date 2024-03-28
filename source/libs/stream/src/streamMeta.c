@@ -648,14 +648,17 @@ SStreamTask* streamMetaAcquireOneTask(SStreamTask* pTask) {
 }
 
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
+  int32_t taskId = pTask->id.taskId;
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
+
+  // not safe to use the pTask->id.idStr, since pTask may be released by other threads when print logs.
   if (ref > 0) {
-    stTrace("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
+    stTrace("s-task:0x%x release task, ref:%d", taskId, ref);
   } else if (ref == 0) {
-    stTrace("s-task:%s all refs are gone, free it", pTask->id.idStr);
+    stTrace("s-task:0x%x all refs are gone, free it", taskId);
     tFreeStreamTask(pTask);
   } else if (ref < 0) {
-    stError("task ref is invalid, ref:%d, %s", ref, pTask->id.idStr);
+    stError("task ref is invalid, ref:%d, 0x%x", ref, taskId);
   }
 }
 
