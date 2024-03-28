@@ -1348,11 +1348,7 @@ async fn consume_point_record(
             // point_config
             let code = point_config_map.get(&point_id);
             if code.is_none() {
-                tracing::warn!(
-                    "cannot get point_config with point_id: {}, opc_config: {:?}",
-                    point_id,
-                    &config
-                );
+                tracing::warn!("cannot get point_config with point_id: {}", point_id);
                 continue;
             }
             let point_config = code.unwrap();
@@ -1360,11 +1356,7 @@ async fn consume_point_record(
             // table_config
             let table_config = table_config_map.get(&point_id);
             if table_config.is_none() {
-                tracing::warn!(
-                    "cannot get table_config with point_id: {}, opc_config: {:?}",
-                    point_id,
-                    &config
-                );
+                tracing::trace!("cannot get table_config with point_id: {}", point_id);
                 continue;
             }
             let table_config = table_config.unwrap();
