@@ -43,17 +43,27 @@ uint8_t getDefaultEncode(uint8_t type) {
     case TSDB_DATA_TYPE_DOUBLE:
       return TSDB_COLVAL_ENCODE_DELTAD;
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
-      return 
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_TIMESTAMP:
+      return TSDB_COLVAL_ENCODE_XOR;
     case TSDB_DATA_TYPE_NCHAR:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_UTINYINT:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_USMALLINT:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_UINT:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_JSON:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_VARBINARY:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_DECIMAL:
+      return TSDB_COLVAL_ENCODE_DELTAD;
     case TSDB_DATA_TYPE_BLOB:
+      return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_MAX:
@@ -90,7 +100,6 @@ uint16_t getDefaultCompress(uint8_t type) {
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_MAX:
       return TSDB_COLVAL_COMPRESS_LZ4;
-
     default:
       return TSDB_COLVAL_COMPRESS_LZ4;
   }
@@ -294,34 +303,75 @@ void setColLevel(uint32_t* compress, uint8_t level) {
   return;
 }
 
-void setColCompressByOption(uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level) {
+int8_t setColCompressByOption(uint8_t type, uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level) {
+  if (!validColEncode(type, encode)) return 0;
   setColEncode(compress, encode);
+
   if (compressType == TSDB_COLVAL_COMPRESS_DISABLED) {
     setColCompress(compress, compressType);
     setColLevel(compress, TSDB_COLVAL_LEVEL_DISABLED);
   } else {
+    if (!validColCompress(type, compressType)) return 0;
     setColCompress(compress, compressType);
+
+    if (!validColCompressLevel(type, level)) return 0;
     setColLevel(compress, level);
   }
-  return;
+  return 1;
 }
 
 bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
 
-int8_t validColCompressOption(uint8_t type, uint8_t encode, uint8_t compress, uint8_t level) {
-  if (level < TSDB_COLVAL_LEVEL_HIGH || level > TSDB_COLVAL_LEVEL_LOW) {
+int8_t validColCompressLevel(uint8_t type, uint8_t level) {
+  if (level < TSDB_COLVAL_LEVEL_LOW || level > TSDB_COLVAL_LEVEL_HIGH) {
     return 0;
   }
+  return 1;
+}
+int8_t validColCompress(uint8_t type, uint8_t l2) {
+  // if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+  //   if (l2 != TSDB_COLVAL_COMPRESS_TSZ) {
+  //     return 0;
+  //   }
+  // }
+  if (l2 <= TSDB_COLVAL_COMPRESS_NOCHANGE || l2 >= TSDB_COLVAL_COMPRESS_DISABLED) {
+    return TSDB_COLVAL_COMPRESS_DISABLED == l2 ? 1 : 0;
+  }
 
+  return 1;
+}
+
+//
+// | --------type----------|----- supported encode ----|
+// |tinyint/smallint/int/bigint/utinyint/usmallinit/uint/ubiginint| simple8b |
+// | timestamp/bigint/ubigint | delta-i  |
+// | bool  |  bit-packing   |
+// | flout/double | delta-d |
+//
+int8_t validColEncode(uint8_t type, uint8_t l1) {
   if (type == TSDB_DATA_TYPE_BOOL) {
-  } else if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+    return TSDB_COLVAL_ENCODE_RLE == l1 ? 1 : 0;
+  } else if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_INT) {
+    return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 ? 1 : 0;
+  } else if (type == TSDB_DATA_TYPE_BIGINT) {
+    return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) {
-    if (compress == TSDB_COLVAL_COMPRESS_TSZ) {
+    return TSDB_COLVAL_ENCODE_DELTAD == l1 ? 1 : 0;
+  } else if ((type == TSDB_DATA_TYPE_VARCHAR && type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
+             type == TSDB_DATA_TYPE_VARBINARY) {
+    if (l1 >= TSDB_COLVAL_ENCODE_NOCHANGE || l1 <= TSDB_COLVAL_ENCODE_DELTAD) {
       return 1;
+    } else if (l1 == TSDB_COLVAL_ENCODE_DISABLED) {
+      return 1;
+    } else {
+      return 0;
     }
-  } else if (type == TSDB_DATA_TYPE_VARCHAR && type == TSDB_DATA_TYPE_NCHAR) {
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-  } else if (type >= TSDB_DATA_TYPE_USMALLINT || type <= TSDB_DATA_TYPE_UBIGINT) {
+    return TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
+  } else if (type >= TSDB_DATA_TYPE_USMALLINT || type <= TSDB_DATA_TYPE_UINT) {
+    return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 ? 1 : 0;
+  } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+    return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_JSON || type == TSDB_DATA_TYPE_VARBINARY) {
   }
   return 0;

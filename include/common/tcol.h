@@ -17,10 +17,10 @@
 #define _TD_TCOL_H_
 
 #define TSDB_COLUMN_ENCODE_UNKNOWN  "Unknown"
-#define TSDB_COLUMN_ENCODE_SIMPLE8B "Simple8b"
-#define TSDB_COLUMN_ENCODE_XOR      "DeltaI"
-#define TSDB_COLUMN_ENCODE_RLE      "Bit-Packing"
-#define TSDB_COLUMN_ENCODE_DELTAD   "DeltaD"
+#define TSDB_COLUMN_ENCODE_SIMPLE8B "simple8b"
+#define TSDB_COLUMN_ENCODE_XOR      "delta-i"
+#define TSDB_COLUMN_ENCODE_RLE      "bit-packing"
+#define TSDB_COLUMN_ENCODE_DELTAD   "delta-d"
 #define TSDB_COLUMN_ENCODE_DISABLED "disabled"
 
 #define TSDB_COLUMN_COMPRESS_UNKNOWN  "Unknown"
@@ -41,7 +41,6 @@
 #define TSDB_COLVAL_ENCODE_XOR      2
 #define TSDB_COLVAL_ENCODE_RLE      3
 #define TSDB_COLVAL_ENCODE_DELTAD   4
-
 #define TSDB_COLVAL_ENCODE_DISABLED 0xff
 
 #define TSDB_COLVAL_COMPRESS_NOCHANGE 0
@@ -53,9 +52,9 @@
 #define TSDB_COLVAL_COMPRESS_DISABLED 0xff
 
 #define TSDB_COLVAL_LEVEL_NOCHANGE 0
-#define TSDB_COLVAL_LEVEL_HIGH     1
+#define TSDB_COLVAL_LEVEL_LOW      1
 #define TSDB_COLVAL_LEVEL_MEDIUM   2
-#define TSDB_COLVAL_LEVEL_LOW      3
+#define TSDB_COLVAL_LEVEL_HIGH     3
 #define TSDB_COLVAL_LEVEL_DISABLED 0xff
 
 #define TSDB_CL_COMMENT_LEN         1025
@@ -87,9 +86,12 @@ bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRES
 bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]);
 
-void setColEncode(uint32_t* compress, uint8_t encode);
-void setColCompress(uint32_t* compress, uint16_t compressType);
-void setColLevel(uint32_t* compress, uint8_t level);
-void setColCompressByOption(uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level);
+void   setColEncode(uint32_t* compress, uint8_t encode);
+void   setColCompress(uint32_t* compress, uint16_t compressType);
+void   setColLevel(uint32_t* compress, uint8_t level);
+int8_t setColCompressByOption(uint8_t type, uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level);
 
+int8_t validColCompressLevel(uint8_t type, uint8_t level);
+int8_t validColCompress(uint8_t type, uint8_t l2);
+int8_t validColEncode(uint8_t type, uint8_t l1);
 #endif /*_TD_TCOL_H_*/

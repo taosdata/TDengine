@@ -5769,9 +5769,11 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     if (!pCol->pOptions) return TSDB_CODE_TSC_ENCODE_PARAM_NULL;
-    if (!checkColumnEncodeOrSetDefault(pCol->type, pCol->pOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-    if (!checkColumnCompressOrSetDefault(pCol->type, pCol->pOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-    if (!checkColumnLevelOrSetDefault(pCol->type, pCol->pOptions->compressLevel))
+    if (!checkColumnEncodeOrSetDefault(pCol->dataType.type, pCol->pOptions->encode))
+      return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnCompressOrSetDefault(pCol->dataType.type, pCol->pOptions->compress))
+      return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnLevelOrSetDefault(pCol->dataType.type, pCol->pOptions->compressLevel))
       return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   }
   return TSDB_CODE_SUCCESS;
@@ -6614,9 +6616,10 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-      setColCompressByOption((uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
-                             columnCompressVal(pStmt->pColOptions->compress),
-                             columnLevelVal(pStmt->pColOptions->compressLevel));
+      int8_t valid = setColCompressByOption(
+          pStmt->dataType.type, (uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
+          columnCompressVal(pStmt->pColOptions->compress), columnLevelVal(pStmt->pColOptions->compressLevel));
+      if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       taosArrayPush(pAlterReq->pFields, &field);
       break;
     }
@@ -9912,12 +9915,14 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   tInitDefaultSColCmprWrapperByCols(&req.colCmpr, req.ntb.schemaRow.nCols);
   FOREACH(pCol, pStmt->pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
-    toSchema(pColDef, index + 1, req.ntb.schemaRow.pSchema + index);
+    SSchema*        pScheam = req.ntb.schemaRow.pSchema + index;
+    toSchema(pColDef, index + 1, pScheam);
     if (pColDef->pOptions) {
       req.colCmpr.pColCmpr[index].id = index + 1;
-      setColCompressByOption(&req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
-                             columnCompressVal(pColDef->pOptions->compress),
-                             columnLevelVal(pColDef->pOptions->compressLevel));
+      int8_t valid = setColCompressByOption(
+          pScheam->type, &req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
+          columnCompressVal(pColDef->pOptions->compress), columnLevelVal(pColDef->pOptions->compressLevel));
+      if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
     }
     ++index;
   }
@@ -10743,9 +10748,10 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-  setColCompressByOption(&pReq->compress, columnEncodeVal(pStmt->pColOptions->encode),
-                         columnCompressVal(pStmt->pColOptions->compress),
-                         columnLevelVal(pStmt->pColOptions->compressLevel));
+  int8_t valid = setColCompressByOption(pSchema->type, &pReq->compress, columnEncodeVal(pStmt->pColOptions->encode),
+                                        columnCompressVal(pStmt->pColOptions->compress),
+                                        columnLevelVal(pStmt->pColOptions->compressLevel));
+  if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
 
   return TSDB_CODE_SUCCESS;
 }

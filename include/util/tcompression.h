@@ -260,6 +260,7 @@ typedef enum L1Compress {
   L1_SIMPLE_8B,
   L1_XOR,
   L1_RLE,
+  L1_DELTAD,
   L1_DISABLED = 0xFF,
 } EL1CompressFuncType;
 
