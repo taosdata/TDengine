@@ -14,7 +14,6 @@
  */
 
 #include "tsdbReadUtil.h"
-#include "osDef.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
@@ -131,6 +130,67 @@ STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, c
   return *p;
 }
 
+static int32_t initSRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len) {
+  pKey->numOfPKs = numOfPks;
+  pKey->ts = ts;
+
+  if (numOfPks > 0) {
+    pKey->pks[0].type = type;
+    if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+      pKey->pks[0].val = INT64_MIN;
+    } else {
+      pKey->pks[0].pData = taosMemoryCalloc(1, len);
+      pKey->pks[0].nData = 0;
+
+      if (pKey->pks[0].pData == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
+  int32_t numOfPks = pReader->suppInfo.numOfPks;
+
+  SRowKey* pRowKey = &pScanInfo->lastProcKey;
+  if (ASCENDING_TRAVERSE(pReader->info.order)) {
+    int64_t skey = pReader->info.window.skey;
+    int64_t ts = (skey > INT64_MIN) ? (skey - 1) : skey;
+
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes);
+  } else {
+    int64_t ekey = pReader->info.window.ekey;
+    int64_t ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes);
+  }
+}
+
+int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
+                               STsdbReader* pReader) {
+  pScanInfo->uid = uid;
+  INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+  INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
+
+  pScanInfo->cleanSttBlocks = false;
+  pScanInfo->sttBlockReturned = false;
+
+  initLastProcKey(pScanInfo, pReader);
+
+  pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
+  tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pReader, pScanInfo->uid,
+            pScanInfo->lastProcKey.ts, pReader->idStr);
+  return TSDB_CODE_SUCCESS;
+}
+
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
 SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
                                    STableUidList* pUidList, int32_t numOfTables) {
@@ -153,31 +213,10 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
   pUidList->currentIndex = 0;
 
   for (int32_t j = 0; j < numOfTables; ++j) {
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
-
-    pScanInfo->uid = idList[j].uid;
-    INIT_TIMEWINDOW(&pScanInfo->sttWindow);
-    INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
-
-    pScanInfo->cleanSttBlocks = false;
-    pScanInfo->sttBlockReturned = false;
-
     pUidList->tableUidList[j] = idList[j].uid;
 
-    if (ASCENDING_TRAVERSE(pTsdbReader->info.order)) {
-      int64_t skey = pTsdbReader->info.window.skey;
-      pScanInfo->lastProcKey = (skey > INT64_MIN) ? (skey - 1) : skey;
-      pScanInfo->sttKeyInfo.nextProcKey = skey;
-    } else {
-      int64_t ekey = pTsdbReader->info.window.ekey;
-      pScanInfo->lastProcKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-      pScanInfo->sttKeyInfo.nextProcKey = ekey;
-    }
-
-    pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
-    tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
-    tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
-              pScanInfo->lastProcKey, pTsdbReader->idStr);
+    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
+    initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -210,8 +249,9 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
     }
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
-    pInfo->lastProcKey = ts;
-    pInfo->sttKeyInfo.nextProcKey = ts + step;
+    pInfo->lastProcKey.ts = ts;
+    // todo check the nextProcKey info
+    pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
   }
 }
 
@@ -281,7 +321,7 @@ void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray
 }
 
 SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
-  if (pIter->blockIndex == -1 || (pIter->recordIndex + 1) >= TARRAY2_SIZE(pIter->block.numRow)) {
+  if (pIter->blockIndex == -1 || (pIter->recordIndex + 1) >= pIter->block.numOfRecords) {
     pIter->blockIndex += 1;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pBrinBlockList)) {
       return NULL;
@@ -356,10 +396,10 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record){
+static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record, STsdbReader* pReader) {
   pBlockInfo->uid = record->uid;
-  pBlockInfo->firstKey = record->firstKey;
-  pBlockInfo->lastKey = record->lastKey;
+  pBlockInfo->firstKey = record->firstKey.key.ts;
+  pBlockInfo->lastKey = record->lastKey.key.ts;
   pBlockInfo->minVer = record->minVer;
   pBlockInfo->maxVer = record->maxVer;
   pBlockInfo->blockOffset = record->blockOffset;
@@ -369,6 +409,25 @@ static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* recor
   pBlockInfo->smaSize = record->smaSize;
   pBlockInfo->numRow = record->numRow;
   pBlockInfo->count = record->count;
+
+  SRowKey* pFirstKey = &record->firstKey.key;
+  if (pFirstKey->numOfPKs > 0) {
+    if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
+      pBlockInfo->firstPk.val = pFirstKey->pks[0].val;
+      pBlockInfo->lastPk.val = record->lastKey.key.pks[0].val;
+
+      pBlockInfo->firstPKLen = 0;
+      pBlockInfo->lastPKLen = 0;
+    } else {  // todo handle memory alloc error, opt memory alloc perf
+      pBlockInfo->firstPKLen = pFirstKey->pks[0].nData;
+      pBlockInfo->firstPk.pData = taosMemoryCalloc(1, pBlockInfo->firstPKLen);
+      memcpy(pBlockInfo->firstPk.pData, pFirstKey->pks[0].pData, pBlockInfo->firstPKLen);
+
+      pBlockInfo->lastPKLen = record->lastKey.key.pks[0].nData;
+      pBlockInfo->lastPk.pData = taosMemoryCalloc(1, pBlockInfo->lastPKLen);
+      memcpy(pBlockInfo->lastPk.pData, record->lastKey.key.pks[0].pData, pBlockInfo->lastPKLen);
+    }
+  }
 }
 
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
@@ -377,8 +436,6 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
   SBlockOrderSupporter sup = {0};
   pBlockIter->numOfBlocks = numOfBlocks;
   taosArrayClear(pBlockIter->blockList);
-
-  pBlockIter->pTableMap = pReader->status.pTableMap;
 
   // access data blocks according to the offset of each block in asc/desc order.
   int32_t numOfTables = taosArrayGetSize(pTableList);
@@ -393,7 +450,6 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    //    ASSERT(pTableScanInfo->pBlockList != NULL && taosArrayGetSize(pTableScanInfo->pBlockList) > 0);
 
     size_t num = taosArrayGetSize(pTableScanInfo->pBlockList);
     sup.numOfBlocksPerTable[sup.numOfTables] = num;
@@ -427,15 +483,17 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     if (pTableScanInfo->pBlockIdxList == NULL) {
       pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
     }
+
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
-      SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
-      recordToBlockInfo(&blockInfo, record);
+      SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      recordToBlockInfo(&blockInfo, record, pReader);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
       taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     }
+
     pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
 
     int64_t et = taosGetTimestampUs();
@@ -464,8 +522,8 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t index = sup.indexPerTable[pos]++;
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
-    SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
-    recordToBlockInfo(&blockInfo, record);
+    SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    recordToBlockInfo(&blockInfo, record, pReader);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
     STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
@@ -529,7 +587,7 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
     pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
   }
 
-  for (int32_t k = 0; k < TARRAY2_SIZE(pBlock->suid); ++k) {
+  for (int32_t k = 0; k < pBlock->numOfRecords; ++k) {
     code = tTombBlockGet(pBlock, k, &record);
     if (code != TSDB_CODE_SUCCESS) {
       *pRet = BLK_CHECK_QUIT;
@@ -722,11 +780,11 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
   pBlockLoadInfo->cost.statisElapsedTime += el;
 
   int32_t index = 0;
-  while (index < TARRAY2_SIZE(pStatisBlock->suid) && pStatisBlock->suid->data[index] < suid) {
+  while (index < pStatisBlock->numOfRecords && ((int64_t*)pStatisBlock->suids.data)[index] < suid) {
     ++index;
   }
 
-  if (index >= TARRAY2_SIZE(pStatisBlock->suid)) {
+  if (index >= pStatisBlock->numOfRecords) {
     tStatisBlockDestroy(pStatisBlock);
     taosMemoryFreeClear(pStatisBlock);
     return num;
@@ -744,14 +802,14 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
 
     uint64_t uid = pUidList[uidIndex];
 
-    if (pStatisBlock->uid->data[j] == uid) {
-      num += pStatisBlock->count->data[j];
+    if (((int64_t*)pStatisBlock->uids.data)[j] == uid) {
+      num += ((int64_t*)pStatisBlock->counts.data)[j];
       uidIndex += 1;
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
-    } else if (pStatisBlock->uid->data[j] < uid) {
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
+    } else if (((int64_t*)pStatisBlock->uids.data)[j] < uid) {
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->numOfRecords, &i, &j);
     } else {
       uidIndex += 1;
     }
@@ -962,15 +1020,15 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
-    if (p->ts >= pRecord->firstKey && p->ts <= pRecord->lastKey) {
+    if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       if (p->version >= pRecord->minVer) {
         return true;
       }
-    } else if (p->ts < pRecord->firstKey) {  // p->ts < pBlock->minKey.ts
+    } else if (p->ts < pRecord->firstKey.key.ts) {  // p->ts < pBlock->minKey.ts
       if (p->version >= pRecord->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
-          if (pnext->ts >= pRecord->firstKey) {
+          if (pnext->ts >= pRecord->firstKey.key.ts) {
             return true;
           }
         } else {  // it must be the last point
@@ -991,12 +1049,12 @@ static bool doCheckDatablockOverlapWithoutVersion(STableBlockScanInfo* pBlockSca
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
-    if (p->ts >= pRecord->firstKey && p->ts <= pRecord->lastKey) {
+    if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       return true;
-    } else if (p->ts < pRecord->firstKey) {  // p->ts < pBlock->minKey.ts
+    } else if (p->ts < pRecord->firstKey.key.ts) {  // p->ts < pBlock->minKey.ts
       if (i < num - 1) {
         TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
-        if (pnext->ts >= pRecord->firstKey) {
+        if (pnext->ts >= pRecord->firstKey.key.ts) {
           return true;
         }
       }
@@ -1016,7 +1074,7 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
-  if (pRecord->firstKey > pLast->ts || pRecord->lastKey < pFirst->ts) {
+  if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
 
@@ -1027,10 +1085,10 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
-      if (p->ts > pRecord->firstKey && index > 0) {
+      if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
-        if (p->ts == pRecord->firstKey && p->version < pRecord->maxVer && index > 0) {
+        if (p->ts == pRecord->firstKey.key.ts && p->version < pRecord->maxVer && index > 0) {
           index -= 1;
         }
         break;
@@ -1049,7 +1107,7 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
-  if (pRecord->firstKey > pLast->ts || pRecord->lastKey < pFirst->ts) {
+  if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
 
@@ -1060,10 +1118,10 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
-      if (p->ts > pRecord->firstKey && index > 0) {
+      if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
-        if (p->ts == pRecord->firstKey && index > 0) {
+        if (p->ts == pRecord->firstKey.key.ts && index > 0) {
           index -= 1;
         }
         break;

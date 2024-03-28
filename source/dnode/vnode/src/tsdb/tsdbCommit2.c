@@ -298,8 +298,11 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   // mem data iter
   config.type = TSDB_ITER_TYPE_MEMT;
   config.memt = committer->tsdb->imem;
-  config.from->ts = committer->ctx->minKey;
   config.from->version = VERSION_MIN;
+  config.from->key = (SRowKey){
+      .ts = committer->ctx->minKey,
+      .numOfPKs = 0,  // TODO: support multiple primary keys
+  };
 
   code = tsdbIterOpen(&config, &iter);
   TSDB_CHECK_CODE(code, lino, _exit);

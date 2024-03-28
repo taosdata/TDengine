@@ -46,6 +46,8 @@ typedef struct SCacheRowsScanInfo {
   int32_t         indexOfBufferedRes;
   STableListInfo* pTableList;
   SArray*         pFuncTypeList;
+  int32_t         numOfPks;
+  SColumnInfo     pkCol;
 } SCacheRowsScanInfo;
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
@@ -106,6 +108,16 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     goto _error;
   }
 
+  for(int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem->isPk) {
+      pInfo->numOfPks += 1;
+      pInfo->pkCol.type = pItem->dataType.type;    // only record one primary key
+      pInfo->pkCol.bytes = pItem->dataType.bytes;  // only record one primary key
+      pInfo->pkCol.pk = 1;
+    }
+  }
+
   SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
   pInfo->pFuncTypeList = taosArrayInit(taosArrayGetSize(pScanNode->pFuncTypes), sizeof(int32_t));
   taosArrayAddAll(pInfo->pFuncTypeList, pScanNode->pFuncTypes);
@@ -140,7 +152,8 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     uint64_t suid = tableListGetSuid(pTableListInfo);
     code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
                                                     taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds,
-                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str, pScanNode->pFuncTypes);
+                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str, pScanNode->pFuncTypes,
+                                                    &pInfo->pkCol, pInfo->numOfPks);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -282,7 +295,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       if (NULL == pInfo->pLastrowReader) {
         code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
                                        taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
-                                       pTaskInfo->id.str, pInfo->pFuncTypeList);
+                                       pTaskInfo->id.str, pInfo->pFuncTypeList, &pInfo->pkCol, pInfo->numOfPks);
         if (code != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
           taosArrayClear(pInfo->pUidList);
