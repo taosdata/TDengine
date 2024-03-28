@@ -21,7 +21,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::historian;
 use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
-use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
+use taosx_core::{list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
 mod definition;
 
@@ -377,7 +377,7 @@ pub(crate) async fn is_valid_impl(
     params(
         ("dsn" = String, description = "dsn string"),
         ("via" = String, description = "agent id"),
-        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
+        ("timeout" = Option<String>, description = "timeout seconds")
     ),
 )]
 #[get("/ds/in/sample")]
@@ -408,16 +408,15 @@ pub(super) async fn get_sample(
 }
 
 pub(crate) async fn get_sample_impl(
-    _controller: Data<TaskControllerRef>,
+    controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
-    let dsn = query.dsn.into_dsn()?;
+    let via = query.via;
+    let dsn = query.dsn.clone();
 
-    match dsn.driver.as_str() {
-        AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
-        _ => Err(anyhow::anyhow!(
-            "get sample from data source is unsupported"
-        )),
+    match via {
+        None => plugins::get_sample(dsn).await,
+        Some(agent) => controller.get_sample_via_agent(agent, dsn).await,
     }
 }
 

@@ -60,6 +60,13 @@ pub struct CheckResponse {
     pub res: DataSourceValidation,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SampleResponse {
+    pub req_id: u64,
+    pub req: String,
+    pub res: Response<String>,
+}
+
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fail<T> {
@@ -159,6 +166,7 @@ pub enum RespAction {
     /// ReqId, Resp
     ListOk(ListResponse),
     CheckOk(CheckResponse),
+    SampleOk(SampleResponse),
     AgentActivity(Activity),
     TaskActivity(Activity),
     Metrics(MetricsEvents),

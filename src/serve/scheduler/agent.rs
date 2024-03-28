@@ -4,6 +4,7 @@ use std::{collections::HashMap, fmt::Debug};
 use anyhow::bail;
 use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::DataSet;
 use tokio::{
     runtime::Handle,
@@ -391,6 +392,46 @@ impl AgentWorker {
             .await
             .map_err(|err| anyhow::anyhow!("Receiving data source validation error: {:#}", err))?;
         Ok(res)
+    }
+
+    pub(crate) async fn get_sample(
+        &self,
+        agent_id: i64,
+        dsn: String,
+    ) -> anyhow::Result<DsSampleIn> {
+        {
+            let states = self.agent_states.read().await;
+            if !states.contains_key(&agent_id) {
+                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
+            }
+        }
+
+        let (sender, receiver) = flume::bounded(1);
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::GetSample(dsn, sender)))
+        {
+            tracing::warn!("failed to send GetSample action, cause: {:?}", err);
+            bail!("failed to send GetSample action, cause: {:?}", err);
+        }
+        let res = receiver.recv_async().await.map_err(|err| {
+            anyhow::anyhow!("failed to receive GetSample action, cause: {:#}", err)
+        })?;
+
+        match res {
+            Ok(sample) => {
+                let sample = serde_json::from_str(&sample).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse GetSample action, response: {}, cause: {:#}",
+                        sample,
+                        err
+                    )
+                })?;
+
+                Ok(sample)
+            }
+            Err(err) => Err(anyhow::anyhow!("failed to get sample, cause: {:#}", err)),
+        }
     }
 
     pub(crate) async fn remove_task(&self, task_id: TaskId) {
