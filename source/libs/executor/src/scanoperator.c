@@ -1413,7 +1413,7 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
     }
   }
   if (rowId >= pPreRes->info.rows) {
-    qInfo("===stream===read preversion data of primary key failed. ts:%" PRId64 ",version:%" PRId64);
+    qInfo("===stream===read preversion data of primary key failed. ts:%" PRId64 ",version:%" PRId64, ts, maxVersion);
     return 0;
   }
   return calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, rowId);
