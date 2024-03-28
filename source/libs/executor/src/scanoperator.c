@@ -1197,6 +1197,22 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
 
+  {  // todo :refactor:
+    SDataBlockInfo* pBlockInfo = &pInfo->pResBlock->info;
+    for(int32_t i = 0; i < taosArrayGetSize(pInfo->base.matchInfo.pList); ++i) {
+      SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, i);
+      if (pItem->isPk) {
+        SColumnInfoData* pInfoData = taosArrayGet(pInfo->pResBlock->pDataBlock, pItem->dstSlotId);
+        pBlockInfo->pks[0].type = pInfoData->info.type;
+        pBlockInfo->pks[1].type = pInfoData->info.type;
+
+        if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
+          pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+          pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+        }
+      }
+    }
+  }
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -1910,6 +1926,45 @@ static void doBlockDataWindowFilter(SSDataBlock* pBlock, int32_t tsIndex, STimeW
   }
 }
 
+static void doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal *offset) {
+  if(pBlock->info.window.skey != offset->ts || offset->primaryKey.type == 0){
+    return;
+  }
+  bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+  bool  hasUnqualified = false;
+
+  SColumnInfoData* pColTs = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
+
+  qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %"PRId64, offset->ts, offset->primaryKey.val);
+  ASSERT(pColPk->info.type == offset->primaryKey.type);
+
+  __compar_fn_t func = getComparFunc(pColPk->info.type, 0);
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    int64_t* ts = (int64_t*)colDataGetData(pColTs, i);
+    void *data = colDataGetData(pColPk, i);
+    if(IS_VAR_DATA_TYPE(pColPk->info.type)){
+      void *tmq = taosMemoryMalloc(offset->primaryKey.nData + VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(tmq), offset->primaryKey.pData, offset->primaryKey.nData);
+      varDataLen(tmq) = offset->primaryKey.nData;
+      p[i] = (*ts >= offset->ts) && (func(data, tmq) > 0);
+      taosMemoryFree(tmq);
+    }else{
+      p[i] = (*ts >= offset->ts) && (func(data, &offset->primaryKey.val) > 0);
+    }
+
+    if (!p[i]) {
+      hasUnqualified = true;
+    }
+  }
+
+  if (hasUnqualified) {
+    trimDataBlock(pBlock, pBlock->info.rows, p);
+  }
+
+  taosMemoryFree(p);
+}
+
 // re-build the delete block, ONLY according to the split timestamp
 static void rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow, const char* id) {
   int32_t numOfRows = pBlock->info.rows;
@@ -2031,6 +2086,25 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   return 0;
 }
 
+static void processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffsetVal *offset){
+  SValue val = {0};
+  if (hasPrimaryKey){
+    doBlockDataPrimaryKeyFilter(pBlock, offset);
+    SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
+
+    void* tmp = colDataGetData(pColPk, pBlock->info.rows - 1);
+    val.type = pColPk->info.type;
+    if(IS_VAR_DATA_TYPE(pColPk->info.type)) {
+      val.pData = taosMemoryMalloc(varDataLen(tmp));
+      val.nData = varDataLen(tmp);
+      memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
+    }else{
+      memcpy(&val.val, tmp, pColPk->info.bytes);
+    }
+  }
+  tqOffsetResetToData(offset, pBlock->info.id.uid, pBlock->info.window.ekey, val);
+}
+
 static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
@@ -2046,8 +2120,11 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+
     if (pResult && pResult->info.rows > 0) {
-      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
+      bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
+      processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+      qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
       return pResult;
     }
 
@@ -2587,7 +2664,6 @@ static SArray* extractTableIdList(const STableListInfo* pTableListInfo) {
 }
 
 static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
-  // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
@@ -2618,9 +2694,12 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
 
-      qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
-      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pBlock->info.id.uid, pBlock->info.window.ekey);
-      return pBlock;
+      if (pBlock && pBlock->info.rows > 0) {
+        bool hasPrimaryKey = pAPI->snapshotFn.taosXGetTablePrimaryKey(pInfo->sContext);
+        processPrimaryKey(pBlock, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
+        return pBlock;
+      }
     }
 
     SMetaTableInfo mtInfo = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext);
@@ -2629,7 +2708,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap read snapshot done, change to get data from wal");
       tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion + 1);
     } else {
-      tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN);
+      SValue val = {0};
+      tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN, val);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
     qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
@@ -2649,7 +2729,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
     if (!sContext->queryMeta) {  // change to get data next poll request
       STqOffsetVal offset = {0};
-      tqOffsetResetToData(&offset, 0, INT64_MIN);
+      SValue val = {0};
+      tqOffsetResetToData(&offset, 0, INT64_MIN, val);
       qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     } else {
       tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
@@ -3426,9 +3507,7 @@ _error:
 
 // table merge scan operator
 
-// table merge scan operator
-
-static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* param) {
+static int32_t subTblRowCompareTsFn(const void* pLeft, const void* pRight, void* param) {
   int32_t left = *(int32_t*)pLeft;
   int32_t right = *(int32_t*)pRight;
   STmsSubTablesMergeInfo* pInfo = (STmsSubTablesMergeInfo*)param;
@@ -3445,8 +3524,35 @@ static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* p
   int64_t leftTs = pInfo->aInputs[left].aTs[leftIdx];
   int64_t rightTs = pInfo->aInputs[right].aTs[rightIdx];
   int32_t ret = leftTs>rightTs ? 1 : ((leftTs < rightTs) ? -1 : 0);
-  if (pInfo->pOrderInfo->order == TSDB_ORDER_DESC) {
+  if (pInfo->pTsOrderInfo->order == TSDB_ORDER_DESC) {
     ret = -1 * ret;
+  }
+  return ret;
+}
+
+static int32_t subTblRowCompareTsPkFn(const void* pLeft, const void* pRight, void* param) {
+  int32_t left = *(int32_t*)pLeft;
+  int32_t right = *(int32_t*)pRight;
+  STmsSubTablesMergeInfo* pInfo = (STmsSubTablesMergeInfo*)param;
+
+  int32_t leftIdx = pInfo->aInputs[left].rowIdx;
+  int32_t rightIdx = pInfo->aInputs[right].rowIdx;
+
+  if (leftIdx == -1) {
+    return 1;
+  } else if (rightIdx == -1) {
+    return -1;
+  }
+
+  int64_t leftTs = pInfo->aInputs[left].aTs[leftIdx];
+  int64_t rightTs = pInfo->aInputs[right].aTs[rightIdx];
+  int32_t ret = leftTs>rightTs ? 1 : ((leftTs < rightTs) ? -1 : 0);
+  if (pInfo->pTsOrderInfo->order == TSDB_ORDER_DESC) {
+    ret = -1 * ret;
+  }
+  if (ret == 0 && pInfo->pPkOrderInfo) {                               
+    ret = tsortComparBlockCell(pInfo->aInputs[left].pInputBlock, pInfo->aInputs[right].pInputBlock, 
+                              leftIdx, rightIdx, pInfo->pPkOrderInfo);
   }
   return ret;
 }
@@ -3559,11 +3665,12 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
       pInput->rowIdx = 0;
       pInput->pageIdx = -1;
     }
-    SSDataBlock* pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
-    SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pOrderInfo->slotId);
+    pInput->pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
+    SColumnInfoData* col = taosArrayGet(pInput->pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
     pInput->aTs = (int64_t*)col->pData;
   }
-  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, subTblRowCompareFn);
+  __merge_compare_fn_t mergeCompareFn = (!pSubTblsInfo->pPkOrderInfo) ? subTblRowCompareTsFn : subTblRowCompareTsPkFn;
+  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
   return  TSDB_CODE_SUCCESS;
 }
 
@@ -3573,7 +3680,12 @@ static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   if (pSubTblsInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pSubTblsInfo->pOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
+  pSubTblsInfo->pTsOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
+  if (taosArrayGetSize(pInfo->pSortInfo) == 2) {
+    pSubTblsInfo->pPkOrderInfo = taosArrayGet(pInfo->pSortInfo, 1);
+  } else {
+    pSubTblsInfo->pPkOrderInfo = NULL;
+  }
   pSubTblsInfo->numSubTables = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
   pSubTblsInfo->aInputs = taosMemoryCalloc(pSubTblsInfo->numSubTables, sizeof(STmsSubTableInput));
   if (pSubTblsInfo->aInputs == NULL) {
@@ -3665,7 +3777,8 @@ static int32_t adjustSubTableForNextRow(SOperatorInfo* pOperatorInfo, STmsSubTab
       adjustSubTableFromMemBlock(pOperatorInfo, pSubTblsInfo);
     }
     if (pInput->rowIdx != -1) {
-      SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pOrderInfo->slotId);
+      SColumnInfoData* col = taosArrayGet(pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
+      pInput->pInputBlock = pInputBlock;
       pInput->aTs = (int64_t*)col->pData;
     }
   }
@@ -3970,24 +4083,38 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 }
 
 
-SArray* generateSortByTsInfo(SArray* colMatchInfo, int32_t order) {
+SArray* generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order) {
+  SArray*         pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  SBlockOrderInfo biTs = {0};
+  SBlockOrderInfo biPk = {0};
+
   int32_t tsTargetSlotId = 0;
+  int32_t pkTargetSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(colMatchInfo); ++i) {
     SColMatchItem* colInfo = taosArrayGet(colMatchInfo, i);
     if (colInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       tsTargetSlotId = colInfo->dstSlotId;
+      biTs.order = order;
+      biTs.slotId = tsTargetSlotId;
+      biTs.nullFirst = (order == TSDB_ORDER_ASC);
+      biTs.compFn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, order);
+    }
+    //TODO: order by just ts
+    if (colInfo->isPk) {
+      pkTargetSlotId = colInfo->dstSlotId;
+      biPk.order = order;
+      biPk.slotId = pkTargetSlotId;
+      biPk.nullFirst = (order == TSDB_ORDER_ASC);
+      biPk.compFn = getKeyComparFunc(colInfo->dataType.type, order);
     }
   }
 
-  SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
-  SBlockOrderInfo bi = {0};
-  bi.order = order;
-  bi.slotId = tsTargetSlotId;
-  bi.nullFirst = NULL_ORDER_FIRST;
+  taosArrayPush(pSortInfo, &biTs);
+  if (pkTargetSlotId != -1) {
+    taosArrayPush(pSortInfo, &biPk);
+  }
 
-  taosArrayPush(pList, &bi);
-
-  return pList;
+  return pSortInfo;
 }
 
 void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
@@ -4356,7 +4483,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->bSortRowId = false;
   }
 
-  pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
+  pInfo->pSortInfo = generateSortByTsPkInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
 
   pInfo->needCountEmptyTable = tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable;

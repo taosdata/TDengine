@@ -187,10 +187,12 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   SMqVgOffset vgOffset = {0};
   int32_t     vgId = TD_VID(pTq->pVnode);
 
+  int32_t code = 0;
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
   }
 
   tDecoderClear(&decoder);
@@ -205,22 +207,28 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
             pOffset->val.version);
   } else {
     tqError("invalid commit offset type:%d", pOffset->val.type);
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
   }
 
   STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
   if (pSavedOffset != NULL && tqOffsetEqual(pOffset, pSavedOffset)) {
     tqInfo("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
            vgId, pOffset->subKey, pOffset->val.version, pSavedOffset->val.version);
-    return 0;  // no need to update the offset value
+    goto end;  // no need to update the offset value
   }
 
   // save the new offset value
-  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
-    return -1;
+  code = tqOffsetWrite(pTq->pOffsetStore, pOffset);
+  if(code != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
   }
 
   return 0;
+end:
+  tOffsetDestroy(&vgOffset.offset.val);
+  return code;
 }
 
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
@@ -326,11 +334,11 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqPollReq req = {0};
-  int        code = 0;
-  if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+  int        code = tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code < 0) {
     tqError("tDeserializeSMqPollReq %d failed", pMsg->contLen);
     terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    goto END;
   }
 
   int64_t      consumerId = req.consumerId;
@@ -354,7 +362,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
         terrno = TSDB_CODE_INVALID_MSG;
         taosWUnLockLatch(&pTq->lock);
-        return -1;
+        code = -1;
+        goto END;
       } while (0);
     }
 
@@ -365,7 +374,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
       terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
-      return -1;
+      code = -1;
+      goto END;
     }
 
     bool exec = tqIsHandleExec(pHandle);
@@ -402,6 +412,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tqDebug("tmq poll: consumer:0x%" PRIx64 " vgId:%d, topic:%s, set handle idle, pHandle:%p", consumerId, vgId,
           req.subKey, pHandle);
+
+END:
+  tDestroySMqPollReq(&req);
   return code;
 }
 
@@ -420,8 +433,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tDecoderClear(&decoder);
 
-  STqOffset* pOffset = &vgOffset.offset;
-  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, vgOffset.offset.subKey);
   if (pSavedOffset == NULL) {
     terrno = TSDB_CODE_TMQ_NO_COMMITTED;
     return terrno;

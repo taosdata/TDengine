@@ -83,6 +83,7 @@ typedef struct SColMatchItem {
   bool      needOutput;
   SDataType dataType;
   int32_t   funcType;
+  bool      isPk;
 } SColMatchItem;
 
 typedef struct SColMatchInfo {

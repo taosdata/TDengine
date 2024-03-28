@@ -113,9 +113,8 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         STqOffsetVal offset = {0};
         qStreamExtractOffset(task, &offset);
         pHandle->block = createOneDataBlock(pDataBlock, true);
-        //        pHandle->block = createDataBlock();
-        //        copyDataBlock(pHandle->block, pDataBlock);
         pHandle->blockTime = offset.ts;
+        tOffsetDestroy(&offset);
         code = getDataBlock(task, pHandle, vgId, &pDataBlock);
         if (code != 0) {
           return code;
@@ -139,6 +138,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         qStreamExtractOffset(task, &offset);
         pRsp->sleepTime = offset.ts - pHandle->blockTime;
         pHandle->blockTime = offset.ts;
+        tOffsetDestroy(&offset);
       }
       break;
     } else {
@@ -215,7 +215,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
         continue;
       } else {
         rowCnt += pDataBlock->info.rows;
-        if (rowCnt <= 4096) continue;
+        if (rowCnt <= 1) continue;
       }
     }
 

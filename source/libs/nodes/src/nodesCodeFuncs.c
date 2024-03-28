@@ -3616,6 +3616,8 @@ static const char* jkColumnTableAlias = "TableAlias";
 static const char* jkColumnColName = "ColName";
 static const char* jkColumnDataBlockId = "DataBlockId";
 static const char* jkColumnSlotId = "SlotId";
+static const char* jkColumnTableHasPk = "TableHasPk";
+static const char* jkColumnIsPk = "IsPk";
 
 static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -3654,7 +3656,12 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkColumnSlotId, pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnTableHasPk, pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnIsPk, pNode->isPk);
+  }  
   return code;
 }
 
@@ -3695,7 +3702,12 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetSmallIntValue(pJson, jkColumnSlotId, &pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnTableHasPk, &pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnIsPk, &pNode->isPk);
+  }      
   return code;
 }
 
@@ -4034,6 +4046,8 @@ static const char* jkFunctionId = "Id";
 static const char* jkFunctionType = "Type";
 static const char* jkFunctionParameter = "Parameters";
 static const char* jkFunctionUdfBufSize = "UdfBufSize";
+static const char* jkFunctionHasPk = "HasPk";
+static const char* jkFunctionPkBytes = "PkBytes";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -4054,7 +4068,12 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionUdfBufSize, pNode->udfBufSize);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkFunctionHasPk, pNode->hasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionPkBytes, pNode->pkBytes);
+  }
   return code;
 }
 
@@ -4077,7 +4096,12 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkFunctionUdfBufSize, &pNode->udfBufSize);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFunctionHasPk, &pNode->hasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkFunctionPkBytes, &pNode->pkBytes);
+  }  
   return code;
 }
 
@@ -4704,6 +4728,7 @@ static const char* jkColumnDefColName = "ColName";
 static const char* jkColumnDefDataType = "DataType";
 static const char* jkColumnDefComments = "Comments";
 static const char* jkColumnDefSma = "Sma";
+static const char* jkColumnDefIsPK = "IsPK";
 
 static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnDefNode* pNode = (const SColumnDefNode*)pObj;
@@ -4717,6 +4742,9 @@ static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkColumnDefSma, pNode->sma);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnDefIsPK, pNode->is_pk);
   }
 
   return code;
@@ -4735,7 +4763,9 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnDefSma, &pNode->sma);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnDefIsPK, &pNode->is_pk);
+  }
   return code;
 }
 

@@ -725,7 +725,12 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI16(pEncoder, pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->isPk);
+  }  
   return code;
 }
 
@@ -767,7 +772,12 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI16(pDecoder, &pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->isPk);
+  }  
   return code;
 }
 
@@ -1091,7 +1101,9 @@ enum {
   FUNCTION_CODE_FUNCTION_ID,
   FUNCTION_CODE_FUNCTION_TYPE,
   FUNCTION_CODE_PARAMETERS,
-  FUNCTION_CODE_UDF_BUF_SIZE
+  FUNCTION_CODE_UDF_BUF_SIZE,
+  FUNCTION_NODE_HAS_PK,
+  FUNCTION_NODE_PK_BYTES
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1113,7 +1125,12 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_UDF_BUF_SIZE, pNode->udfBufSize);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, FUNCTION_NODE_HAS_PK, pNode->hasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, FUNCTION_NODE_PK_BYTES, pNode->pkBytes);
+  }  
   return code;
 }
 
@@ -1142,6 +1159,12 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
       case FUNCTION_CODE_UDF_BUF_SIZE:
         code = tlvDecodeI32(pTlv, &pNode->udfBufSize);
         break;
+      case FUNCTION_NODE_HAS_PK:
+        code = tlvDecodeBool(pTlv, &pNode->hasPk);
+        break;
+      case FUNCTION_NODE_PK_BYTES:
+        code = tlvDecodeI32(pTlv, &pNode->pkBytes);
+        break;  
       default:
         break;
     }

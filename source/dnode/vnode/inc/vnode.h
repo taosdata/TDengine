@@ -212,10 +212,14 @@ typedef struct STqReader {
   SSchemaWrapper *pSchemaWrapper;
   SSDataBlock    *pResBlock;
   int64_t         lastTs;
+  bool            hasPrimaryKey;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
 void       tqReaderClose(STqReader *);
+
+bool tqGetTablePrimaryKey(STqReader* pReader);
+void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
@@ -251,6 +255,8 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
+bool           taosXGetTablePrimaryKey(SSnapContext *ctx);
+void           taosXSetTablePrimaryKey(SSnapContext *ctx, int64_t uid);
 int32_t        buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                                 SSnapContext **ctxRet);
 int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);

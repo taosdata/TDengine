@@ -925,26 +925,15 @@ static void tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
     SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
     taosMemoryFreeClear(pRsp->pEpset);
 
-    taosArrayDestroyP(pRsp->dataRsp.blockData, taosMemoryFree);
-    taosArrayDestroy(pRsp->dataRsp.blockDataLen);
-    taosArrayDestroyP(pRsp->dataRsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->dataRsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
+    tDeleteMqDataRsp(&pRsp->dataRsp);
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
     taosMemoryFreeClear(pRsp->pEpset);
-
-    taosMemoryFree(pRsp->metaRsp.metaRsp);
+    tDeleteMqMetaRsp(&pRsp->metaRsp);
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
     SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
     taosMemoryFreeClear(pRsp->pEpset);
-
-    taosArrayDestroyP(pRsp->taosxRsp.blockData, taosMemoryFree);
-    taosArrayDestroy(pRsp->taosxRsp.blockDataLen);
-    taosArrayDestroyP(pRsp->taosxRsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->taosxRsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
-    // taosx
-    taosArrayDestroy(pRsp->taosxRsp.createTableLen);
-    taosArrayDestroyP(pRsp->taosxRsp.createTableReq, taosMemoryFree);
+    tDeleteSTaosxRsp(&pRsp->taosxRsp);
   }
 }
 
@@ -1016,10 +1005,17 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   return rsp;
 }
 
+static void freeClientVg(void* param){
+  SMqClientVg* pVg = param;
+  tOffsetDestroy(&pVg->offsetInfo.endOffset);
+  tOffsetDestroy(&pVg->offsetInfo.beginOffset);
+  tOffsetDestroy(&pVg->offsetInfo.committedOffset);
+
+}
 static void freeClientVgImpl(void* param) {
   SMqClientTopic* pTopic = param;
   taosMemoryFreeClear(pTopic->schema.pSchema);
-  taosArrayDestroy(pTopic->vgs);
+  taosArrayDestroyEx(pTopic->vgs, freeClientVg);
 }
 
 void tmqFreeImpl(void* handle) {
@@ -1381,7 +1377,12 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (rspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
-    tDecodeMqDataRsp(&decoder, &pRspWrapper->dataRsp);
+    if(tDecodeMqDataRsp(&decoder, &pRspWrapper->dataRsp, *(int8_t*)POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead))) < 0){
+      tDecoderClear(&decoder);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto FAIL;
+    }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
 
@@ -1392,13 +1393,23 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
-    tDecodeMqMetaRsp(&decoder, &pRspWrapper->metaRsp);
+    if(tDecodeMqMetaRsp(&decoder, &pRspWrapper->metaRsp) < 0){
+      tDecoderClear(&decoder);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto FAIL;
+    }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
   } else if (rspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
-    tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp);
+    if(tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp, *(int8_t*)POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead))) < 0){
+      tDecoderClear(&decoder);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto FAIL;
+    }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
   } else {  // invalid rspType
@@ -1472,24 +1483,20 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
         .numOfRows = pInfo ? pInfo->numOfRows : 0,
     };
 
-    clientVg.offsetInfo.endOffset = pInfo ? pInfo->currentOffset : offsetNew;
-    clientVg.offsetInfo.committedOffset = pInfo ? pInfo->commitOffset : offsetNew;
-    clientVg.offsetInfo.beginOffset = pInfo ? pInfo->seekOffset : offsetNew;
     clientVg.offsetInfo.walVerBegin = -1;
     clientVg.offsetInfo.walVerEnd = -1;
     clientVg.seekUpdated = false;
-
+    if(pInfo) {
+      tOffsetCopy(&clientVg.offsetInfo.endOffset, &pInfo->currentOffset);
+      tOffsetCopy(&clientVg.offsetInfo.committedOffset, &pInfo->commitOffset);
+      tOffsetCopy(&clientVg.offsetInfo.beginOffset, &pInfo->seekOffset);
+    }else{
+      clientVg.offsetInfo.endOffset = offsetNew;
+      clientVg.offsetInfo.committedOffset = offsetNew;
+      clientVg.offsetInfo.beginOffset = offsetNew;
+    }
     taosArrayPush(pTopic->vgs, &clientVg);
   }
-}
-
-static void freeClientVgInfo(void* param) {
-  SMqClientTopic* pTopic = param;
-  if (pTopic->schema.nCols) {
-    taosMemoryFreeClear(pTopic->schema.pSchema);
-  }
-
-  taosArrayDestroy(pTopic->vgs);
 }
 
 static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
@@ -1558,7 +1565,7 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 
   // destroy current buffered existed topics info
   if (tmq->clientTopics) {
-    taosArrayDestroyEx(tmq->clientTopics, freeClientVgInfo);
+    taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   }
   tmq->clientTopics = newTopics;
   taosWUnLockLatch(&tmq->lock);
@@ -1813,8 +1820,10 @@ static void updateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal
                          int64_t consumerId, bool hasData) {
   if (!pVg->seekUpdated) {
     tscDebug("consumer:0x%" PRIx64 " local offset is update, since seekupdate not set", consumerId);
-    if (hasData) pVg->offsetInfo.beginOffset = *reqOffset;
-    pVg->offsetInfo.endOffset = *rspOffset;
+    if (hasData) {
+      tOffsetCopy(&pVg->offsetInfo.beginOffset, reqOffset);
+    }
+    tOffsetCopy(&pVg->offsetInfo.endOffset, rspOffset);
   } else {
     tscDebug("consumer:0x%" PRIx64 " local offset is NOT update, since seekupdate is set", consumerId);
   }
@@ -1882,6 +1891,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         if (pollRspWrapper->vgHandle == NULL || pollRspWrapper->topicHandle == NULL) {
           tscError("consumer:0x%" PRIx64 " get vg or topic error, topic:%s vgId:%d", tmq->consumerId,
                    pollRspWrapper->topicName, pollRspWrapper->vgId);
+          tmqFreeRspWrapper(pRspWrapper);
+          taosFreeQitem(pRspWrapper);
           taosWUnLockLatch(&tmq->lock);
           return NULL;
         }
@@ -1950,6 +1961,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         if (pollRspWrapper->vgHandle == NULL || pollRspWrapper->topicHandle == NULL) {
           tscError("consumer:0x%" PRIx64 " get vg or topic error, topic:%s vgId:%d", tmq->consumerId,
                    pollRspWrapper->topicName, pollRspWrapper->vgId);
+          tmqFreeRspWrapper(pRspWrapper);
+          taosFreeQitem(pRspWrapper);
           taosWUnLockLatch(&tmq->lock);
           return NULL;
         }
@@ -1980,6 +1993,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         if (pollRspWrapper->vgHandle == NULL || pollRspWrapper->topicHandle == NULL) {
           tscError("consumer:0x%" PRIx64 " get vg or topic error, topic:%s vgId:%d", tmq->consumerId,
                    pollRspWrapper->topicName, pollRspWrapper->vgId);
+          tmqFreeRspWrapper(pRspWrapper);
+          taosFreeQitem(pRspWrapper);
           taosWUnLockLatch(&tmq->lock);
           return NULL;
         }
@@ -2001,14 +2016,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         }
 
         // build rsp
-        void*   pRsp = NULL;
         int64_t numOfRows = 0;
-        if (pollRspWrapper->taosxRsp.createTableNum == 0) {
-          tscError("consumer:0x%" PRIx64 " createTableNum should > 0 if rsp type is data_meta", tmq->consumerId);
-        } else {
-          pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper, pVg, &numOfRows);
-        }
-
+        void* pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper, pVg, &numOfRows);
         tmq->totalRows += numOfRows;
 
         char buf[TSDB_OFFSET_LEN] = {0};
@@ -2662,7 +2671,7 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
     SMqDataRsp rsp;
     SDecoder   decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
-    tDecodeMqDataRsp(&decoder, &rsp);
+    tDecodeMqDataRsp(&decoder, &rsp, *(int8_t*)POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)));
     tDecoderClear(&decoder);
 
     SMqRspHead* pHead = pMsg->pData;
@@ -2715,6 +2724,7 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
     SDecoder decoder;
     tDecoderInit(&decoder, (uint8_t*)pMsg->pData, pMsg->len);
     if (tDecodeMqVgOffset(&decoder, &pParam->vgOffset) < 0) {
+      tOffsetDestroy(&pParam->vgOffset.offset);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
@@ -2799,6 +2809,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
     if (pParam->vgOffset.offset.val.type == TMQ_OFFSET__LOG) {
       code = pParam->vgOffset.offset.val.version;
     } else {
+      tOffsetDestroy(&pParam->vgOffset.offset);
       code = TSDB_CODE_TMQ_SNAPSHOT_ERROR;
     }
   }
