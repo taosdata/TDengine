@@ -239,3 +239,21 @@ export function getCsvEmptyTemplate(driver) {
         responseType: 'blob',
     })
 }
+
+// 获取表同步进度
+export function getTableProgress(id,params) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/table_progress?${params}`,
+        method: 'get',
+    })
+}
+
+//  获取 vgroup 消费进度
+export function getVgroupProgress(id) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/vgroup_progress`,
+        method: 'get',
+    })
+}

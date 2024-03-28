@@ -674,7 +674,8 @@ export default {
           params: {
             data: result,
             metricsDesc,
-            taskId: data.id
+            taskId: data.id,
+            type: data.from_detail.id
           },
           config: {
             title: this.$t("dataIn.metrics"),
