@@ -154,6 +154,7 @@ typedef struct {
   ETrnConflct   conflict;
   ETrnExec      exec;
   EOperType     oper;
+  bool          changeless;
   int32_t       code;
   int32_t       failedTimes;
   void*         rpcRsp;
