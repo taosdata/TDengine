@@ -77,6 +77,32 @@ export const DefaultOpcTableValue = {
   ]
 };
 
+export function getDataRange(datatype) {
+  switch (datatype) {
+    case 'TINYINT':
+      return [-128, 127, 4]
+    case 'TINYINT UNSIGNED':
+      return [0, 255, 3]
+    case 'SMALLINT':
+      return [-32768, 32767, 6]
+    case 'SMALLINT UNSIGNED':
+      return [0, 65535, 5]
+    case 'INT':
+      return [-2147483648, 2147483647, 11]
+    case 'INT UNSIGNED':
+      return [0, 4294967295, 10]
+    case 'BIGINT':
+      return [-9223372036854775808n, 9223372036854775807n, 20]
+    case 'BIGINT UNSIGNED':
+      return [0, 18446744073709551615n, 20]
+    case 'FLOAT':
+      return [-3.4E38, 3.4E38, 38]
+    case 'DOUBLE':
+      return [-1.7E308, 1.7E308, 308]
+  }
+  return null;
+}
+
 // 根据返回的数据源参数定义生成对应的表单配置
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
