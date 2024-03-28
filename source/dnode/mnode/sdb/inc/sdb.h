@@ -353,6 +353,11 @@ void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 
 /**
+ * @brief get valid number of rows, removed rows are ignored
+ */
+int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type);
+
+/**
  * @brief Get the max id of the table, keyType of table should be INT32
  *
  * @param pSdb The sdb object.

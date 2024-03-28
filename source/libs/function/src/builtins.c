@@ -462,6 +462,24 @@ static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvgState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType))
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAvgStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStddevPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -487,6 +505,35 @@ static int32_t translateStddevMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStddevState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = getStddevInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStddevStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (TSDB_DATA_TYPE_BINARY != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = getStddevInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -832,6 +879,31 @@ static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32
 
 static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateSpreadImpl(pFunc, pErrBuf, len, false);
+}
+
+static int32_t translateSpreadState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (paraType != TSDB_DATA_TYPE_BINARY) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1315,6 +1387,24 @@ static int32_t translateHLLPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
 static int32_t translateHLLMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateHLLImpl(pFunc, pErrBuf, len, false);
+}
+
+static int32_t translateHLLState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLPartial(pFunc, pErrBuf, len);
+}
+
+static int32_t translateHLLStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  if (getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type != TSDB_DATA_TYPE_BINARY) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType =
+    (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool validateStateOper(const SValueNode* pVal) {
@@ -1801,6 +1891,27 @@ static int32_t translateFirstLastPartial(SFunctionNode* pFunc, char* pErrBuf, in
 
 static int32_t translateFirstLastMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateFirstLastImpl(pFunc, pErrBuf, len, false);
+}
+
+static int32_t translateFirstLastState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
+
+  pFunc->node.resType =
+    (SDataType){.bytes = getFirstLastInfoSize(paraBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateFirstLastStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
+  uint8_t paraType = getSDataTypeFromNode(pPara)->type;
+  if (paraType != TSDB_DATA_TYPE_BINARY) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = paraBytes, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateUniqueMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isUnique) {
@@ -2385,12 +2496,26 @@ static int32_t translateTableCountPseudoColumn(SFunctionNode* pFunc, char* pErrB
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateMd5(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (para1Type != TSDB_DATA_TYPE_VARCHAR) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = MD5_OUTPUT_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
     .translateFunc = translateCount,
     .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
@@ -2403,12 +2528,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = combineFunction,
     .pPartialFunc = "count",
+    .pStateFunc = "count",
     .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateSum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSumFuncEnv,
@@ -2421,12 +2547,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = sumCombine,
     .pPartialFunc = "sum",
+    .pStateFunc = "sum",
     .pMergeFunc   = "sum"
   },
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2436,12 +2563,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = minmaxFunctionFinalize,
     .combineFunc  = minCombine,
     .pPartialFunc = "min",
+    .pStateFunc = "min",
     .pMergeFunc   = "min"
   },
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2451,12 +2579,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = minmaxFunctionFinalize,
     .combineFunc  = maxCombine,
     .pPartialFunc = "max",
+    .pStateFunc = "max",
     .pMergeFunc   = "max"
   },
   {
     .name = "stddev",
     .type = FUNCTION_TYPE_STDDEV,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInNumOutDou,
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
@@ -2468,6 +2597,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = stddevCombine,
     .pPartialFunc = "_stddev_partial",
+    .pStateFunc = "_stddev_state",
     .pMergeFunc   = "_stddev_merge"
   },
   {
@@ -2497,6 +2627,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = stddevInvertFunction,
 #endif
     .combineFunc  = stddevCombine,
+    .pPartialFunc = "_stddev_state_merge",
+    .pMergeFunc = "_stddev_merge",
   },
   {
     .name = "leastsquares",
@@ -2516,7 +2648,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2530,7 +2662,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
     .pMiddleFunc  = "_avg_middle",
-    .pMergeFunc   = "_avg_merge"
+    .pMergeFunc   = "_avg_merge",
+    .pStateFunc = "_avg_state",
   },
   {
     .name = "_avg_partial",
@@ -2560,6 +2693,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = avgInvertFunction,
 #endif
     .combineFunc  = avgCombine,
+    .pPartialFunc = "_avg_state_merge",
+    .pMergeFunc = "_avg_merge",
   },
   {
     .name = "percentile",
@@ -2658,7 +2793,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateSpread,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSpreadFuncEnv,
@@ -2671,6 +2806,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
+    .pStateFunc = "_spread_state",
     .pMergeFunc   = "_spread_merge"
   },
   {
@@ -2702,6 +2838,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
 #endif
     .combineFunc  = spreadCombine,
+    .pPartialFunc = "_spread_state_merge",
+    .pMergeFunc = "_spread_merge",
   },
   {
     .name = "elapsed",
@@ -2875,7 +3013,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2884,6 +3022,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_first_partial",
+    .pStateFunc = "_first_state",
     .pMergeFunc   = "_first_merge",
     .combineFunc  = firstCombine,
   },
@@ -2911,12 +3050,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = firstFunctionMerge,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = firstCombine,
+    .pPartialFunc = "_first_state_merge",
+    .pMergeFunc = "_first_merge",
   },
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2925,6 +3066,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_last_partial",
+    .pStateFunc = "_last_state",
     .pMergeFunc   = "_last_merge",
     .combineFunc  = lastCombine,
   },
@@ -2952,6 +3094,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunctionMerge,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
+    .pPartialFunc = "_last_state_merge",
+    .pMergeFunc = "_last_merge",
   },
   {
     .name = "twa",
@@ -3014,7 +3158,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -3026,6 +3170,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
+    .pStateFunc = "_hyperloglog_state",
     .pMergeFunc   = "_hyperloglog_merge"
   },
   {
@@ -3055,6 +3200,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
 #endif
     .combineFunc  = hllCombine,
+    .pPartialFunc = "_hyperloglog_state_merge",
+    .pMergeFunc = "_hyperloglog_merge",
   },
   {
     .name = "diff",
@@ -3814,7 +3961,153 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
-  }
+  },
+  {
+    .name = "_stddev_state",
+    .type = FUNCTION_TYPE_STDDEV_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateStddevState,
+    .getEnvFunc   = getStddevFuncEnv,
+    .initFunc     = stddevFunctionSetup,
+    .processFunc  = stddevFunction,
+    .finalizeFunc = stddevPartialFinalize,
+    .pPartialFunc = "_stddev_partial",
+    .pMergeFunc   = "_stddev_state_merge",
+  },
+  {
+    .name = "_stddev_state_merge",
+    .type = FUNCTION_TYPE_STDDEV_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateStddevStateMerge,
+    .getEnvFunc = getStddevFuncEnv,
+    .initFunc = stddevFunctionSetup,
+    .processFunc = stddevFunctionMerge,
+    .finalizeFunc = stddevPartialFinalize,
+  },
+  {
+    .name = "_avg_state",
+    .type = FUNCTION_TYPE_AVG_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateAvgState,
+    .getEnvFunc = getAvgFuncEnv,
+    .initFunc = avgFunctionSetup,
+    .processFunc = avgFunction,
+    .finalizeFunc = avgPartialFinalize,
+    .pPartialFunc = "_avg_partial",
+    .pMergeFunc = "_avg_state_merge"
+  },
+  {
+    .name = "_avg_state_merge",
+    .type = FUNCTION_TYPE_AVG_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateAvgStateMerge,
+    .getEnvFunc = getAvgFuncEnv,
+    .initFunc = avgFunctionSetup,
+    .processFunc = avgFunctionMerge,
+    .finalizeFunc = avgPartialFinalize,
+  },
+  {
+    .name = "_spread_state",
+    .type = FUNCTION_TYPE_SPREAD_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateSpreadState,
+    .getEnvFunc = getSpreadFuncEnv,
+    .initFunc = spreadFunctionSetup,
+    .processFunc = spreadFunction,
+    .finalizeFunc = spreadPartialFinalize,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc = "_spread_state_merge"
+  },
+  {
+    .name = "_spread_state_merge",
+    .type = FUNCTION_TYPE_SPREAD_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateSpreadStateMerge,
+    .getEnvFunc = getSpreadFuncEnv,
+    .initFunc = spreadFunctionSetup,
+    .processFunc = spreadFunctionMerge,
+    .finalizeFunc = spreadPartialFinalize,
+  },
+  {
+    .name = "_first_state",
+    .type = FUNCTION_TYPE_FIRST_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastState,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = firstFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+    .pPartialFunc = "_first_partial",
+    .pMergeFunc = "_first_state_merge"
+  },
+  {
+    .name = "_first_state_merge",
+    .type = FUNCTION_TYPE_FIRST_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastStateMerge,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = firstFunctionMerge,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_last_state",
+    .type = FUNCTION_TYPE_LAST_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastState,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = lastFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+    .pPartialFunc = "_last_partial",
+    .pMergeFunc = "_last_state_merge"
+  },
+  {
+    .name = "_last_state_merge",
+    .type = FUNCTION_TYPE_LAST_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateFirstLastStateMerge,
+    .getEnvFunc = getFirstLastFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = lastFunctionMerge,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_hyperloglog_state",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_STATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateHLLState,
+    .getEnvFunc = getHLLFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = hllFunction,
+    .finalizeFunc = hllPartialFinalize,
+    .pPartialFunc = "_hyperloglog_partial",
+    .pMergeFunc = "_hyperloglog_state_merge",
+  },
+  {
+    .name = "_hyperloglog_state_merge",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateHLLStateMerge,
+    .getEnvFunc = getHLLFuncEnv,
+    .initFunc = functionSetup,
+    .processFunc = hllFunctionMerge,
+    .finalizeFunc = hllPartialFinalize,
+  },
+  {
+    .name = "md5",
+    .type = FUNCTION_TYPE_MD5,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateMd5,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = md5Function,
+    .finalizeFunc = NULL
+  },
 };
 // clang-format on
 

@@ -697,6 +697,36 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t bufLen = TMAX(MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
+  char* pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("md5 function alloc memory failed");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    char *input = colDataGetData(pInput[0].columnData, i);
+    if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
+      bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
+      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
+    }
+    char *output = pOutputBuf;
+    memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
+    int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input));
+    varDataSetLen(output, len);
+    colDataSetVal(pOutputData, i, output, false);
+  }
+  pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(pOutputBuf);
+  return TSDB_CODE_SUCCESS;
+}
+
 /** Conversion functions **/
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);

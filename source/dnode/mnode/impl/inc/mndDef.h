@@ -453,12 +453,14 @@ typedef struct {
   int32_t        tagsFilterLen;
   int32_t        sqlLen;
   int32_t        astLen;
+  int32_t        version;
   char*          expr;
   char*          tagsFilter;
   char*          sql;
   char*          ast;
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
+  char           baseSmaName[TSDB_TABLE_FNAME_LEN];
 } SSmaObj;
 
 typedef struct {

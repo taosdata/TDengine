@@ -47,6 +47,7 @@ typedef struct SBuiltinFuncDefinition {
   const char*                pPartialFunc;
   const char*                pMiddleFunc;
   const char*                pMergeFunc;
+  const char*                pStateFunc;
   FCreateMergeFuncParameters createMergeParaFuc;
   FEstimateReturnRows        estimateReturnRowsFunc;
 } SBuiltinFuncDefinition;
