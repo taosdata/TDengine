@@ -72,7 +72,9 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
-      pTask->ver = SSTREAM_TASK_VER;
+      if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+        pTask->ver = SSTREAM_TASK_VER;
+      }
       if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
