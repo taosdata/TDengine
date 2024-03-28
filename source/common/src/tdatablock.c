@@ -2118,10 +2118,14 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
-void  buildCtbNameAddGroupId(char* ctbName, uint64_t groupId){
+void  buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId){
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
-  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
+  if (stbName == NULL){
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+  }else{
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName, groupId);
+  }
+  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
 }
 
@@ -2131,6 +2135,7 @@ bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0
 
 bool alreadyAddGroupId(char* ctbName) {
   size_t len = strlen(ctbName);
+  if (len == 0) return false;
   size_t _location = len - 1;
   while (_location > 0) {
     if (ctbName[_location] < '0' || ctbName[_location] > '9') {
