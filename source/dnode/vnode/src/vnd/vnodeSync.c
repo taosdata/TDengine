@@ -95,6 +95,11 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
     vnodeRedirectRpcMsg(pVnode, pMsg, code);
+  } else if (code == TSDB_CODE_MSG_PREPROCESSED) {
+    SRpcMsg rsp = {.code = TSDB_CODE_SUCCESS, .info = pMsg->info};
+    if (rsp.info.handle != NULL) {
+      tmsgSendRsp(&rsp);
+    }
   } else {
     const STraceId *trace = &pMsg->info.traceId;
     vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
@@ -297,8 +302,10 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
-      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
-      if (terrno != 0) code = terrno;
+      if (code != TSDB_CODE_MSG_PREPROCESSED) {
+        vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
+        if (terrno != 0) code = terrno;
+      }
       vnodeHandleProposeError(pVnode, pMsg, code);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -365,8 +372,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, failed to process sync msg:%p type:%s since %s", pVnode->config.vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), terrstr());
+    vGError("vgId:%d, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pVnode->config.vgId, pMsg,
+            TMSG_INFO(pMsg->msgType), terrstr(), code);
   }
 
   return code;
@@ -570,9 +577,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
-      int32_t numOfTasks = 0;
-      tqStreamTaskResetStatus(pMeta, &numOfTasks);
-
+      int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
       if (numOfTasks > 0) {
         if (pMeta->startInfo.taskStarting == 1) {
           pMeta->startInfo.restartCount += 1;
@@ -580,6 +585,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
                   pMeta->startInfo.restartCount);
         } else {
           pMeta->startInfo.taskStarting = 1;
+
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
           return;
@@ -632,6 +638,14 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   }
 }
 
+static void vnodeBecomeAssignedLeader(const SSyncFSM* pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, true);
+  }
+}
+
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
 
@@ -668,6 +682,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeAssignedLeaderCb = vnodeBecomeAssignedLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;
@@ -760,7 +775,7 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       vError("vgId:%d, failed to propose since timeout and post block, start:%d cur:%d delta:%d seq:%" PRId64,
              pVnode->config.vgId, pVnode->blockSec, curSec, delta, pVnode->blockSeq);
       if (syncSendTimeoutRsp(pVnode->sync, pVnode->blockSeq) != 0) {
-#if 0  
+#if 0
         SRpcMsg rpcMsg = {.code = TSDB_CODE_SYN_TIMEOUT, .info = pVnode->blockInfo};
         vError("send timeout response since its applyed, seq:%" PRId64 " handle:%p ahandle:%p", pVnode->blockSeq,
               rpcMsg.info.handle, rpcMsg.info.ahandle);

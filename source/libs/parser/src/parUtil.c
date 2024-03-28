@@ -190,6 +190,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "invalid ip range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
+    case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
+      return "ORDER BY \"%s\" is ambiguous";
+    case TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT:
+      return "Operator not supported multi result: %s";
     default:
       return "Unknown error";
   }
@@ -351,7 +355,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
   SHashObj* keyHash = NULL;
   int32_t   size = 0;
   // set json NULL data
-  if (!json || strtrim((char*)json) == 0 || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
+  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0 || strtrim((char*)json) == 0) {
     retCode = TSDB_CODE_SUCCESS;
     goto end;
   }

@@ -1018,7 +1018,7 @@ int sml_escape_Test() {
   ASSERT(numFields == 5);
   ASSERT(strncmp(fields[1].name, "inode\"i,= s_used", sizeof("inode\"i,= s_used") - 1) == 0);
   ASSERT(strncmp(fields[2].name, "total", sizeof("total") - 1) == 0);
-  ASSERT(strncmp(fields[3].name, "inode\"i,= s_f\\\\ree", sizeof("inode\"i,= s_f\\\\ree") - 1) == 0);
+  ASSERT(strncmp(fields[3].name, "inode\"i,= s_f\\ree", sizeof("inode\"i,= s_f\\ree") - 1) == 0);
   ASSERT(strncmp(fields[4].name, "dev\"i,= ce", sizeof("dev\"i,= ce") - 1) == 0);
 
   TAOS_ROW row = NULL;
@@ -1035,6 +1035,88 @@ int sml_escape_Test() {
       ASSERT(strncmp(row[3], "\"id,= ei\\\\f", sizeof("\"id,= ei\\\\f") - 1) == 0);
       ASSERT(strncmp(row[4], "s\"i,= dc", sizeof("s\"i,= dc") - 1) == 0);
 
+    }
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+// test field with end of escape
+int sml_escape1_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_escape");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use db_escape");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stab,t1\\=1 c1=3,c2=\"32fw\" 1661943970000000000",
+      "stab,t1=1\\ c1=3,c2=\"32fw\" 1661943980000000000",
+      "stab,t1=1 c1\\=3,c2=\"32fw\" 1661943990000000000",
+  };
+  for(int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++){
+    pRes = taos_schemaless_insert(taos, (char**)&sql[i], 1, TSDB_SML_LINE_PROTOCOL, 0);
+    int code = taos_errno(pRes);
+    ASSERT(code);
+  }
+
+  const char *sql1[] = {
+      "stab\\,t1=1 c1=3,c2=\"32fw\" 1661943960000000000",
+      "stab\\\\,t1=1 c1=3,c2=\"32fw\" 1661943960000000000",
+      "stab,t1\\\\=1 c1=3,c2=\"32fw\" 1661943970000000000",
+      "stab,t1=1\\\\ c1=3,c2=\"32fw\" 1661943980000000000",
+      "stab,t1=1 c1\\\\=3,c2=\"32fw\" 1661943990000000000",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(!code);
+  ASSERT(taos_affected_rows(pRes) == 5);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from stab");     //check stable name
+  ASSERT(pRes);
+  int fieldNum = taos_field_count(pRes);
+  ASSERT(fieldNum == 6);
+  printf("fieldNum:%d\n", fieldNum);
+
+  int         numFields = taos_num_fields(pRes);
+  TAOS_FIELD *fields = taos_fetch_fields(pRes);
+  ASSERT(numFields == 6);
+  ASSERT(strncmp(fields[1].name, "c1", sizeof("c1") - 1) == 0);
+  ASSERT(strncmp(fields[2].name, "c2", sizeof("c2") - 1) == 0);
+  ASSERT(strncmp(fields[3].name, "c1\\", sizeof("c1\\") - 1) == 0);
+  ASSERT(strncmp(fields[4].name, "t1\\", sizeof("t1\\") - 1) == 0);
+  ASSERT(strncmp(fields[5].name, "t1", sizeof("t1") - 1) == 0);
+
+  TAOS_ROW row = NULL;
+  int32_t  rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int64_t ts = *(int64_t *)row[0];
+
+    if (ts == 1661943970000) {
+      ASSERT(*(double *)row[1] == 3);
+      ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
+      ASSERT(row[3] == NULL);
+      ASSERT(strncmp(row[4], "1", sizeof("1") - 1) == 0);
+      ASSERT(row[5] == NULL);
+    }else if (ts == 1661943980000) {
+      ASSERT(*(double *)row[1] == 3);
+      ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
+      ASSERT(row[3] == NULL);
+      ASSERT(row[4] == NULL);
+      ASSERT(strncmp(row[5], "1\\", sizeof("1\\") - 1) == 0);
+    }else if (ts == 1661943990000) {
+      ASSERT(row[1] == NULL);
+      ASSERT(strncmp(row[2], "32fw", sizeof("32fw") - 1) == 0);
+      ASSERT(*(double *)row[3] == 3);
+      ASSERT(row[4] == NULL);
+      ASSERT(strncmp(row[5], "1", sizeof("1") - 1) == 0);
     }
     rowIndex++;
   }
@@ -1775,17 +1857,14 @@ int main(int argc, char *argv[]) {
   ASSERT(ret);
   ret = sml_escape_Test();
   ASSERT(!ret);
+  ret = sml_escape1_Test();
+  ASSERT(!ret);
   ret = sml_ts3116_Test();
   ASSERT(!ret);
   ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
   ASSERT(!ret);
   ret = sml_ts3303_Test();
   ASSERT(!ret);
-
-  //  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
-  //    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));
-  //  }
-  //  int ret = 0;
   ret = sml_ttl_Test();
   ASSERT(!ret);
   ret = sml_ts2164_Test();

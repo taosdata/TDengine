@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "tworker.h"
-#include "tgeosctx.h"
 #include "taoserror.h"
+#include "tgeosctx.h"
 #include "tlog.h"
+
+#define QUEUE_THRESHOLD (1000 * 1000)
 
 typedef void *(*ThreadFp)(void *param);
 
@@ -82,6 +84,13 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
             worker->pid);
       break;
+    }
+
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
     }
 
     if (qinfo.fp != NULL) {
@@ -198,6 +207,13 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
       break;
     }
 
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
+    }
+
     if (qinfo.fp != NULL) {
       qinfo.workerId = worker->id;
       qinfo.threadNum = taosArrayGetSize(pool->workers);
@@ -221,7 +237,7 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
   int32_t queueNum = taosGetQueueNumber(pool->qset);
   int32_t curWorkerNum = taosArrayGetSize(pool->workers);
   int32_t dstWorkerNum = ceilf(queueNum * pool->ratio);
-  if (dstWorkerNum < 1) dstWorkerNum = 1;
+  if (dstWorkerNum < 2) dstWorkerNum = 2;
 
   // spawn a thread to process queue
   while (curWorkerNum < dstWorkerNum) {
@@ -338,6 +354,13 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
       break;
     }
 
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
+    }
+
     if (qinfo.fp != NULL) {
       qinfo.workerId = worker->id;
       qinfo.threadNum = pool->num;
@@ -394,9 +417,9 @@ _OVER:
     return NULL;
   } else {
     while (worker->pid <= 0) taosMsleep(10);
-    queue->threadId = worker->pid;
-    uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle,
-          queue->threadId);
+
+    taosQueueSetThreadId(queue, worker->pid);
+    uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, worker->pid);
     return queue;
   }
 }

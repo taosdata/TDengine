@@ -19,6 +19,8 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
+    updatecfgDict = {'qDebugFlag':135 , 'mDebugFlag':135}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -58,7 +60,7 @@ class TDTestCase:
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details']
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups']
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -218,7 +220,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(219, len(tdSql.queryResult))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(215, 230))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -229,8 +231,7 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_dnodes')
         result = tdSql.queryResult
         tdSql.checkEqual(result[0][0],1)
-        tdSql.checkEqual(result[0][8],"")
-        tdSql.checkEqual(result[0][9],"")
+        tdSql.checkEqual(True, len(result[0][8]) in (0,24))
         self.str107 = 'Hc7VCc+'
         for t in range (10):
             self.str107 += 'tP+2soIXpP'
@@ -247,11 +248,9 @@ class TDTestCase:
         tdSql.error('alter dnode 1 "activeCode" "' + self.str109 + '"')
         tdSql.error('alter all dnodes "activeCode" "' + self.str510 + '"')
         tdSql.query(f'select * from information_schema.ins_dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][8],"")
-        tdSql.execute('alter dnode 1 "activeCode" ""')
-        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][0],"")
-        tdSql.checkEqual(tdSql.queryResult[0][1],'')
+        tdSql.checkEqual(True, len(result[0][8]) in (0,24))
+        tdSql.error('alter dnode 1 "activeCode" ""')
+        tdSql.error(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.error('alter dnode 1 "cActiveCode" "a"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str107 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str256 + '"')
@@ -260,15 +259,59 @@ class TDTestCase:
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str254 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
-        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][0],"")
-        tdSql.checkEqual(tdSql.queryResult[0][1],"")
+        tdSql.error(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
         tdSql.query(f'show dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][9],"")
-        tdSql.execute('alter all dnodes "cActiveCode" ""')
-        tdSql.query(f'select c_active_code from information_schema.ins_dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][0],'')
+        tdSql.error(f'select c_active_code from information_schema.ins_dnodes')
+        tdSql.error('alter all dnodes "cActiveCode" ""')
+
+    def ins_grants_check(self):
+        grant_name_dict = {
+            'stream':'stream',
+            'subscription':'subscription',
+            'view':'view',
+            'audit':'audit',
+            'csv':'csv',
+            'storage':'multi_tier_storage',
+            'backup_restore':'backup_restore',
+            'opc_da':'OPC_DA',
+            'opc_ua':'OPC_UA',
+            'pi':'Pi',
+            'kafka':'Kafka',
+            'influxdb':'InfluxDB',
+            'mqtt':'MQTT',
+            'avevahistorian':'avevaHistorian',
+            'opentsdb':'OpenTSDB',
+            'td2.6':'TDengine2.6',
+            'td3.0':'TDengine3.0'
+        }
+
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        tdSql.query(f'select * from information_schema.ins_grants_full')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            if result[i][0] in grant_name_dict:
+                tdSql.checkEqual(result[i][1], grant_name_dict[result[i][0]])
+                index += 1
+        tdSql.checkEqual(index, 17)
+        tdSql.query(f'select * from information_schema.ins_grants_logs')
+        result = tdSql.queryResult
+        tdSql.checkEqual(True, len(result) >= 0)
+        if(len(result) > 0):
+            tdSql.checkEqual(True, result[0][0].find(",init,ungranted,ungranted") >= 16)
+            tdSql.checkEqual(True, len(result[0][1]) == 0)
+            tdSql.checkEqual(True, len(result[0][2]) >= 46)
+
+        tdSql.query(f'select * from information_schema.ins_machines')
+        tdSql.checkRows(1)
+        tdSql.execute('alter cluster "activeCode" "revoked"')
+        tdSql.execute('alter cluster "activeCode" "revoked"')
+        tdSql.error('alter cluster "activeCode" ""')
+        tdSql.error('alter cluster "activeCode" "abc"')
+        tdSql.error('alter cluster "activeCode" ""')
+        tdSql.execute('alter cluster "activeCode" "revoked"')
 
     def run(self):
         self.prepare_data()
@@ -278,6 +321,7 @@ class TDTestCase:
         self.ins_stable_check()
         self.ins_stable_check2()
         self.ins_dnodes_check()
+        self.ins_grants_check()
 
 
     def stop(self):

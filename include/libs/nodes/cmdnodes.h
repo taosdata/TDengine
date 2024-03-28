@@ -100,6 +100,7 @@ typedef struct SDatabaseOptions {
   int32_t     sstTrigger;
   int32_t     tablePrefix;
   int32_t     tableSuffix;
+  int8_t      withArbitrator;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -419,6 +420,12 @@ typedef struct SDropCGroupStmt {
   char      cgroup[TSDB_CGROUP_LEN];
   bool      ignoreNotExists;
 } SDropCGroupStmt;
+
+typedef struct SAlterClusterStmt {
+  ENodeType type;
+  char      config[TSDB_DNODE_CONFIG_LEN];
+  char      value[TSDB_CLUSTER_VALUE_LEN];
+} SAlterClusterStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;

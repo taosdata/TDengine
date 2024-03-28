@@ -211,15 +211,15 @@ function lcovFunc {
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
         '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
-        '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.c'\
+        '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.c' '*/build_version.cc'\
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
-        '*/sql.c' '*/sql.y'\
+        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
          --branch-coverage --function-coverage -o coverage.info
 
     # generate result
     echo "generate result"
-    lcov -l --branch-coverage --function-coverage coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    lcov -l coverage.info --branch-coverage --function-coverage | tee -a $TDENGINE_COVERAGE_REPORT
 
     sed -i 's/\/root\/TDengine\/sql.c/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.c/g' coverage.info
     sed -i 's/\/root\/TDengine\/sql.y/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.y/g' coverage.info

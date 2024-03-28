@@ -76,6 +76,9 @@ int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
+int32_t   vnodeGetArbToken(SVnode *pVnode, char *outToken);
+
+int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm);
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
@@ -89,6 +92,8 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
+
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
@@ -175,11 +180,11 @@ void         tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn not
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
+                                SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
+                                SArray* pFuncTypeList);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
-int32_t tsdbGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t  tsdbCacheGetCapacity(SVnode *pVnode);
@@ -221,7 +226,7 @@ bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
 
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
-bool         tqNextBlockInWal(STqReader *pReader, const char *idstr);
+bool         tqNextBlockInWal(STqReader *pReader, const char *idstr, int sourceExcluded);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
@@ -232,6 +237,7 @@ int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, i
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
+int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, bool* fhFinished);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

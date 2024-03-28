@@ -117,6 +117,7 @@ TEST_F(ParserInitialDTest, dropDnode) {
     ASSERT_EQ(req.port, expect.port);
     ASSERT_EQ(req.force, expect.force);
     ASSERT_EQ(req.unsafe, expect.unsafe);
+    tFreeSDropDnodeReq(&req);
   });
 
   setDropDnodeReqById(1);
@@ -208,6 +209,7 @@ TEST_F(ParserInitialDTest, dropQnode) {
                 tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    tFreeSDDropQnodeReq(&req);
   });
 
   setDropQnodeReq(1);
@@ -245,6 +247,7 @@ TEST_F(ParserInitialDTest, dropStream) {
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
     ASSERT_EQ(req.igNotExists, expect.igNotExists);
+    tFreeMDropStreamReq(&req);
   });
 
   setDropStreamReq("s1");
@@ -285,6 +288,7 @@ TEST_F(ParserInitialDTest, dropUser) {
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSDropUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
+    tFreeSDropUserReq(&req);
   });
 
   setDropUserReq("wxy");

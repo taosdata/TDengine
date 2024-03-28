@@ -66,7 +66,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     return true;
   }
 
-  if ((*pJob->chkKillFp)(pJob->chkKillParam)) {
+  if (pJob->chkKillFp && (*pJob->chkKillFp)(pJob->chkKillParam)) {
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
     return true;
   }
@@ -386,10 +386,13 @@ _return:
 int32_t schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
+  
+  SCH_LOCK(SCH_WRITE, &pJob->resLock);
   pRes->res = pJob->execRes.res;
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
+  SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
   SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));
 
@@ -743,6 +746,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
+  pJob->source = pReq->source;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);

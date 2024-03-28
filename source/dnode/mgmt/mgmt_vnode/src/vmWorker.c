@@ -56,6 +56,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP:
       code = vmProcessCheckLearnCatchupReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_ARB_HEARTBEAT:
+      code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);
@@ -365,16 +368,16 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   dInfo("vgId:%d, write-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
-        pVnode->pWriteW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pWriteW.queue));
   dInfo("vgId:%d, sync-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
-        pVnode->pSyncW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncW.queue));
   dInfo("vgId:%d, sync-rd-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
-        pVnode->pSyncRdW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncRdW.queue));
   dInfo("vgId:%d, apply-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
-        pVnode->pApplyW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pApplyW.queue));
   dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
   dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
-        pVnode->pFetchQ->threadId);
+        taosQueueGetThreadId(pVnode->pFetchQ));
   dInfo("vgId:%d, stream-queue:%p is alloced", pVnode->vgId, pVnode->pStreamQ);
   return 0;
 }

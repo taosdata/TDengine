@@ -70,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
@@ -87,6 +87,7 @@ void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
+  tTrace("rpc free cont:%p", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
@@ -593,6 +594,17 @@ void transPrintEpSet(SEpSet* pEpSet) {
 }
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps) {
     return false;
   }
   for (int i = 0; i < a->numOfEps; i++) {

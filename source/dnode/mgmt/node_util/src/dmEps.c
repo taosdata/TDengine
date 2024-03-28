@@ -31,7 +31,8 @@ static bool    dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep)
 static void    dmResetEps(SDnodeData *pData, SArray *dnodeEps);
 static int32_t dmReadDnodePairs(SDnodeData *pData);
 
-static void dmGetDnodeEp(SDnodeData *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+void dmGetDnodeEp(void *data, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+  SDnodeData *pData = data;
   taosThreadRwlockRdlock(&pData->lock);
 
   SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
@@ -223,7 +224,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
 
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  if((code == dmInitDndInfo(pData)) != 0) goto _OVER;
+  if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   pData->engineVer = tsVersion;
@@ -289,6 +290,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
     pData->mnodeEps.eps[mIndex] = pDnodeEp->ep;
     mIndex++;
   }
+  epsetSort(&pData->mnodeEps);
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
@@ -332,6 +334,16 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   taosThreadRwlockRdlock(&pData->lock);
   *pEpSet = pData->mnodeEps;
   taosThreadRwlockUnlock(&pData->lock);
+}
+
+void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
+  int32_t n = 0;
+  n += snprintf(buf + n, len - n, "%s", "{");
+  for (int i = 0; i < epSet->numOfEps; i++) {
+    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+                  (i + 1 < epSet->numOfEps ? ", " : ""));
+  }
+  n += snprintf(buf + n, len - n, "%s", "}");
 }
 
 static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {

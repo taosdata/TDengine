@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "systable.h"
-#include "tgrant.h"
 
 extern SConfig *tsCfg;
 
@@ -91,16 +90,6 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   rpcFreeCont(pRsp->pCont);
 }
 
-void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
-  int32_t n = 0;
-  n += snprintf(buf + n, len - n, "%s", "{");
-  for (int i = 0; i < epSet->numOfEps; i++) {
-    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
-                  (i + 1 < epSet->numOfEps ? ", " : ""));
-  }
-  n += snprintf(buf + n, len - n, "%s", "}");
-}
-
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
 
@@ -114,9 +103,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.updateTime = pMgmt->pData->updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
+  req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
   req.memAvail = req.memTotal - tsRpcQueueMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
+  tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -319,7 +310,7 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
-    GRANT_CFG_SKIP;
+    // GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
@@ -359,12 +350,12 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
+#if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
   }
-
+#endif
   if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -429,7 +420,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

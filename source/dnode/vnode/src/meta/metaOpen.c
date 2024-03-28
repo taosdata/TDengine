@@ -27,7 +27,14 @@ static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int k
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
+static int32_t metaInitLock(SMeta *pMeta) {
+  TdThreadRwlockAttr attr;
+  taosThreadRwlockAttrInit(&attr);
+  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  taosThreadRwlockInit(&pMeta->lock, &attr);
+  taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
 static void metaCleanup(SMeta **ppMeta);
@@ -239,32 +246,20 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 int32_t metaRLock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta rlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockRdlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockRdlock(&pMeta->lock);
   return ret;
 }
 
 int32_t metaWLock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta wlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockWrlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockWrlock(&pMeta->lock);
   return ret;
 }
 
 int32_t metaULock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta ulock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockUnlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockUnlock(&pMeta->lock);
   return ret;
 }
 
@@ -273,7 +268,9 @@ static void metaCleanup(SMeta **ppMeta) {
   if (pMeta) {
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
+#ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+#endif
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);

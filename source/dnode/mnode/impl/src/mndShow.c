@@ -67,6 +67,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
     type = TSDB_MGMT_TABLE_CLUSTER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_DATABASES, len) == 0) {
@@ -123,6 +125,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_COMPACT;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_LOGS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MACHINES, len) == 0) {
+    type = TSDB_MGMT_TABLE_MACHINES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

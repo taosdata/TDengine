@@ -1,10 +1,11 @@
 enable_testing()
 
 add_subdirectory(acct)
+add_subdirectory(arbgroup)
 #add_subdirectory(db)
 #add_subdirectory(dnode)
 add_subdirectory(func)
-#add_subdirectory(mnode)
+add_subdirectory(stream)
 add_subdirectory(profile)
 add_subdirectory(qnode)
 add_subdirectory(sdb)

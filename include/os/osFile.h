@@ -117,6 +117,17 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 int32_t taosSetFileHandlesLimit();
 
+int32_t taosLinkFile(char *src, char *dst);
+
+FILE*  taosOpenCFile(const char* filename, const char* mode);
+int    taosSeekCFile(FILE* file, int64_t offset, int whence);
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream );
+size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream);
+int	 taosCloseCFile(FILE *);
+int taosSetAutoDelFile(char* path);
+
+bool lastErrorIsFileNotExist();
+
 #ifdef __cplusplus
 }
 #endif

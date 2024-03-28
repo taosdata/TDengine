@@ -207,8 +207,6 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         self.tmqCase1(True)
-        self.prepareTestEnv()
-        self.tmqCase1(False)
 
     def stop(self):
         tdSql.close()

@@ -48,6 +48,10 @@ char* taosDesImp(uint8_t* key, char* src, uint32_t len, int32_t process_mode) {
   key_set  key_sets[17];
   memset(key_sets, 0, sizeof(key_sets));
   char* dest = taosMemoryCalloc(len + 1, 1);
+  if (!dest) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   generate_sub_keys(key, key_sets);
 
   for (uint32_t block_count = 0; block_count < number_of_blocks; block_count++) {
@@ -61,7 +65,10 @@ char* taosDesImp(uint8_t* key, char* src, uint32_t len, int32_t process_mode) {
 }
 
 char* taosDesEncode(int64_t key, char* src, int32_t len) {
-  if (len % 8 != 0) return NULL;
+  if (len % 8 != 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   uint8_t* keyStr = (uint8_t*)(&key);
   return taosDesImp(keyStr, src, len, ENCRYPTION_MODE);
 }

@@ -360,10 +360,24 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && !taosGranted()) {
-    QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
-    tFreeSSubQueryMsg(&msg);
-    QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+  if (chkGrant) {
+    if ((!TEST_SHOW_REWRITE_MASK(msg.msgMask))) {
+      if (!taosGranted(TSDB_GRANT_ALL)) {
+        QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+      if ((TEST_VIEW_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_VIEW)) {
+        QW_ELOG("query failed cause of view grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+      if ((TEST_AUDIT_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_AUDIT)) {
+        QW_ELOG("query failed cause of audit grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+    }
   }
 
   uint64_t sId = msg.sId;
@@ -701,6 +715,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SD
   uint64_t tId = req.taskId;
   int64_t  rId = 0;
   int32_t  eId = -1;
+  pRes->source = req.source;
 
   SQWMsg qwMsg = {.node = node, .msg = req.msg, .msgLen = req.phyLen, .connInfo = pMsg->info};
   QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);

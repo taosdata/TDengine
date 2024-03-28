@@ -29,6 +29,7 @@ void tMapDataClear(SMapData *pMapData) {
   pMapData->aOffset = NULL;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
   int32_t code = 0;
   int32_t offset = pMapData->nData;
@@ -95,12 +96,14 @@ int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItem
 _exit:
   return code;
 }
+#endif
 
 void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
   ASSERT(idx >= 0 && idx < pMapData->nItem);
   tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
                         SArray **ppArray) {
   int32_t code = 0;
@@ -140,6 +143,7 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
 
   return n;
 }
+#endif
 
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
@@ -167,6 +171,7 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   return n;
 }
 
+#ifdef BUILD_NO_CALL
 // TABLEID =======================================================================
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   TABLEID *pId1 = (TABLEID *)p1;
@@ -199,6 +204,7 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph) {
 
   return n;
 }
+#endif
 
 int32_t tGetBlockIdx(uint8_t *p, void *ph) {
   int32_t    n = 0;
@@ -212,6 +218,7 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
   return n;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
   SBlockIdx *rBlockIdx = (SBlockIdx *)rhs;
@@ -280,6 +287,7 @@ int32_t tPutDataBlk(uint8_t *p, void *ph) {
 
   return n;
 }
+#endif
 
 int32_t tGetDataBlk(uint8_t *p, void *ph) {
   int32_t   n = 0;
@@ -310,6 +318,7 @@ int32_t tGetDataBlk(uint8_t *p, void *ph) {
   return n;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tDataBlkCmprFn(const void *p1, const void *p2) {
   SDataBlk *pBlock1 = (SDataBlk *)p1;
   SDataBlk *pBlock2 = (SDataBlk *)p2;
@@ -349,6 +358,7 @@ int32_t tPutSttBlk(uint8_t *p, void *ph) {
 
   return n;
 }
+#endif
 
 int32_t tGetSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
@@ -438,6 +448,7 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   return n;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tBlockColCmprFn(const void *p1, const void *p2) {
   if (((SBlockCol *)p1)->cid < ((SBlockCol *)p2)->cid) {
     return -1;
@@ -479,6 +490,7 @@ int32_t tPutDelIdx(uint8_t *p, void *ph) {
 
   return n;
 }
+#endif
 
 int32_t tGetDelIdx(uint8_t *p, void *ph) {
   SDelIdx *pDelIdx = (SDelIdx *)ph;
@@ -492,6 +504,7 @@ int32_t tGetDelIdx(uint8_t *p, void *ph) {
   return n;
 }
 
+#ifdef BUILD_NO_CALL
 // SDelData ======================================================
 int32_t tPutDelData(uint8_t *p, void *ph) {
   SDelData *pDelData = (SDelData *)ph;
@@ -503,6 +516,7 @@ int32_t tPutDelData(uint8_t *p, void *ph) {
 
   return n;
 }
+#endif
 
 int32_t tGetDelData(uint8_t *p, void *ph) {
   SDelData *pDelData = (SDelData *)ph;
@@ -628,8 +642,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
       return &pIter->cv;
     }
 
-    if (pIter->iColData < pIter->pRow->pBlockData->nColData) {
-      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData], pIter->pRow->iRow, &pIter->cv);
+    if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
+      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
       ++pIter->iColData;
       return &pIter->cv;
     } else {
@@ -1269,6 +1283,7 @@ _exit:
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid) {
   if (pBlockData->nRow == 0) {
     return 1;
@@ -1286,6 +1301,7 @@ int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);
   }
 }
+#endif
 
 void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {
   ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);

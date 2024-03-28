@@ -23,13 +23,13 @@ static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
 static bool    taskReadyForDataFromWal(SStreamTask* pTask);
-static bool    doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
+static bool    doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
 static int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration);
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
 int32_t tqScanWal(STQ* pTq) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
   int64_t      st = taosGetTimestampMs();
 
   tqDebug("vgId:%d continue to check if data in wal are available, scanCounter:%d", vgId, pMeta->scanInfo.scanCounter);
@@ -95,10 +95,14 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
 
   pParam->pTq = pTq;
   pParam->numOfTasks = numOfTasks;
+
+  tmr_h pTimer = streamTimerGetInstance();
+  ASSERT(pTimer);
+
   if (pMeta->scanInfo.scanTimer == NULL) {
-    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTq->tqTimer);
+    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTimer);
   } else {
-    taosTmrReset(doStartScanWal, idleDuration, pParam, pTq->tqTimer, &pMeta->scanInfo.scanTimer);
+    taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -175,11 +179,11 @@ int32_t tqStopStreamTasksAsync(STQ* pTq) {
   SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to stop tasks, code:%s", vgId, terrstr());
+    tqError("vgId:%d failed to create msg to stop tasks async, code:%s", vgId, terrstr());
     return -1;
   }
 
-  tqDebug("vgId:%d create msg to stop tasks", vgId);
+  tqDebug("vgId:%d create msg to stop all tasks async", vgId);
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
@@ -296,21 +300,21 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   return true;
 }
 
-bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
+bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
   const char* id = pTask->id.idStr;
   int32_t     numOfNewItems = 0;
 
-  while(1) {
+  while (1) {
     if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
       *numOfItems += numOfNewItems;
       return numOfNewItems > 0;
     }
 
     SStreamQueueItem* pItem = NULL;
-    int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
+    int32_t           code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
     if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
       int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
-      bool itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
+      bool    itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
       if (itemInFillhistory) {
         numOfNewItems += 1;
       }
@@ -330,7 +334,9 @@ bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* num
           break;
         }
       } else {
-        tqError("s-task:%s append input queue failed, code: too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
+        walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
+        tqError("s-task:%s append input queue failed, code:too many items, ver:%" PRId64, id,
+                pTask->chkInfo.nextProcessVer);
         break;
       }
     }
@@ -395,7 +401,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    bool hasNewData = doPutDataIntoInputQFromWal(pTask, maxVer, &numOfItems);
+    bool hasNewData = doPutDataIntoInputQ(pTask, maxVer, &numOfItems);
     taosThreadMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {

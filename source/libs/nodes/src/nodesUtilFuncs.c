@@ -31,7 +31,7 @@ typedef struct SNodeMemChunk {
   struct SNodeMemChunk* pNext;
 } SNodeMemChunk;
 
-typedef struct SNodeAllocator {
+struct SNodeAllocator {
   int64_t        self;
   int64_t        queryId;
   int32_t        chunkSize;
@@ -39,7 +39,7 @@ typedef struct SNodeAllocator {
   SNodeMemChunk* pCurrChunk;
   SNodeMemChunk* pChunks;
   TdThreadMutex  mutex;
-} SNodeAllocator;
+};
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
@@ -295,13 +295,15 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_COLUMN_REF:
-      return makeNode(type, sizeof(SColumnDefNode));
+      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_WHEN_THEN:
       return makeNode(type, sizeof(SWhenThenNode));
     case QUERY_NODE_CASE_WHEN:
       return makeNode(type, sizeof(SCaseWhenNode));
     case QUERY_NODE_EVENT_WINDOW:
       return makeNode(type, sizeof(SEventWindowNode));
+    case QUERY_NODE_COUNT_WINDOW:
+      return makeNode(type, sizeof(SCountWindowNode));
     case QUERY_NODE_HINT:
       return makeNode(type, sizeof(SHintNode));
     case QUERY_NODE_VIEW:
@@ -409,12 +411,15 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SGrantStmt));
     case QUERY_NODE_REVOKE_STMT:
       return makeNode(type, sizeof(SRevokeStmt));
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return makeNode(type, sizeof(SAlterClusterStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -439,6 +444,9 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowTableTagsStmt));
@@ -559,6 +567,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamFinalIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return makeNode(type, sizeof(SStreamSemiIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+      return makeNode(type, sizeof(SStreamMidIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return makeNode(type, sizeof(SFillPhysiNode));
@@ -578,6 +588,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SEventWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       return makeNode(type, sizeof(SStreamEventWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+      return makeNode(type, sizeof(SCountWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      return makeNode(type, sizeof(SStreamCountWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
@@ -673,6 +687,8 @@ static void destroyTableCfg(STableCfg* pCfg) {
 }
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
+
+static void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
 static void destroyHintValue(EHintOption option, void* value) {
   switch (option) {
@@ -839,6 +855,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
+      break;
+    }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      nodesDestroyNode(pEvent->pCol);
       break;
     }
     case QUERY_NODE_HINT: {
@@ -1044,12 +1065,15 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_REVOKE_STMT:
       nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
       break;
+    case QUERY_NODE_ALTER_CLUSTER_STMT:           // no pointer field
+      break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -1073,7 +1097,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
-    case QUERY_NODE_SHOW_VIEWS_STMT: {
+    case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1173,6 +1200,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pGroupTags);
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
+      taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1300,6 +1328,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
+      taosArrayDestroy(pPhyNode->pFuncTypes);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -1336,7 +1365,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->pFilterConditions);
       nodesDestroyList(pPhyNode->pTargets);
-      
+
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
@@ -1377,6 +1406,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
@@ -1408,6 +1438,12 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
       nodesDestroyNode(pPhyNode->pEndCond);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT: {
+      SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
@@ -1669,9 +1705,9 @@ void nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList*
   pSrc->pTail->pNext = pPos->pNext;
 
   pPos->pNext = pSrc->pHead;
-  
+
   pTarget->length += pSrc->length;
-  nodesFree(pSrc);  
+  nodesFree(pSrc);
 }
 
 SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
@@ -2111,6 +2147,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
     FOREACH(pn, pCxt->pFuncs) {
       if (nodesEqualNode(pn, pNode)) {
         bFound = true;
+        break;
       }
     }
     if (!bFound) {
@@ -2131,6 +2168,20 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   //   return 1;
   // }
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
+}
+
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                          .classifier = classifier,
+                          .tableAlias = tableAlias,
+                          .pFuncs = pFuncs};
+
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
+  return cxt.errCode;
 }
 
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {

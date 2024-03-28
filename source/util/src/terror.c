@@ -101,8 +101,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
-TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,          "Not allowed to connect")
-TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,          "Failed to connect to s3 server")
+TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
+TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to s3 server")
+TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -253,6 +254,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode can only be cre
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replica of mnode cannot less than 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode cannot exceed 3")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
 
 // mnode-dnode-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DNODES,          "Too many dnodes")
@@ -328,6 +332,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_NOT_EXIST,           "view not exists in db
 
 //mnode-compact
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -345,6 +350,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALREADY_IS_VOTER,       "Mnode already is a le
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ONLY_TWO_MNODE,         "Only two mnodes exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NO_NEED_RESTORE,        "No need to restore on this dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE,  "Please use this command when the dnode is offline")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NO_MACHINE_CODE,        "Dnode can not get machine code")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -365,6 +371,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_CATCH_UP,             "Vnode didn't catch up
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_IS_VOTER,         "Vnode already is a voter")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DIR_ALREADY_EXIST,        "Vnode directory already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_META_DATA_UNSAFE_DELETE,  "Single replica vnode data will lost permanently after this operation, if you make sure this, please use drop dnode <id> unsafe to execute")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not synced")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -416,7 +423,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_CANCELLED,           "Task cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_DROPPED,             "Task dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_CANCELLING,          "Task cancelling")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_DROPPING,            "Task dropping")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUPLICATTED_OPERATION,    "Duplicatted operation")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUPLICATED_OPERATION,     "Duplicated operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_MSG_ERROR,           "Task message error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_FREED,                "Job already freed")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_STATUS_ERROR,        "Task status error")
@@ -426,30 +433,40 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_IN_GROUP_ERROR,      "Json not support in g
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_NOT_EXIST,            "Job not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QWORKER_QUIT,             "Vnode/Qnode is quitting")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR,    "Geometry not support in this operator")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION, "The time pseudo column is illegally used in the condition of the event window.")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          "DNode creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,           "Account creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,     "Time series limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_LIMITED,             "DB creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_USER_LIMITED,           "User creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,           "Conn creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_LIMITED,         "Stream creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,          "Write speed limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        "Storage capacity limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,      "Query time limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            "CPU cores limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STABLE_LIMITED,         "STable creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Table creation limited by license")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          "Number of dnodes has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,           "Number of accounts has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,     "Number of time series has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_LIMITED,             "Number of DBs has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_USER_LIMITED,           "Number of users has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,           "Number of connections has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_LIMITED,         "Number of streams has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,          "Write speed has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        "Storage capacity has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED,   "Number of subscriptions has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            "Number of CPU cores has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STABLE_LIMITED,         "Number of stables has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Number of tables has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_IVLD_ACTIVE,        "Invalid active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_IVLD_KEY,           "Invalid key to parse active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_DEC_IVLD_KEY,       "Invalid key to decode active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_DEC_IVLD_KLEN,      "Invalid klen to decode active code")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_IVLD_KEY,           "Invalid key to gen active code")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_APP_LIMIT,          "Limited app num to gen active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_IVLD_KEY,           "Invalid key to generate active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_ACTIVE_LEN,         "Exceeded active len to generate active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_ENC_IVLD_KLEN,      "Invalid klen to encode active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_IVLD_DIST,          "Invalid distribution time to parse active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_UNLICENSED_CLUSTER,     "Illegal operation, the license is being used by an unlicensed cluster")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_BASIC,          "Lack of basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJ_NOT_EXIST,          "Grant object not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND,  "The historial active code does not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MACHINES_MISMATCH,      "Cluster machines mismatch with active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE,   "Expire time of optional grant item is too large")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUPLICATED_ACTIVE,      "The active code can't be activated repeatedly")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_LIMITED,           "Number of view has reached the licensed upper limit")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
@@ -592,7 +609,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC,    "Window not allowed"
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,    "Stream not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC,  "Group by not allowd")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,      "Invalid interp clause")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN,       "Not valid function ion window")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN,       "Not valid function in window")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,  "Only support single table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SMA_INDEX,          "Invalid sma index")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SELECTED_EXPR,      "Invalid SELECTed expression")
@@ -600,13 +617,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GET_META_ERROR,             "Fail to get table i
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,     "Not unique table/alias")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC,  "System table not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED,       "System table not allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalidate varbinary value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalid varbinary value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IP_RANGE,           "Invalid IPV4 address ranges")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STREAM_QUERY,       "Invalid stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VIEW_QUERY,         "Invalid view query type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_QUERY_MISMATCH,         "Columns number mismatch with query result")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE,   "View name is conflict with table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT,   "Operator not supported multi result")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -692,7 +710,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled 
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_STATETRANS,      "Invalid task state to handle event")
-TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,"Invalid task status to proceed")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status to proceed")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")

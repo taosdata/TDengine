@@ -527,7 +527,10 @@ static int32_t createSimpleScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSub
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+
+  if (pScanLogicNode->pVgroupList) {
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  }
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, pScan, pPhyNode);
 }
 
@@ -538,8 +541,9 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-
+  if (pScanLogicNode->pVgroupList) {
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  }
   pScan->onlyMetaCtbIdx = pScanLogicNode->onlyMetaCtbIdx;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -562,9 +566,37 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
 
   pScan->groupSort = pScanLogicNode->groupSort;
   pScan->ignoreNull = pScanLogicNode->igLastNull;
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
-  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+  if (pScanLogicNode->pVgroupList) {
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  }
+  int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+
+  if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
+    pScan->pFuncTypes = taosArrayInit(taosArrayGetSize(pScanLogicNode->pFuncTypes), sizeof(int32_t));
+    if (NULL == pScan->pFuncTypes) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SNode* pTargetNode = NULL;
+    int funcTypeIndex = 0;
+    FOREACH(pTargetNode, ((SScanPhysiNode*)pScan)->pScanCols) {
+      if (((STargetNode*)pTargetNode)->pExpr->type != QUERY_NODE_COLUMN) {
+        continue;
+      }
+      SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pTargetNode)->pExpr;
+
+      for (int i = 0; i < TARRAY_SIZE(pScanLogicNode->pFuncTypes); ++i) {
+        SFunctParam* pFunctParam = taosArrayGet(pScanLogicNode->pFuncTypes, i);
+        if (pColNode->colId == pFunctParam->pCol->colId &&
+             0 == strncmp(pColNode->colName, pFunctParam->pCol->name, strlen(pColNode->colName))) {
+          taosArrayInsert(pScan->pFuncTypes, funcTypeIndex, &pFunctParam->type);
+          break;
+        }
+      }
+      funcTypeIndex++;
+    }
+  }
+  return code;
 }
 
 static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
@@ -582,8 +614,9 @@ static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   }
 
   pScan->groupSort = pScanLogicNode->groupSort;
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-
+  if (pScanLogicNode->pVgroupList) {
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  }
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
@@ -624,6 +657,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
   pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
   pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
+  pTableScan->paraTablesSort = pScanLogicNode->paraTablesSort;
+  pTableScan->smallDataTsSort = pScanLogicNode->smallDataTsSort;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {
@@ -652,7 +687,9 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS)) {
-    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+    if (pScanLogicNode->pVgroupList) {
+      vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+    }
   } else {
     pSubplan->execNode.nodeId = MNODE_HANDLE;
     pSubplan->execNode.epSet = pCxt->pPlanCxt->mgmtEpSet;
@@ -1432,6 +1469,7 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
 
   pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
   pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
+  pProject->inputIgnoreGroup = pProjectLogicNode->inputIgnoreGroup;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
@@ -1589,6 +1627,8 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
     case INTERVAL_ALGO_STREAM_SEMI:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
+    case INTERVAL_ALGO_STREAM_MID:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL;
     case INTERVAL_ALGO_STREAM_SINGLE:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
     case SESSION_ALGO_STREAM_FINAL:
@@ -1721,6 +1761,27 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   return code;
 }
 
+static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                          SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pWindowLogicNode,
+      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT : QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT));
+  if (NULL == pCount) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCount->windowCount = pWindowLogicNode->windowCount;
+  pCount->windowSliding = pWindowLogicNode->windowSliding;
+
+  int32_t  code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pCount->window, pWindowLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pCount;
+  } else {
+    nodesDestroyNode((SNode*)pCount);
+  }
+
+  return code;
+}
+
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,
                                      SPhysiNode** pPhyNode) {
   switch (pWindowLogicNode->winType) {
@@ -1732,6 +1793,8 @@ static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildr
       return createStateWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
     case WINDOW_TYPE_EVENT:
       return createEventWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
+    case WINDOW_TYPE_COUNT:
+      return createCountWindowPhysiNode(pCxt, pChildren, pWindowLogicNode, pPhyNode);
     default:
       break;
   }
@@ -2136,6 +2199,8 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->level = pLogicSubplan->level;
   pSubplan->rowsThreshold = 4096;
   pSubplan->dynamicRowThreshold = false;
+  pSubplan->isView = pCxt->pPlanCxt->isView;
+  pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }
@@ -2160,11 +2225,12 @@ static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNod
   pInserter->stableId = pModify->stableId;
   pInserter->tableType = pModify->tableType;
   strcpy(pInserter->tableName, pModify->tableName);
-  pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
-  pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
   pInserter->explain = (QUERY_NODE_EXPLAIN_STMT == nodeType(pCxt->pPlanCxt->pAstRoot) ? true : false);
-  vgroupInfoToNodeAddr(pModify->pVgroupList->vgroups, &pSubplan->execNode);
-
+  if (pModify->pVgroupList) {
+    pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
+    pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
+    vgroupInfoToNodeAddr(pModify->pVgroupList->vgroups, &pSubplan->execNode);
+  }
   int32_t code = setListSlotId(pCxt, pSubplan->pNode->pOutputDataBlockDesc->dataBlockId, -1, pModify->pInsertCols,
                                &pInserter->pCols);
   if (TSDB_CODE_SUCCESS == code) {

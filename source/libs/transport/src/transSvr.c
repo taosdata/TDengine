@@ -159,7 +159,7 @@ static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static FORCE_INLINE void destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
@@ -527,6 +527,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
+          if (conn->regArg.init) {
+            transFreeMsg(conn->regArg.msg.pCont);
+            conn->regArg.init = 0;
+          }
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
           conn->regArg.msg = msg->msg;
@@ -671,7 +675,8 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   transFreeMsg(smsg->msg.pCont);
   taosMemoryFree(smsg);
 }
-static void destroyAllConn(SWorkThrd* pThrd) {
+static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
+static void              destroyAllConn(SWorkThrd* pThrd) {
   tTrace("thread %p destroy all conn ", pThrd);
   while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
     queue* h = QUEUE_HEAD(&pThrd->conn);
@@ -1349,6 +1354,11 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
       return;
     }
     transQueuePop(&conn->srvMsgs);
+
+    if (conn->regArg.init) {
+      transFreeMsg(conn->regArg.msg.pCont);
+      conn->regArg.init = 0;
+    }
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;
@@ -1382,7 +1392,7 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
     tFreeSUpdateIpWhiteReq(req);
     taosMemoryFree(req);
   } else {
-    tInfo("ip-white-list disable on trans");
+    tDebug("ip-white-list disable on trans");
     thrd->enableIpWhiteList = 0;
   }
   taosMemoryFree(msg);
@@ -1394,7 +1404,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   }
   taosThreadJoin(pThrd->thread, NULL);
   SRV_RELEASE_UV(pThrd->loop);
-  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsg);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsgWrapper, NULL);
   transAsyncPoolDestroy(pThrd->asyncPool);
 
   uvWhiteListDestroy(pThrd->pWhiteList);

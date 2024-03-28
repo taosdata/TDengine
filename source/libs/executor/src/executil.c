@@ -308,7 +308,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, metaHandle, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, metaHandle, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, info->uid);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
@@ -644,10 +644,6 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
       // groupId ~ table uid
       taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid), sizeof(info->uid));
     }
-  }
-
-  if (initRemainGroups) {
-    pTableListInfo->numOfOuputGroups = taosHashGetSize(pTableListInfo->remainGroups);
   }
 
   if (tsTagFilterCache) {
@@ -1229,7 +1225,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
                               SStorageAPI* pAPI) {
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, pVnode, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &pAPI->metaFn);
   if (pAPI->metaReaderFn.getEntryGetUidCache(&mr, uid) != 0) {  // table not exist
     pAPI->metaReaderFn.clearReader(&mr);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -1343,7 +1339,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
-      c.dataType = pColNode->node.resType;
       taosArrayPush(pList, &c);
     }
   }
@@ -1863,7 +1858,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
     return w;
   }
 
@@ -2143,6 +2138,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else if (groupByTbname && pScanNode->groupOrderScan){
       pTableListInfo->numOfOuputGroups = numOfTables;
+    } else if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+      pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;
     }
@@ -2159,6 +2156,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    if (pScanNode->groupOrderScan) pTableListInfo->numOfOuputGroups = taosArrayGetSize(pTableListInfo->pTableList);
 
     if (groupSort || pScanNode->groupOrderScan) {
       code = sortTableGroup(pTableListInfo);
@@ -2230,6 +2229,8 @@ char* getStreamOpName(uint16_t opType) {
       return "interval final";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return "interval semi";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+      return "interval mid";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return "stream fill";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
@@ -2244,6 +2245,8 @@ char* getStreamOpName(uint16_t opType) {
       return "stream partitionby";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       return "stream event";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      return "stream count";
   }
   return "";
 }

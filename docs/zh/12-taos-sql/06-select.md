@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -93,6 +93,8 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
 | SORT_FOR_GROUP| 无             | 采用sort方式进行分组, 与PARTITION_FIRST冲突  | partition by 列表有普通列时  |
 | PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
+| PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
+| SMALLDATA_TS_SORT| 无             | 超级表的数据按时间戳排序时, 查询列长度大于等于256, 但是行数不多, 使用这个提示, 可以提高性能 | 超级表的数据按时间戳排序时  |
 
 举例： 
 
@@ -100,6 +102,8 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 ```
 
 ## 列表

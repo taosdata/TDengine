@@ -77,7 +77,8 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   for (int i = 0; i < ths->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
-      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start) {
+      if (ths->isStart && (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) &&
+          pSender->start) {
         int64_t elapsedMs = timeNow - pSender->lastSendTime;
         if (elapsedMs < SYNC_SNAP_RESEND_MS) {
           continue;

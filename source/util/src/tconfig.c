@@ -336,7 +336,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
 }
 
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
-  GRANT_CFG_SET;
+  // GRANT_CFG_SET;
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     terrno = TSDB_CODE_CFG_NOT_FOUND;
@@ -449,6 +449,15 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     return -1;
   }
 
+  int size = pCfg->array->size;
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigItem *existItem = taosArrayGet(pCfg->array, i);
+    if (existItem != NULL && strcmp(existItem->name, pItem->name) == 0) {
+      taosMemoryFree(pItem->name);
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
@@ -457,6 +466,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       taosMemoryFree(pItem->str);
     }
+
     taosMemoryFree(pItem->name);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

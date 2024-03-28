@@ -480,6 +480,15 @@ int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t ke
   return TSDB_CODE_FAILED;
 }
 
+int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
+  int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
+  int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+  if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;
+}
+
 static void recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t len = 0;
   void*   pBuff = NULL;
@@ -527,8 +536,7 @@ bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
 }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
-  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
-                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  int64_t mark = (pFileState->deleteMark == INT64_MAX) ? INT64_MIN : pFileState->maxTs - pFileState->deleteMark;
   clearExpiredRowBuff(pFileState, mark, false);
   return pFileState->usedBuffs;
 }
@@ -657,7 +665,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     deleteExpiredCheckPoint(pFileState, mark);
   }
 
-  SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore);
+  SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore, INT64_MAX);
   if (pCur == NULL) {
     return -1;
   }

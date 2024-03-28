@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "osSleep.h"
 #include "query.h"
 #include "qworker.h"
 #include "scheduler.h"
@@ -105,7 +106,15 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
-    }
+    } 
+  }
+
+  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
+  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
+  } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
   }
 
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
@@ -114,6 +123,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
+      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
     }
   }
 
@@ -224,6 +234,7 @@ void destroyAppInst(SAppInstInfo *pAppInfo) {
 
   taosThreadMutexLock(&appInfo.mutex);
 
+  clientMonitorClose(pAppInfo->instKey);
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
   taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
@@ -283,6 +294,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   pObj->connType = connType;
   pObj->pAppInfo = pAppInfo;
+  pObj->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
 
@@ -373,6 +385,33 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
+/// return the most previous req ref id
+int64_t removeFromMostPrevReq(SRequestObj* pRequest) {
+  int64_t mostPrevReqRefId = pRequest->self;
+  SRequestObj* pTmp = pRequest;
+  while (pTmp->relation.prevRefId) {
+    pTmp = acquireRequest(pTmp->relation.prevRefId);
+    if (pTmp) {
+      mostPrevReqRefId = pTmp->self;
+      releaseRequest(mostPrevReqRefId);
+    } else {
+      break;
+    }
+  }
+  removeRequest(mostPrevReqRefId);
+  return mostPrevReqRefId;
+}
+
+void destroyNextReq(int64_t nextRefId) {
+  if (nextRefId) {
+    SRequestObj* pObj = acquireRequest(nextRefId);
+    if (pObj) {
+      releaseRequest(nextRefId);
+      releaseRequest(nextRefId);
+    }
+  }
+}
+
 void destroySubRequests(SRequestObj *pRequest) {
   int32_t      reqIdx = -1;
   SRequestObj *pReqList[16] = {NULL};
@@ -423,7 +462,7 @@ void doDestroyRequest(void *p) {
   uint64_t reqId = pRequest->requestId;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
-  destroySubRequests(pRequest);
+  int64_t nextReqRefId = pRequest->relation.nextRefId;
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
@@ -459,6 +498,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  destroyNextReq(nextReqRefId);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
@@ -467,7 +507,7 @@ void destroyRequest(SRequestObj *pRequest) {
   }
 
   taos_stop_query(pRequest);
-  removeRequest(pRequest->self);
+  removeFromMostPrevReq(pRequest);
 }
 
 void taosStopQueryImpl(SRequestObj *pRequest) {
@@ -680,8 +720,9 @@ void taos_init_imp(void) {
   snprintf(logDirName, 64, "taoslog");
 #endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    // ignore create log failed, only print
     printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
+    tscInitRes = -1;
+    return;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
@@ -749,8 +790,11 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
-  } else {
-    taos_init();  // initialize global config
+  }
+
+  // initialize global config
+  if (taos_init() != 0) {
+    return -1;
   }
 
   SConfig     *pCfg = taosGetCfg();

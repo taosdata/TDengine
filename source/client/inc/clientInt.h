@@ -155,6 +155,7 @@ typedef struct STscObj {
   int8_t         biMode;
   int32_t        acctId;
   uint32_t       connId;
+  int32_t        appHbMgrIdx;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
@@ -283,6 +284,7 @@ typedef struct SRequestObj {
   void*                pWrapper;
   SMetaData            parseMeta;
   char*                effectiveUser;
+  int8_t               source;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -296,17 +298,18 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
-                              bool freeAfterUse);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
+                         bool convertUcs4);
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 
-TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
-void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly, int8_t source);
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
@@ -351,6 +354,7 @@ SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
 void         doDestroyRequest(void* p);
+int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -393,6 +397,8 @@ void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
+SAppInstInfo* getAppInstInfo(const char* clusterKey);
+
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
@@ -428,6 +434,21 @@ void    freeQueryParam(SSyncQueryParam* param);
 #ifdef TD_ENTERPRISE
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
+
+void clientSlowQueryMonitorInit(const char* clusterKey);
+void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
+
+void clientSQLReqMonitorInit(const char* clusterKey);
+
+enum {
+  MONITORSQLTYPESELECT = 0,
+  MONITORSQLTYPEINSERT = 1,
+  MONITORSQLTYPEDELETE = 2
+};
+
+void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
+
+void clientMonitorClose(const char* clusterKey);
 
 #ifdef __cplusplus
 }

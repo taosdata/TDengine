@@ -72,6 +72,7 @@ static SKeyword keywordTable[] = {
     {"CONSUMERS",            TK_CONSUMERS},
     {"CONTAINS",             TK_CONTAINS},
     {"COUNT",                TK_COUNT},
+    {"COUNT_WINDOW",         TK_COUNT_WINDOW},
     {"CREATE",               TK_CREATE},
     {"CURRENT_USER",         TK_CURRENT_USER},
     {"DATABASE",             TK_DATABASE},
@@ -109,6 +110,9 @@ static SKeyword keywordTable[] = {
     {"GEOMETRY",             TK_GEOMETRY},
     {"GRANT",                TK_GRANT},
     {"GRANTS",               TK_GRANTS},
+    {"FULL",                 TK_FULL},
+    {"LOGS",                 TK_LOGS},
+    {"MACHINES",             TK_MACHINES},
     {"GROUP",                TK_GROUP},
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
@@ -169,6 +173,7 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",           TK_OUTPUTTYPE},
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
+    {"PARA_TABLES_SORT",     TK_PARA_TABLES_SORT},
     {"PARTITION",            TK_PARTITION},
     {"PARTITION_FIRST",      TK_PARTITION_FIRST},
     {"PASS",                 TK_PASS},
@@ -208,6 +213,7 @@ static SKeyword keywordTable[] = {
     {"SLIDING",              TK_SLIDING},
     {"SLIMIT",               TK_SLIMIT},
     {"SMA",                  TK_SMA},
+    {"SMALLDATA_TS_SORT",    TK_SMALLDATA_TS_SORT},
     {"SMALLINT",             TK_SMALLINT},
     {"SNODE",                TK_SNODE},
     {"SNODES",               TK_SNODES},
@@ -298,6 +304,7 @@ static SKeyword keywordTable[] = {
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
+    {"ARBGROUPS",            TK_ARBGROUPS},
 };
 // clang-format on
 
@@ -651,7 +658,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_ALIAS; // must be alias
         return i;
       }
-      if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
+      if (IS_TRUE_STR(z, i) || IS_FALSE_STR(z, i)) {
         *tokenId = TK_NK_BOOL;
         return i;
       }

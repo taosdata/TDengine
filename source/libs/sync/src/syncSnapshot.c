@@ -345,9 +345,9 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
-    ASSERT(pBlk && !pBlk->acked);
+    ASSERT(pBlk);
     int64_t nowMs = taosGetTimestampMs();
-    if (nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
+    if (pBlk->acked || nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
     }
     if (syncSnapSendMsg(pSender, pBlk->seq, pBlk->pBlock, pBlk->blockLen, 0) != 0) {
@@ -1242,7 +1242,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     goto _ERROR;
   }
 
-  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     sSError(pSender, "snapshot sender not leader");
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     goto _ERROR;

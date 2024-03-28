@@ -41,7 +41,7 @@ static void setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char
   } else {
     snprintf(pAuth->user, sizeof(pAuth->user), "%s", pCxt->pUser);
   }
-  
+
   if (NULL == pTabName) {
     tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
   } else {
@@ -173,7 +173,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       isView = true;
     }
     taosMemoryFree(pTableMeta);
-#endif    
+#endif
     if (!isView) {
       pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
@@ -347,8 +347,15 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
+    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:

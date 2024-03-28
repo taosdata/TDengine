@@ -194,6 +194,9 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsSize);
+
+void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 /**
  * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
  * @param [in] pSortCols cols to comp and build
@@ -204,6 +207,10 @@ void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), vo
  */
 int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple);
 
+/**
+ * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
+*/
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
 #ifdef __cplusplus
 }
 #endif

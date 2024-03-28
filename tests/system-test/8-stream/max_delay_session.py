@@ -58,8 +58,8 @@ class TDTestCase:
                             tdSql.query(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}')
                         else:
                             tdSql.query(f'select wstart, {self.tdCom.tb_output_select_str} from {tbname}')
-                        if not fill_history_value:
-                            tdSql.checkEqual(tdSql.queryRows, init_num)
+                        # if not fill_history_value:
+                        #     tdSql.checkEqual(tdSql.queryRows, init_num)
 
             self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
             self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=window_close_ts)

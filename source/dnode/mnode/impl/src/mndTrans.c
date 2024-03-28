@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTrans.h"
-#include "mndSubscribe.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndUser.h"
 
@@ -599,6 +599,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     pTrans->originRpcType = pReq->msgType;
   }
 
+  mInfo("trans:%d, create transaction:%s, origin:%s", pTrans->id, pTrans->opername, opername);
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
@@ -731,6 +733,8 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
   }
 }
 
+void mndTransSetArbGroupId(STrans *pTrans, int32_t groupId) { pTrans->arbGroupId = groupId; }
+
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
 void mndTransSetParallel(STrans *pTrans) { pTrans->exec = TRN_EXEC_PARALLEL; }
@@ -749,8 +753,8 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
         pTrans->createdTime);
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync, errno:%s code:%s createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
-           tstrerror(code), pTrans->createdTime, pMnode->syncMgmt.transId);
+    mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
+           code, pTrans->createdTime, pMnode->syncMgmt.transId);
     sdbFreeRaw(pRaw);
     return -1;
   }
@@ -799,16 +803,23 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_TOPIC) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC ) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 ) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
       }
       if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0) conflict = true;
+        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
+          conflict = true;
+      }
+    }
+    if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
+        if (pNew->arbGroupId == pTrans->arbGroupId) conflict = true;
       }
     }
 
@@ -845,6 +856,8 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if (pTrans == NULL) return -1;
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
@@ -1096,7 +1109,10 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
 
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
-  if (topHalf) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  if (topHalf) {
+    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  }
 
   int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pAction->pRaw);
   if (code == 0 || terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
@@ -1135,6 +1151,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     return -1;
   }
   rpcMsg.info.traceId.rootId = pTrans->mTraceId;
+  rpcMsg.info.notFreeAhandle = 1;
 
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
@@ -1149,7 +1166,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg);
   if (code == 0) {
     pAction->msgSent = 1;
-    //pAction->msgReceived = 0;
+    // pAction->msgReceived = 0;
     pAction->errCode = TSDB_CODE_ACTION_IN_PROGRESS;
     mInfo("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
 
@@ -1210,7 +1227,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   if (numOfActions == 0) return 0;
 
   if ((code = mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf)) != 0) {
-    return -1;
+    return code;
   }
 
   int32_t       numOfExecuted = 0;
@@ -1246,7 +1263,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 
     for (int32_t action = 0; action < numOfActions; ++action) {
       STransAction *pAction = taosArrayGet(pArray, action);
-      mDebug("trans:%d, %s:%d Sent:%d, Received:%d, errCode:0x%x, acceptableCode:0x%x, retryCode:0x%x", 
+      mDebug("trans:%d, %s:%d Sent:%d, Received:%d, errCode:0x%x, acceptableCode:0x%x, retryCode:0x%x",
               pTrans->id, mndTransStr(pAction->stage), pAction->id, pAction->msgSent, pAction->msgReceived,
               pAction->errCode, pAction->acceptableCode, pAction->retryCode);
       if (pAction->msgSent) {
@@ -1255,7 +1272,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
             mndTransResetAction(pMnode, pTrans, pAction);
             mInfo("trans:%d, %s:%d reset", pTrans->id, mndTransStr(pAction->stage), pAction->id);
           }
-        } 
+        }
       }
     }
     return TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1415,7 +1432,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
     pTrans->stage = TRN_STAGE_COMMIT;
     mInfo("trans:%d, stage from redoAction to commit", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS || code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mInfo("trans:%d, stage keep on redoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {

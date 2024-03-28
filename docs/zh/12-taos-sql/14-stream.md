@@ -30,11 +30,11 @@ subquery: SELECT select_list
     [window_clause]
 ```
 
-支持会话窗口、状态窗口与滑动窗口，其中，会话窗口与状态窗口搭配超级表时必须与partition by tbname一起使用
+支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用
 
 stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表
 
-TAGS 字句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
+TAGS 子句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
 ```sql
 create_definition:
     col_name column_definition
@@ -49,18 +49,32 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
+EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+COUNT_WINDOW 是计数窗口,按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于2，小于2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
 
-例如，如下语句创建流式计算，同时自动创建名为 avg_vol 的超级表，此流计算以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压，并将来自 meters 表的数据的计算结果写入 avg_vol 表，不同 partition 的数据会分别创建子表并写入不同子表。
+例如，如下语句创建流式计算。第一个流计算，自动创建名为 avg_vol 的超级表，以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压，并将来自 meters 表的数据的计算结果写入 avg_vol 表，不同 partition 的数据会分别创建子表并写入不同子表。
+
+第二个流计算，自动创建名为 streamt0 的超级表，将数据按时间戳的顺序，以 voltage < 0 作为窗口的开始条件，voltage > 9作为窗口的结束条件，划分窗口做聚合运算，并将来自 meters 表的数据的计算结果写入 streamt0 表，不同 partition 的数据会分别创建子表并写入不同子表。
+
+第三个流计算，自动创建名为 streamt1 的超级表，将数据按时间戳的顺序，以10条数据为一组，划分窗口做聚合运算，并将来自 meters 表的数据的计算结果写入 streamt1 表，不同 partition 的数据会分别创建子表并写入不同子表。
 
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+
+CREATE STREAM streams0 INTO streamt0 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WINDOW START WITH voltage < 0 END WITH voltage > 9;
+
+CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
 ## 流式计算的 partition
@@ -77,7 +91,7 @@ SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 sutable 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _groupId)。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -212,8 +226,8 @@ CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select 
 PARTITION 子句中，为 concat("tag-", tbname)定义了一个别名cc, 对应超级表st1的自定义TAG的名字。在上述示例中，流新创建的子表的TAG将以前缀 'new-' 连接原表名作为TAG的值。
 
 会对TAG信息进行如下检查
-1.检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
-2.检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+1. 检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2. 检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
 ## 清理中间状态
 

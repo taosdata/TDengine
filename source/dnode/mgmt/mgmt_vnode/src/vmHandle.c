@@ -88,7 +88,9 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
     numOfInsertSuccessReqs += pLoad->numOfInsertSuccessReqs;
     numOfBatchInsertReqs += pLoad->numOfBatchInsertReqs;
     numOfBatchInsertSuccessReqs += pLoad->numOfBatchInsertSuccessReqs;
-    if (pLoad->syncState == TAOS_SYNC_STATE_LEADER) masterNum++;
+    if (pLoad->syncState == TAOS_SYNC_STATE_LEADER || pLoad->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+      masterNum++;
+    }
     totalVnodes++;
   }
 
@@ -770,6 +772,89 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SVArbHeartBeatReq arbHbReq = {0};
+  SVArbHeartBeatRsp arbHbRsp = {0};
+  if (tDeserializeSVArbHeartBeatReq(pMsg->pCont, pMsg->contLen, &arbHbReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (arbHbReq.dnodeId != pMgmt->pData->dnodeId) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("dnodeId:%d not matched with local dnode", arbHbReq.dnodeId);
+    goto _OVER;
+  }
+
+  if (strlen(arbHbReq.arbToken) == 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("dnodeId:%d arbToken is empty", arbHbReq.dnodeId);
+    goto _OVER;
+  }
+
+  size_t size = taosArrayGetSize(arbHbReq.hbMembers);
+
+  arbHbRsp.dnodeId = pMgmt->pData->dnodeId;
+  strncpy(arbHbRsp.arbToken, arbHbReq.arbToken, TSDB_ARB_TOKEN_SIZE);
+  arbHbRsp.hbMembers = taosArrayInit(size, sizeof(SVArbHbRspMember));
+
+  for (int32_t i = 0; i < size; i++) {
+    SVArbHbReqMember *pReqMember = taosArrayGet(arbHbReq.hbMembers, i);
+    SVnodeObj        *pVnode = vmAcquireVnode(pMgmt, pReqMember->vgId);
+    if (pVnode == NULL) {
+      dError("dnodeId:%d vgId:%d not found failed to process arb hb req", arbHbReq.dnodeId, pReqMember->vgId);
+      continue;
+    }
+
+    SVArbHbRspMember rspMember = {0};
+    rspMember.vgId = pReqMember->vgId;
+    rspMember.hbSeq = pReqMember->hbSeq;
+    if (vnodeGetArbToken(pVnode->pImpl, rspMember.memberToken) != 0) {
+      dError("dnodeId:%d vgId:%d failed to get arb token", arbHbReq.dnodeId, pReqMember->vgId);
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+
+    if (vnodeUpdateArbTerm(pVnode->pImpl, arbHbReq.arbTerm) != 0) {
+      dError("dnodeId:%d vgId:%d failed to update arb term", arbHbReq.dnodeId, pReqMember->vgId);
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+
+    taosArrayPush(arbHbRsp.hbMembers, &rspMember);
+
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+
+  SRpcMsg rspMsg = {.info = pMsg->info};
+  int32_t rspLen = tSerializeSVArbHeartBeatRsp(NULL, 0, &arbHbRsp);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (tSerializeSVArbHeartBeatRsp(pRsp, rspLen, &arbHbRsp) <= 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    rpcFreeCont(pRsp);
+    goto _OVER;
+  }
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+  terrno = TSDB_CODE_SUCCESS;
+
+_OVER:
+  tFreeSVArbHeartBeatReq(&arbHbReq);
+  tFreeSVArbHeartBeatRsp(&arbHbRsp);
+  return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
+}
+
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -828,18 +913,18 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_SCAN_HISTORY_FINISH, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_PAUSE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RESUME, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_STOP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_HTASK_DROP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_CHECK_POINT_SOURCE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_UPDATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_RESET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_REQ_CHKPT_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -872,6 +957,10 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PREP_SNAPSHOT_REPLY, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ARB_HEARTBEAT, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ARB_CHECK_SYNC, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_ASSIGNED_LEADER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

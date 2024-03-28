@@ -72,9 +72,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
-      case TK_NK_HEX:
-      case TK_NK_OCT:
-      case TK_NK_BIN: {
+      case TK_NK_OCT: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
@@ -172,7 +170,7 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pEffectiveUser, pDb, pTable, authType,
                                   pCxt->pMetaCache);
   }
-#endif  
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pDb, pCxt->pMetaCache);
   }
@@ -461,6 +459,14 @@ static int32_t collectMetaKeyFromShowBnodes(SCollectMetaKeyCxt* pCxt, SShowStmt*
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t collectMetaKeyFromShowArbGroups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ARBGROUPS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t collectMetaKeyFromShowCluster(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
     return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER,
@@ -619,6 +625,21 @@ static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SS
   return code;
 }
 
+static int32_t collectMetaKeyFromShowGrantsFull(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_FULL,
+                                 pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromShowGrantsLogs(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_LOGS,
+                                 pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromShowClusterMachines(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MACHINES,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SShowCreateDatabaseStmt* pStmt) {
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
@@ -655,7 +676,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, pCxt->pMetaCache);
   }
-  
+
   return code;
 }
 
@@ -793,6 +814,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowSnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_BNODES_STMT:
       return collectMetaKeyFromShowBnodes(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return collectMetaKeyFromShowArbGroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return collectMetaKeyFromShowCluster(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -839,6 +862,12 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return collectMetaKeyFromShowCompactDetails(pCxt, (SShowStmt*)pStmt);               
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+      return collectMetaKeyFromShowGrantsFull(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return collectMetaKeyFromShowGrantsLogs(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+      return collectMetaKeyFromShowClusterMachines(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return collectMetaKeyFromShowCreateDatabase(pCxt, (SShowCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:

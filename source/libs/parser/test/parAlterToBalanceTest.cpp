@@ -73,6 +73,7 @@ TEST_F(ParserInitialATest, alterDnode) {
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
     ASSERT_EQ(std::string(req.config), std::string(expect.config));
     ASSERT_EQ(std::string(req.value), std::string(expect.value));
+    tFreeSMCfgDnodeReq(&req);
   });
 
   setCfgDnodeReq(1, "resetLog");
@@ -183,6 +184,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     ASSERT_EQ(req.minRows, expect.minRows);
     ASSERT_EQ(req.walRetentionPeriod, expect.walRetentionPeriod);
     ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
+    tFreeSAlterDbReq(&req);
   });
 
   const int32_t MINUTE_PER_DAY = MILLISECOND_PER_DAY / MILLISECOND_PER_MINUTE;
@@ -335,7 +337,7 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test PAGES 63", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  //run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 17", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence
@@ -782,7 +784,7 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   run("ALTER TABLE st1s1 DROP TAG tag1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 MODIFY TAG tag2 VARCHAR(30)", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 RENAME TAG tag1 tag11", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_VALUE_TOO_LONG);
 }
 
 /*
@@ -827,6 +829,7 @@ TEST_F(ParserInitialATest, alterUser) {
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
     ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
     ASSERT_EQ(std::string(req.objname), std::string(expect.objname));
+    tFreeSAlterUserReq(&req);
   });
 
   setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "123456");
@@ -853,6 +856,7 @@ TEST_F(ParserInitialATest, balanceVgroup) {
     ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP);
     SBalanceVgroupReq req = {0};
     ASSERT_EQ(tDeserializeSBalanceVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    tFreeSBalanceVgroupReq(&req);
   });
 
   run("BALANCE VGROUP");
@@ -870,6 +874,7 @@ TEST_F(ParserInitialATest, balanceVgroupLeader) {
     SBalanceVgroupLeaderReq req = {0};
     ASSERT_EQ(tDeserializeSBalanceVgroupLeaderReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
               TSDB_CODE_SUCCESS);
+    tFreeSBalanceVgroupLeaderReq(&req);
   });
 
   run("BALANCE VGROUP LEADER");

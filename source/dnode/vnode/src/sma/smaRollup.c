@@ -1097,7 +1097,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   }
 
   int64_t nRsmaTables = 0;
-  metaReaderDoInit(&mr, SMA_META(pSma), 0);
+  metaReaderDoInit(&mr, SMA_META(pSma), META_READER_LOCK);
   if (!(uidStore.tbUids = taosArrayInit(1024, sizeof(tb_uid_t)))) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1554,7 +1554,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
         }
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
-        if ((terrno = extractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
+        if ((terrno = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
                                           &packData.pDataBlock, 1))) {
           taosFreeQitem(msg);
           goto _err;

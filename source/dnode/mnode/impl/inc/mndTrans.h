@@ -78,13 +78,16 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
+void    mndTransSetArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
+#ifndef BUILD_NO_CALL
 static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     return mndTransCheckConflict(pMnode, pTrans);
 }
+#endif
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);

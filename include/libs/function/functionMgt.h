@@ -126,6 +126,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TAGS,
   FUNCTION_TYPE_TBUID,
   FUNCTION_TYPE_VGID,
+  FUNCTION_TYPE_VGVER,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -243,7 +244,7 @@ bool fmIsSkipScanCheckFunc(int32_t funcId);
 void getLastCacheDataType(SDataType* pType);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

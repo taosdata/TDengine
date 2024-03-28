@@ -226,9 +226,10 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Attribute     | Description                                                                                                     |
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | Applicable    | Client only                                                                                                     |
-| Meaning       | When the Last, First, LastRow function is queried, whether the returned column name contains the function name. |
-| Value Range   | 0 means including the function name, 1 means not including the function name.                                   |
-| Default Value | 0                                                                                                               |
+| Meaning       | When the Last, First, and LastRow functions are queried and no alias is specified, the alias is automatically set to the column name (excluding the function name). Therefore, if the order by clause refers to the column name, it will automatically refer to the function corresponding to the column. |
+| Value Range   | 1 means automatically setting the alias to the column name (excluding the function name), 0 means not automatically setting the alias.                                   |
+| Default Value | 0          |
+| Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
 
 ## Locale Parameters
 
@@ -288,7 +289,7 @@ A specific type "nchar" is provided in TDengine to store non-ASCII characters su
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux/macOS, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-The locale definition standard on Linux/macOS is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
+The locale definition standard on Linux/macOS is: &lt;Language&gt;\_&lt;Region&gt;.&lt;charset&gt;, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
 
 :::
 
