@@ -870,7 +870,7 @@ sql_error select stddev(c2), tbname from select_tags_mt0;
 sql_error select twa(c2), tbname from select_tags_mt0;
 sql_error select interp(c2), tbname from select_tags_mt0 where ts=100001;
 
-sql_error select t1,t2,tbname from select_tags_mt0 group by tbname;
+
 sql select count(tbname) from select_tags_mt0 interval(1d);
 sql select count(tbname) from select_tags_mt0 group by t1;
 sql select count(tbname),SUM(T1) from select_tags_mt0 interval(1d);
@@ -888,16 +888,16 @@ sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 print ==================================>TD-4231
 sql select t1,tbname from select_tags_mt0 where c1<0
 sql select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
-
 sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
 
-sql_error select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
-sql_error select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
-sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
-#valid sql: select first(c1), t2 from select_tags_mt0 group by tbname;
+sql select first(ts), tbname from select_tags_mt0 group by tbname;
+sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;
+sql select count(*),tbname from select_tags_mt0 group by tbname
 
-#sql select first(ts), tbname from select_tags_mt0 group by tbname;
-#sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;
-#sql select count(*),tbname from select_tags_mt0 group by tbname
+print ==================================> tag supported in group
+sql select t1,t2,tbname from select_tags_mt0 group by tbname;
+sql select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
+sql select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
+sql select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

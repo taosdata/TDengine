@@ -2125,6 +2125,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   if (!numOfTables) {
     return code;
   }
+  if(numOfTables == 1 && pTableListInfo->idInfo.tableType == TSDB_CHILD_TABLE) {
+    groupByTbname = true;
+  }
   if (group == NULL || groupByTbname) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
