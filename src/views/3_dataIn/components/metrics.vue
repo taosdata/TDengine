@@ -39,15 +39,14 @@
         <p class="title">{{ $t('dataIn.tbReplicationProgress') }}</p>
         <el-form :inline="true" :model="formInline" class="demo-form-inline" size="mini" ref="form" :rules="rules" >
           <el-form-item :label="$t('dataIn.tbName')" prop="table">
-            <el-input v-model="formInline.table" style="width: 106px"></el-input>
+            <el-input v-model="formInline.table"></el-input>
           </el-form-item>
           <el-form-item :label="$t('dataIn.timeRange')">
             <el-date-picker
-              style="width: 310px"
               v-model="formInline.timeRange"
               value-format="yyyy-MM-dd HH:mm:ss"
               type="datetimerange"
-              start-placeholder="全部">
+              :start-placeholder="$t('total')">
             </el-date-picker>
           </el-form-item>
           <el-form-item>
@@ -59,13 +58,13 @@
             prop="table_name"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.table')"
-            min-width="140"
+            min-width="120"
           ></el-table-column>
           <el-table-column
             prop="from_last_ts"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.source')"
-            min-width="140"
+            min-width="180"
           >
             <template slot-scope="{ row }">
               <span>{{ parseTime(row.from_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
@@ -75,7 +74,7 @@
             prop="to_last_ts"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.sink')"
-            min-width="140"
+            min-width="180"
           >
             <template slot-scope="{ row }">
               <span>{{ parseTime(row.to_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
@@ -85,7 +84,7 @@
             prop="difference"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.difference')"
-            min-width="140"
+            min-width="130"
           >
           <template slot-scope="{ row }">
             <span>{{ formatDuration(row.to_last_ts - row.from_last_ts) }}</span>
@@ -95,11 +94,13 @@
             prop="from_count"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.sourceNum')"
+            min-width="180"
           ></el-table-column>
           <el-table-column
             prop="to_count"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.sinkNum')"
+            min-width="170"
           ></el-table-column>
         </el-table>
         <br/>
@@ -177,15 +178,7 @@ export default {
         table: '',
         timeRange: ''
       },
-      tbReplicationData: [
-        {
-          "table_name": "table_test",
-          "from_last_ts": 1710237231820,
-          "to_last_ts": 1710237232820,
-          "from_count": 100,
-          "to_count": 200
-        }
-      ],
+      tbReplicationData: [],
       vgroupData: [],
       rules: {
         table: [

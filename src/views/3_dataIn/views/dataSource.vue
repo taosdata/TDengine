@@ -679,7 +679,7 @@ export default {
           },
           config: {
             title: this.$t("dataIn.metrics"),
-            width: "800px",
+            width: "1100px",
           },
           listeners: {
             close: () => {
