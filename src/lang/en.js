@@ -1411,6 +1411,8 @@ export default {
       emptySampleValues: "Please provide at least one example",
       stableSelectOrCreateTip: "Please select or create a super table",
       databaseSelectTip: "Please select the target database in the base information panel",
+      defaultValuePlaceholder: "default value",
+      dataRangeInputTip: "Please input integer value between {min} and {max}",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",

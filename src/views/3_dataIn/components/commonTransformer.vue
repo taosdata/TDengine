@@ -420,14 +420,48 @@
                       <template slot="prepend">with</template>
                     </el-input>
                     <el-input
-                      v-if="scope.row.exprname == 'mapping' && params_columns.includes(scope.row['Name'])"
+                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
                       size="small"
+                      type="number"
+                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
+                      :maxlength="scope.row.dataRange[2]"
                       :key="'default-value-of-' + scope.row['Name']"
                       v-model="scope.row.default"
                       class="mapping-rule-extra"
+                      @input="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
                     >
                     </el-input>
-
+                    <el-date-picker
+                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'TIMESTAMP'"
+                      v-model="scope.row.default"
+                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
+                      :key="'default-value-of-' + scope.row['Name']"
+                      value-format="timestamp"
+                      type="datetime"
+                      size="small"
+                      class="mapping-rule-extra"
+                    >
+                    </el-date-picker>
+                    <el-select 
+                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
+                      v-model="scope.row.default"
+                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
+                      :key="'default-value-of-' + scope.row['Name']"
+                      size="small"
+                      class="mapping-rule-extra"
+                    >
+                      <el-option label="true" value="true"></el-option>
+                      <el-option label="false" value="false"></el-option>
+                      <el-option label="null" value="null"></el-option>
+                    </el-select>
+                    <el-input
+                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
+                      size="small"
+                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
+                      :key="'default-value-of-' + scope.row['Name']"
+                      v-model="scope.row.default"
+                      class="mapping-rule-extra"
+                    ></el-input>
                   </template>
                 </template>
               </el-table-column>
@@ -493,7 +527,7 @@ import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
-import { getDsnData } from "../utils.js";
+import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue"
 export default {
   name: "CommonTransformer",
@@ -987,6 +1021,55 @@ export default {
         )
       );
     },
+    onDefaultValueInput(name, val, range) {
+      if (val === undefined || val.trim() === "") {
+        return;
+      }
+
+      if (range[2] <= 20) {
+        // 整数
+        if (val.indexOf(".") >= 0 || isNaN(val) || val.length > range[2]) {
+          this.alertDataRange(name, val, range);
+          return;
+        }
+        let ival;
+        if (range[2] < 20) {
+          ival = parseInt(val);
+        } else {
+          ival = eval(val + "n");
+        }
+        if (ival < range[0] || ival > range[1]) {
+          this.alertDataRange(name, val, range);
+          return;
+        }
+      } else {
+        // 浮点数
+        if (isNaN(val) || val.length > range[2]) {
+          this.alertDataRange(name, val, range);
+          return;
+        }
+        let fval = parseFloat(val);
+        if (fval < range[0] || fval > range[1]) {
+          this.alertDataRange(name, val, range);
+          return;
+        }
+      }
+
+      this.$message.closeAll();
+    },
+    alertDataRange(name, val, range) {
+      let dataRangeInputTip = this.$t("datasource.transformer.dataRangeInputTip");
+      dataRangeInputTip = dataRangeInputTip.replace("{min}", range[0]).replace("{max}", range[1]);
+      this.$message.closeAll();
+      this.$error(dataRangeInputTip);
+      this.pageTableData.forEach((item) => {
+        if (item.Name === name) {
+          this.$set(item, "default", val.substring(0, val.length - 1));
+        }
+      });
+    },
+
+
     handleCurrentChange(val) {
       this.currentPage = val;
       this.pageTableData.splice(0, Infinity);
@@ -1056,7 +1139,7 @@ export default {
           return item;
         }
       })[0];
-      // TODO: 加入 default value
+
       if (identifiedColObj?.extract) {
         Object.entries(identifiedColObj.extract).forEach((item) => {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
@@ -1109,12 +1192,14 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
+            
             return {
               columnname: val[0],
               type: expreKey,
               expression: val[1][expreKey],
               default: val[1]["default"] || "",
               joinwith: val[1]["with"] || "",
+              datatype: val[1]["as"],
             };
           });
         }
@@ -1275,8 +1360,13 @@ export default {
             if (key == "join") {
               expreitem["with"] = item.joinwith;
             }
+            
             if (item.exprname == "mapping" && this.params_columns.includes(item["Name"])) {
-              expreitem["default"] = item.default;
+              if (item.dataType === "TIMESTAMP" && item.default) {
+                expreitem["default"] = item.default + "";
+              } else {
+                expreitem["default"] = item.default;
+              }
             }
             mutates.push({
               [`${item["Name"]}`]: expreitem,
@@ -1665,7 +1755,7 @@ export default {
             item["Expression"] = ["sum", "join"].includes(item.exprname)
               ? echoData.tableData[idx].expression
               : echoData.tableData[idx].expression.toString();
-            
+
             if (echoData.tableData[idx].default) {
               this.$set(item, "default", echoData.tableData[idx].default);
             }
@@ -1736,8 +1826,12 @@ export default {
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.pageCount = res.data.length + 1;
         this.tableData = res.data.map((val, index) => {
+          const tableRow = { Name: val[0], exprname: "mapping" };
           if (!val[3] && index > 0) {
             this.params_columns.push(val[0]); //存储非主键列
+            const dataRange = getDataRange(val[1]);
+            dataRange && (tableRow.dataRange = dataRange);
+            tableRow.dataType = val[1];
           }
           if (val.includes("TAG")) {
             this.params_tags.push(val[0]);
@@ -1745,19 +1839,18 @@ export default {
           let equalindex = defaultmap.findIndex(
             (item) => item.toLowerCase() == val[0].toLowerCase()
           );
-          return {
-            Name: val[0],
-            Type:
+
+          tableRow.Type =
               val[1] == "TIMESTAMP"
                 ? val[1] + "(" + precision.data[0][0] + ")"
-                : val[1],
-            exprname: "mapping",
-            maptype:
+                : val[1];
+          tableRow.maptype =
               equalindex > -1
                 ? ["mapping", `${defaultmap[equalindex]}`]
-                : ["expression", "value"],
-            Expression: equalindex > -1 ? defaultmap[equalindex] : "",
-          };
+                : ["expression", "value"];
+          tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
+          
+          return tableRow;
         });
 
         this.tableData.unshift({
