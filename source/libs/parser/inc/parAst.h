@@ -64,7 +64,8 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_STT_TRIGGER,
   DB_OPTION_TABLE_PREFIX,
   DB_OPTION_TABLE_SUFFIX,
-  DB_OPTION_KEEP_TIME_OFFSET
+  DB_OPTION_KEEP_TIME_OFFSET,
+  DB_OPTION_ENCRYPT_ALGORITHM,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -209,6 +210,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pIpRangesNodeList);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
 SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe);
 SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const SToken* pConfig, const SToken* pValue);

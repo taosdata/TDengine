@@ -104,6 +104,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "maxRows", i642str(pObj->cfg.maxRows));
     tjsonAddStringToObject(item, "precision", i642str(pObj->cfg.precision));
     tjsonAddStringToObject(item, "compression", i642str(pObj->cfg.compression));
+    tjsonAddStringToObject(item, "encryptAlgorithm", i642str(pObj->cfg.encryptAlgorithm));
     tjsonAddStringToObject(item, "replications", i642str(pObj->cfg.replications));
     tjsonAddStringToObject(item, "strict", i642str(pObj->cfg.strict));
     tjsonAddStringToObject(item, "cacheLast", i642str(pObj->cfg.cacheLast));

@@ -69,7 +69,9 @@ typedef struct SDatabaseOptions {
   int8_t      cacheModel;
   int32_t     cacheLastSize;
   int8_t      compressionLevel;
+  int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;
@@ -257,6 +259,11 @@ typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct SCreateEncryptKeyStmt {
+  ENodeType type;
+  char      value[TSDB_ENCRYPT_KEY_LEN + 1];
+} SCreateEncryptKeyStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;

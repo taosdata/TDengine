@@ -118,6 +118,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "tsdb_pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "keep_time_offset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "with_arbitrator", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "encrypt_algorithm", .bytes = TSDB_ENCRYPT_ALGO_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {
@@ -374,10 +375,13 @@ static const SSysDbTableSchema userGrantsLogsSchema[] = {
 
 static const SSysDbTableSchema userMachinesSchema[] = {
     {.name = "id", .bytes = TSDB_CLUSTER_ID_LEN + 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-#ifndef TD_UNIQ_GRANT
     {.name = "dnode_num", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-#endif
     {.name = "machine", .bytes = 7552 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
+static const SSysDbTableSchema encryptionsSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "key_status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysTableMeta infosMeta[] = {
@@ -413,6 +417,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true},
     {TSDB_INS_TABLE_MACHINES, userMachinesSchema, tListLen(userMachinesSchema), true},
     {TSDB_INS_TABLE_ARBGROUPS, arbGroupsSchema, tListLen(arbGroupsSchema), true},
+    {TSDB_INS_TABLE_ENCRYPTIONS, encryptionsSchema, tListLen(encryptionsSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

@@ -47,6 +47,8 @@ static const char *offlineReason[] = {
     "locale not match",
     "charset not match",
     "ttlChangeOnWrite not match",
+    "enableWhiteList not match",
+    "encryptionKey not match",
     "unknown",
 };
 
@@ -372,7 +374,7 @@ int32_t mndGetDbSize(SMnode *pMnode) {
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * (int64_t)tsStatusInterval) {
-    if (pDnode->rebootTime > 0) {
+    if (pDnode->rebootTime > 0 && pDnode->offlineReason == DND_REASON_ONLINE) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
     return false;
@@ -462,8 +464,14 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
   int8_t enable = tsEnableWhiteList ? 1 : 0;
   if (pCfg->enableWhiteList != enable) {
-    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    mError("dnode:%d, enableWhiteList:%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
     return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
+  }
+
+  if (pCfg->encryptionKeyStat != tsEncryptionKeyStat || pCfg->encryptionKeyChksum != tsEncryptionKeyChksum) {
+    mError("dnode:%d, encryptionKey:%" PRIi8 "-%u inconsistent with cluster:%" PRIi8 "-%u", pDnode->id,
+           pCfg->encryptionKeyStat, pCfg->encryptionKeyChksum, tsEncryptionKeyStat, tsEncryptionKeyChksum);
+    return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
   }
 
   return 0;
@@ -909,6 +917,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfDiskCfg = statusReq.numOfDiskCfg;
     pDnode->memAvail = statusReq.memAvail;
     pDnode->memTotal = statusReq.memTotal;
+    pDnode->encryptionKeyStat = statusReq.clusterCfg.encryptionKeyStat;
+    pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
       mndUpdateDnodeObj(pMnode, pDnode);
@@ -1550,7 +1560,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
-  char       buf[TSDB_CONN_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE];  // make sure TSDB_CONN_ACTIVE_KEY_LEN >= TSDB_EP_LEN
+  char       buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
