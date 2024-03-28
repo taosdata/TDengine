@@ -166,7 +166,7 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Reset();
                 stopwatch.Start();
-                IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, 10000);
+                IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, AppSettings.tomlConfig.UpdateInterval);
                 bool found = false;
                 DateTime smallLastAttributeTime = endTime;
                 int count = 0;

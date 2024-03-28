@@ -193,7 +193,7 @@ namespace TDPIConnector.Core
                     {
                         await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
                     }
-                 
+
                     elementLookup.Add(table.Name, element);
                 }
                 await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
@@ -231,6 +231,10 @@ namespace TDPIConnector.Core
             {
                 backfill.BackfillElements(tdDatabaseName, elementLookup.Values.ToList(), startTime, endTime);
             }
+        }
+
+        public Backfill GetBackfill() {
+            return backfill;
         }
     }
 }

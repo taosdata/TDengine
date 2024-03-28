@@ -7,6 +7,8 @@ using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.TDEngine.Models;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TDPIConnector.Core
 {
@@ -23,11 +25,19 @@ namespace TDPIConnector.Core
         public event EventHandler<AFDataPipeEventWrapper> OnPIEventReceivedSuccess = delegate { };
         public event EventHandler<AFDataPipeEventWrapper> OnAFEventReceivedSuccess = delegate { };
 
+        RangeDeleteEventsSender deleteSender;
+
         public EventsSender(TDEngineProxy tdEngineProxy)
         {
             this.tdEngineProxy = tdEngineProxy;
             this.dpPIEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
             this.dpAFEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
+            deleteSender = new RangeDeleteEventsSender(tdEngineProxy, null);
+        }
+
+        public void SetBackfill(BackfillManager backfill)
+        {
+            deleteSender.SetBackfill(backfill);
         }
 
         public void OnAFElementEvents()
@@ -68,6 +78,14 @@ namespace TDPIConnector.Core
                 var timestamp = tdValue.TimestampString;
 
                 var attributeName = dpEvent.Value.Attribute.Name;
+                if (dpEvent.IsAFDataPipeRangeDeletedEvent()) {
+                    var rangeDeleteEvent = dpEvent.ToAFDataPipeRangeDeletedEventWrapper();
+                    var startTime = rangeDeleteEvent.StartTime;
+                    var endTime = rangeDeleteEvent.EndTime;
+                    deleteSender.AddDeleteRange(dpEvent.Value.Attribute.Element, startTime, endTime);
+                    log.Debug($"element range delete event {elementName}:{attributeName} {startTime.LocalTime}-{endTime.LocalTime}");
+                    continue;
+                }
                 if (dpEvent.Value.Attribute.IsTDengineTag())
                 {
                     if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update ||
@@ -79,10 +97,11 @@ namespace TDPIConnector.Core
                     }
                     continue;
                 }
+
                 if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete &&
                     !dpEvent.Value.Attribute.Unsupported())
                 {
-                    log.Info($"element event delete {elementName}:{attributeName}:{timestamp}");
+                    log.Debug($"element event delete {elementName}:{attributeName}:{timestamp}");
                     tdValue.SetTDDeleted();
                 }
                 if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh && !dpEvent.Value.Attribute.Unsupported())
@@ -210,6 +229,104 @@ namespace TDPIConnector.Core
         internal void AddAFValue(AFDataPipeEventWrapper dpEvent)
         {
             this.dpAFEvents.Enqueue(dpEvent);
+        }
+    }
+
+    class RangeDelete {
+        public RangeDelete(AFElementWrapper element, AFTimeWrapper startTime, AFTimeWrapper endTime) {
+            this.element = element;
+            StartTime = startTime;
+            EndTime = endTime;
+        }
+        public AFElementWrapper element;
+        public AFTimeWrapper StartTime;
+        public AFTimeWrapper EndTime;
+    }
+
+    class RangeDeleteEventsSender {
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private readonly TDEngineProxy tdProxy;
+        private BackfillManager backfillManager;
+
+        public Dictionary<string, RangeDelete> deleteElements = new Dictionary<string, RangeDelete> { }; // key: string elementName;
+        private readonly Object stLock = new Object();
+        public DateTime LastUpdataTime;
+        public bool startBackfill = false;
+
+        public RangeDeleteEventsSender(TDEngineProxy tdProxy, BackfillManager backfillManager)
+        {
+            this.tdProxy = tdProxy;
+            this.backfillManager = backfillManager;
+        }
+        public void AddDeleteRange(AFElementWrapper element, AFTimeWrapper startTime, AFTimeWrapper endTime) {
+            lock (stLock) {
+                if (deleteElements.ContainsKey(element.Name))
+                {
+                    deleteElements[element.Name].EndTime =
+                        deleteElements[element.Name].EndTime > endTime ? deleteElements[element.Name].EndTime : endTime;
+                    deleteElements[element.Name].StartTime =
+                        deleteElements[element.Name].StartTime < startTime ? deleteElements[element.Name].StartTime : startTime;
+                }
+                else
+                {
+                    var range = new RangeDelete(element, startTime, endTime);
+                    deleteElements.Add(element.Name, range);
+                }
+                LastUpdataTime = DateTime.Now;
+                if (!startBackfill) {
+                    startBackfill = true;
+                    Task task = Task.Run(async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5));
+                        Send();
+                    });
+                }
+            }
+            return;
+        }
+
+        public void Send()
+        {
+            while (true) {
+                if (DateTime.Now < LastUpdataTime.AddSeconds(30)) {
+                    Thread.Sleep(1000);
+                    continue;
+                }
+                lock (stLock)
+                {
+                    foreach (var element in deleteElements)
+                    {
+                        tdProxy.DeleteByTimeRange(AppSettings.tomlConfig.TDDataBase, element.Key,
+                            element.Value.StartTime.FormatUtcTime(),
+                            element.Value.EndTime.FormatUtcTime()).Wait();
+                        log.Info($"element range delete event after merge {element.Key}:{element.Value.StartTime.LocalTime}-{element.Value.EndTime.LocalTime}");
+                    }
+                    Thread.Sleep(1000);
+                    Backfill();
+                    startBackfill = false;
+                }
+                break;
+            }
+        }
+        public void Backfill()
+        {
+            if (backfillManager == null) {
+                log.Info($"backfill in range delete sender is null");
+                return;
+            }
+            lock (stLock)
+            {
+                foreach (var element in deleteElements)
+                {
+                    backfillManager.GetBackfill().BackfillElement(AppSettings.tomlConfig.TDDataBase, element.Value.element, element.Value.StartTime.UtcTime, element.Value.EndTime.UtcTime);
+                    log.Info($"element {element.Key} refresh time range in:{element.Value.StartTime.LocalTime}-{element.Value.EndTime.LocalTime}");
+                }
+                deleteElements.Clear();
+            }
+        }
+
+        public void SetBackfill(BackfillManager backfillManager) {
+            this.backfillManager = backfillManager;
         }
     }
 }
