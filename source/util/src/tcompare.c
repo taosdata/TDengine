@@ -1103,7 +1103,7 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       ++nMatchChar;
 
       if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
+        if (tolower(c1) != tolower(pattern[i])) {
           return TSDB_PATTERN_NOMATCH;
         } else {
           i++;
@@ -1180,7 +1180,7 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
       nMatchChar++;
 
       if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
-        if (c1 != pattern[i]) {
+        if (tolower(c1) != tolower(pattern[i])) {
           return TSDB_PATTERN_NOMATCH;
         } else {
           i++;

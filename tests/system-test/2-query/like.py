@@ -167,6 +167,39 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "_c")
 
+    def like_wildcard_case_insensitive(self):
+        tdSql.execute("create table db.t9x (ts timestamp, c1 varchar(100))")
+
+        tdSql.execute("insert into db.t9x values(now(), 'A\%c')")
+        tdSql.execute("insert into db.t9x values(now+1s, 'a\%bbbc')")
+        tdSql.execute("insert into db.t9x values(now()+2s, 'A%c')")
+        tdSql.execute("insert into db.t9x values(now()+3s, 'ABCD')")
+        tdSql.execute("insert into db.t9x values(now()+3s, '%ABCD')")
+
+        tdSql.query("select * from db.t9x where c1 like 'a\%c'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "A%c")
+
+        tdSql.query("select * from db.t9x where c1 like 'a\%C'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "A%c")
+
+        tdSql.query("select * from db.t9x where c1 like 'a%BC'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "a\%bbbc")
+
+        tdSql.query("select * from db.t9x where c1 like 'aBCd'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "ABCD")
+
+        tdSql.query("select * from db.t9x where c1 like 'a%d'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "ABCD")
+
+        tdSql.query("select * from db.t9x where c1 like '\%A%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "%ABCD")
+
     def run(self):
         tdLog.printNoPrefix("==========start like_wildcard_test run ...............")
         tdSql.prepare(replica = self.replicaVar)
@@ -177,6 +210,7 @@ class TDTestCase:
         self.like_cnc_wildcard_test()
         self.like_multi_wildcard_test()
         self.like_wildcard_test2()
+        self.like_wildcard_case_insensitive()
         tdLog.printNoPrefix("==========end like_wildcard_test run ...............")
         
         self.stopTest()
