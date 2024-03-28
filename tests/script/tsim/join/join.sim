@@ -85,7 +85,8 @@ run tsim/join/left_asof_join.sim
 run tsim/join/right_asof_join.sim
 run tsim/join/left_win_join.sim
 run tsim/join/right_win_join.sim
-run tsim/join/join_scalar.sim
+run tsim/join/join_scalar1.sim
+run tsim/join/join_scalar2.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim
@@ -109,7 +110,8 @@ run tsim/join/left_asof_join.sim
 run tsim/join/right_asof_join.sim
 run tsim/join/left_win_join.sim
 run tsim/join/right_win_join.sim
-run tsim/join/join_scalar.sim
+run tsim/join/join_scalar1.sim
+run tsim/join/join_scalar2.sim
 run tsim/join/join_timeline.sim
 run tsim/join/join_nested.sim
 run tsim/join/join_boundary.sim

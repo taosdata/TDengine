@@ -1047,6 +1047,7 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   pJoin->ctx.mergeCtx.groupJoin = pJoinNode->grpJoin;
   pJoin->retrieveFp = pJoinNode->grpJoin ? mJoinGrpRetrieveImpl : mJoinRetrieveImpl;
+  pJoin->outBlkId = pJoinNode->node.pOutputDataBlockDesc->dataBlockId;
   
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
        || (JOIN_STYPE_WIN == pJoin->subType)) {
@@ -1552,6 +1553,8 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
       }
       break;
     }
+
+    pBlock->info.id.blockId = pJoin->outBlkId;
     if (pJoin->pFinFilter != NULL) {
       doFilter(pBlock, pJoin->pFinFilter, NULL);
     }

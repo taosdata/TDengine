@@ -200,6 +200,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid WINDOW_OFFSET unit \"%c\"";
     case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
       return "Valid primary timestamp required";
+    case TSDB_CODE_PAR_NOT_WIN_FUNC:
+      return "Column exists for window join with aggregation functions";
     default:
       return "Unknown error";
   }

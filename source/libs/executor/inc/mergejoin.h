@@ -306,6 +306,7 @@ typedef struct SMJoinOperatorInfo {
   int32_t           inputTsOrder;
   int32_t           errCode;  
   int64_t           outGrpId;
+  uint64_t          outBlkId;
   SMJoinTableCtx    tbs[2];
   SMJoinTableCtx*   build;
   SMJoinTableCtx*   probe;

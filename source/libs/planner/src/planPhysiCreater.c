@@ -768,9 +768,9 @@ static int32_t setColEqList(SNode* pEqCond, int16_t leftBlkId, int16_t rightBlkI
     }
 
     if (leftBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
-      nodesListMakeStrictAppend(ppLeft, nodesCloneNode(pOp->pLeft));
+      nodesListMakeStrictAppend(ppLeft, nodesCloneNode(pOp->pRight));
     } else if (rightBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
-      nodesListMakeStrictAppend(ppRight, nodesCloneNode(pOp->pLeft));
+      nodesListMakeStrictAppend(ppRight, nodesCloneNode(pOp->pRight));
     } else {
       planError("invalid col equal list, rightBlockId:%d", ((SColumnNode*)pOp->pRight)->dataBlockId);
       return TSDB_CODE_PLAN_INTERNAL_ERROR;

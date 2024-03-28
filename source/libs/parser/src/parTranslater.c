@@ -1910,12 +1910,19 @@ static int32_t rewriteCountStarAsCount1(STranslateContext* pCxt, SFunctionNode* 
 static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pCount->pParameterList, 0);
   STableNode*  pTable = NULL;
-  int32_t      code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
-    } else {
-      code = rewriteCountStarAsCount1(pCxt, pCount);
+  SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+  size_t  nums = taosArrayGetSize(pTables);
+  int32_t code = 0;
+  if ('\0' == pCol->tableAlias[0] && nums > 1) {
+    code = rewriteCountStarAsCount1(pCxt, pCount);
+  } else {
+    code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+        setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      } else {
+        code = rewriteCountStarAsCount1(pCxt, pCount);
+      }
     }
   }
   return code;
@@ -2884,6 +2891,33 @@ static bool isWindowJoinProbeTablePrimCol(SSelectStmt*         pSelect, SNode* p
   return false;
 }
 
+static bool isWindowJoinProbeTableCol(SSelectStmt*         pSelect, SNode* pNode) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  SRealTableNode* pProbeTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    default:
+      return false;
+  }
+
+  if (0 == strcmp(pCol->dbName, pProbeTable->table.dbName) && 0 == strcmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
+    return true;
+  }
+
+  return false;
+}
+
+
 typedef struct SCheckColContaisCtx {
   SNode* pTarget;
   bool   contains;
@@ -2916,6 +2950,85 @@ static bool isWindowJoinGroupCol(SSelectStmt* pSelect, SNode* pNode) {
   return ctx.contains;
 }
 
+static bool isWindowJoinSubTbTag(SSelectStmt* pSelect, SNode* pNode) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (COLUMN_TYPE_TAG != pCol->colType) {
+    return false;
+  }
+  
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  SRealTableNode* pProbeTable = NULL;
+  SRealTableNode* pBuildTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      pBuildTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      pBuildTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    default:
+      return false;
+  }
+
+  SRealTableNode* pTargetTable = pProbeTable;
+  if (0 != strcasecmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
+    pTargetTable = pBuildTable;
+  }
+
+  if (TSDB_CHILD_TABLE != pTargetTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTargetTable->pMeta->tableType) {
+    return false;
+  }
+
+  return true;
+}
+
+
+static bool isWindowJoinSubTbname(SSelectStmt* pSelect, SNode* pNode) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return false;
+  }
+
+  SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+  if (FUNCTION_TYPE_TBNAME != pFuncNode->funcType) {
+    return false;
+  }
+
+  SJoinTableNode* pJoinTable = (SJoinTableNode*)pSelect->pFromTable;
+  SRealTableNode* pProbeTable = NULL;
+  SRealTableNode* pBuildTable = NULL;
+  switch (pJoinTable->joinType) {
+    case JOIN_TYPE_LEFT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pLeft;
+      pBuildTable = (SRealTableNode*)pJoinTable->pRight;
+      break;
+    case JOIN_TYPE_RIGHT:
+      pProbeTable = (SRealTableNode*)pJoinTable->pRight;
+      pBuildTable = (SRealTableNode*)pJoinTable->pLeft;
+      break;
+    default:
+      return false;
+  }
+
+  SRealTableNode* pTargetTable = pProbeTable;
+  bool isProbeTable = true;
+  SValueNode* pVal = (SValueNode*)nodesListGetNode(pFuncNode->pParameterList, 0);
+  if (NULL != pVal && 0 != strcasecmp(pVal->literal, pProbeTable->table.tableAlias)) {
+    pTargetTable = pBuildTable;
+    isProbeTable = false;
+  }
+
+  if (!isProbeTable && TSDB_CHILD_TABLE != pTargetTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTargetTable->pMeta->tableType) {
+    return false;
+  }
+
+  return true;
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -2943,18 +3056,20 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
-  if (isWindowJoinStmt(pSelect)) {
-    if (isWindowJoinProbeTablePrimCol(pSelect, *pNode) || isWindowJoinGroupCol(pSelect, *pNode)) {
+
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    if (pSelect->selectFuncNum > 1 || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+    }
+    if (isWindowJoinStmt(pSelect) &&  (isWindowJoinProbeTableCol(pSelect, *pNode) || isWindowJoinGroupCol(pSelect, *pNode) || (isWindowJoinSubTbname(pSelect, *pNode)) || isWindowJoinSubTbTag(pSelect, *pNode))) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
-  }
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc ||
-        (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
+
+    if (pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc){
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
-    } else {
-      return rewriteColToSelectValFunc(pCxt, pNode);
     }
+
+    return rewriteColToSelectValFunc(pCxt, pNode);
   }
   if (isVectorFunc(*pNode) && isDistinctOrderBy(pCxt)) {
     return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
@@ -2996,6 +3111,7 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existCol;
+  SNodeList*         pColList;
 } CheckAggColCoexistCxt;
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
@@ -3014,6 +3130,19 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 }
+
+static EDealRes doCheckGetAggColCoexist(SNode** pNode, void* pContext) {
+  CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
+  if (isVectorFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    pCxt->existCol = true;
+    nodesListMakeStrictAppend(&pCxt->pColList, *pNode);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 
 static int32_t checkIsEmptyResult(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pSelect->timeRange.skey > pSelect->timeRange.ekey
@@ -3059,6 +3188,42 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkWinJoinAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!isWindowJoinStmt(pSelect) || (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!pSelect->onlyHasKeepOrderFunc) {
+    pSelect->timeLineResMode = TIME_LINE_NONE;
+  }
+  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false, .pColList = NULL};
+  nodesRewriteExprs(pSelect->pProjectionList, doCheckGetAggColCoexist, &cxt);
+  if (!pSelect->isDistinct) {
+    nodesRewriteExprs(pSelect->pOrderByList, doCheckGetAggColCoexist, &cxt);
+  }
+  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum) )
+    && !pSelect->hasOtherVectorFunc) {
+    return rewriteColsToSelectValFunc(pCxt, pSelect);
+  }
+  
+  if (cxt.existCol) {
+    bool allProbeTableCols = true;
+    SNode* pNode = NULL;
+    FOREACH(pNode, cxt.pColList) {
+      if (isWindowJoinProbeTableCol(pSelect, pNode) || isWindowJoinGroupCol(pSelect, pNode) || (isWindowJoinSubTbname(pSelect, pNode)) || isWindowJoinSubTbTag(pSelect, pNode)) {
+        continue;
+      }
+      
+      allProbeTableCols = false;
+      break;
+    }
+
+    if (!allProbeTableCols) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_WIN_FUNC);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5577,6 +5742,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
+/*
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkWinJoinAggColCoexist(pCxt, pSelect);
+  }
+*/  
   if (TSDB_CODE_SUCCESS == code) {
     code = checkWindowGrpFuncCoexist(pCxt, pSelect);
   }

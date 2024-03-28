@@ -632,6 +632,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GRP_WINDOW_NOT_ALLOWED,     "GROUP BY/PARTITION 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,    "Invalid window offset unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED,     "Valid primary timestamp required")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR,       "Invalid expr in order by clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_WIN_FUNC,               "Column exists for window join with aggregation functions")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

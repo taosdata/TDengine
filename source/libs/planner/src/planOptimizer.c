@@ -100,7 +100,7 @@ static SJoinOptimizeOpt gJoinWhereOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE]
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
 /*INNER*/  {{PUSH_DOWN_ALL_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
 /*LEFT*/   {{0},                  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}},
-/*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
+/*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT},{PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
 };
 
@@ -108,7 +108,7 @@ static SJoinOptimizeOpt gJoinOnOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = 
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
 /*INNER*/  {{PUSH_DONW_FLT_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
 /*LEFT*/   {{0},                  {0},                   {PUSH_DONW_FLT_COND}, {0},                   {0},                   {0}},
-/*RIGHT*/  {{0},                  {0},                   {PUSH_DONW_FLT_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
+/*RIGHT*/  {{0},                  {0},                   {PUSH_DONW_FLT_COND}, {0},                   {0},                   {0}},
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
 };
 
@@ -925,8 +925,8 @@ static bool pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* allT
   } else if (pdcJoinColInTableColList((SNode*)pLeft, pRightCols)) {
     isEqual = pdcJoinColInTableColList((SNode*)pRight, pLeftCols);
     if (isEqual) {
-      nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, nodesCloneNode(pOper->pLeft));
-      nodesListMakeStrictAppend(&pJoin->pRightEqNodes, nodesCloneNode(pOper->pRight));
+      nodesListMakeStrictAppend(&pJoin->pLeftEqNodes, nodesCloneNode(pOper->pRight));
+      nodesListMakeStrictAppend(&pJoin->pRightEqNodes, nodesCloneNode(pOper->pLeft));
     }
   }
 
@@ -1180,8 +1180,8 @@ static int32_t pdcJoinAddPreFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogi
   return code;
 }
 
-static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
-  if (NULL == pJoin->node.pConditions && (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) || NULL == pJoin->pFullOnCond)) {
+static int32_t pdcJoinAddFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL == pJoin->node.pConditions && NULL == pJoin->pFullOnCond) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1195,7 +1195,7 @@ static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLo
   if (NULL != pJoin->node.pConditions) {
     code = nodesCollectColumnsFromNode(pJoin->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   }
-  if (TSDB_CODE_SUCCESS == code && IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond) {
     code = nodesCollectColumnsFromNode(pJoin->pFullOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1245,7 +1245,7 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
   SNode* pCond = pJoin->pFullOnCond ? pJoin->pFullOnCond : pJoin->node.pConditions;
   bool errCond = false;
   if (!pdcJoinHasPrimEqualCond(pJoin, pCond, &errCond)) {
-    if (errCond) {
+    if (errCond && !(IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond && NULL != pJoin->node.pConditions)) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
     }
     
@@ -1366,12 +1366,12 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     code = pdcJoinAddParentOnColsToTarget(pCxt, pJoin);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = pdcJoinAddPreFilterColsToTarget(pCxt, pJoin);
-  }
+  //if (TSDB_CODE_SUCCESS == code) {
+  //  code = pdcJoinAddPreFilterColsToTarget(pCxt, pJoin);
+  //}
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = pdcJoinAddWhereFilterColsToTarget(pCxt, pJoin);
+    code = pdcJoinAddFilterColsToTarget(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -4468,6 +4468,9 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     //  break;
     //}
 
+    nodesDestroyNode(pScan->pTagCond);
+    nodesDestroyNode(pScan->pTagIndexCond);
+    
     pScan->node.dynamicOp = true;
     *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;
     

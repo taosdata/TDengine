@@ -984,8 +984,12 @@ endi
 if $data70 != 1 then
   return -1
 endi
+sql select a.col1, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+if $rows != 8 then
+  return -1
+endi
 
-sql_error select a.col1, count(*) from sta a left window join sta b window_offset(-1s, 1s);
+sql_error select b.col1, count(*) from sta a left window join sta b window_offset(-1s, 1s);
 sql_error select b.ts, count(*) from sta a left window join sta b window_offset(-1s, 1s);
 sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(b.ts > 0);
 sql_error select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) having(a.col1 > 0);
