@@ -515,4 +515,35 @@ sql drop table tm2;
 sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
 sql drop database ux1;
 
+
+print =============== step2
+
+sql create database test vgroups 4;
+
+sql use test;
+
+sql create stable st1 (ts TIMESTAMP, aparams3 TINYINT, a5298 TINYINT, adid VARCHAR(32)) TAGS (avin VARCHAR(32));
+
+sql create table st1_1 using st1 tags("bbbb");
+sql insert into st1_1 values("2024-03-19 19:19:04.611",1,1, "aaaaaaaaaaaaaaaaa");
+sql insert into st1_1 values("2024-03-19 19:19:04.612",1,1, "aaaaaaaaaaaaaaaaa");
+
+
+sql CREATE STABLE st2 (ts TIMESTAMP, aprotocol VARCHAR(4000)) TAGS (avin VARCHAR(32));
+sql create table st2_1 using st2 tags("bbbb");
+sql insert into st2_1 (ts,aprotocol)  values("2024-03-19 19:19:04.611","ccccccccccccccccccccccccccc");
+sql insert into st2_1 (ts,aprotocol)  values("2024-03-19 19:19:04.612","ccccccccccccccccccccccccccc");
+
+sleep 500
+
+sql select c.ts,i.aprotocol,c.a5298,c.adid from st1 c , st2 i where c.ts=i.ts and c.avin=i.avin and c.avin='bbbb' and (c.a5298 is null or c.a5298 in (1,2)) and c.aparams3 in (1,2);
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+
+if $rows != 2 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
