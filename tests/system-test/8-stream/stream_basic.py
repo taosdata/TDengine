@@ -89,7 +89,7 @@ class TDTestCase:
         tdSql.execute("create stream stream1 fill_history 1 into sta subtable(concat('new-', tname)) AS SELECT "
                       "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
 
-        tdSql.execute("create stream stream2 fill_history 1 into sta subtable(concat('new-', tname)) AS SELECT "
+        tdSql.execute("create stream stream2 fill_history 1 into stb subtable(concat('new-', tname)) AS SELECT "
                       "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
 
         time.sleep(2)
