@@ -2789,6 +2789,8 @@ int32_t tsCompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_RLE) {
     SET_COMPRESS(L1_RLE, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 1);
 }
@@ -2799,6 +2801,8 @@ int32_t tsDecompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_RLE) {
     SET_COMPRESS(L1_RLE, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 0);
 }
@@ -2810,6 +2814,8 @@ int32_t tsCompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_SIMPLE_8B) {
     SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 1);
 }
@@ -2820,6 +2826,8 @@ int32_t tsDecompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, i
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_SIMPLE_8B) {
     SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 0);
 }
@@ -2831,6 +2839,8 @@ int32_t tsCompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_SIMPLE_8B) {
     SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 1);
 }
@@ -2841,6 +2851,8 @@ int32_t tsDecompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
   DEFINE_VAR(cmprAlg)
   if (l1 != L1_SIMPLE_8B) {
     SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 0);
 }
@@ -2849,23 +2861,24 @@ int32_t tsDecompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
 int32_t tsCompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                        int32_t nBuf) {
   uint32_t tCmprAlg = 0;
-  {
-    DEFINE_VAR(cmprAlg)
-    if (l1 != L1_SIMPLE_8B) {
-      SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
-    }
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
+
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 1);
 }
 
 int32_t tsDecompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
   uint32_t tCmprAlg = 0;
-  {
-    DEFINE_VAR(cmprAlg)
-    if (l1 != L1_SIMPLE_8B) {
-      SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
-    }
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 0);
 }
