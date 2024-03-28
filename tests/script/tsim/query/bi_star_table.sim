@@ -33,29 +33,29 @@ if $data06 != tba1 then
 endi
 
 sql select last(*) from db1.sta;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba2 then
+if $data06 != tba2 then
     return -1
 endi
 
 sql select last_row(*) from db1.sta;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba2 then
+if $data06 != tba2 then
     return -1
 endi
 
 sql select first(*) from db1.sta;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba1 then
+if $data06 != tba1 then
     return -1
 endi
 
@@ -71,29 +71,29 @@ if $data06 != tba1 then
 endi
 
 sql select last(b.*) from db1.sta b;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba2 then
+if $data06 != tba2 then
     return -1
 endi
 
 sql select last_row(b.*) from db1.sta b;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba2 then
+if $data06 != tba2 then
     return -1
 endi
 
 sql select first(b.*) from db1.sta b;
-if $cols != 4 then
+if $cols != 7 then
     return -1
 endi
 
-if $data03 != tba1 then
+if $data06 != tba1 then
     return -1
 endi
 

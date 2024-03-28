@@ -54,13 +54,13 @@ sql select last_row(*), ts, 'abc', 123.981, tbname from m1
 if $rows != 1 then
   return -1
 endi
-if $data02 != @19-01-01 01:01:01.000@ then
+if $data03 != @19-01-01 01:01:01.000@ then
     return -1
 endi
-if $data03 != @abc@ then
+if $data04 != @abc@ then
     return -1
 endi
-if $data04 != 123.981000000 then
+if $data05 != 123.981000000 then
     print expect 123.981000000, actual: $data04
     return -1
 endi
