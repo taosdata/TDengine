@@ -81,6 +81,7 @@ void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbnam
 void    mndTransSetArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetParallel(STrans *pTrans);
+void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 #ifndef BUILD_NO_CALL

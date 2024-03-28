@@ -739,6 +739,8 @@ void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
 void mndTransSetParallel(STrans *pTrans) { pTrans->exec = TRN_EXEC_PARALLEL; }
 
+void mndTransSetChangeless(STrans *pTrans) { pTrans->changeless = true; }
+
 void mndTransSetOper(STrans *pTrans, EOperType oper) { pTrans->oper = oper; }
 
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
@@ -862,7 +864,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  if (taosArrayGetSize(pTrans->commitActions) <= 0) {
+  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
     terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return -1;
