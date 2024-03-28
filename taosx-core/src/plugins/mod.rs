@@ -11,6 +11,9 @@ use tracing::Instrument;
 use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
+use crate::plugins::transform::sample::DsSampleIn;
+use crate::runners::historian;
+use crate::runners::historian::AVEVA_HISTORIAN_ID;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opc::config::model::OpcModelConfig;
 use crate::utils::mask_dsn;
@@ -224,5 +227,18 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 &_ => DataSourceValidation::unknown(),
             }
         }
+    }
+}
+
+pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
+    let dsn = dsn
+        .into_dsn()
+        .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
+
+    match dsn.driver.as_str() {
+        AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        _ => Err(anyhow::anyhow!(
+            "get sample from data source is unsupported"
+        )),
     }
 }

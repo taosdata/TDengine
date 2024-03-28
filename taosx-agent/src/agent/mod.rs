@@ -20,8 +20,8 @@ use tonic::transport::Endpoint;
 use tracing::info;
 
 use taosx_core::{
-    list_datasets_from, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, RespAction,
+    list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, RespAction, Response, SampleResponse,
 };
 
 use crate::runner::Action;
@@ -327,6 +327,27 @@ impl Client {
                     ]);
                     item
                 }
+                RespAction::SampleOk(resp) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["sample".to_string()]));
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &resp,
+                        )
+                        .unwrap()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
                 RespAction::AgentActivity(activity) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                         Utc::now().timestamp_millis()
@@ -502,6 +523,34 @@ impl Client {
                                 tracing::error!(
                                     "Can't send data source validation response to server: {err:#}"
                                 );
+                            }
+                        });
+                    }
+                    "sample" => {
+                        let dsn: String = serde_json::from_str(&context).unwrap();
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let sample = plugins::get_sample(dsn.clone()).await;
+                            let res = match sample {
+                                Ok(sample) => match serde_json::to_string(&sample) {
+                                    Ok(s) => Response::Ok(s),
+                                    Err(err) => Response::Err(Fail::new(anyhow::anyhow!(
+                                        "failed to serialize sample data, cause: {}",
+                                        err.to_string()
+                                    ))),
+                                },
+                                Err(err) => Response::Err(Fail::new(err)),
+                            };
+
+                            let send_ok = resp_tx
+                                .send_async(RespAction::SampleOk(SampleResponse {
+                                    req_id,
+                                    req: dsn,
+                                    res,
+                                }))
+                                .await;
+                            if let Err(err) = send_ok {
+                                tracing::error!("Can't send GetSample response to server: {err:#}");
                             }
                         });
                     }

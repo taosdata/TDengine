@@ -85,6 +85,7 @@ pub(super) struct FlightServiceImpl {
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+    string_senders: Arc<RwLock<LinkedHashMap<u64, StringSender>>>,
     monitor: Monitor,
 }
 
@@ -92,6 +93,7 @@ async fn action_to_arrow(
     request_id: &Arc<AtomicU64>,
     datasets_senders: &Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: &Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+    string_senders: &Arc<RwLock<LinkedHashMap<u64, StringSender>>>,
     controller: &TaskControllerRef,
     action: AgentAction,
 ) -> anyhow::Result<Option<RecordBatch>> {
@@ -238,12 +240,10 @@ async fn action_to_arrow(
             });
             return Ok(Some(batch));
         }
-        AgentAction::Check(dataset, sender) => {
-            let context: ArrayRef =
-                Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                    &dataset,
-                )
-                .unwrap()]));
+        AgentAction::Check(dsn, sender) => {
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                serde_json::to_string(&dsn).unwrap(),
+            ]));
             let action: ArrayRef = Arc::new(StringArray::from_iter_values(["check".to_string()]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
@@ -258,6 +258,27 @@ async fn action_to_arrow(
             tokio::spawn(async move {
                 let mut receiver = dsv_senders.write().await;
 
+                receiver.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::GetSample(dsn, sender) => {
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                serde_json::to_string(&dsn).unwrap(),
+            ]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build GetSample message")?;
+
+            let string_senders = string_senders.clone();
+            tokio::spawn(async move {
+                let mut receiver = string_senders.write().await;
                 receiver.insert(req_id, sender);
             });
             return Ok(Some(batch));
@@ -303,10 +324,11 @@ impl FlightServiceImpl {
 
         let (tx, rx) = flume::bounded(1000);
         let tx_cloned = tx.clone();
-        let (req_id, senders, dsv_senders, controller) = (
+        let (req_id, senders, dsv_senders, string_senders, controller) = (
             self.request_id.clone(),
             self.datasets_senders.clone(),
             self.dsv_senders.clone(),
+            self.string_senders.clone(),
             self.controller.clone(),
         );
         tokio::spawn(async move {
@@ -321,6 +343,7 @@ impl FlightServiceImpl {
                                 &req_id,
                                 &senders,
                                 &dsv_senders,
+                                &string_senders,
                                 &controller,
                                 action,
                             )
@@ -590,6 +613,7 @@ impl FlightService for FlightServiceImpl {
         let notify_sender = self.notify_sender.clone();
         let datasets_sender = self.datasets_senders.clone();
         let dsv_senders = self.dsv_senders.clone();
+        let string_senders = self.string_senders.clone();
         let agent_connections = self.agent_connections.clone();
         tokio::spawn(async move {
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
@@ -689,6 +713,29 @@ impl FlightService for FlightServiceImpl {
                                                     agent = agent_id,
                                                     req_id = req_id,
                                                     "List data sets request id has no receiver"
+                                                );
+                                            }
+                                        });
+                                    }
+                                    "sample" => {
+                                        let resp: SampleResponse = serde_json::from_str(&context).unwrap();
+                                        let string_senders = string_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) = string_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    warn!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "get sample response send failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                warn!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "get sample request id has no receiver"
                                                 );
                                             }
                                         });
@@ -931,7 +978,10 @@ impl FlightService for FlightServiceImpl {
     }
 }
 
+use crate::serve::controller::StringSender;
 use taosx_core::utils::get_string_content_from_param_value;
+use taosx_ipc::types::SampleResponse;
+
 async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
     let mut map = BTreeMap::new();
@@ -1010,6 +1060,7 @@ impl RpcConfig {
             activity_receiver: Arc::new(activity_receiver),
             datasets_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
+            string_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
             monitor,

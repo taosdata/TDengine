@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::{
     core_metrics::{
         auto_save_task_metrics, init_task_metrics, save_task_metrics_finally, CoreMetrics,
@@ -221,6 +222,15 @@ impl AgentRuntimeRef {
     pub async fn check(&self, agent_id: i64, req: String) -> anyhow::Result<DataSourceValidation> {
         match self {
             Self::Server(rt) => rt.check(agent_id, req).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
+    pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSampleIn> {
+        match self {
+            Self::Server(rt) => rt.get_sample(agent_id, dsn).await,
             Self::Client(_) => {
                 bail!("not implemented")
             }
