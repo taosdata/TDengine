@@ -1178,6 +1178,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->clusterCfg.charset) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->clusterCfg.enableWhiteList) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->clusterCfg.encryptionKeyStat) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->clusterCfg.encryptionKeyChksum) < 0) return -1;
 
   // vnode loads
   int32_t vlen = (int32_t)taosArrayGetSize(pReq->pVloads);
@@ -1271,6 +1272,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->clusterCfg.charset) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->clusterCfg.enableWhiteList) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->clusterCfg.encryptionKeyStat) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->clusterCfg.encryptionKeyChksum) < 0) return -1;
 
   // vnode loads
   int32_t vlen = 0;

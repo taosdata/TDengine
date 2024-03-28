@@ -1493,14 +1493,15 @@ void    tFreeSFuncInfo(SFuncInfo* pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
-  int32_t statusInterval;
-  int64_t checkTime;                  // 1970-01-01 00:00:00.000
-  char    timezone[TD_TIMEZONE_LEN];  // tsTimezone
-  char    locale[TD_LOCALE_LEN];      // tsLocale
-  char    charset[TD_LOCALE_LEN];     // tsCharset
-  int8_t  ttlChangeOnWrite;
-  int8_t  enableWhiteList;
-  int8_t  encryptionKeyStat;
+  int32_t  statusInterval;
+  int64_t  checkTime;                  // 1970-01-01 00:00:00.000
+  char     timezone[TD_TIMEZONE_LEN];  // tsTimezone
+  char     locale[TD_LOCALE_LEN];      // tsLocale
+  char     charset[TD_LOCALE_LEN];     // tsCharset
+  int8_t   ttlChangeOnWrite;
+  int8_t   enableWhiteList;
+  int8_t   encryptionKeyStat;
+  uint32_t encryptionKeyChksum;
 } SClusterCfg;
 
 typedef struct {

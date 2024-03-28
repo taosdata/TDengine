@@ -91,8 +91,9 @@ int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
 
 // dnode misc
-int8_t tsEncryptionKeyStat = 0;
-int8_t tsGrant = 1;
+uint32_t tsEncryptionKeyChksum = 0;
+int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED; //ENCRYPT_KEY_STAT_UNKNOWN;
+int8_t   tsGrant = 1;
 
 // monitor
 bool     tsEnableMonitor = true;

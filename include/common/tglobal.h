@@ -103,8 +103,9 @@ extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
 
 // dnode misc
-extern int8_t tsEncryptionKeyStat;
-extern int8_t tsGrant;
+extern uint32_t tsEncryptionKeyChksum;
+extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;

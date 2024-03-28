@@ -778,22 +778,36 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
 
+#ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
     code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
+    mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
+           tsEncryptionKeyStat);
     goto _exit;
   }
 
   int64_t curMs = taosGetTimestampMs();
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
     bool online = false;
-    if (pDnode->encryptionKeyStat != tsEncryptionKeyStat && (online = mndIsDnodeOnline(pDnode, curMs))) {
+    if ((pDnode->encryptionKeyStat != tsEncryptionKeyStat || pDnode->encryptionKeyChksum != tsEncryptionKeyChksum) &&
+        (online = mndIsDnodeOnline(pDnode, curMs))) {
       code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
+      mError("db:%s, failed to check encryption key:%" PRIi8
+             "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
+             pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
+             tsEncryptionKeyChksum);
       sdbRelease(pSdb, pDnode);
       break;
     }
     sdbRelease(pSdb, pDnode);
   }
+#else
+  if (pReq->encryptAlgorithm != TSDB_ENCRYPT_ALGO_NONE) {
+    code = TSDB_CODE_MND_INVALID_DB_OPTION;
+    goto _exit;
+  }
+#endif
 _exit:
   return code;
 }
