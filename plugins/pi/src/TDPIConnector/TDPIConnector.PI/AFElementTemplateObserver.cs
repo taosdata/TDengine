@@ -54,11 +54,11 @@ namespace TDPIConnector.PI
             else if (e.Identity == AFIdentity.Element)
             {
                 // var element = AFElement.FindElement(piSystem, e.ID);
-                // log.Info($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
+                log.Debug($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
             }
             else
             {
-                log.Info($"Object Changed: {e.Action}  {e.Identity}");
+                log.Debug($"Object Changed: {e.Action}  {e.Identity}");
             }
         }
 

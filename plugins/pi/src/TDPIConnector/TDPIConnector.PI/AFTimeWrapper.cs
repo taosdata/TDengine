@@ -31,5 +31,37 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.LocalTime;
             }
         }
+
+        public string FormatUtcTime() {
+            return this.AFSDKObject.LocalTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        }
+
+        public static bool operator ==(AFTimeWrapper lhs, AFTimeWrapper rhs) {
+            return lhs.AFSDKObject == rhs.AFSDKObject;
+        }
+
+        public static bool operator !=(AFTimeWrapper lhs, AFTimeWrapper rhs) {
+            return lhs.AFSDKObject != rhs.AFSDKObject;
+        }
+
+        public static bool operator <(AFTimeWrapper lhs, AFTimeWrapper rhs)
+        {
+            return lhs.AFSDKObject < rhs.AFSDKObject;
+        }
+
+        public static bool operator >(AFTimeWrapper lhs, AFTimeWrapper rhs)
+        {
+            return lhs.AFSDKObject > rhs.AFSDKObject;
+        }
+
+        public static bool operator <=(AFTimeWrapper lhs, AFTimeWrapper rhs)
+        {
+            return lhs.AFSDKObject <= rhs.AFSDKObject;
+        }
+
+        public static bool operator >=(AFTimeWrapper lhs, AFTimeWrapper rhs)
+        {
+            return lhs.AFSDKObject >= rhs.AFSDKObject;
+        }
     }
 }
