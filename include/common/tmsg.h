@@ -590,6 +590,7 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
+#define COL_IS_KEY     ((int8_t)0x4)
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
@@ -1038,6 +1039,7 @@ typedef struct {
   uint8_t scale;
   int32_t bytes;
   int8_t  type;
+  uint8_t pk;
 } SColumnInfo;
 
 typedef struct STimeWindow {
