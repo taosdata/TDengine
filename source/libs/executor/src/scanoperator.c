@@ -1783,28 +1783,57 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   return TSDB_CODE_SUCCESS;
 }
 
-static void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
-  SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
+static void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
   } else {
     appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
-                         pBlock->info.id.groupId, pBlock, 0, pInfo->pCreateTbRes, &pInfo->stateStore);
+                         pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes, &pInfo->stateStore);
   }
 }
 
-static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
-  blockDataCleanup(pDestBlock);
-  int32_t rows = pSrcBlock->info.rows;
-  if (rows == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t code = blockDataEnsureCapacity(pDestBlock, rows);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
+  SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
+  SColumnInfoData* pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
 
+  ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
+  TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
+  int64_t ver = pSrcBlock->info.version - 1;
+  for (int32_t delI = 0; delI < pSrcBlock->info.rows; delI++) {
+    uint64_t     groupId = 0;
+    uint64_t     srcUid = srcUidData[delI];
+    char         tbname[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN] = {0};
+    SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, srcUid, srcStartTsCol[delI], srcEndTsCol[delI], ver);
+    blockDataEnsureCapacity(pDestBlock, pDestBlock->info.rows + pPreRes->info.rows);
+    for (int32_t preJ = 0; preJ < pPreRes->info.rows; preJ++) {
+      groupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, preJ);
+      if (pInfo->pPartTbnameSup) {
+        void* parTbname = NULL;
+        int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
+        if (code != TSDB_CODE_SUCCESS) {
+          calBlockTbName(pInfo, pPreRes, preJ);
+          memcpy(varDataVal(tbname), pPreRes->info.parTbName, strlen(pPreRes->info.parTbName));
+        } else {
+          memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
+        }
+        varDataSetLen(tbname, strlen(varDataVal(tbname)));
+        pInfo->stateStore.streamStateFreeVal(parTbname);
+      }
+      appendDataToSpecialBlock(pDestBlock, srcStartTsCol + delI, srcEndTsCol + delI, srcUidData + delI, &groupId,
+                               tbname[0] == 0 ? NULL : tbname);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
   SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
@@ -1830,12 +1859,11 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
     }
     if (pInfo->tbnameCalSup.pExprInfo) {
       void* parTbname = NULL;
-      code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
+      int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
       if (code != TSDB_CODE_SUCCESS) {
-        // todo(liuyao) 这里可能需要修改，需要考虑复合主键时，pPreRes包含多行数据。
         SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, srcUid, srcStartTsCol[i], srcStartTsCol[i], ver);
         printDataBlock(pPreRes, "pre res", GET_TASKID(pInfo->pStreamScanOp->pTaskInfo));
-        calBlockTbName(pInfo, pPreRes);
+        calBlockTbName(pInfo, pPreRes, 0);
         memcpy(varDataVal(tbname), pPreRes->info.parTbName, strlen(pPreRes->info.parTbName));
       } else {
         memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
@@ -1847,6 +1875,22 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
                                      tbname[0] == 0 ? NULL : tbname);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  blockDataCleanup(pDestBlock);
+  int32_t rows = pSrcBlock->info.rows;
+  if (rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = blockDataEnsureCapacity(pDestBlock, rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pInfo->partitionSup.needCalc) {
+    return generatePartitionDelResBlock(pInfo, pSrcBlock, pDestBlock);
+  }
+  return generateDeleteResultBlockImpl(pInfo, pSrcBlock, pDestBlock);
 }
 
 static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType type) {
@@ -2120,7 +2164,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     return 0;
   }
 
-  calBlockTbName(pInfo, pInfo->pRes);
+  calBlockTbName(pInfo, pInfo->pRes, 0);
   return 0;
 }
 
@@ -2380,7 +2424,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pInfo->pRecoverRes = doTableScan(pInfo->pTableScanOp);
     if (pInfo->pRecoverRes != NULL) {
-      calBlockTbName(pInfo, pInfo->pRecoverRes);
+      calBlockTbName(pInfo, pInfo->pRecoverRes, 0);
       if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
         TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
         pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
@@ -2469,11 +2513,11 @@ FETCH_NEXT_BLOCK:
 
         if (!isStreamWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
-          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
-          printSpecDataBlock(pDelBlock, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
+          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
           blockDataDestroy(pDelBlock);
 
           if (pInfo->pDeleteDataRes->info.rows > 0) {
+            printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -2485,12 +2529,12 @@ FETCH_NEXT_BLOCK:
           prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
           copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
-          printSpecDataBlock(pDelBlock, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
           if (pInfo->tqReader) {
             blockDataDestroy(pDelBlock);
           }
           if (pInfo->pDeleteDataRes->info.rows > 0) {
             pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+            printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -2542,7 +2586,7 @@ FETCH_NEXT_BLOCK:
             checkUpdateData(pInfo, true, pSDB, false);
           }
           printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
-          calBlockTbName(pInfo, pSDB);
+          calBlockTbName(pInfo, pSDB, 0);
           return pSDB;
         }
         blockDataCleanup(pInfo->pUpdateDataRes);
@@ -2940,6 +2984,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
   }
 
+  pInfo->pPartTbnameSup = NULL;
   if (pTableScanNode->pSubtable != NULL) {
     SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
     if (pSubTableExpr == NULL) {

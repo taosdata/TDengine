@@ -451,6 +451,7 @@ typedef struct SStreamScanInfo {
   SExprInfo*    pPseudoExpr;
   int32_t       numOfPseudoExpr;
   SExprSupp     tbnameCalSup;
+  SExprSupp*    pPartTbnameSup;
   SExprSupp     tagCalSup;
   int32_t       primaryTsIndex;  // primary time stamp slot id
   int32_t       primaryKeyIndex;

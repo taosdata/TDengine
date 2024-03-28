@@ -70,5 +70,36 @@ if $data12 != 4 then
   goto loop0
 endi
 
+sql insert into t1 values(1648791210001,3,1,1,2.0);
+
+print sql delete from t1 where ts = 1648791210000;
+sql delete from t1 where ts = 1648791210000;
+
+$loop_count = 0
+
+loop1:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt1 order by 1,2
+sql select * from streamt1 order by 1,2;
+
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
