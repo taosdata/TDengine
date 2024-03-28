@@ -9922,7 +9922,10 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
       int8_t valid = setColCompressByOption(
           pScheam->type, &req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
           columnCompressVal(pColDef->pOptions->compress), columnLevelVal(pColDef->pOptions->compressLevel));
-      if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      if (!valid) {
+        tdDestroySVCreateTbReq(&req);
+        return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
     }
     ++index;
   }
