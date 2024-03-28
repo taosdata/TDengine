@@ -266,12 +266,12 @@ int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSiz
   return -1;
 }
 
-TCompressL1FnSet compressL1Dict[] = {{"unknown", NULL, tsCompressUnknow2, tsDecompressUnknow2},
-                                     {"timestamp", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
-                                     {"int", NULL, tsCompressINTImp2, tsDecompressINTImp2},
-                                     {"double", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2},
-                                     {"bool", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
-                                     {NULL, NULL, NULL}};
+TCompressL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressUnknow2, tsDecompressUnknow2},
+                                     {"SIMPLE-8B", NULL, tsCompressINTImp2, tsDecompressINTImp2},
+                                     {"DELTAI", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
+                                     {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
+                                     {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2}};
+
 TCompressL2FnSet compressL2Dict[] = {
     {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
     {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
@@ -2940,13 +2940,13 @@ int32_t tsFindCompressAlg(int8_t dataType, uint8_t compress, TCompressL1FnSet *l
   return 0;
 }
 
-typedef struct {
-  int8_t  dtype;
-  SArray *l1Set;
-  SArray *l2Set;
-} TCompressCompatible;
+// typedef struct {
+//   int8_t  dtype;
+//   SArray *l1Set;
+//   SArray *l2Set;
+// } TCompressCompatible;
 
-SHashObj *algSet = NULL;
+// SHashObj *algSet = NULL;
 
 // int32_t tsCompressSetInit() {
 //   algSet = taosHashInit(24, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
@@ -2968,38 +2968,38 @@ SHashObj *algSet = NULL;
 //   }
 //   return 0;
 // }
-int32_t tsCompressSetDestroy() {
-  void *p = taosHashIterate(algSet, NULL);
-  while (p) {
-    TCompressCompatible *v = p;
-    taosArrayDestroy(v->l1Set);
-    taosArrayDestroy(v->l2Set);
+// int32_t tsCompressSetDestroy() {
+//   void *p = taosHashIterate(algSet, NULL);
+//   while (p) {
+//     TCompressCompatible *v = p;
+//     taosArrayDestroy(v->l1Set);
+//     taosArrayDestroy(v->l2Set);
 
-    taosHashIterate(algSet, p);
-  }
-  return 0;
-}
+//     taosHashIterate(algSet, p);
+//   }
+//   return 0;
+// }
 
-int32_t tsValidCompressAlgByDataTypes(int8_t type, int8_t compress) {
-  // compress alg
-  int8_t l1 = COMPRESS_L1_TYPE_U8(compress);
-  int8_t l2 = COMPRESS_L2_TYPE_U8(compress);
-  int8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(compress);
+// int32_t tsValidCompressAlgByDataTypes(int8_t type, int8_t compress) {
+//   // compress alg
+//   int8_t l1 = COMPRESS_L1_TYPE_U8(compress);
+//   int8_t l2 = COMPRESS_L2_TYPE_U8(compress);
+//   int8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(compress);
 
-  TCompressCompatible *p = taosHashGet(algSet, &type, sizeof(type));
-  if (p == NULL) return -1;
+//   TCompressCompatible *p = taosHashGet(algSet, &type, sizeof(type));
+//   if (p == NULL) return -1;
 
-  if (p->dtype != type) return -1;
+//   if (p->dtype != type) return -1;
 
-  if (taosArraySearch(p->l1Set, &l1, compareInt8Val, 0) == NULL) {
-    return -1;
-  }
+//   if (taosArraySearch(p->l1Set, &l1, compareInt8Val, 0) == NULL) {
+//     return -1;
+//   }
 
-  if (taosArraySearch(p->l2Set, &l2, compareInt8Val, 0) == NULL) {
-    return -1;
-  }
-  return 0;
-}
+//   if (taosArraySearch(p->l2Set, &l2, compareInt8Val, 0) == NULL) {
+//     return -1;
+//   }
+//   return 0;
+// }
 
 int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level) {
   DEFINE_VAR(cmprAlg)
@@ -3038,3 +3038,9 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
 
   return 0;
 }
+// int32_t validCompress(int8_t type, uint8_t encode, uint8_t compress, uint8_t level)  {
+//   if (type == TSDB_DATA_TYPE_BOOL) {
+
+//   } else
+//   return 0;
+// }

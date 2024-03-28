@@ -13,14 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "taosdef.h"
-
 #ifndef _TD_TCOL_H_
 #define _TD_TCOL_H_
 
 #define TSDB_COLUMN_ENCODE_UNKNOWN  "Unknown"
-#define TSDB_COLUMN_ENCODE_SIMPLE8B "simple8b"
-#define TSDB_COLUMN_ENCODE_XOR      "xor"
-#define TSDB_COLUMN_ENCODE_RLE      "rle"
+#define TSDB_COLUMN_ENCODE_SIMPLE8B "Simple8b"
+#define TSDB_COLUMN_ENCODE_XOR      "DeltaI"
+#define TSDB_COLUMN_ENCODE_RLE      "Bit-Packing"
+#define TSDB_COLUMN_ENCODE_DELTAD   "DeltaD"
 #define TSDB_COLUMN_ENCODE_DISABLED "disabled"
 
 #define TSDB_COLUMN_COMPRESS_UNKNOWN  "Unknown"
@@ -40,6 +40,8 @@
 #define TSDB_COLVAL_ENCODE_SIMPLE8B 1
 #define TSDB_COLVAL_ENCODE_XOR      2
 #define TSDB_COLVAL_ENCODE_RLE      3
+#define TSDB_COLVAL_ENCODE_DELTAD   4
+
 #define TSDB_COLVAL_ENCODE_DISABLED 0xff
 
 #define TSDB_COLVAL_COMPRESS_NOCHANGE 0
@@ -59,7 +61,7 @@
 #define TSDB_CL_COMMENT_LEN         1025
 #define TSDB_CL_COMPRESS_OPTION_LEN 12
 
-extern const char* supportedEncode[4];
+extern const char* supportedEncode[5];
 extern const char* supportedCompress[6];
 extern const char* supportedLevel[3];
 
