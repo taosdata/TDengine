@@ -212,11 +212,11 @@ function clean_service_on_launchctl() {
 function remove_data_and_config() {
   data_dir=`grep dataDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$data_dir" == X"" ]; then
-    data_dir="/var/lib/${clientName2}"
+    data_dir="/var/lib/${PREFIX}"
   fi
   log_dir=`grep logDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$log_dir" == X"" ]; then
-    log_dir="/var/log/${clientName2}"
+    log_dir="/var/log/${PREFIX}"
   fi  
   [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}
   [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
