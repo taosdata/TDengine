@@ -996,8 +996,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
     for (int32_t i = 0; i < dnodeSize; ++i) {
       SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(grantHandle.pDnodeInfo, i);
-      if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT ||
-          info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+      if (info->offlineReason != DND_REASON_ONLINE) {
         uDebug("not send grant status to dnode:%d since offline state:%d", info->id, info->offlineReason);
         continue;
       }
@@ -1330,7 +1329,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
   SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
   for (int32_t i = 0; i < dInfoSize; ++i) {
     SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(pDnodeInfo, i);
-    if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT || info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+    if (info->offlineReason != DND_REASON_ONLINE) {
       uDebug("not send grant notify to dnode:%d since offline state:%d", info->id, info->offlineReason);
       continue;
     }
@@ -2506,6 +2505,22 @@ static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
   return 0;
 }
 
+static const char *getEncryptKeyStatStr(int8_t encryptKeyStat) {
+  switch (encryptKeyStat) {
+    case ENCRYPT_KEY_STAT_UNKNOWN:
+      return "unknown";
+    case ENCRYPT_KEY_STAT_UNSET:
+      return "unset";
+    case ENCRYPT_KEY_STAT_SET:
+      return "set";
+    case ENCRYPT_KEY_STAT_LOADED:
+      return "loaded";
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -2528,7 +2543,18 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
     ++cols;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "dummy", pShow->pMeta->pSchemas[cols].bytes);
+
+    const char *keyStr = getEncryptKeyStatStr(pDnode->encryptionKeyStat);
+    int32_t     keyStrLen = strlen(keyStr);
+    memcpy(varDataVal(buf), keyStr, keyStrLen);
+    if (online) {
+      varDataVal(buf + keyStrLen)[0] = 0;
+    } else {
+      varDataVal(buf + keyStrLen)[0] = '*';
+      varDataVal(buf + (++keyStrLen))[0] = 0;
+    }
+    varDataSetLen(buf, keyStrLen);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
