@@ -35,6 +35,107 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
+      <el-tab-pane v-if="type == 'tmq'" :label="$t('dataIn.replicationProgress')" name='3'>
+        <p class="title">{{ $t('dataIn.tbReplicationProgress') }}</p>
+        <el-form :inline="true" :model="formInline" class="demo-form-inline" size="mini" ref="form" :rules="rules" >
+          <el-form-item :label="$t('dataIn.tbName')" prop="table">
+            <el-input v-model="formInline.table" style="width: 106px"></el-input>
+          </el-form-item>
+          <el-form-item :label="$t('dataIn.timeRange')">
+            <el-date-picker
+              style="width: 310px"
+              v-model="formInline.timeRange"
+              value-format="yyyy-MM-dd HH:mm:ss"
+              type="datetimerange"
+              start-placeholder="全部">
+            </el-date-picker>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleQurery" :loading="requesting_q">{{ $t('dataIn.query') }}</el-button>
+          </el-form-item>
+        </el-form>
+        <el-table :data="tbReplicationData" size="mini" border>
+          <el-table-column
+            prop="table_name"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.table')"
+            min-width="140"
+          ></el-table-column>
+          <el-table-column
+            prop="from_last_ts"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.source')"
+            min-width="140"
+          >
+            <template slot-scope="{ row }">
+              <span>{{ parseTime(row.from_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="to_last_ts"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.sink')"
+            min-width="140"
+          >
+            <template slot-scope="{ row }">
+              <span>{{ parseTime(row.to_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="difference"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.difference')"
+            min-width="140"
+          >
+          <template slot-scope="{ row }">
+            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts) }}</span>
+          </template>
+          </el-table-column>
+          <el-table-column
+            prop="from_count"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.sourceNum')"
+          ></el-table-column>
+          <el-table-column
+            prop="to_count"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.sinkNum')"
+          ></el-table-column>
+        </el-table>
+        <br/>
+        <br/>
+        <p class="title">{{ $t('dataIn.vgroupReplicationProgress') }}</p>
+        <div style="margin-bottom: 8px" class="flexBetween">
+          <span>{{ $t('dataIn.updateTime') }} {{ parseTime(update_time, "YYYY-MM-DD HH:mm:ss") }}</span>
+          <el-button @click="handleRefresh" :loading="requesting" size="mini" type="primary">{{ $t('dataIn.refresh')  }}</el-button>
+        </div>
+        <el-table :data="vgroupData" size="mini" border>
+          <el-table-column
+            prop="topic"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.topic')"
+            min-width="140"
+          ></el-table-column>
+          <el-table-column
+            prop="vgroup"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.vgroup')"
+            min-width="140"
+          ></el-table-column>
+          <el-table-column
+            prop="offset"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.offset')"
+            min-width="140"
+          ></el-table-column>
+          <el-table-column
+            prop="latest"
+            show-overflow-tooltip
+            :label="$t('dataIn.tbHeader.latest')"
+            min-width="140"
+          ></el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -42,6 +143,7 @@
 <script>
 import { parseTime } from "@/utils";
 import moment from 'moment';
+import { getTableProgress, getVgroupProgress } from '@/api/explorer/datain';
 export default {
   props: {
     data: {
@@ -55,15 +157,41 @@ export default {
     taskId: {
       type: Number,
     },
+    type: {
+      type: String
+    }
   },
   components: {},
   data() {
     return { 
+      parseTime,
       datas: [], 
       activeName: 'current',
       currentMetrics: [],
       totalMetrics: [],
-      loading: true 
+      loading: true,
+      requesting: false,
+      requesting_q: false,
+      update_time: '',
+      formInline: {
+        table: '',
+        timeRange: ''
+      },
+      tbReplicationData: [
+        {
+          "table_name": "table_test",
+          "from_last_ts": 1710237231820,
+          "to_last_ts": 1710237232820,
+          "from_count": 100,
+          "to_count": 200
+        }
+      ],
+      vgroupData: [],
+      rules: {
+        table: [
+            { required: true },
+          ],
+      } 
     };
   },
   computed: {},
@@ -74,6 +202,9 @@ export default {
         if (val) {
           this.handleMetricsData(this.data);
           this.connect();
+          if (this.type == 'tmq') {
+            this.handleRefresh()
+          }
         } else {
           this.disconnect();
         }
@@ -187,8 +318,47 @@ export default {
         this.loading = false;
       }
     },
+
+    async handleRefresh() {
+      try {
+        this.requesting = true;
+        let res = await getVgroupProgress(this.taskId)
+        this.update_time = res.update_time
+        this.vgroupData = res.data
+      } catch (error) {
+        this.requesting = false;
+      }
+      this.requesting = false;
+    },
+
+    async handleQurery() {
+      this.$refs.form.validate(async (valid) => {
+        if (!valid) {
+          this.requesting_q = false;
+          return;
+        }
+        try {
+          this.requesting_q = true;
+          let { table, timeRange } = this.formInline
+          let params = 'table' + '=' + table
+          params += timeRange.length > 0 ? `&start=${timeRange[0]}&end=${timeRange[1]}` : ''
+          console.log('hhsh',this.formInline,params);
+          let res = await getTableProgress(this.taskId,params)
+          this.tbReplicationData = [].concat(res)
+        } catch (error) {
+          this.requesting_q = false;
+        }
+      })
+      this.requesting_q = false;
+    }
   },
 };
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+</style>
