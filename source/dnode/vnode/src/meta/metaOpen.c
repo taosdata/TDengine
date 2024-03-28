@@ -30,7 +30,7 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 static int32_t metaInitLock(SMeta *pMeta) {
   TdThreadRwlockAttr attr;
   taosThreadRwlockAttrInit(&attr);
-  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  // taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
   taosThreadRwlockInit(&pMeta->lock, &attr);
   taosThreadRwlockAttrDestroy(&attr);
   return 0;
