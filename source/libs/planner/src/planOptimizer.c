@@ -4469,7 +4469,9 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     //}
 
     nodesDestroyNode(pScan->pTagCond);
+    pScan->pTagCond = NULL;
     nodesDestroyNode(pScan->pTagIndexCond);
+    pScan->pTagIndexCond = NULL;
     
     pScan->node.dynamicOp = true;
     *(srcScan + i++) = pScan->pVgroupList->numOfVgroups <= 1;

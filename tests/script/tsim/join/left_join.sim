@@ -249,3 +249,25 @@ endi
 if $data31 != NULL then
   return -1
 endi
+
+sql select count(*) from tba1 a left join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(a.*) from tba1 a left join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(b.*) from tba1 a left join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi

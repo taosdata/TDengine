@@ -238,3 +238,25 @@ endi
 if $data61 != @23-11-17 16:29:04.000@ then
   return -1
 endi
+
+sql select count(*) from tba1 a full join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(a.*) from tba1 a full join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(b.*) from tba1 a full join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi

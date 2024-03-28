@@ -1906,6 +1906,30 @@ static int32_t rewriteCountStarAsCount1(STranslateContext* pCxt, SFunctionNode* 
   return code;
 }
 
+STableNode* getJoinProbeTable(STranslateContext* pCxt) {
+  if (QUERY_NODE_SELECT_STMT != nodeType(pCxt->pCurrStmt)) {
+    return NULL;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  if (NULL == pSelect->pFromTable || QUERY_NODE_JOIN_TABLE != nodeType(pSelect->pFromTable)) {
+    return NULL;
+  }
+
+  SJoinTableNode* pJoin = (SJoinTableNode*)pSelect->pFromTable;
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_INNER:
+    case JOIN_TYPE_LEFT:
+      return (STableNode*)pJoin->pLeft;
+    case JOIN_TYPE_RIGHT:
+      return (STableNode*)pJoin->pRight;
+    default:
+      break;
+  }
+
+  return NULL;  
+}
+
+
 // count(*) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pCount->pParameterList, 0);
@@ -1914,17 +1938,19 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   size_t  nums = taosArrayGetSize(pTables);
   int32_t code = 0;
   if ('\0' == pCol->tableAlias[0] && nums > 1) {
-    code = rewriteCountStarAsCount1(pCxt, pCount);
+    pTable = getJoinProbeTable(pCxt);
   } else {
     code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
-    if (TSDB_CODE_SUCCESS == code) {
-      if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
-      } else {
-        code = rewriteCountStarAsCount1(pCxt, pCount);
-      }
+  }
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+    } else {
+      code = rewriteCountStarAsCount1(pCxt, pCount);
     }
   }
+  
   return code;
 }
 
