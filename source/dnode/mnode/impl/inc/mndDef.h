@@ -217,7 +217,6 @@ typedef struct {
   EDndReason offlineReason;
   uint32_t   encryptionKeyChksum;
   int8_t     encryptionKeyStat;
-  int8_t     reboot;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];

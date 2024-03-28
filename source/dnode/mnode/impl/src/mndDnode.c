@@ -36,7 +36,7 @@
 #define TSDB_DNODE_RESERVE_SIZE 40
 
 static const char *offlineReason[] = {
-    "online",
+    "",
     "status msg timeout",
     "status not received",
     "version not match",
@@ -374,8 +374,8 @@ int32_t mndGetDbSize(SMnode *pMnode) {
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * (int64_t)tsStatusInterval) {
-    if (pDnode->rebootTime > 0 && pDnode->offlineReason != DND_REASON_STATUS_MSG_TIMEOUT) {
-      if (!pDnode->reboot) pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
+    if (pDnode->rebootTime > 0 && pDnode->offlineReason == DND_REASON_ONLINE) {
+      pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
     return false;
   }
@@ -813,7 +813,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   if (reboot) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
-  pDnode->reboot = reboot;
 
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
