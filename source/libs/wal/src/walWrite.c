@@ -18,6 +18,7 @@
 #include "tchecksum.h"
 #include "tglobal.h"
 #include "walInt.h"
+#include "crypt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
@@ -491,12 +492,13 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
                                          const void *body, int32_t bodyLen) {
   int64_t code = 0;
+  int32_t plainBodyLen = bodyLen;
 
   int64_t       offset = walGetCurFileOffset(pWal);
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
 
   pWal->writeHead.head.version = index;
-  pWal->writeHead.head.bodyLen = bodyLen;
+  pWal->writeHead.head.bodyLen = plainBodyLen;
   pWal->writeHead.head.msgType = msgType;
   pWal->writeHead.head.ingestTs = taosGetTimestampUs();
 
@@ -504,7 +506,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.syncMeta = syncMeta;
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
-  pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
+  pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
   wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s, cksum head %u cksum body %u", pWal->cfg.vgId, index,
          TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
 
@@ -521,12 +523,68 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     goto END;
   }
 
-  if (taosWriteFile(pWal->pLogFile, (char *)body, bodyLen) != bodyLen) {
+  int32_t cyptedBodyLen = plainBodyLen;
+  char* buf = (char*)body;
+  char* newBody = NULL;
+  char* newBodyEncrypted = NULL;
+
+  //TODO: dmchen enum
+  if(pWal->cfg.encryptAlgorithm == 1){
+    cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
+    char* newBody = taosMemoryMalloc(cyptedBodyLen);
+    if(newBody == NULL){
+      wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+            strerror(errno));
+      code = -1;
+      goto END;
+    }
+    memset(newBody, 0, cyptedBodyLen);
+    memcpy(newBody, body, plainBodyLen);
+
+    char* newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
+    if(newBodyEncrypted == NULL){
+      wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+            strerror(errno));
+      code = -1;
+      if(newBodyEncrypted != NULL) taosMemoryFreeClear(newBodyEncrypted);
+      if(newBody != NULL) taosMemoryFreeClear(newBody);
+      goto END;
+    }
+
+    SCryptOpts opts;
+    opts.len = cyptedBodyLen;
+    opts.source = newBody;
+    opts.result = newBodyEncrypted;
+    opts.unitLen = 16;
+    strncpy(opts.key, pWal->cfg.encryptKey, 16);
+
+    int32_t count = CBC_Encrypt(&opts);
+
+    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", 
+          pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
+
+    buf = newBodyEncrypted;
+  }
+  
+  if (taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
     code = -1;
+    //TODO: dmchen enum
+    if(pWal->cfg.encryptAlgorithm == 1){
+      taosMemoryFree(newBody);
+      taosMemoryFree(newBodyEncrypted);
+    }
     goto END;
+  }
+
+  //TODO: dmchen enum
+  if(pWal->cfg.encryptAlgorithm == 1){
+    taosMemoryFree(newBody);
+    taosMemoryFree(newBodyEncrypted); 
+    wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
+          pWal->cfg.vgId, __FUNCTION__);   
   }
 
   // set status
@@ -534,9 +592,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     pWal->vers.firstVer = 0;
   }
   pWal->vers.lastVer = index;
-  pWal->totSize += sizeof(SWalCkHead) + bodyLen;
+  pWal->totSize += sizeof(SWalCkHead) + cyptedBodyLen;
   pFileInfo->lastVer = index;
-  pFileInfo->fileSize += sizeof(SWalCkHead) + bodyLen;
+  pFileInfo->fileSize += sizeof(SWalCkHead) + cyptedBodyLen;
 
   return 0;
 

@@ -13,34 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDataFileRAW.h"
-
-#ifndef _TSDB_FSET_RAW_H
-#define _TSDB_FSET_RAW_H
+#ifndef _CRYPT_H_
+#define _CRYPT_H_
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SFSetRAWWriterConfig {
-  STsdb  *tsdb;
-  int32_t szPage;
+typedef struct SCryptOpts{
+  int32_t   len;
+  char*     source;
+  char*     result;
+  int32_t   unitLen;
+  unsigned char  key[17];
+}SCryptOpts;
 
-  SDiskID did;
-  int64_t fid;
-  int64_t cid;
-  int32_t level;
-} SFSetRAWWriterConfig;
-
-typedef struct SFSetRAWWriter SFSetRAWWriter;
-
-int32_t tsdbFSetRAWWriterOpen(SFSetRAWWriterConfig *config, SFSetRAWWriter **writer);
-int32_t tsdbFSetRAWWriterClose(SFSetRAWWriter **writer, bool abort, TFileOpArray *fopArr);
-int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm, 
-                                  char* encryptKey);
+int32_t CBC_Decrypt(SCryptOpts *opts);
+int32_t CBC_Encrypt(SCryptOpts *opts);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TSDB_FSET_RAW_H*/
+#endif // _CRYPT_H_

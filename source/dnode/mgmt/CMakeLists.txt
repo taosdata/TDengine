@@ -23,8 +23,8 @@ ENDIF ()
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEPENDENCIES(taosd jemalloc)
-    target_link_libraries(taosd dnode ${LINK_JEMALLOC})
+    target_link_libraries(taosd dnode crypt ${LINK_JEMALLOC})
 ELSE ()
-    target_link_libraries(taosd dnode)
+    target_link_libraries(taosd dnode crypt)
 ENDIF ()
 

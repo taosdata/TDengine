@@ -158,7 +158,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
   taosCloseFile(&pCfgFile);
 
-  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1) < 0) {
+  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1, 0, NULL) < 0) {
     goto _err;
   }
 

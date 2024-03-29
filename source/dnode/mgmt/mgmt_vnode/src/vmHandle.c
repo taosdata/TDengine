@@ -142,6 +142,14 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
       if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
     }
   }
+#if defined(TD_ENTERPRISE)
+  pCfg->tsdbCfg.encryptAlgorithm = DND_CA_SM4;
+  if(pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4){
+    strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+  }
+#else
+  pCfg->walCfg.cryptAlgorithm = 0;
+#endif
 
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->walCfg.fsyncPeriod = pCreate->walFsyncPeriod;
@@ -150,6 +158,23 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.retentionSize = pCreate->walRetentionSize;
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
+#if defined(TD_ENTERPRISE)
+  pCfg->walCfg.encryptAlgorithm = DND_CA_SM4;
+  if(pCfg->walCfg.encryptAlgorithm == DND_CA_SM4){
+    strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+  }
+#else
+  pCfg->walCfg.cryptAlgorithm = 0;
+#endif
+
+#if defined(TD_ENTERPRISE)
+  pCfg->tdbEncryptAlgorithm = DND_CA_SM4;
+  if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
+    strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+  }
+#else
+  pCfg->tdbEncryptKey = 0;
+#endif
 
   pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;
@@ -272,6 +297,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
            pReplica->port);
     return -1;
   }
+
+  //if(req.encryptAlgorithm == DND_CA_SM4){
+    if(strlen(tsEncryptKey) == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      dError("vgId:%d, failed to create vnode since encrypt key is empty", req.vgId);
+      return -1;
+    }
+  //}
 
   vmGenerateVnodeCfg(&req, &vnodeCfg);
 

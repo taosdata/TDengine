@@ -953,16 +953,38 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     paGetToken(name + olen + 1, &value, &vlen);
     if (vlen == 0) continue;
     value[vlen] = 0;
+    
+    if (strcasecmp(name, "encryptScope") == 0) {
+      char* tmp = NULL;
+      int32_t len = 0;
+      char newValue[1024] = {0};
 
-    paGetToken(value + vlen + 1, &value2, &vlen2);
-    if (vlen2 != 0) {
-      value2[vlen2] = 0;
-      paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
-      if (vlen3 != 0) value3[vlen3] = 0;
+      strcpy(newValue, value);
+      
+      int32_t count = 1;
+      while(vlen < 1024){
+        paGetToken(value + vlen + 1 * count, &tmp, &len);
+        if(len == 0) break;
+        tmp[len] = 0;
+        strcpy(newValue + vlen, tmp);
+        vlen += len;
+        count++;
+      }
+
+      code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
+    else{
+      paGetToken(value + vlen + 1, &value2, &vlen2);
+      if (vlen2 != 0) {
+        value2[vlen2] = 0;
+        paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+        if (vlen3 != 0) value3[vlen3] = 0;
+      }
 
-    code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+      code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+    }
 
     if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);

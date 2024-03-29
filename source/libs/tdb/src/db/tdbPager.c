@@ -14,6 +14,8 @@
  */
 
 #include "tdbInt.h"
+#include "crypt.h"
+#include "tglobal.h"
 /*
 #pragma pack(push, 1)
 typedef struct {
@@ -872,6 +874,31 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
         TDB_UNLOCK_PAGE(pPage);
         return -1;
       }
+
+      int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
+      char* encryptKey = pPager->pEnv->encryptKey;
+
+      if(encryptAlgorithm == DND_CA_SM4){
+        unsigned char		PacketData[128];
+        int		NewLen;
+
+        int32_t count = 0;
+        while(count < pPage->pageSize)
+        {
+          SCryptOpts opts = {0};
+          opts.len = 128;
+          opts.source = pPage->pData + count;
+          opts.result = PacketData;
+          opts.unitLen = 128;
+          strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+
+          NewLen = CBC_Decrypt(&opts);
+
+          memcpy(pPage->pData + count, PacketData, NewLen);
+          count += NewLen;
+        }
+        tdbInfo("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+      }
     } else {
       init = 0;
     }
@@ -960,13 +987,43 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
 
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
 
-  ret = tdbOsPWrite(pPager->fd, pPage->pData, pPage->pageSize, offset);
+  int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
+  char* encryptKey = pPager->pEnv->encryptKey;
+
+  char* buf = pPage->pData; 
+
+  if(encryptAlgorithm == DND_CA_SM4){
+    buf = taosMemoryMalloc(pPage->pageSize);
+
+    unsigned char		PacketData[128];
+    int		NewLen;
+    int32_t count = 0;
+    while (count < pPage->pageSize) {
+      SCryptOpts opts = {0};
+      opts.len = 128;
+      opts.source = pPage->pData + count;
+      opts.result = PacketData;
+      opts.unitLen = 128;
+      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+
+      NewLen = CBC_Encrypt(&opts);
+
+      memcpy(buf + count, PacketData, NewLen);
+      count += NewLen; 
+    }
+    tdbInfo("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+  }
+
+  ret = tdbOsPWrite(pPager->fd, buf, pPage->pageSize, offset);
   if (ret < 0) {
+    if(encryptAlgorithm == DND_CA_SM4) taosMemoryFreeClear(buf);
     tdbError("failed to pwrite page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->dbFileName,
              pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
+  if(encryptAlgorithm == DND_CA_SM4) taosMemoryFreeClear(buf);
 
   return 0;
 }
