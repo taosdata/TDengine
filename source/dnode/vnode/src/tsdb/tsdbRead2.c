@@ -2068,8 +2068,8 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
     return TSDB_CODE_SUCCESS;
   }
 
-  STsdbRowKey startKey = {0};
-  tRowKeyAssign(&startKey.key, &pBlockScanInfo->lastProcKey);
+  STsdbRowKey startKey;
+  startKey.key = pBlockScanInfo->lastProcKey;
   startKey.version = asc ? pReader->info.verRange.minVer : pReader->info.verRange.maxVer;
   if ((asc && (startKey.key.ts < pWindow->skey)) || ((!asc) && startKey.key.ts > pWindow->ekey)) {
     startKey.key.ts = asc? pWindow->skey:pWindow->ekey;
