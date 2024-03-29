@@ -114,6 +114,7 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
+  int8_t         encrypting;
   char          *path;
   int64_t        checkTime;
   SyncIndex      applied;

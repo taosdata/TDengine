@@ -151,6 +151,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_GRANTS_LOGS,
   TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_ARBGROUP,
+  TSDB_MGMT_TABLE_ENCRYPTIONS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -366,6 +367,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_GRANTS_FULL_STMT,
   QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
   QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
+  QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1155,6 +1157,7 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
+  int8_t  encryptAlgorithm;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1297,6 +1300,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
+  int8_t  encryptAlgorithm;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;
@@ -1488,13 +1492,15 @@ void    tFreeSFuncInfo(SFuncInfo* pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
-  int32_t statusInterval;
-  int64_t checkTime;                  // 1970-01-01 00:00:00.000
-  char    timezone[TD_TIMEZONE_LEN];  // tsTimezone
-  char    locale[TD_LOCALE_LEN];      // tsLocale
-  char    charset[TD_LOCALE_LEN];     // tsCharset
-  int8_t  ttlChangeOnWrite;
-  int8_t  enableWhiteList;
+  int32_t  statusInterval;
+  int64_t  checkTime;                  // 1970-01-01 00:00:00.000
+  char     timezone[TD_TIMEZONE_LEN];  // tsTimezone
+  char     locale[TD_LOCALE_LEN];      // tsLocale
+  char     charset[TD_LOCALE_LEN];     // tsCharset
+  int8_t   ttlChangeOnWrite;
+  int8_t   enableWhiteList;
+  int8_t   encryptionKeyStat;
+  uint32_t encryptionKeyChksum;
 } SClusterCfg;
 
 typedef struct {

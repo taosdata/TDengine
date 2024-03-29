@@ -113,6 +113,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
+  req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;  // ENCRYPT_TODO
+  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum; // ENCRYPT_TODO
+  //     pMgmt->pData->dnodeId == 1 ? 0 : pMgmt->pData->dnodeId + 10;  // tsEncryptionKeyChksum; // ENCRYPT_TODO
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -421,6 +424,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

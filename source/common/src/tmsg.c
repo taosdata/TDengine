@@ -1177,6 +1177,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->clusterCfg.locale) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->clusterCfg.charset) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->clusterCfg.enableWhiteList) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->clusterCfg.encryptionKeyStat) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->clusterCfg.encryptionKeyChksum) < 0) return -1;
 
   // vnode loads
   int32_t vlen = (int32_t)taosArrayGetSize(pReq->pVloads);
@@ -1269,6 +1271,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->clusterCfg.locale) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->clusterCfg.charset) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->clusterCfg.enableWhiteList) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->clusterCfg.encryptionKeyStat) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->clusterCfg.encryptionKeyChksum) < 0) return -1;
 
   // vnode loads
   int32_t vlen = 0;
@@ -3026,6 +3030,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   ENCODESQL();
 
   if (tEncodeI8(&encoder, pReq->withArbitrator) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->encryptAlgorithm) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3097,8 +3102,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   DECODESQL();
 
   pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->withArbitrator) < 0) return -1;
+    if (tDecodeI8(&decoder, &pReq->encryptAlgorithm) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -3982,6 +3989,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
   if (tEncodeI8(encoder, pRsp->withArbitrator) < 0) return -1;
+  if (tEncodeI8(encoder, pRsp->encryptAlgorithm) < 0) return -1;
 
   return 0;
 }
@@ -4055,8 +4063,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     if (tDecodeI32(decoder, &pRsp->keepTimeOffset) < 0) return -1;
   }
   pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pRsp->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI8(decoder, &pRsp->withArbitrator) < 0) return -1;
+    if (tDecodeI8(decoder, &pRsp->encryptAlgorithm) < 0) return -1;
   }
 
   return 0;

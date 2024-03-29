@@ -1264,6 +1264,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   return (SNode*)pOptions;
 }
 
@@ -1417,6 +1418,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     }
     case DB_OPTION_KEEP_TIME_OFFSET: {
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_ENCRYPT_ALGORITHM:
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
       break;
     }
     default:
@@ -2135,6 +2139,14 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
   return (SNode*)pStmt;
+}
+
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
+  SToken config;
+  config.type = TK_NK_STRING;
+  config.z = "\"encrypt_key\"";
+  config.n = strlen(config.z);
+  return createAlterDnodeStmt(pCxt, NULL, &config, pValue);
 }
 
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {

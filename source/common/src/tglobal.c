@@ -83,8 +83,6 @@ int32_t tsSnapReplMaxWaitN = 128;
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
-int8_t  tsGrant = 1;
-int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 
@@ -97,6 +95,11 @@ int32_t tsArbSetAssignedTimeoutSec = 30;
 int64_t tsDndStart = 0;
 int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
+
+// dnode misc
+uint32_t tsEncryptionKeyChksum = 0;
+int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED; //ENCRYPT_KEY_STAT_UNKNOWN;
+int8_t   tsGrant = 1;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -701,7 +704,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "grantMode", tsMndGrantMode, 0, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1222,7 +1224,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
   tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
-  tsMndGrantMode = cfgGetItem(pCfg, "grantMode")->i32;
   tsEnableWhiteList = cfgGetItem(pCfg, "enableWhiteList")->bval;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;

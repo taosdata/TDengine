@@ -111,8 +111,6 @@ extern char tsSnodeAddress[];  // 127.0.0.1:873
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
-extern int8_t  tsGrant;
-extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 
@@ -120,6 +118,11 @@ extern bool    tsEnableWhiteList;
 extern int64_t tsDndStart;
 extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
+
+// dnode misc
+extern uint32_t tsEncryptionKeyChksum;
+extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;

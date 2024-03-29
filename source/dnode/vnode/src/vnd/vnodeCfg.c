@@ -89,9 +89,10 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "cacheLast", pCfg->cacheLast) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "cacheLastSize", pCfg->cacheLastSize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "encryptAlgorithm", pCfg->encryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isTsma", pCfg->isTsma) < 0) return -1;
@@ -191,11 +192,13 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "szCache", pCfg->szCache, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "cacheLast", pCfg->cacheLast, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "cacheLastSize", pCfg->cacheLastSize, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf, code);
+  tjsonGetNumberValue(pJson, "encryptAlgorithm", pCfg->encryptAlgorithm, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap, code);
   if (code < 0) return -1;
