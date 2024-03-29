@@ -37,17 +37,15 @@ class TestCountWindow(TDCase):
         self.delete = True
 
     def tags(self) -> str:
-         
         return ""
-    
+
     def author(self) -> str:
-         
         return "Jayden"
 
     def desc(self) -> str:
         case_description = '''
         ---
-        ''' 
+        '''
         return case_description
 
     def get_random_ts(self, tbname):
@@ -63,7 +61,7 @@ class TestCountWindow(TDCase):
             for tbname in self.tbname_check_list:
                 if "stb" in tbname:
                     if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"')
+                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"', additional_ts=True)
                     if self.delete:
                         self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
                     # # No partition
@@ -112,7 +110,7 @@ class TestCountWindow(TDCase):
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, sliding=sliding, union=True)
                 else:
                     if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=tbname, ts_value=f'"{self.get_random_ts(tbname)}"')
+                        self.tdCom.insert_rows(dbname=self.dbname, tbname=tbname, ts_value=f'"{self.get_random_ts(tbname)}"', additional_ts=True)
                     if self.delete:
                         self.tdCom.delete_rows(dbname=self.dbname, tbname=tbname, start_ts=f'"{self.get_random_ts(tbname)}"')
                     # # No partition
@@ -173,7 +171,7 @@ class TestCountWindow(TDCase):
                     # Partition by dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index)
-    
+
     def dup_ts_col_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, insert_mode="None"):
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type, insert_mode=insert_mode)
         for count_window_vol in self.count_window_vol_list:
@@ -182,7 +180,7 @@ class TestCountWindow(TDCase):
                     # Partition by dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from (select * from {tbname} order by ts,c{custom_col_index+1}) partition by c1 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c1", custom_col_index, insert_mode=insert_mode)
-        
+
     def dup_ts_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, where_condition=None, having_elm=None, having_condition=None, alias_name=None, sliding=None, insert_mode=None):
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type, insert_mode=insert_mode)
         condition_vol = "" if where_condition is None else f"where {where_condition}"
@@ -190,7 +188,7 @@ class TestCountWindow(TDCase):
             for tbname in self.tbname_check_list:
                 if "stb" in tbname:
                     if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"')
+                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"', additional_ts=True)
                     if self.delete:
                         self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
                     # # No partition
@@ -237,7 +235,7 @@ class TestCountWindow(TDCase):
                     # # union
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from (select * from {tbname} order by ts,c{custom_col_index+1}) count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, sliding=sliding, union=True, insert_mode=insert_mode)
-        
+
     def error_sql_test(self, stable_count, ctable_count, table_count, row_count):
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count)
         self.tdSql.error(f'select _wstart, _wend, {self.stb_source_select_str} from {self.tbname_check_list[0]} count_window(1)')
@@ -249,7 +247,7 @@ class TestCountWindow(TDCase):
         self.tdSql.error(f'select _wstart, _wend, {self.stb_source_select_str} from {self.tbname_check_list[0]} count_window(2) state_window(c1)')
         self.tdSql.error(f'select _wstart, _wend, {self.stb_source_select_str} from {self.tbname_check_list[0]} count_window(2) event_window start with c1 > 0 end with c2 > 0')
         self.tdSql.error(f'select _wstart, _wend, {self.stb_source_select_str} from {self.tbname_check_list[0]} count_window(2) group by c1')
-                                         
+
     def run(self)-> bool:
         self.no_dup_ts_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", where_condition="c1 > 0", having_elm="min(c1)", having_condition="< 0", alias_name=self.alias_name, sliding=1)
         self.dup_col_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Part_equal")
