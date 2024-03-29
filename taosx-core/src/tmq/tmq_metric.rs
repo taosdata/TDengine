@@ -138,7 +138,7 @@ impl TmqMetrics {
                     topic: topic.clone(),
                     vgroup: assignment.vgroup_id(),
                     offset: assignment.current_offset(),
-                    latest: assignment.end(),
+                    latest: assignment.end() - 1, // end is the next offset
                 });
             }
         }
