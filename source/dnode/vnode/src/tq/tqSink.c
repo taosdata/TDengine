@@ -613,7 +613,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
 
     // wait for the table to be created
     SMetaReader mr = {0};
-    metaReaderDoInit(&mr, pVnode->pMeta, 0);
+    metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
     int32_t code = metaGetTableEntryByName(&mr, dstTableName);
     if (code == 0) {  // table already exists, check its type and uid
@@ -706,7 +706,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     // those mismatched table uids. Only the FIRST table has the correct table uid, and those remain all have
     // randomly generated, but false table uid in the WAL.
     SMetaReader mr = {0};
-    metaReaderDoInit(&mr, pVnode->pMeta, 0);
+    metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
     // table not in cache, let's try the extract it from tsdb meta
     if (metaGetTableEntryByName(&mr, dstTableName) < 0) {

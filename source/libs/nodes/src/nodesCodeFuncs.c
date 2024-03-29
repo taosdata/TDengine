@@ -211,6 +211,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowSnodesStmt";
     case QUERY_NODE_SHOW_BNODES_STMT:
       return "ShowBnodesStmt";
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return "ShowArbGroupsStmt";
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return "ShowClusterStmt";
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -268,7 +270,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
-      return "ShowCompactDetailsStmt";     
+      return "ShowCompactDetailsStmt";
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return "ShowGrantsFullStmt";
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
@@ -3180,16 +3182,16 @@ static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGrpColsMayBeNull, pNode->grpColsMayBeNull);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGroupByUid, pNode->grpByUid);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanGlobalGroup, pNode->globalGrp);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanBatchFetch, pNode->batchFetch);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCachePhysiPlanGroupCols, pNode->pGroupCols);
   }
@@ -3616,6 +3618,8 @@ static const char* jkColumnTableAlias = "TableAlias";
 static const char* jkColumnColName = "ColName";
 static const char* jkColumnDataBlockId = "DataBlockId";
 static const char* jkColumnSlotId = "SlotId";
+static const char* jkColumnTableHasPk = "TableHasPk";
+static const char* jkColumnIsPk = "IsPk";
 
 static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -3654,7 +3658,12 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkColumnSlotId, pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnTableHasPk, pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnIsPk, pNode->isPk);
+  }  
   return code;
 }
 
@@ -3695,7 +3704,12 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetSmallIntValue(pJson, jkColumnSlotId, &pNode->slotId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnTableHasPk, &pNode->tableHasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnIsPk, &pNode->isPk);
+  }      
   return code;
 }
 
@@ -4034,6 +4048,8 @@ static const char* jkFunctionId = "Id";
 static const char* jkFunctionType = "Type";
 static const char* jkFunctionParameter = "Parameters";
 static const char* jkFunctionUdfBufSize = "UdfBufSize";
+static const char* jkFunctionHasPk = "HasPk";
+static const char* jkFunctionPkBytes = "PkBytes";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -4054,7 +4070,12 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionUdfBufSize, pNode->udfBufSize);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkFunctionHasPk, pNode->hasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionPkBytes, pNode->pkBytes);
+  }
   return code;
 }
 
@@ -4077,7 +4098,12 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkFunctionUdfBufSize, &pNode->udfBufSize);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFunctionHasPk, &pNode->hasPk);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkFunctionPkBytes, &pNode->pkBytes);
+  }  
   return code;
 }
 
@@ -6676,6 +6702,10 @@ static int32_t showQnodesStmtToJson(const void* pObj, SJson* pJson) { return sho
 
 static int32_t jsonToShowQnodesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
+static int32_t showArbGroupsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowArbGroupsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
 static int32_t showClusterStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowClusterStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
@@ -7203,6 +7233,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return showQnodesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return showArbGroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return showClusterStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -7542,6 +7574,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowMnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_QNODES_STMT:
       return jsonToShowQnodesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+      return jsonToShowArbGroupsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return jsonToShowClusterStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -7606,7 +7640,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToRestoreQnodeStmt(pJson, pObj);
     case QUERY_NODE_RESTORE_MNODE_STMT:
       return jsonToRestoreMnodeStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_VNODE_STMT:  
+    case QUERY_NODE_RESTORE_VNODE_STMT:
       return jsonToRestoreVnodeStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return jsonToLogicScanNode(pJson, pObj);

@@ -36,6 +36,7 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
+#define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
 
 #define STREAM_STATE_BUFF_HASH 1
@@ -192,7 +193,7 @@ typedef struct TsdReader {
 typedef struct SStoreCacheReader {
   int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                          SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                         SArray *pFuncTypeList);
+                         SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
   void    *(*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                            SArray *pTableUidList);
@@ -239,12 +240,12 @@ typedef struct SStoreSnapshotFn {
 } SStoreSnapshotFn;
 
 typedef struct SStoreMeta {
-  SMTbCursor* (*openTableMetaCursor)(void* pVnode);                     // metaOpenTbCursor
-  void (*closeTableMetaCursor)(SMTbCursor* pTbCur);                     // metaCloseTbCursor
-  void (*pauseTableMetaCursor)(SMTbCursor* pTbCur);                     // metaPauseTbCursor
-  void (*resumeTableMetaCursor)(SMTbCursor* pTbCur, int8_t first);      // metaResumeTbCursor
-  int32_t (*cursorNext)(SMTbCursor* pTbCur, ETableType jumpTableType);  // metaTbCursorNext
-  int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);  // metaTbCursorPrev
+  SMTbCursor* (*openTableMetaCursor)(void* pVnode);                              // metaOpenTbCursor
+  void (*closeTableMetaCursor)(SMTbCursor* pTbCur);                              // metaCloseTbCursor
+  void (*pauseTableMetaCursor)(SMTbCursor* pTbCur);                              // metaPauseTbCursor
+  void (*resumeTableMetaCursor)(SMTbCursor* pTbCur, int8_t first, int8_t move);  // metaResumeTbCursor
+  int32_t (*cursorNext)(SMTbCursor* pTbCur, ETableType jumpTableType);           // metaTbCursorNext
+  int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);           // metaTbCursorPrev
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
   int32_t (*getTableTagsByUid)(void* pVnode, int64_t suid, SArray* uidList);

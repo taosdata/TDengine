@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
+#include "audit.h"
+#include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
@@ -30,12 +32,11 @@
 #include "mndVgroup.h"
 #include "mndView.h"
 #include "systable.h"
-#include "tjson.h"
 #include "thttp.h"
-#include "audit.h"
+#include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 42
+#define DB_RESERVE_SIZE 41
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -43,14 +44,14 @@ static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
 static int32_t  mndNewDbActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
-static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessUseDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessTrimDbReq(SRpcMsg *pReq);
-static int32_t  mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
-static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
-static int32_t  mndProcessGetDbCfgReq(SRpcMsg *pReq);
+static int32_t mndProcessCreateDbReq(SRpcMsg *pReq);
+static int32_t mndProcessAlterDbReq(SRpcMsg *pReq);
+static int32_t mndProcessDropDbReq(SRpcMsg *pReq);
+static int32_t mndProcessUseDbReq(SRpcMsg *pReq);
+static int32_t mndProcessTrimDbReq(SRpcMsg *pReq);
+static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
+static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
+static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
@@ -139,6 +140,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -230,6 +232,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -319,6 +322,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.minRows = pNew->cfg.minRows;
   pOld->cfg.maxRows = pNew->cfg.maxRows;
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
+  pOld->cfg.withArbitrator = pNew->cfg.withArbitrator;
   pOld->compactStartTime = pNew->compactStartTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -393,7 +397,11 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
+#ifdef TD_ENTERPRISE
+  if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
+#else
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
+#endif
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
@@ -418,33 +426,48 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   return terrno;
 }
 
-static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
+static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pNewCfg) {
   terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
-  if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
-  if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
-  if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
-  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
-  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
-  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
-  if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
-  if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
-  if (pCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return -1;
-  if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
-  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
-  if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
-  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
-  if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
-  if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
-  if (pCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
-  if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
-  if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
-  if (pCfg->minRows > pCfg->maxRows) return -1;
-  if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
-  if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
-  if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
-  if (pCfg->replications > mndGetDnodeSize(pMnode)) {
+  if (pNewCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pNewCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
+  if (pNewCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pNewCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
+  if (pNewCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pNewCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
+  if (pNewCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pNewCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
+  if (pNewCfg->daysToKeep0 < TSDB_MIN_KEEP || pNewCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
+  if (pNewCfg->daysToKeep1 < TSDB_MIN_KEEP || pNewCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
+  if (pNewCfg->daysToKeep2 < TSDB_MIN_KEEP || pNewCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
+  if (pNewCfg->daysToKeep0 < pNewCfg->daysPerFile) return -1;
+  if (pNewCfg->daysToKeep0 > pNewCfg->daysToKeep1) return -1;
+  if (pNewCfg->daysToKeep1 > pNewCfg->daysToKeep2) return -1;
+  if (pNewCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pNewCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET)
+    return -1;
+  if (pNewCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pNewCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
+  if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
+  if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
+  if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
+  if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
+#ifdef TD_ENTERPRISE
+  if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
+  if (pNewCfg->replications == 2 && pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR) {
+    if (pOldCfg->replications != 1 && pOldCfg->replications != 2) {
+      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+      return -1;
+    }
+  }
+  if (pNewCfg->replications != 2 && pOldCfg->replications == 2) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return -1;
+  }
+#else
+  if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
+#endif
+  if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
+  if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
+  if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
+  if (pNewCfg->minRows > pNewCfg->maxRows) return -1;
+  if (pNewCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
+  if (pNewCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
+  if (pNewCfg->strict < TSDB_DB_STRICT_OFF || pNewCfg->strict > TSDB_DB_STRICT_ON) return -1;
+  if (pNewCfg->replications > mndGetDnodeSize(pMnode)) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     return -1;
   }
@@ -484,6 +507,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
+  if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
 }
 
 static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
@@ -515,6 +539,15 @@ static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     if (sdbSetRawStatus(pVgRaw, SDB_STATUS_UPDATE) != 0) return -1;
   }
 
+  if (pDb->cfg.withArbitrator) {
+    for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
+      SVgObj   *pVgObj = pVgroups + v;
+      SArbGroup arbGroup = {0};
+      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      if (mndSetCreateArbGroupRedoLogs(pTrans, &arbGroup) != 0) return -1;
+    }
+  }
+
   return 0;
 }
 
@@ -529,6 +562,15 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     if (pVgRaw == NULL) return -1;
     if (mndTransAppendUndolog(pTrans, pVgRaw) != 0) return -1;
     if (sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  }
+
+  if (pDb->cfg.withArbitrator) {
+    for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
+      SVgObj   *pVgObj = pVgroups + v;
+      SArbGroup arbGroup = {0};
+      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      if (mndSetCreateArbGroupUndoLogs(pTrans, &arbGroup) != 0) return -1;
+    }
   }
 
   return 0;
@@ -546,6 +588,15 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pVgRaw == NULL) return -1;
     if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
     if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
+  }
+
+  if (pDb->cfg.withArbitrator) {
+    for (int32_t v = 0; v < pDb->cfg.numOfVgroups; ++v) {
+      SVgObj   *pVgObj = pVgroups + v;
+      SArbGroup arbGroup = {0};
+      mndArbGroupInitFromVgObj(pVgObj, &arbGroup);
+      if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+    }
   }
 
   if (pUserDuped) {
@@ -629,6 +680,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .hashPrefix = pCreate->hashPrefix,
       .hashSuffix = pCreate->hashSuffix,
       .tsdbPageSize = pCreate->tsdbPageSize,
+      .withArbitrator = pCreate->withArbitrator,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -698,17 +750,17 @@ _OVER:
   return code;
 }
 
-static void mndBuildAuditDetailInt32(char* detail, char* tmp, char* format, int32_t para){
-  if(para > 0){
-    if(strlen(detail) > 0) strcat(detail, ", ");
+static void mndBuildAuditDetailInt32(char *detail, char *tmp, char *format, int32_t para) {
+  if (para > 0) {
+    if (strlen(detail) > 0) strcat(detail, ", ");
     sprintf(tmp, format, para);
     strcat(detail, tmp);
   }
 }
 
-static void mndBuildAuditDetailInt64(char* detail, char* tmp, char* format, int64_t para){
-  if(para > 0){
-    if(strlen(detail) > 0) strcat(detail, ", ");
+static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int64_t para) {
+  if (para > 0) {
+    if (strlen(detail) > 0) strcat(detail, ", ");
     sprintf(tmp, format, para);
     strcat(detail, tmp);
   }
@@ -893,6 +945,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->withArbitrator >= TSDB_MIN_DB_WITH_ARBITRATOR && pAlter->withArbitrator != pDb->cfg.withArbitrator) {
+    pDb->cfg.withArbitrator = pAlter->withArbitrator;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 
@@ -931,11 +989,23 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray) != 0) {
+      SVgObj newVgroup = {0};
+      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray, &newVgroup) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         taosArrayDestroy(pArray);
         return -1;
+      }
+      if (pNewDb->cfg.withArbitrator != pOldDb->cfg.withArbitrator) {
+        if (pNewDb->cfg.withArbitrator) {
+          SArbGroup arbGroup = {0};
+          mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
+          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+        } else {
+          SArbGroup arbGroup = {0};
+          mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
+          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+        }
       }
     }
 
@@ -1013,7 +1083,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCheckInChangeDbCfg(pMnode, &dbObj.cfg);
+  code = mndCheckInChangeDbCfg(pMnode, &pDb->cfg, &dbObj.cfg);
   if (code != 0) goto _OVER;
 
   dbObj.cfgVersion++;
@@ -1081,6 +1151,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
   cfgRsp->schemaless = pDb->cfg.schemaless;
   cfgRsp->sstTrigger = pDb->cfg.sstTrigger;
+  cfgRsp->withArbitrator = pDb->cfg.withArbitrator;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -1149,6 +1220,22 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
+
+  while (1) {
+    SArbGroup *pArbGroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_ARBGROUP, pIter, (void **)&pArbGroup);
+    if (pIter == NULL) break;
+
+    if (pArbGroup->dbUid == pDb->uid) {
+      if (mndSetDropArbGroupCommitLogs(pTrans,pArbGroup) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pArbGroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pArbGroup);
+  }
 
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -1277,7 +1364,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
 #ifdef TD_ENTERPRISE
   if (mndDropViewByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
-#endif  
+#endif
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropIdxsByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
@@ -1390,7 +1477,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
-        if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
+        if (pVgid->syncState == TAOS_SYNC_STATE_LEADER || pVgid->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
           vgInfo.epSet.inUse = gid;
         }
       }
@@ -1562,21 +1649,19 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbCacheInfo->vgVersion >= pDb->vgVersion &&
-        pDbCacheInfo->cfgVersion >= pDb->cfgVersion &&
-        numOfTable == pDbCacheInfo->numOfTable &&
-        pDbCacheInfo->stateTs == pDb->stateTs) {
+    if (pDbCacheInfo->vgVersion >= pDb->vgVersion && pDbCacheInfo->cfgVersion >= pDb->cfgVersion &&
+        numOfTable == pDbCacheInfo->numOfTable && pDbCacheInfo->stateTs == pDb->stateTs) {
       mTrace("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
              " numOfTables:%d, not changed vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
-             pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs, pDbCacheInfo->numOfTable,
-             pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
+             pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
+             pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
       mInfo("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
             " numOfTables:%d, changed to vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
-            pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs, pDbCacheInfo->numOfTable,
-            pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
+            pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
+            pDbCacheInfo->numOfTable, pDb->vgVersion, pDb->cfgVersion, pDb->stateTs, numOfTable);
     }
 
     if (pDbCacheInfo->cfgVersion < pDb->cfgVersion) {
@@ -1584,8 +1669,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       mndDumpDbCfgInfo(rsp.cfgRsp, pDb);
     }
 
-    if (pDbCacheInfo->vgVersion < pDb->vgVersion ||
-        numOfTable != pDbCacheInfo->numOfTable ||
+    if (pDbCacheInfo->vgVersion < pDb->vgVersion || numOfTable != pDbCacheInfo->numOfTable ||
         pDbCacheInfo->stateTs != pDb->stateTs) {
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
@@ -1801,7 +1885,8 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
     if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
       bool hasLeader = false;
       for (int32_t i = 0; i < pVgroup->replica; ++i) {
-        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||
+            pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
           hasLeader = true;
         }
       }
@@ -1991,6 +2076,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
   }
 
   taosMemoryFree(buf);

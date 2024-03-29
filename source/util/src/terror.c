@@ -258,6 +258,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode can only be cre
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replica of mnode cannot less than 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode cannot exceed 3")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
 
 // mnode-dnode-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DNODES,          "Too many dnodes")
@@ -372,6 +375,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_CATCH_UP,             "Vnode didn't catch up
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_IS_VOTER,         "Vnode already is a voter")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DIR_ALREADY_EXIST,        "Vnode directory already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_META_DATA_UNSAFE_DELETE,  "Single replica vnode data will lost permanently after this operation, if you make sure this, please use drop dnode <id> unsafe to execute")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not synced")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Column compress already exist")
 
 
@@ -619,7 +623,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GET_META_ERROR,             "Fail to get table i
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,     "Not unique table/alias")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC,  "System table not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED,       "System table not allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalidate varbinary value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalid varbinary value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IP_RANGE,           "Invalid IPV4 address ranges")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STREAM_QUERY,       "Invalid stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VIEW_QUERY,         "Invalid view query type")
@@ -628,6 +632,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE,   "View name is confli
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT,   "Operator not supported multi result")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY,         "tag can not be primary key")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SECOND_COL_PK,              "primary key must be second column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "primary key column must be of type int, uint, bigint, ubigint, and varchar")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -714,7 +720,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled 
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_STATETRANS,      "Invalid task state to handle event")
-TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,"Invalid task status to proceed")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status to proceed")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")

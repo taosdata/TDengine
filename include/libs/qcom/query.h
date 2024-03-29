@@ -198,7 +198,7 @@ typedef struct STableDataCxt {
   SBoundColInfo  boundColsInfo;
   SArray*        pValues;
   SSubmitTbData* pData;
-  TSKEY          lastTs;
+  SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
 } STableDataCxt;

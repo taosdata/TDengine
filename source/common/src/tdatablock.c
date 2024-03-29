@@ -490,9 +490,9 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
     return 0;
   }
 
-  if (pDataBlock->info.rows > 0) {
+//  if (pDataBlock->info.rows > 0) {
     //    ASSERT(pDataBlock->info.dataLoad == 1);
-  }
+//  }
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   if (numOfCols <= 0) {
@@ -511,6 +511,51 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
 
   pDataBlock->info.window.skey = TMIN(skey, ekey);
   pDataBlock->info.window.ekey = TMAX(skey, ekey);
+
+  return 0;
+}
+
+int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, bool asc) {
+  if (pDataBlock == NULL || pDataBlock->info.rows <= 0 || pDataBlock->info.dataLoad == 0 || pkColumnIndex == -1) {
+    return 0;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  if (numOfCols <= 0) {
+    return -1;
+  }
+
+  SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pkColumnIndex);
+  if (!IS_NUMERIC_TYPE(pColInfoData->info.type) && (pColInfoData->info.type != TSDB_DATA_TYPE_VARCHAR)) {
+    return 0;
+  }
+
+  void* skey = colDataGetData(pColInfoData, 0);
+  void* ekey = colDataGetData(pColInfoData, (pDataBlock->info.rows - 1));
+
+  if (asc) {
+    if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
+      pDataBlock->info.pks[0].val = *(int32_t*) skey;
+      pDataBlock->info.pks[1].val = *(int32_t*) ekey;
+    } else {  // todo refactor
+      memcpy(pDataBlock->info.pks[0].pData, varDataVal(skey), varDataLen(skey));
+      pDataBlock->info.pks[0].nData = varDataLen(skey);
+
+      memcpy(pDataBlock->info.pks[1].pData, varDataVal(ekey), varDataLen(ekey));
+      pDataBlock->info.pks[1].nData = varDataLen(ekey);
+    }
+  } else {
+    if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
+      pDataBlock->info.pks[0].val = *(int32_t*) ekey;
+      pDataBlock->info.pks[1].val = *(int32_t*) skey;
+    } else {  // todo refactor
+      memcpy(pDataBlock->info.pks[0].pData, varDataVal(ekey), varDataLen(ekey));
+      pDataBlock->info.pks[0].nData = varDataLen(ekey);
+
+      memcpy(pDataBlock->info.pks[1].pData, varDataVal(skey), varDataLen(skey));
+      pDataBlock->info.pks[1].nData = varDataLen(skey);
+    }
+  }
 
   return 0;
 }

@@ -118,6 +118,7 @@ typedef struct SInputColumnInfoData {
   int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
+  SColumnInfoData  *pPrimaryKey;      // primary key column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
   uint64_t uid;  // table uid, used to set the tag value when building the final query result for selectivity functions.
@@ -180,6 +181,46 @@ typedef struct SFunctionStateStore {
   int32_t (*streamStateFuncGet)(SStreamState *pState, const SWinKey *key, void **ppVal, int32_t *pVLen);
 } SFunctionStateStore;
 
+typedef struct SFuncInputRow {
+  TSKEY ts;
+  bool isDataNull;
+  char* pData;
+  char* pPk;
+
+  SSDataBlock* block; // prev row block or src block
+  int32_t rowIndex; // prev row block ? 0 : rowIndex in srcBlock
+
+  //TODO:
+  // int32_t startOffset; // for diff, derivative
+  // SPoint1 startPoint; // for twa
+} SFuncInputRow;
+
+typedef struct SFuncInputRowIter {
+  bool  hasPrev;
+ 
+  SInputColumnInfoData* pInput;
+  SColumnInfoData* pDataCol;
+  SColumnInfoData* pPkCol;
+  TSKEY* tsList;
+  int32_t rowIndex;
+  int32_t inputEndIndex;
+  SSDataBlock* pSrcBlock;
+
+  TSKEY prevBlockTsEnd;
+  bool prevIsDataNull;
+  char* pPrevData;
+  char* pPrevPk;
+  SSDataBlock* pPrevRowBlock; // pre one row block
+
+  //TODO:
+  // int32_t prevStartOffset; // for diff, derivative.
+  // SPoint1 prevStartPoint; // for twa.   
+  // int32_t startOffset; // for diff, derivative.
+  // SPoint1 startPoint; // for twa. 
+
+  bool finalRow;
+} SFuncInputRowIter;
+
 // sql function runtime context
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
@@ -209,6 +250,9 @@ typedef struct SqlFunctionCtx {
   int32_t              exprIdx;
   char                *udfName;
   SFunctionStateStore *pStore;
+  bool                 hasPrimaryKey;
+  SFuncInputRowIter    rowIter;
+  bool                 bInputFinished;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
