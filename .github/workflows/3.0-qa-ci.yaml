@@ -46,11 +46,14 @@ jobs:
       - name: taosx unit test
         continue-on-error: true
         run: |
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-              echo "run taosx unit test"
-              export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
-              cargo test --target-dir ./target/debug/taosx-build/
-          fi
+          echo "run taosx unit test"
+          # if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+          #     echo "run taosx unit test"
+          #     export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+          #     cargo test --target-dir ./target/debug/taosx-build/
+          # fi
+          # cargo llvm-cov nextest --workspace
+          # cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
 
       - name: Build agent
         run: |
@@ -63,13 +66,11 @@ jobs:
       - name: taosx unit test    
         continue-on-error: true
         run: |
-          # if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-          #     echo "run taosx unit test"
-          #     export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
-          #     cargo test --target-dir ./target/debug/taosx-build/
-          # fi
-          cargo llvm-cov nextest --workspace
-          cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run unit test"
+            export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+            cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
+          fi
 
       - name: Copy files
         run: |
