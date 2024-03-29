@@ -546,10 +546,12 @@ async fn sync(
                         tracing::warn!("Commit error: {err:?}");
                     } else {
                         if refresh_pgrogress_interval.ticked() {
+                            tracing::debug!("Update progress");
                             let assignments = consumer.assignments().await;
                             match assignments {
                                 Some(assignments) => {
                                     for (topic, assignments) in assignments {
+                                        tracing::debug!("topic: {}, {:?}", topic, &assignments); // debug
                                         metrics.update_progress(topic, assignments);
                                     }
                                 }
