@@ -1595,16 +1595,29 @@ static int32_t getPreSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, 
   return code;
 }
 
+static void getPreVersionDataBlock(uint64_t uid, TSKEY startTs, TSKEY endTs, int64_t version, char* taskIdStr,
+                                   SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+  SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, uid, startTs, endTs, version);
+  printDataBlock(pPreRes, "pre res", taskIdStr);
+  blockDataCleanup(pBlock);
+  int32_t code = blockDataEnsureCapacity(pBlock, pPreRes->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return ;
+  }
+
+  SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pPreRes->pDataBlock, pInfo->primaryTsIndex);
+  for (int32_t i = 0; i < pPreRes->info.rows; i++) {
+    uint64_t groupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, i);
+    appendDataToSpecialBlock(pBlock, ((TSKEY*)pTsCol->pData) + i, ((TSKEY*)pTsCol->pData) + i, &uid, &groupId, NULL);
+  }
+  printDataBlock(pBlock, "new delete", taskIdStr);
+}
+
 static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
-  blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  ASSERT(taosArrayGetSize(pSrcBlock->pDataBlock) >= 3);
+  SExecTaskInfo*   pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
   SColumnInfoData* pStartTsCol = taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1612,8 +1625,21 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
   uint64_t*        uidCol = (uint64_t*)pUidCol->pData;
   SColumnInfoData* pSrcPkCol = NULL;
-  if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX ) {
+  if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX) {
     pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
+  }
+  int64_t ver = pSrcBlock->info.version - 1;
+
+  if (pInfo->partitionSup.needCalc && (startData[0] != endData[0] || hasPrimaryKey(pInfo))) {
+    getPreVersionDataBlock(uidCol[0], startData[0], endData[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
+    startData = (TSKEY*)pStartTsCol->pData;
+    endData = (TSKEY*)pEndTsCol->pData;
+    uidCol = (uint64_t*)pUidCol->pData;
+  }
+  blockDataCleanup(pDestBlock);
+  int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   SColumnInfoData* pDestStartCol = taosArrayGet(pDestBlock->pDataBlock, START_TS_COLUMN_INDEX);
@@ -1622,7 +1648,6 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  int64_t          ver = pSrcBlock->info.version - 1;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     void* pVal = NULL;
     if (hasPrimaryKey(pInfo)) {
@@ -1663,11 +1688,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  ASSERT(taosArrayGetSize(pSrcBlock->pDataBlock) >= 3);
+  SExecTaskInfo*   pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
   SColumnInfoData* pStartTsCol = taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   TSKEY*           startData = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1678,6 +1699,19 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX ) {
     pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
   }
+  int64_t ver = pSrcBlock->info.version - 1;
+
+  if (pInfo->partitionSup.needCalc && (startData[0] != endData[0] || hasPrimaryKey(pInfo))) {
+    getPreVersionDataBlock(uidCol[0], startData[0], endData[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
+    startData = (TSKEY*)pStartTsCol->pData;
+    endData = (TSKEY*)pEndTsCol->pData;
+    uidCol = (uint64_t*)pUidCol->pData;
+  }
+
+  int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   SColumnInfoData* pDestStartCol = taosArrayGet(pDestBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestEndCol = taosArrayGet(pDestBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -1685,7 +1719,6 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  int64_t          ver = pSrcBlock->info.version - 1;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     void* pVal = NULL;
     if (hasPrimaryKey(pInfo)) {
@@ -1709,8 +1742,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
 
 static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
   blockDataCleanup(pDestBlock);
-  int32_t rows = pSrcBlock->info.rows;
-  if (rows == 0) {
+  if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
   SExecTaskInfo*   pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
@@ -1729,34 +1761,15 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
 
-  if (pInfo->partitionSup.needCalc && srcStartTsCol[0] != srcEndTsCol[0]) {
-    uint64_t     srcUid = srcUidData[0];
-    TSKEY        startTs = srcStartTsCol[0];
-    TSKEY        endTs = srcEndTsCol[0];
-    SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, srcUid, startTs, endTs, ver);
-    printDataBlock(pPreRes, "pre res", GET_TASKID(pTaskInfo));
-    blockDataCleanup(pSrcBlock);
-    int32_t code = blockDataEnsureCapacity(pSrcBlock, pPreRes->info.rows);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pPreRes->pDataBlock, pInfo->primaryTsIndex);
-    rows = pPreRes->info.rows;
-
-    for (int32_t i = 0; i < rows; i++) {
-      uint64_t groupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, i);
-      appendDataToSpecialBlock(pSrcBlock, ((TSKEY*)pTsCol->pData) + i, ((TSKEY*)pTsCol->pData) + i, &srcUid,
-                                       &groupId, NULL);
-    }
-    printDataBlock(pSrcBlock, "new delete", GET_TASKID(pTaskInfo));
+  if (pInfo->partitionSup.needCalc && (srcStartTsCol[0] != srcEndTsCol[0] || hasPrimaryKey(pInfo))) {
+    getPreVersionDataBlock(srcUidData[0], srcStartTsCol[0], srcEndTsCol[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
+    srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
+    srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
+    srcUidData = (uint64_t*)pSrcUidCol->pData;
   }
-  uint64_t* srcGp = (uint64_t*)pSrcGpCol->pData;
-  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
-  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
-  srcUidData = (uint64_t*)pSrcUidCol->pData;
 
-  int32_t code = blockDataEnsureCapacity(pDestBlock, rows);
+  uint64_t* srcGp = (uint64_t*)pSrcGpCol->pData;
+  int32_t code = blockDataEnsureCapacity(pDestBlock, pSrcBlock->info.rows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1767,7 +1780,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   SColumnInfoData* pGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  for (int32_t i = 0; i < rows;) {
+  for (int32_t i = 0; i < pSrcBlock->info.rows;) {
     uint64_t srcUid = srcUidData[i];
     uint64_t groupId = srcGp[i];
     if (groupId == 0) {
