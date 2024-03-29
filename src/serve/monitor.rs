@@ -258,7 +258,10 @@ async fn add_task_metrics_tables(
                     tables.push(metrics.into_table(taosx_id))
                 }
                 core_metrics::CoreMetrics::TMQ(metrics) => {
-                    tables.push(metrics.into_table(taosx_id))
+                    tables.push(metrics.into_table(taosx_id));
+                    if !metrics.progress.is_empty() {
+                        add_task_progress_tables(&metrics.progress, taosx_id, task_id, tables);
+                    }
                 }
                 core_metrics::CoreMetrics::IPC(metrics) => {
                     tables.push(metrics.into_table(taosx_id))
@@ -268,6 +271,54 @@ async fn add_task_metrics_tables(
                 tracing::debug!("metrics for task {} is not initialized", task_id);
                 continue;
             }
+        }
+    }
+}
+
+/// 将 TMQ task 的 progress 转换成 Table
+fn add_task_progress_tables(
+    progress: &dashmap::DashMap<String, Vec<taos::taos_query::tmq::Assignment>>,
+    taosx_id: &str,
+    task_id: i64,
+    tables: &mut Vec<Table>,
+) {
+    for entry in progress.iter() {
+        let topic = entry.key().clone();
+        let assignments = entry.value();
+        for assignment in assignments {
+            let table_key = TableKey {
+                stable: "taosx_task_progress".to_string(),
+                tags: vec![
+                    Tag {
+                        name: "taosx_id".to_string(),
+                        value: taosx_id.to_string(),
+                    },
+                    Tag {
+                        name: "task_id".to_string(),
+                        value: task_id.to_string(),
+                    },
+                    Tag {
+                        name: "topic".to_string(),
+                        value: topic.clone(),
+                    },
+                    Tag {
+                        name: "vgroup".to_string(),
+                        value: assignment.vgroup_id().to_string(),
+                    },
+                ],
+            };
+            let metrics = vec![
+                Metric {
+                    name: "offset".to_string(),
+                    value: assignment.current_offset() as f64,
+                },
+                Metric {
+                    name: "latest".to_string(),
+                    value: assignment.end() as f64 - 1.0,
+                },
+            ];
+            let table = Table { table_key, metrics };
+            tables.push(table);
         }
     }
 }
