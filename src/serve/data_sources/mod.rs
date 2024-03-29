@@ -19,8 +19,6 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::runners::historian;
-use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
 use taosx_core::{list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
 mod definition;

@@ -880,19 +880,19 @@ pub struct TableProgress {
 pub async fn get_table_progress(
     from: &String,
     to: &String,
+    // format db.table
     table: &str,
     start: Option<&String>,
-    _end: Option<&String>,
+    end: Option<&String>,
 ) -> anyhow::Result<TableProgress> {
     let mut from: Dsn = from.parse()?;
     let _ = from.remove("use.topic.name");
     let _ = from.remove("use.table.name");
     let _ = from.remove("with.meta.delete");
     let _ = from.remove("with.meta.drop");
-    let from_db = from
-        .subject
-        .clone()
-        .ok_or(anyhow!("No database found in source dsn"))?;
+    let (from_db, table) = table
+        .split_once('.')
+        .ok_or(anyhow!("Invalid table format"))?;
     let to: Dsn = to.parse()?;
     let to_db = to
         .subject
@@ -902,23 +902,32 @@ pub async fn get_table_progress(
     let to_builder = TaosBuilder::from_dsn(&to)?;
     let from_taos = from_builder.build().await?;
     let to_taos = to_builder.build().await?;
-    let start = if let Some(start) = start {
-        start
+
+    let (from_sql, to_sql) = if let Some(start) = start {
+        if let Some(end) = end {
+            (format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
+            format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
+        } else {
+            (
+                format!(
+                    "SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
+                ),
+                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
+            )
+        }
     } else {
-        "1970-01-01 00:00:00"
+        if let Some(end) = end {
+            (
+                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
+                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
+            )
+        } else {
+            (
+                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}`"),
+                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}`"),
+            )
+        }
     };
-    let end = if let Some(end) = _end {
-        format!("'{end}'")
-    } else {
-        "now".to_string()
-    };
-    let end = end.as_str();
-    let from_sql = format!(
-        "SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < {end}",
-    );
-    let to_sql = format!(
-        "SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < {end}",
-    );
     tracing::debug!("from_sql:\n {from_sql}, to_sql:\n {to_sql}");
     let from_result = from_taos
         .query_one::<String, (u64, u64)>(from_sql)
@@ -945,7 +954,7 @@ mod tests {
     async fn test_get_table_progress() {
         let from = "tmq+ws://192.168.0.31:6041/t1?with.meta.delete=true&with.meta.drop=true";
         let to = "taos+ws://192.168.0.31:6041/t2";
-        let table = "heart";
+        let table = "t1.heart";
         let start: Option<String> = None;
         let end: Option<String> = None;
         let result = get_table_progress(
