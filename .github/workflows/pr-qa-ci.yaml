@@ -305,7 +305,7 @@ jobs:
             # go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
             mv $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
             go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data -o=mqtt_report.txt
-            /root/go/bin/gocov convert mqtt_unit_report mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH/mqtt/index.html
+            /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH/mqtt/index.html
           else
             go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data -o=mqtt_report.txt
             /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH/mqtt/index.html

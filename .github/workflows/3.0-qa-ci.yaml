@@ -7,6 +7,8 @@ on:
   workflow_dispatch:
   #pull_request:
   push:
+    branches:
+      - ref/3.0-qa-workflow-ref
 
 env:
   RELEASE_HOST: 192.168.1.45
@@ -52,8 +54,8 @@ jobs:
           #     export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           #     cargo test --target-dir ./target/debug/taosx-build/
           # fi
-          # cargo llvm-cov nextest --workspace
-          # cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+          cargo llvm-cov nextest --workspace
+          cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
 
       - name: Build agent
         run: |
@@ -312,7 +314,7 @@ jobs:
             # go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
             mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data/mqtt_unit_report.txt .
             go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_report.txt
-            /root/go/bin/gocov convert mqtt_unit_report mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/index.html
+            /root/go/bin/gocov convert mqtt_unit_report.txt mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/index.html
           else 
             go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/mqtt_cover_data -o=mqtt_report.txt
             /root/go/bin/gocov convert mqtt_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt/index.html
