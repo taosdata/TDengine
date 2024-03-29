@@ -3046,6 +3046,9 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
 
   ENCODESQL();
+
+  if (tEncodeI32(&encoder, pReq->withArbitrator) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3115,8 +3118,12 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
 
   DECODESQL();
 
-  tEndDecode(&decoder);
+  pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->withArbitrator) < 0) return -1;
+  }
 
+  tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
 }
@@ -3155,6 +3162,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
   ENCODESQL();
+  if (tEncodeI32(&encoder, pReq->withArbitrator) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3204,6 +3212,10 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   }
 
   DECODESQL();
+  pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->withArbitrator) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3991,6 +4003,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   if (tEncodeI8(encoder, pRsp->schemaless) < 0) return -1;
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
+  if (tEncodeI8(encoder, pRsp->withArbitrator) < 0) return -1;
 
   return 0;
 }
@@ -4062,6 +4075,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   pRsp->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI32(decoder, &pRsp->keepTimeOffset) < 0) return -1;
+  }
+  pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeI8(decoder, &pRsp->withArbitrator) < 0) return -1;
   }
 
   return 0;
@@ -5960,6 +5977,345 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
   return 0;
 }
 
+int32_t tSerializeSVArbHeartBeatReq(void *buf, int32_t bufLen, SVArbHeartBeatReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->arbToken) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->arbTerm) < 0) return -1;
+
+  int32_t size = taosArrayGetSize(pReq->hbMembers);
+  if (tEncodeI32(&encoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; i++) {
+    SVArbHbReqMember *pMember = taosArrayGet(pReq->hbMembers, i);
+    if (tEncodeI32(&encoder, pMember->vgId) < 0) return -1;
+    if (tEncodeI32(&encoder, pMember->hbSeq) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbHeartBeatReq(void *buf, int32_t bufLen, SVArbHeartBeatReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  pReq->arbToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->arbToken) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->arbTerm) < 0) return -1;
+
+  pReq->hbMembers = taosArrayInit(16, sizeof(SVArbHbReqMember));
+  int32_t size = 0;
+  if (tDecodeI32(&decoder, &size) < 0) return -1;
+  for (int32_t i = 0; i < size; i++) {
+    SVArbHbReqMember member = {0};
+    if (tDecodeI32(&decoder, &member.vgId) < 0) return -1;
+    if (tDecodeI32(&decoder, &member.hbSeq) < 0) return -1;
+    taosArrayPush(pReq->hbMembers, &member);
+  }
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbHeartBeatReq(SVArbHeartBeatReq *pReq) {
+  if (!pReq) return;
+  taosMemoryFree(pReq->arbToken);
+  taosArrayDestroy(pReq->hbMembers);
+}
+
+int32_t tSerializeSVArbHeartBeatRsp(void *buf, int32_t bufLen, SVArbHeartBeatRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->arbToken) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->dnodeId) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pRsp->hbMembers);
+  if (tEncodeI32(&encoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    SVArbHbRspMember *pMember = taosArrayGet(pRsp->hbMembers, i);
+    if (tEncodeI32(&encoder, pMember->vgId) < 0) return -1;
+    if (tEncodeI32(&encoder, pMember->hbSeq) < 0) return -1;
+    if (tEncodeCStr(&encoder, pMember->memberToken) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbHeartBeatRsp(void *buf, int32_t bufLen, SVArbHeartBeatRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->arbToken) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->dnodeId) < 0) return -1;
+  int32_t sz = 0;
+  if (tDecodeI32(&decoder, &sz) < 0) return -1;
+  pRsp->hbMembers = taosArrayInit(sz, sizeof(SVArbHbRspMember));
+  for (int32_t i = 0; i < sz; i++) {
+    SVArbHbRspMember hbMember = {0};
+    if (tDecodeI32(&decoder, &hbMember.vgId) < 0) return -1;
+    if (tDecodeI32(&decoder, &hbMember.hbSeq) < 0) return -1;
+    if (tDecodeCStrTo(&decoder, hbMember.memberToken) < 0) return -1;
+    taosArrayPush(pRsp->hbMembers, &hbMember);
+  }
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbHeartBeatRsp(SVArbHeartBeatRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosArrayDestroy(pRsp->hbMembers);
+}
+
+int32_t tSerializeSVArbCheckSyncReq(void *buf, int32_t bufLen, SVArbCheckSyncReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->arbToken) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->arbTerm) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->member0Token) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->member1Token) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbCheckSyncReq(void *buf, int32_t bufLen, SVArbCheckSyncReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  pReq->arbToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->arbToken) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->arbTerm) < 0) return -1;
+  pReq->member0Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->member0Token) < 0) return -1;
+  pReq->member1Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->member1Token) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbCheckSyncReq(SVArbCheckSyncReq *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosMemoryFreeClear(pRsp->arbToken);
+  taosMemoryFreeClear(pRsp->member0Token);
+  taosMemoryFreeClear(pRsp->member1Token);
+}
+
+int32_t tSerializeSVArbCheckSyncRsp(void *buf, int32_t bufLen, SVArbCheckSyncRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->arbToken) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->member0Token) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->member1Token) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->vgId) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->errCode) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbCheckSyncRsp(void *buf, int32_t bufLen, SVArbCheckSyncRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  pRsp->arbToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pRsp->arbToken) < 0) return -1;
+  pRsp->member0Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pRsp->member0Token) < 0) return -1;
+  pRsp->member1Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pRsp->member1Token) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->vgId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->errCode) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbCheckSyncRsp(SVArbCheckSyncRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosMemoryFreeClear(pRsp->arbToken);
+  taosMemoryFreeClear(pRsp->member0Token);
+  taosMemoryFreeClear(pRsp->member1Token);
+}
+
+int32_t tSerializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSetAssignedLeaderReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->arbToken) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->arbTerm) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->memberToken) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSetAssignedLeaderReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  pReq->arbToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->arbToken) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->arbTerm) < 0) return -1;
+  pReq->memberToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->memberToken) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbSetAssignedLeaderReq(SVArbSetAssignedLeaderReq *pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  taosMemoryFreeClear(pReq->arbToken);
+  taosMemoryFreeClear(pReq->memberToken);
+}
+
+int32_t tSerializeSVArbSetAssignedLeaderRsp(void *buf, int32_t bufLen, SVArbSetAssignedLeaderRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->arbToken) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->memberToken) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->vgId) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVArbSetAssignedLeaderRsp(void *buf, int32_t bufLen, SVArbSetAssignedLeaderRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  pRsp->arbToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pRsp->arbToken) < 0) return -1;
+  pRsp->memberToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pRsp->memberToken) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->vgId) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosMemoryFreeClear(pRsp->arbToken);
+  taosMemoryFreeClear(pRsp->memberToken);
+}
+
+int32_t tSerializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGroupReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
+  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+    if (tEncodeI32(&encoder, pReq->members[i].dnodeId) < 0) return -1;
+    if (tEncodeCStr(&encoder, pReq->members[i].token) < 0) return -1;
+  }
+  if (tEncodeI8(&encoder, pReq->isSync) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->assignedLeader.dnodeId) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->assignedLeader.token) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->version) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGroupReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
+  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+    if (tDecodeI32(&decoder, &pReq->members[i].dnodeId) < 0) return -1;
+    pReq->members[i].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+    if (tDecodeCStrTo(&decoder, pReq->members[i].token) < 0) return -1;
+  }
+  if (tDecodeI8(&decoder, &pReq->isSync) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->assignedLeader.dnodeId) < 0) return -1;
+  pReq->assignedLeader.token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+  if (tDecodeCStrTo(&decoder, pReq->assignedLeader.token) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->version) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq *pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  for (int i = 0; i < 2; i++) {
+    taosMemoryFreeClear(pReq->members[i].token);
+  }
+  taosMemoryFreeClear(pReq->assignedLeader.token);
+}
+
 // int32_t tSerializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
 //   SEncoder encoder = {0};
 //   tEncoderInit(&encoder, buf, bufLen);
@@ -6245,9 +6601,8 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   return 0;
 }
 
-int32_t tDeatroySMqHbRsp(SMqHbRsp *pRsp) {
+void tDestroySMqHbRsp(SMqHbRsp *pRsp) {
   taosArrayDestroy(pRsp->topicPrivileges);
-  return 0;
 }
 
 int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
@@ -6294,13 +6649,12 @@ int32_t tDeserializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
   return 0;
 }
 
-int32_t tDeatroySMqHbReq(SMqHbReq *pReq) {
+void tDestroySMqHbReq(SMqHbReq *pReq) {
   for (int i = 0; i < taosArrayGetSize(pReq->topics); i++) {
     TopicOffsetRows *vgs = taosArrayGet(pReq->topics, i);
     if (vgs) taosArrayDestroy(vgs->offsetRows);
   }
   taosArrayDestroy(pReq->topics);
-  return 0;
 }
 
 int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {

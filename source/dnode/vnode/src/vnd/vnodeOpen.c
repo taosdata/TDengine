@@ -493,7 +493,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
                                     VNODE_METRIC_TAG_NAME_DNODE_ID, VNODE_METRIC_TAG_NAME_DNODE_EP,
                                     VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
                                     VNODE_METRIC_TAG_NAME_RESULT};
-      counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql",  
+      counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql",
                                                   label_count, sample_labels);
       vInfo("vgId:%d, new metric:%p",TD_VID(pVnode), counter);
       if(taos_collector_registry_register_metric(counter) == 1){
@@ -503,7 +503,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
       }
     }
     pVnode->monitor.insertCounter = counter;
-    vInfo("vgId:%d, succeed to set metric:%p",TD_VID(pVnode), counter);         
+    vInfo("vgId:%d, succeed to set metric:%p",TD_VID(pVnode), counter);
   }
 
   return pVnode;
@@ -559,6 +559,9 @@ int32_t vnodeStart(SVnode *pVnode) {
 int32_t vnodeIsCatchUp(SVnode *pVnode) { return syncIsCatchUp(pVnode->sync); }
 
 ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
+
+int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm) { return syncUpdateArbTerm(pVnode->sync, arbTerm); }
+int32_t vnodeGetArbToken(SVnode *pVnode, char *outToken) { return syncGetArbToken(pVnode->sync, outToken); }
 
 void vnodeStop(SVnode *pVnode) {}
 

@@ -138,7 +138,13 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     if (TSDB_VIEW_TABLE != pMeta->tableType) {
-      STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+      if (i >= pMeta->tableInfo.numOfColumns) {
+        STR_TO_VARSTR(buf, "TAG");
+      } else if (i == 1 && pMeta->schema[i].flags & COL_IS_KEY) {
+        STR_TO_VARSTR(buf, "PRIMARY KEY")
+      } else {
+        STR_TO_VARSTR(buf, "");
+      }
     } else {
       STR_TO_VARSTR(buf, "VIEW COL");
     }
@@ -548,8 +554,12 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), " COMPRESS \'%s\'", columnCompressStr(COMPRESS_L2_TYPE_U32(pCfg->pSchemaExt[i].compress)));
       sprintf(type + strlen(type), " LEVEL \'%s\'", columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
-
-    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    if (!(pSchema->flags & COL_IS_KEY)) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    } else {
+      char* pk = "PRIMARY KEY";
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
+    }
   }
 }
 

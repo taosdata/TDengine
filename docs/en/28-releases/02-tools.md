@@ -6,7 +6,7 @@ description: This document provides download links for all released versions of 
 
 taosTools installation packages can be downloaded at the following links:
 
-For other historical version installers, please visit [here](https://www.taosdata.com/all-downloads).
+For other historical version installers, please visit [here](https://tdengine.com/downloads/historical/).
 
 import Release from "/components/ReleaseV3";
 

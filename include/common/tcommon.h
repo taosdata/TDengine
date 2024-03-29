@@ -106,6 +106,9 @@ typedef struct SFirstLastRes {
   bool      isNull;
   int32_t   bytes;
   int64_t   ts;
+  char*     pkData;
+  int32_t   pkBytes;
+  int8_t    pkType;
   STuplePos pos;
   char      buf[];
 } SFirstLastRes;
@@ -209,6 +212,7 @@ typedef struct SDataBlockInfo {
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
   bool        blankFill;
+  SValue      pks[2];
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization

@@ -76,6 +76,9 @@ int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
+int32_t   vnodeGetArbToken(SVnode *pVnode, char *outToken);
+
+int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm);
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
@@ -178,7 +181,7 @@ void         tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn not
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                                SArray *pFuncTypeList);
+                                SArray *pFuncTypeList, SColumnInfo* pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);

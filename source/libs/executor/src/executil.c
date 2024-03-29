@@ -308,7 +308,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, metaHandle, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, metaHandle, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, info->uid);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
@@ -370,7 +370,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
                          .type = pSColumnNode->node.resType.type,
-                         .bytes = pSColumnNode->node.resType.bytes};
+                         .bytes = pSColumnNode->node.resType.bytes,
+                         .pk = pSColumnNode->isPk};
 #if TAG_FILTER_DEBUG
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
@@ -1225,7 +1226,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
                               SStorageAPI* pAPI) {
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, pVnode, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &pAPI->metaFn);
   if (pAPI->metaReaderFn.getEntryGetUidCache(&mr, uid) != 0) {  // table not exist
     pAPI->metaReaderFn.clearReader(&mr);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -1339,6 +1340,8 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
+      c.isPk = pColNode->isPk;
+      c.dataType = pColNode->node.resType;
       taosArrayPush(pList, &c);
     }
   }
@@ -1762,6 +1765,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     pCond->colList[j].type = pColNode->node.resType.type;
     pCond->colList[j].bytes = pColNode->node.resType.bytes;
     pCond->colList[j].colId = pColNode->colId;
+    pCond->colList[j].pk = pColNode->isPk;
 
     pCond->pSlotList[j] = pNode->slotId;
     j += 1;

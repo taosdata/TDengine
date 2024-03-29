@@ -620,21 +620,47 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
     tRowGetKey(row->pTSRow, &key->key);
   } else {
     key->version = row->pBlockData->aVersion[row->iRow];
-    key->key.ts = row->pBlockData->aTSKEY[row->iRow];
-    key->key.numOfPKs = 0;
-    for (int32_t i = 0; i < row->pBlockData->nColData; i++) {
-      SColData *pColData = &row->pBlockData->aColData[i];
-      if (pColData->cflag & COL_IS_KEY) {
-        SColVal cv;
-        tColDataGetValue(pColData, row->iRow, &cv);
-        ASSERT(COL_VAL_IS_VALUE(&cv));
-        key->key.pks[key->key.numOfPKs] = cv.value;
-        key->key.numOfPKs++;
+    tColRowGetKey(row->pBlockData, row->iRow, &key->key);
+  }
+}
+
+void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
+  key->ts = pBlock->aTSKEY[irow];
+  key->numOfPKs = 0;
+
+  for (int32_t i = 0; i < pBlock->nColData; i++) {
+    SColData *pColData = &pBlock->aColData[i];
+    if (pColData->cflag & COL_IS_KEY) {
+      SColVal cv;
+      tColDataGetValue(pColData, irow, &cv);
+      ASSERT(COL_VAL_IS_VALUE(&cv));
+      key->pks[key->numOfPKs] = cv.value;
+      key->numOfPKs++;
+    } else {
+      break;
+    }
+  }
+}
+
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+  pDst->ts = pSrc->ts;
+  pDst->numOfPKs = pSrc->numOfPKs;
+
+  if (pSrc->numOfPKs > 0) {
+    for (int32_t i = 0; i < pSrc->numOfPKs; ++i) {
+      SValue *pVal = &pDst->pks[i];
+      pVal->type = pSrc->pks[i].type;
+
+      if (IS_NUMERIC_TYPE(pVal->type)) {
+        pVal->val = pSrc->pks[i].val;
       } else {
-        break;
+        memcpy(pVal->pData, pVal->pData, pVal->nData);
+        pVal->nData = pSrc->pks[i].nData;
       }
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
@@ -740,7 +766,6 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       return code;
-      //      goto _exit;
     }
 
     // other

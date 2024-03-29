@@ -27,6 +27,7 @@ void       mndCleanupDnode(SMnode *pMnode);
 SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId);
 void       mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode);
 SEpSet     mndGetDnodeEpset(SDnodeObj *pDnode);
+SEpSet     mndGetDnodeEpsetById(SMnode *pMnode, int32_t dnodeId);
 int32_t    mndGetDnodeSize(SMnode *pMnode);
 bool       mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs);
 void       mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo);

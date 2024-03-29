@@ -199,6 +199,7 @@ int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) 
 
   wkt = GEOSWKTWriter_write_r(geosCtx->handle, geosCtx->WKTWriter, geom);
   if (wkt == NULL) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
     goto _exit;
   }
   *outputWKT = wkt;

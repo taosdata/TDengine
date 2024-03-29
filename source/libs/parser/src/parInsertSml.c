@@ -113,7 +113,8 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     SSchema* pTagSchema = &pSchema[tags->pColIndex[i]];
     SSmlKv*  kv = taosArrayGet(cols, i);
 
-    if(kv->keyLen != strlen(pTagSchema->name) || memcmp(kv->key, pTagSchema->name, kv->keyLen) != 0 || kv->type != pTagSchema->type){
+    if (kv->keyLen != strlen(pTagSchema->name) || memcmp(kv->key, pTagSchema->name, kv->keyLen) != 0 ||
+        kv->type != pTagSchema->type) {
       code = TSDB_CODE_SML_INVALID_DATA;
       uError("SML smlBuildTagRow error col not same %s", pTagSchema->name);
       goto end;
@@ -200,7 +201,9 @@ int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
-  insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+  SRowKey key;
+  tRowGetKey(*pRow, &key);
+  insCheckTableDataOrder(pTableCxt, &key);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -209,15 +212,16 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSchema* pColSchema = schema + index;
   SColVal* pVal = taosArrayGet(pTableCxt->pValues, index);
   SSmlKv*  kv = (SSmlKv*)data;
-  if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
+  if (kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 ||
+      kv->type != pColSchema->type) {
     ret = TSDB_CODE_SML_INVALID_DATA;
     char* tmp = taosMemoryCalloc(kv->keyLen + 1, 1);
-    if(tmp){
+    if (tmp) {
       memcpy(tmp, kv->key, kv->keyLen);
-      uInfo("SML data(name:%s type:%s) is not same like the db data(name:%s type:%s)",
-            tmp, tDataTypes[kv->type].name, pColSchema->name, tDataTypes[pColSchema->type].name);
+      uInfo("SML data(name:%s type:%s) is not same like the db data(name:%s type:%s)", tmp, tDataTypes[kv->type].name,
+            pColSchema->name, tDataTypes[pColSchema->type].name);
       taosMemoryFree(tmp);
-    }else{
+    } else {
       uError("SML smlBuildCol out of memory");
     }
     goto end;
@@ -225,11 +229,11 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
     int32_t len = 0;
     int64_t size = pColSchema->bytes - VARSTR_HEADER_SIZE;
-    if(size <= 0){
+    if (size <= 0) {
       ret = TSDB_CODE_SML_INVALID_DATA;
       goto end;
     }
-    char*   pUcs4 = taosMemoryCalloc(1, size);
+    char* pUcs4 = taosMemoryCalloc(1, size);
     if (NULL == pUcs4) {
       ret = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
@@ -351,7 +355,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         continue;
       }
       SSmlKv* kv = *(SSmlKv**)p;
-      if(kv->type != pColSchema->type){
+      if (kv->type != pColSchema->type) {
         ret = buildInvalidOperationMsg(&pBuf, "kv type not equal to col type");
         goto end;
       }
@@ -367,7 +371,8 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
           if (errno == E2BIG) {
-            uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length, pColSchema->bytes, kv->value);
+            uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length,
+                   pColSchema->bytes, kv->value);
             buildInvalidOperationMsg(&pBuf, "value too long");
             ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto end;
@@ -396,7 +401,9 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       buildInvalidOperationMsg(&pBuf, "tRowBuild error");
       goto end;
     }
-    insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+    SRowKey key;
+    tRowGetKey(*pRow, &key);
+    insCheckTableDataOrder(pTableCxt, &key);
     clearColValArraySml(pTableCxt->pValues);
   }
 

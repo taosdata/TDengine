@@ -199,6 +199,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "tag %s can not be primary key";
     case TSDB_CODE_PAR_SECOND_COL_PK:
       return "primary key column must be second column";
+    case TSDB_CODE_PAR_COL_PK_TYPE:
+      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
+    case TSDB_CODE_PAR_INVALID_PK_OP:
+      return "primary key column can not be added, modified, and dropped";    
     default:
       return "Unknown error";
   }
@@ -373,7 +377,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
   SHashObj* keyHash = NULL;
   int32_t   size = 0;
   // set json NULL data
-  if (!json || strtrim((char*)json) == 0 || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
+  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0 || strtrim((char*)json) == 0) {
     retCode = TSDB_CODE_SUCCESS;
     goto end;
   }

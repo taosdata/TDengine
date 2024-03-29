@@ -365,7 +365,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
-        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.suids, i * sizeof(int64_t)), rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)), rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pFirstKey,
                           tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)), rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pLastKey,
@@ -419,7 +419,6 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
     return code;
   }
 
-#if 0
   // load stt statistics block for all stt-blocks, to decide if the data of queried table exists in current stt file
   TStatisBlkArray *pStatisBlkArray = NULL;
   code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pStatisBlkArray);
@@ -434,12 +433,11 @@ static int32_t doLoadSttFilesBlk(SSttBlockLoadInfo *pBlockLoadInfo, SLDataIter *
     tsdbError("failed to load stt statistics block data, code:%s, %s", tstrerror(code), idStr);
     return code;
   }
-#endif
 
   code = loadTombFn(pReader1, pIter->pReader, pIter->pBlockLoadInfo);
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  tsdbDebug("load the stt file info completed, elapsed time:%.2fms, %s", el, idStr);
+  tsdbDebug("load the stt file blk info completed, elapsed time:%.2fms, %s", el, idStr);
   return code;
 }
 
@@ -481,6 +479,9 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   pIter->verRange.maxVer = pConf->verRange.maxVer;
   pIter->timeWindow.skey = pConf->timewindow.skey;
   pIter->timeWindow.ekey = pConf->timewindow.ekey;
+  pIter->comparFn = pConf->comparFn;
+
+  tRowKeyAssign(&pIter->startRowKey, pConf->pCurRowKey);
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
@@ -620,17 +621,39 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
     }
 
     int64_t ts = pData->aTSKEY[i];
-    if (!pIter->backward) {               // asc
+    if (!pIter->backward) {              // asc
       if (ts > pIter->timeWindow.ekey) {  // no more data
         break;
-      } else if (ts < pIter->timeWindow.skey) {
-        continue;
+      } else {
+        if (ts < pIter->timeWindow.skey) {
+          continue;
+        }
+
+        if (ts == pIter->timeWindow.skey && pIter->startRowKey.numOfPKs > 0) {
+          SRowKey key;
+          tColRowGetKey(pData, i, &key);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          if (ret < 0) {
+            continue;
+          }
+        }
       }
     } else {
       if (ts < pIter->timeWindow.skey) {
         break;
-      } else if (ts > pIter->timeWindow.ekey) {
-        continue;
+      } else {
+        if (ts > pIter->timeWindow.ekey) {
+          continue;
+        }
+
+        if (ts == pIter->timeWindow.ekey && pIter->startRowKey.numOfPKs > 0) {
+          SRowKey key;
+          tColRowGetKey(pData, i, &key);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          if (ret > 0) {
+            continue;
+          }
+        }
       }
     }
 
@@ -804,8 +827,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
       STimeWindow w = {0};
       int64_t     numOfRows = 0;
+      int64_t     cid = pSttLevel->fobjArr->data[i]->f->cid;
 
-      int64_t cid = pSttLevel->fobjArr->data[i]->f->cid;
       code = tLDataIterOpen2(pIter, pSttFileReader, cid, pMTree->backward, pConf, pLoadInfo, &w, &numOfRows,
                              pMTree->idStr);
       if (code != TSDB_CODE_SUCCESS) {
@@ -817,7 +840,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         tMergeTreeAddIter(pMTree, pIter);
 
         // let's record the time window for current table of uid in the stt files
-        if (pSttDataInfo != NULL) {
+        if (pSttDataInfo != NULL && numOfRows > 0) {
           taosArrayPush(pSttDataInfo->pTimeWindowList, &w);
           pSttDataInfo->numOfRows += numOfRows;
         }

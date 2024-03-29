@@ -246,32 +246,20 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 int32_t metaRLock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta rlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockRdlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockRdlock(&pMeta->lock);
   return ret;
 }
 
 int32_t metaWLock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta wlock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockWrlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockWrlock(&pMeta->lock);
   return ret;
 }
 
 int32_t metaULock(SMeta *pMeta) {
-  int32_t ret = 0;
-
   metaTrace("meta ulock %p", &pMeta->lock);
-
-  ret = taosThreadRwlockUnlock(&pMeta->lock);
-
+  int32_t ret = taosThreadRwlockUnlock(&pMeta->lock);
   return ret;
 }
 
