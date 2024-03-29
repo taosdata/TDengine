@@ -329,7 +329,6 @@ typedef enum ENodeType {
   QUERY_NODE_RESUME_STREAM_STMT,
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
-  QUERY_NODE_CREATE_ENCRYPT_KEY_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'

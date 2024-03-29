@@ -2096,16 +2096,6 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   return (SNode*)pStmt;
 }
 
-SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
-  CHECK_PARSER_STATUS(pCxt);
-  SCreateEncryptKeyStmt* pStmt = (SCreateEncryptKeyStmt*)nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_KEY_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-  if (NULL != pValue) {
-    trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
-  }
-  return (SNode*)pStmt;
-}
-
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateDnodeStmt* pStmt = (SCreateDnodeStmt*)nodesMakeNode(QUERY_NODE_CREATE_DNODE_STMT);
@@ -2149,6 +2139,14 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
   return (SNode*)pStmt;
+}
+
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
+  SToken config;
+  config.type = TK_NK_STRING;
+  config.z = "\"encrypt_key\"";
+  config.n = strlen(config.z);
+  return createAlterDnodeStmt(pCxt, NULL, &config, pValue);
 }
 
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {

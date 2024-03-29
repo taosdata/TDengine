@@ -260,11 +260,6 @@ typedef struct SDropUserStmt {
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
-typedef struct SCreateEncryptKeyStmt {
-  ENodeType type;
-  char      value[TSDB_ENCRYPT_KEY_LEN + 1];
-} SCreateEncryptKeyStmt;
-
 typedef struct SCreateDnodeStmt {
   ENodeType type;
   char      fqdn[TSDB_FQDN_LEN];

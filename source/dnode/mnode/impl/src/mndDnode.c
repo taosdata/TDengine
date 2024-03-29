@@ -474,7 +474,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
   }
 
-  return 0;
+  return DND_REASON_ONLINE;
 }
 
 static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
@@ -1405,6 +1405,40 @@ _err:
   return -1;
 }
 
+static int32_t mndSendCreateEncryptKeyReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+    if (pDnode->offlineReason != DND_REASON_ONLINE) continue;
+    
+    if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
+  
+      SEpSet  epSet = mndGetDnodeEpset(pDnode);
+      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
+      void   *pBuf = rpcMallocCont(bufLen);
+
+      if (pBuf != NULL) {
+        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
+        tmsgSendReq(&epSet, &rpcMsg);
+        code = 0;
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (code == -1) {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+  return code;
+}
+
 static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1471,6 +1505,18 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "s3blocksize");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
+    int32_t vlen = strlen(cfgReq.value);
+    if (vlen > TSDB_ENCRYPT_KEY_LEN || vlen < 8) {
+      mError("dnode:%d, failed to create encrypt_key since invalid vlen:%d, valid range:[%d, %d]", cfgReq.dnodeId,
+             vlen, 8, TSDB_ENCRYPT_KEY_LEN);
+      terrno = TSDB_CODE_INVALID_CFG;
+      goto _err_out;
+    }
+    strcpy(dcfgReq.config, cfgReq.config);
+    strcpy(dcfgReq.value, cfgReq.value);
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return mndProcessCreateEncryptKeyReq(pMnode, cfgReq.dnodeId, &dcfgReq);
 #endif
   } else {
     if (mndMCfg2DCfg(&cfgReq, &dcfgReq)) goto _err_out;

@@ -486,8 +486,6 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_RESTORE_MNODE_STMT:
     case QUERY_NODE_RESTORE_VNODE_STMT:
       return makeNode(type, sizeof(SRestoreComponentNodeStmt));
-    case QUERY_NODE_CREATE_ENCRYPT_KEY_STMT:
-      return makeNode(type, sizeof(SCreateEncryptKeyStmt));
     case QUERY_NODE_CREATE_VIEW_STMT:
       return makeNode(type, sizeof(SCreateViewStmt));
     case QUERY_NODE_DROP_VIEW_STMT:
