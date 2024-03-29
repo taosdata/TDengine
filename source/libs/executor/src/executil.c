@@ -2139,9 +2139,11 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (groupSort && groupByTbname) {
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
       pTableListInfo->numOfOuputGroups = numOfTables;
-    } else if (groupByTbname && pScanNode->groupOrderScan){
+    } else if (groupByTbname && pScanNode->groupOrderScan) {
       pTableListInfo->numOfOuputGroups = numOfTables;
-    } else if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+    } else if (groupByTbname && tsCountAlwaysReturnValue &&
+               pScanNode->node.type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+               ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;

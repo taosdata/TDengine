@@ -895,6 +895,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =
             (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
+        if (NULL == pStart ) return NULL;
         return getBlockForEmptyTable(pOperator, pStart);
       }
     } else { // group by tag + no sort
