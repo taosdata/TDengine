@@ -39,7 +39,7 @@
         <p class="title">{{ $t('dataIn.tbReplicationProgress') }}</p>
         <el-form :inline="true" :model="formInline" class="demo-form-inline" size="mini" ref="form" :rules="rules" >
           <el-form-item :label="$t('dataIn.tbName')" prop="table">
-            <el-input v-model="formInline.table"></el-input>
+            <el-input style="width: 200px" :placeholder="$t('dataIn.tbNameP')" v-model="formInline.table"></el-input>
           </el-form-item>
           <el-form-item :label="$t('dataIn.timeRange')">
             <el-date-picker
@@ -87,7 +87,7 @@
             min-width="130"
           >
           <template slot-scope="{ row }">
-            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts) }}</span>
+            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts) || 0 }}</span>
           </template>
           </el-table-column>
           <el-table-column
@@ -180,14 +180,20 @@ export default {
       },
       tbReplicationData: [],
       vgroupData: [],
-      rules: {
-        table: [
-            { required: true },
-          ],
-      } 
     };
   },
-  computed: {},
+  computed: {
+    rules() {
+      return {
+        table: [
+            { required: true, 
+              message: this.$t("required", [this.$t('dataIn.tbName'),]), 
+              trigger: 'blur'
+            },
+          ],
+      } 
+    }
+  },
   watch: {
     "$store.state.dialogVisible": {
       immediate: true,
@@ -316,6 +322,12 @@ export default {
       try {
         this.requesting = true;
         let res = await getVgroupProgress(this.taskId)
+        if (res && res.code && res.code !=0) {
+          this.$message.error(res?.message);
+          this.update_time = ""
+          this.vgroupData = []
+          return
+        }
         this.update_time = res.update_time
         this.vgroupData = res.data
       } catch (error) {
@@ -335,8 +347,12 @@ export default {
           let { table, timeRange } = this.formInline
           let params = 'table' + '=' + table
           params += timeRange.length > 0 ? `&start=${timeRange[0]}&end=${timeRange[1]}` : ''
-          console.log('hhsh',this.formInline,params);
           let res = await getTableProgress(this.taskId,params)
+          if (res && res.code && res.code !=0) {
+            this.$message.error(res?.message);
+            this.tbReplicationData = [];
+            return
+          }
           this.tbReplicationData = [].concat(res)
         } catch (error) {
           this.requesting_q = false;

@@ -688,6 +688,7 @@ export default {
     replicationProgress: "Replication Progress",
     tbReplicationProgress: "Data Replication Progress of Single Stable/Table",
     tbName: "Stable/Table Name",
+    tbNameP: "Source Database.Table",
     timeRange: "Time Range",
     query: "Query",
     tbHeader: {
