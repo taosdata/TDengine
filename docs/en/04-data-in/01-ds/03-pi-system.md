@@ -28,36 +28,17 @@ There is an additional charge for extracting PI System data. The charge depends 
 3. In the **Name** field, enter a name for your data source.
 4. From the **Type** menu, select **PI**.
 5. From the **Agent** menu, select the connection agent for your PI System.
-   If you have not created a connection agent, see [Install Connection Agent](../install-agent/).
+   If you have not created a connection agent, see [Install Connection Agent](./00-install-agent).
 6. In the **Target DB** field, select one database from the current instance that you created to store PI System data.
    If you have not created a database, please go to **Explorer** page to create it.
-7. In the **Server** field, enter the name of your PI Data Archive server.
-8. (Optional) In the **AF Database Name** field, enter the name of your AF database.
-9. In the **PI System Name** field, enter the name of your AF server.
-10. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the PI server is available.
-11. In the **Data Queue** section, configure the parameters as desired. You can also retain the default values.
-
-    - **Max Wait Length** indicates the maximum rows of data to send in each HTTPS insert request.
-
-    - **Update Interval** indicates how often data will be pulled from the PI system.
-
-    - **Max Backfill Range (in days)** indicates the maximum number of days that will be automatically backfilled when reconnecting.
-
-12. In the **Data Sets** section, select the ingestion method:
-    - Select **Point List** to ingest PI Points.
-    - Select **Template for PI Point** to ingest PI Points based on AF element templates.
-    - Select **Template for AF Elements** to ingest elements from AF.
-13. Enter a regular expression in the search field to find the desired PI Points or AF templates.
-14. Select each desired PI Point or AF template and click **Add** under the selected item.
-15. After adding all desired items, click **Add** under the **Data Sets** section.
-16. Review the pricing notice and click **Confirm**.
-
-The selected PI Points or AF templates start streaming data to TDengine, with tables in TDengine automatically created to match point names or AF template structure.
-
-## What to Do Next
-
-1. In TDengine Cloud, open **Explorer** and click the database that you created to store PI System data.
-2. Verify that the specified data is being ingested into TDengine Cloud.
-   - A supertable is created that acts as a schema for your PI System data.
-   - Subtables are created that contain your PI System data and tags.
-   - When **Template For AF Element** mode is used, the AF tree will be copied to a single metadata tag called `location`, and any static attributes in the AF elements will be copied to corresponding tags in the supertable.
+7. PI connector supports two connection modes:
+   - **PI Data Archive Only**: Without using AF mode. In this mode, enter the **PI Server Name** (server address, usually using the hostname).
+   - **PI Data Archive and Asset Framework (AF) Server**: Using AF SDK. In this mode, in addition to configuring the server name, you also need to configure the PI System (AF Server) name (hostname) and AF database name.
+8. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the PI server is available.
+9. **Data Sets** section, select using CSV file template or **All Points**.
+10. **Back Fill** section, lost connection or first start automatically backfill the maximum number of days. The default is 1 day.
+11. **Advanced Options** section, you can configure the following information:
+    - **Log Level**: Log level, optional values are DEBUG, INFO, WARN, ERROR.
+    - **Batch Size**: The maximum number of messages or rows sent in a single batch.
+    - **Batch Timeout**: The maximum delay for a single read (in seconds). When the timeout ends, as long as there is data, even if it does not meet the Batch Size, it is immediately sent.
+12. Review the pricing notice and click **Confirm**.
