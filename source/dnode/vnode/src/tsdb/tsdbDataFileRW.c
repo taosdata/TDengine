@@ -206,7 +206,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   for (int32_t i = 0; i < 10; i++) {  // int64_t
 
     SCompressInfo cinfo = {
-        .cmprAlg = 0,
+        .cmprAlg = brinBlk->cmprAlg,
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int64_t),
@@ -218,7 +218,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   for (int32_t i = 10; i < 15; i++) {  // int32_t
     SCompressInfo cinfo = {
-        .cmprAlg = 0,
+        .cmprAlg = brinBlk->cmprAlg,
         .dataType = TSDB_DATA_TYPE_INT,
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int32_t),
@@ -757,7 +757,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   // write to file
   for (int32_t i = 0; i < 10; ++i) {
     SCompressInfo info = {
-        .cmprAlg = 0,
+        .cmprAlg = cmprAlg,
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .originalSize = brinBlock->buffers[i].size,
     };
@@ -773,7 +773,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   }
   for (int32_t i = 10; i < 15; ++i) {
     SCompressInfo info = {
-        .cmprAlg = 0,
+        .cmprAlg = cmprAlg,
         .dataType = TSDB_DATA_TYPE_INT,
         .originalSize = brinBlock->buffers[i].size,
     };

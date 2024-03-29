@@ -97,12 +97,12 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 
 // SValueColumn ================================
 typedef struct {
-  uint32_t cmprAlg;  // filled by caller
-  int8_t   type;
-  int32_t  dataOriginalSize;
-  int32_t  dataCompressedSize;
-  int32_t  offsetOriginalSize;
-  int32_t  offsetCompressedSize;
+  int8_t  cmprAlg;  // filled by caller
+  int8_t  type;
+  int32_t dataOriginalSize;
+  int32_t dataCompressedSize;
+  int32_t offsetOriginalSize;
+  int32_t offsetCompressedSize;
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
@@ -150,17 +150,17 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
 // SColData ================================
 typedef struct {
   uint32_t cmprAlg;  // filled by caller
-  int8_t  columnFlag;
-  int8_t  flag;
-  int8_t  dataType;
-  int16_t columnId;
-  int32_t numOfData;
-  int32_t bitmapOriginalSize;
-  int32_t bitmapCompressedSize;
-  int32_t offsetOriginalSize;
-  int32_t offsetCompressedSize;
-  int32_t dataOriginalSize;
-  int32_t dataCompressedSize;
+  int8_t   columnFlag;
+  int8_t   flag;
+  int8_t   dataType;
+  int16_t  columnId;
+  int32_t  numOfData;
+  int32_t  bitmapOriginalSize;
+  int32_t  bitmapCompressedSize;
+  int32_t  offsetOriginalSize;
+  int32_t  offsetCompressedSize;
+  int32_t  dataOriginalSize;
+  int32_t  dataCompressedSize;
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);

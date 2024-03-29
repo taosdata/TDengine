@@ -4185,7 +4185,7 @@ int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *info, SBu
   uint8_t fmtVer = 0;
 
   if ((code = tBufferPutU8(buffer, fmtVer))) return code;
-  if ((code = tBufferPutU32(buffer, info->cmprAlg))) return code;
+  if ((code = tBufferPutI8(buffer, info->cmprAlg))) return code;
   if ((code = tBufferPutI8(buffer, info->type))) return code;
   if (IS_VAR_DATA_TYPE(info->type)) {
     if ((code = tBufferPutI32v(buffer, info->offsetOriginalSize))) return code;
@@ -4203,7 +4203,7 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 
   if ((code = tBufferGetU8(reader, &fmtVer))) return code;
   if (fmtVer == 0) {
-    if ((code = tBufferGetU32(reader, &info->cmprAlg))) return code;
+    if ((code = tBufferGetI8(reader, &info->cmprAlg))) return code;
     if ((code = tBufferGetI8(reader, &info->type))) return code;
     if (IS_VAR_DATA_TYPE(info->type)) {
       if ((code = tBufferGetI32v(reader, &info->offsetOriginalSize))) return code;
@@ -4233,9 +4233,9 @@ int32_t tCompressData(void          *input,       // input
   extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= extraSizeNeeded);
 
-  DEFINE_VAR(info->cmprAlg)
-  if (info->cmprAlg == NO_COMPRESSION || (l1 == L1_UNKNOWN && l2 == L2_UNKNOWN) ||
-      (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
+  // DEFINE_VAR(info->cmprAlg)
+  if (info->cmprAlg == NO_COMPRESSION/* || (l1 == L1_UNKNOWN && l2 == L2_UNKNOWN) ||
+      (l1 == L1_DISABLED && l2 == L2_DISABLED)*/) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
   } else if (info->cmprAlg == TWO_STAGE_COMP) {
@@ -4271,6 +4271,12 @@ int32_t tCompressData(void          *input,       // input
 
     tBufferDestroy(&local);
   } else {
+    DEFINE_VAR(info->cmprAlg)
+    if ((l1 == L1_UNKNOWN && l2 == L2_UNKNOWN) || (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
+      memcpy(output, input, info->originalSize);
+      info->compressedSize = info->originalSize;
+      return 0;
+    }
     SBuffer local;
 
     tBufferInit(&local);
@@ -4311,9 +4317,7 @@ int32_t tDecompressData(void                *input,       // input
 
   ASSERT(outputSize >= info->originalSize);
 
-  DEFINE_VAR(info->cmprAlg);
-
-  if (info->cmprAlg == NO_COMPRESSION || (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
+  if (info->cmprAlg == NO_COMPRESSION) {
     ASSERT(info->compressedSize == info->originalSize);
     memcpy(output, input, info->compressedSize);
   } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
@@ -4350,6 +4354,11 @@ int32_t tDecompressData(void                *input,       // input
     ASSERT(decompressedSize == info->originalSize);
     tBufferDestroy(&local);
   } else {
+    DEFINE_VAR(info->cmprAlg);
+    if (l1 == L1_DISABLED && l2 == L2_DISABLED) {
+      memcpy(output, input, info->compressedSize);
+      return 0;
+    }
     SBuffer local;
 
     tBufferInit(&local);
