@@ -468,7 +468,8 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
   }
 
-  if (pCfg->encryptionKeyStat != tsEncryptionKeyStat || pCfg->encryptionKeyChksum != tsEncryptionKeyChksum) {
+  if (!atomic_load_8(&pMnode->encrypting) &&
+      (pCfg->encryptionKeyStat != tsEncryptionKeyStat || pCfg->encryptionKeyChksum != tsEncryptionKeyChksum)) {
     mError("dnode:%d, encryptionKey:%" PRIi8 "-%u inconsistent with cluster:%" PRIi8 "-%u", pDnode->id,
            pCfg->encryptionKeyStat, pCfg->encryptionKeyChksum, tsEncryptionKeyStat, tsEncryptionKeyChksum);
     return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
@@ -803,8 +804,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck =
-      !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != statusReq.ipWhiteVer;
+  bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -1405,25 +1407,29 @@ _err:
   return -1;
 }
 
-static int32_t mndSendCreateEncryptKeyReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
-  int32_t code = -1;
+static int32_t mndProcessCreateEncryptKeyReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
+
+  if (0 != atomic_val_compare_exchange_8(&pMnode->encrypting, 0, 1)) {
+    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    return code;  // don't use go to exit since encrypting is released in _exit
+  }
+
   while (1) {
     SDnodeObj *pDnode = NULL;
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
     if (pDnode->offlineReason != DND_REASON_ONLINE) continue;
-    
+
     if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
-  
       SEpSet  epSet = mndGetDnodeEpset(pDnode);
       int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
         tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
-        mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         tmsgSendReq(&epSet, &rpcMsg);
         code = 0;
@@ -1433,9 +1439,8 @@ static int32_t mndSendCreateEncryptKeyReq(SMnode *pMnode, int32_t dnodeId, SDCfg
     sdbRelease(pSdb, pDnode);
   }
 
-  if (code == -1) {
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-  }
+_exit:
+  atomic_store_8(&pMnode->encrypting, 0);
   return code;
 }
 
