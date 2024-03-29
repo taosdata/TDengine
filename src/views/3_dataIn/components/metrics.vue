@@ -44,7 +44,7 @@
           <el-form-item :label="$t('dataIn.timeRange')">
             <el-date-picker
               v-model="formInline.timeRange"
-              value-format="yyyy-MM-dd HH:mm:ss"
+              value-format="timestamp"
               type="datetimerange"
               :start-placeholder="$t('total')">
             </el-date-picker>
@@ -64,20 +64,20 @@
             prop="from_last_ts"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.source')"
-            min-width="180"
+            min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ parseTime(row.from_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
+              <span>{{ parsinginZone(row.from_last_ts) }}</span>
             </template>
           </el-table-column>
           <el-table-column
             prop="to_last_ts"
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.sink')"
-            min-width="180"
+            min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ parseTime(row.to_last_ts, "YYYY-MM-DD HH:mm:ss") }}</span>
+              <span>{{ parsinginZone(row.to_last_ts) }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -107,7 +107,7 @@
         <br/>
         <p class="title">{{ $t('dataIn.vgroupReplicationProgress') }}</p>
         <div style="margin-bottom: 8px" class="flexBetween">
-          <span>{{ $t('dataIn.updateTime') }} {{ parseTime(update_time, "YYYY-MM-DD HH:mm:ss") }}</span>
+          <span>{{ $t('dataIn.updateTime') }} {{ parsinginZone(update_time) }}</span>
           <el-button @click="handleRefresh" :loading="requesting" size="mini" type="primary">{{ $t('dataIn.refresh')  }}</el-button>
         </div>
         <el-table :data="vgroupData" size="mini" border>
@@ -142,7 +142,7 @@
 </template>
 
 <script>
-import { parseTime } from "@/utils";
+import { parseTime, parsinginZone } from "@/utils";
 import moment from 'moment';
 import { getTableProgress, getVgroupProgress } from '@/api/explorer/datain';
 export default {
@@ -166,6 +166,7 @@ export default {
   data() {
     return { 
       parseTime,
+      parsinginZone,
       datas: [], 
       activeName: 'current',
       currentMetrics: [],
@@ -346,7 +347,9 @@ export default {
           this.requesting_q = true;
           let { table, timeRange } = this.formInline
           let params = 'table' + '=' + table
-          params += timeRange.length > 0 ? `&start=${timeRange[0]}&end=${timeRange[1]}` : ''
+          params += timeRange.length > 0 
+            ? `&start=${encodeURIComponent(parsinginZone(timeRange[0]))}&end=${encodeURIComponent(parsinginZone(timeRange[1]))}`
+            : ''
           let res = await getTableProgress(this.taskId,params)
           if (res && res.code && res.code !=0) {
             this.$message.error(res?.message);
