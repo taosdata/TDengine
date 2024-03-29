@@ -56,7 +56,7 @@ class StreamRedistribute(TDCase):
         self.pre_num_of_records_per_req = 10000
         self.json_file_name1 = "insert0.json"
         self.json_data_list = list()
-        self.taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
+        self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         self.host = self.get_fqdn("taosd")[0]
         self.restart_dnode_id_list = list()
@@ -88,7 +88,6 @@ class StreamRedistribute(TDCase):
     def cleanup(self):
         pass
 
-
     def get_cluster_to_redistribute_list(self, reserver_dnode_count):
         tmp_dnode_id_list = self.tdCom.get_dnode_id_list()
         reserve_dnode_id_list = [x for x in tmp_dnode_id_list if x not in self.source_dnode_id_list]
@@ -103,8 +102,11 @@ class StreamRedistribute(TDCase):
         self.restart_dnode()
 
     def clean_wal(self):
+        killCmd = "ps -ef|grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % (self.taosd_setting["spec"]["dnodes"][0]["config_dir"])
+        vgid_list = self.tdCom.get_vgid_list(self.dbname)
+        self._remote.cmd(self.host, [killCmd])
         data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
-        for vgid in self.tdCom.get_vgid_list(self.dbname):
+        for vgid in vgid_list:
             self._remote.cmd(self.host, f'rm -rf {data_dir}/vnode/vnode{vgid}/wal/*')
 
     def restart_dnode(self):
