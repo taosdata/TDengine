@@ -20,7 +20,7 @@ use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
