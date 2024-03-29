@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#if 1
+#if 0
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 3 //4096
 #define MJOIN_HJOIN_CART_THRESHOLD 10
 #define MJOIN_BLK_SIZE_LIMIT 0 //10485760

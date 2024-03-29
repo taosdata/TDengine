@@ -243,7 +243,7 @@ sql select count(*) from tba1 a full join tba2 b on a.ts=b.ts;
 if $rows != 1 then
   return -1
 endi
-if $data00 != 4 then
+if $data00 != 6 then
   return -1
 endi
 sql select count(a.*) from tba1 a full join tba2 b on a.ts=b.ts;
