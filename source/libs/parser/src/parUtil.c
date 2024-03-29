@@ -199,7 +199,9 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_SECOND_COL_PK:
       return "primary key column must be second column";
     case TSDB_CODE_PAR_COL_PK_TYPE:
-      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";  
+      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
+    case TSDB_CODE_PAR_INVALID_PK_OP:
+      return "primary key column can not be added, modified, and dropped";    
     default:
       return "Unknown error";
   }
