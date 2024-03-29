@@ -1286,6 +1286,27 @@ int32_t tRowKeyCompare(const void *p1, const void *p2) {
   return 0;
 }
 
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+  pDst->ts = pSrc->ts;
+  pDst->numOfPKs = pSrc->numOfPKs;
+
+  if (pSrc->numOfPKs > 0) {
+    for (int32_t i = 0; i < pSrc->numOfPKs; ++i) {
+      SValue *pVal = &pDst->pks[i];
+      pVal->type = pSrc->pks[i].type;
+
+      if (IS_NUMERIC_TYPE(pVal->type)) {
+        pVal->val = pSrc->pks[i].val;
+      } else {
+        memcpy(pVal->pData, pVal->pData, pVal->nData);
+        pVal->nData = pSrc->pks[i].nData;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // STag ========================================
 static int tTagValCmprFn(const void *p1, const void *p2) {
   if (((STagVal *)p1)->cid < ((STagVal *)p2)->cid) {
