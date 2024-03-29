@@ -343,11 +343,9 @@
               ></el-table-column>
               <el-table-column
                 prop="Expression"
-                :show-overflow-tooltip="false"
                 label="Expression"
-                class="normal"
               >
-                <template slot-scope="scope">
+                <div class="box-expression" slot-scope="scope">
                   <template v-if="scope.row['Name'] == 'SubTableName'">
                     <el-input
                       size="small"
@@ -416,6 +414,7 @@
                       :key="'exprjoin'"
                       class="mapping-rule-extra"
                       v-model="scope.row.joinwith"
+                      style="height: 32px;"
                     >
                       <template slot="prepend">with</template>
                     </el-input>
@@ -428,7 +427,7 @@
                       :key="'default-value-of-' + scope.row['Name']"
                       v-model="scope.row.default"
                       class="mapping-rule-extra"
-                      @input="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
+                      @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
                     >
                     </el-input>
                     <el-date-picker
@@ -463,7 +462,10 @@
                       class="mapping-rule-extra"
                     ></el-input>
                   </template>
-                </template>
+                  <div class="default-value-error" v-if="scope.row.defaultValueError">
+                    {{ scope.row.defaultValueError }}
+                  </div>
+                </div>
               </el-table-column>
             </el-table>
             <div class="block-page">
@@ -759,7 +761,10 @@ export default {
     changeCurrentMapExpr(scope) {
       this.$nextTick(() => {
         this.$set(this.pageTableData[scope.$index], "Expression", "");
-        this.$set(this.pageTableData[scope.$index], "default", "");
+        if (this.pageTableData[scope.$index].default != undefined && this.pageTableData[scope.$index].default !== "") {
+          this.$set(this.pageTableData[scope.$index], "default", "");
+          this.$set(this.pageTableData[scope.$index], "defaultValueError", "");
+        }
         if (scope.row.exprname == "generator") {
           this.$set(this.pageTableData[scope.$index], "Expression", "now");
         }
@@ -794,9 +799,6 @@ export default {
     clearMsgBody() {
       this.msgForm.msgbody = ''
     },
-    // changeSubname(val) {
-    //   this.subrule.subname = val;
-    // },
     validateSubName() {
       let flag = false;
       if (this.$refs.subtb && this.$refs?.subtb[0]) {
@@ -877,6 +879,14 @@ export default {
     },
     async submitParse(name) {
       try {
+        
+        for (let i = 0; i < this.pageTableData.length; i++) {
+          if (this.pageTableData[i].defaultValueError) {
+            this.$error(this.pageTableData[i].defaultValueError);
+            return;
+          }
+        }
+
         if (!this.msgForm.msgbody) {
           Message.warning(this.$t("datasource.transformer.msgbodytip"));
           return;
@@ -1023,6 +1033,7 @@ export default {
     },
     onDefaultValueInput(name, val, range) {
       if (val === undefined || val.trim() === "") {
+        this.setDefaultValueError(name, "");
         return;
       }
 
@@ -1055,20 +1066,21 @@ export default {
         }
       }
 
-      this.$message.closeAll();
+      this.setDefaultValueError(name, "");
     },
     alertDataRange(name, val, range) {
       let dataRangeInputTip = this.$t("datasource.transformer.dataRangeInputTip");
       dataRangeInputTip = dataRangeInputTip.replace("{min}", range[0]).replace("{max}", range[1]);
-      this.$message.closeAll();
-      this.$error(dataRangeInputTip);
+      this.setDefaultValueError(name, dataRangeInputTip);
+    },
+
+    setDefaultValueError(name, errorMsg) {
       this.pageTableData.forEach((item) => {
         if (item.Name === name) {
-          this.$set(item, "default", val.substring(0, val.length - 1));
+          this.$set(item, "defaultValueError", errorMsg);
         }
       });
     },
-
 
     handleCurrentChange(val) {
       this.currentPage = val;
@@ -1360,7 +1372,10 @@ export default {
             if (key == "join") {
               expreitem["with"] = item.joinwith;
             }
-            
+            if (item.defaultValueError) {
+              this.isbreak = true;
+              this.$error(this.$t("data.fields") + "[" + item.Name + "]," +  item.defaultValueError);
+            }
             if (item.exprname == "mapping" && this.params_columns.includes(item["Name"])) {
               if (item.dataType === "TIMESTAMP" && item.default) {
                 expreitem["default"] = item.default + "";
@@ -1374,6 +1389,7 @@ export default {
           }
         }
       });
+      if (this.isbreak) return;
 
       mutates.forEach((item) => {
         Object.assign(mutateMap, item);
@@ -2167,14 +2183,28 @@ export default {
     display: flex;
     justify-content: flex-end;
   }
-  .mapping-rule-select {
-    width: 100px; margin-right: 5px;
-  }
-  .mapping-rule-expression {
-    width: 200px; margin-right: 5px;
-  }
-  .mapping-rule-extra {
-    width: 100px;
+  
+  .box-expression {
+    display: flex;
+    flex-wrap: wrap;
+    .mapping-rule-select {
+      width: 100px; margin-right: 5px;
+    }
+    .mapping-rule-expression {
+      flex: 1;
+    }
+    .mapping-rule-extra {
+      width: 100px;
+      margin-left: 5px;
+    }
+    .default-value-error {
+      width: 100%;
+      color: #ff4949;
+      line-height: 1;
+      margin-top: 5px;
+      font-size: 12px;
+      text-align: right;
+    }
   }
   ::v-deep {
     .el-table {

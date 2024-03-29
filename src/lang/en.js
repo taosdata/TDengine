@@ -1393,6 +1393,7 @@ export default {
       databaseSelectTip: "Please select the target database in the base information panel",
       defaultValuePlaceholder: "default value",
       dataRangeInputTip: "Please input integer value between {min} and {max}",
+      defaultValueErrorTip: "default value for column[{}] input error",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",

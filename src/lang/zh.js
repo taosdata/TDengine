@@ -1177,6 +1177,7 @@ export default {
       databaseSelectTip: "请先在上面的基本信息面板中选择目标数据库",
       defaultValuePlaceholder: "默认值",
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
+      defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",
