@@ -115,16 +115,6 @@ async fn write_data(
                 }
             }
         } else {
-            while let Some(raw) = data
-                .fetch_raw_block()
-                .await
-                .context("Fetch raw block error")?
-            {
-                *rows += raw.nrows();
-                metrics.add_written_rows(raw.nrows() as _);
-                metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
-                metrics.add_suc_blocks(1);
-            }
             return Ok(0);
         }
     }
@@ -138,11 +128,12 @@ async fn write_data(
             .table_name()
             .ok_or_else(|| anyhow::anyhow!("Table name not found while subscribing from source"))?
             .to_string();
+        tracing::trace!("source_table_name: {source_table_name}");
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -159,7 +150,7 @@ async fn write_data(
                 }
                 raw.with_table_name(&name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -178,15 +169,16 @@ async fn write_data(
                 }
                 raw.with_table_name(&name);
                 tracing::debug!(
-                    "write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
                 );
             }
         } else {
+            // 会走到这里吗？
             tracing::debug!(
-                "write {} rows(total {}) with {} columns",
+                "Write {} rows(total {}) with {} columns",
                 raw.nrows(),
                 rows,
                 raw.ncols()
