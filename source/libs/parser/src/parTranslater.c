@@ -10832,6 +10832,14 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
+  const SSchema* pSchema = getNormalColSchema(pTableMeta, pStmt->colName);
+  if (hasPkInTable(pTableMeta) && pSchema && (pSchema->flags & COL_IS_KEY) && 
+      (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
+       TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
+       TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP);
+  }
+
   SVAlterTbReq req = {0};
   int32_t      code = buildAlterTbReq(pCxt, pStmt, pTableMeta, &req);
 
