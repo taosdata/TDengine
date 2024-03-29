@@ -14,8 +14,10 @@ options:
   endpoint:
     display: MQTT 地址
     required: true
+    pattern: "^.+:(?:[0-9]{1,5})$"
+    pattern_msg: "输入格式有误，请按照格式 `host:port`，port 范围为 1-65535。"
     description: |
-      MQTT 服务器地址。如: ”127.0.0.1:1883“
+      MQTT 服务器地址。如: “127.0.0.1:1883”
       如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1:1883
 
@@ -106,8 +108,10 @@ groups:
       - name: topics
         display: 订阅主题及 QoS 配置
         required: true
+        pattern: "^(?:[^:]+::[0-2],)*[^:]+::[0-2]$"
+        pattern_msg: "输入格式有误，请按照格式 `<topic name>::<QoS>`，例如： `topic1::0,topic2::1`"
         description: |
-          使用如下格式设置： `topic1::0,topic2::1`
+          输入格式 `<topic name>::<QoS>`，订阅多个使用逗号分割，例如: `topic1::0,topic2::1`
         hint:
           type: str
         placeholder: topic1::0,topic2::1
@@ -198,7 +202,7 @@ advanced:
         type: str
 
 parser:
-  display: MQTT Payload 解析
+  display: Payload 转换
   description: |
     MQTT 连接器会上传以下四列到服务端：
 

@@ -128,7 +128,7 @@ groups:
           type: str
 
 parser:
-  display: Data Mapping
+  display: Payload Transformation
   description: |
     taosX could let users to specify the data model in the database, for example, the table name pattern <br>
     and stable name pattern, field names as tags or field names as columns.
