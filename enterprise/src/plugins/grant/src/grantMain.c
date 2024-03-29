@@ -248,6 +248,8 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 static void    mndCancelGetNextGrantLogs(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextMachines(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextEncryptions(SMnode *pMnode, void *pIter);
 
 static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *pIns);
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *pIns);
@@ -283,6 +285,8 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOGS, mndCancelGetNextGrantLogs);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndRetrieveMachines);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndCancelGetNextMachines);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPTIONS, mndRetrieveEncryptions);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPTIONS, mndCancelGetNextEncryptions);
 
   SSdbTable table = {
       .sdbType = SDB_GRANT,
@@ -992,8 +996,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
     for (int32_t i = 0; i < dnodeSize; ++i) {
       SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(grantHandle.pDnodeInfo, i);
-      if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT ||
-          info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+      if (info->offlineReason != DND_REASON_ONLINE) {
         uDebug("not send grant status to dnode:%d since offline state:%d", info->id, info->offlineReason);
         continue;
       }
@@ -1326,7 +1329,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
   SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
   for (int32_t i = 0; i < dInfoSize; ++i) {
     SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(pDnodeInfo, i);
-    if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT || info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+    if (info->offlineReason != DND_REASON_ONLINE) {
       uDebug("not send grant notify to dnode:%d since offline state:%d", info->id, info->offlineReason);
       continue;
     }
@@ -2500,4 +2503,78 @@ static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
     if (tDecodeI32v(decoder, &pIn->expire) < 0) return -1;
   }
   return 0;
+}
+
+static const char *getEncryptKeyStatStr(int8_t encryptKeyStat) {
+  switch (encryptKeyStat) {
+    case ENCRYPT_KEY_STAT_UNKNOWN:
+      return "unknown";
+    case ENCRYPT_KEY_STAT_UNSET:
+      return "unset";
+    case ENCRYPT_KEY_STAT_SET:
+      return "set";
+    case ENCRYPT_KEY_STAT_LOADED:
+      return "loaded";
+    default:
+      break;
+  }
+  return "unknown";
+}
+
+static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  int32_t    cols = 0;
+  bool       online = true;
+  ESdbStatus objStatus = 0;
+  SDnodeObj *pDnode = NULL;
+  int64_t    curMs = taosGetTimestampMs();
+  char       buf[16];
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
+    if (pShow->pIter == NULL) break;
+
+    online = mndIsDnodeOnline(pDnode, curMs);
+    cols = 0;
+
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
+
+    ++cols;
+
+    const char *keyStr = getEncryptKeyStatStr(pDnode->encryptionKeyStat);
+    int32_t     keyStrLen = strlen(keyStr);
+    memcpy(varDataVal(buf), keyStr, keyStrLen);
+    if (online) {
+      varDataVal(buf + keyStrLen)[0] = 0;
+    } else {
+      varDataVal(buf + keyStrLen)[0] = '*';
+      varDataVal(buf + (++keyStrLen))[0] = 0;
+    }
+    varDataSetLen(buf, keyStrLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    ++numOfRows;
+    sdbRelease(pSdb, pDnode);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+// 未知      因为 encryptionKeyStat 未执久化，mnode 中初始状态为未知。如果 dnode
+// 一直处在离线状态，则该状态不会发生变化，除非 dnode 上线并上报状态。 此时，显示 unknown* 未设置    dnode
+// 上线，并上报状态。
+//          1） 如果 mnode 未设置，则 dnode 会保持在线，则状态显示为 none.
+//          2） 如果 mnode 已设置，dnode 在一段时间后会离线。dnode 离线前，展示为 none, dnode 离线后，展示为 none*;
+// 已设置
+// loaded - 不一致
+// loaded - 一致
+
+static void mndCancelGetNextEncryptions(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
 }

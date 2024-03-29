@@ -226,7 +226,7 @@ int32_t mndSetCreateDbUndoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
   return 0;
 }
-
+#if 0
 void mndSetCfgFromCreateReqImpl(SDbCfg *pCfg, SCreateDbReq *pCreate){
   *pCfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
@@ -362,3 +362,4 @@ int32_t mndSetDbCfgFromAlterDbReqImpl(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   return terrno;
 }
+#endif

@@ -300,7 +300,8 @@ typedef struct {
       uint64_t distribute : 36;  // second
       uint64_t granted : 1;
       uint64_t officialVersion : 1;
-      uint64_t padding : 2;
+      uint64_t endecrypt : 1;
+      uint64_t padding : 1;
       uint64_t validDays : 8;
       uint64_t version : 16;
     };
@@ -318,6 +319,9 @@ typedef struct {
   // variant fields
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
+
+  // extension
+  char *encrypt;
 } SGrantUniqObj;
 
 // taosGrant -> obj(init 0/-2/-1/...) -> fetch inputs and fill into obj -> encodeLen -> malloc(encodeLen+HeadLen(8+6))
