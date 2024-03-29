@@ -296,6 +296,7 @@ export default {
     replicationProgress: "同步进度",
     tbReplicationProgress: "表同步进度",
     tbName: "表名",
+    tbNameP: "源库名.表名",
     timeRange: "时间区间",
     query: "查询",
     tbHeader: {
