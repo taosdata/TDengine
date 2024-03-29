@@ -29,7 +29,7 @@ target_link_directories(
 )
 target_link_libraries(
     util
-    PUBLIC os
+    PUBLIC os common
     PUBLIC lz4_static fast-lzma2 
     PUBLIC api cjson geos_c TSZ 
 )

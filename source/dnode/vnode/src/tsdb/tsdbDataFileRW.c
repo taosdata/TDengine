@@ -204,8 +204,9 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
   for (int32_t i = 0; i < 10; i++) {  // int64_t
+
     SCompressInfo cinfo = {
-        .cmprAlg = brinBlk->cmprAlg,
+        .cmprAlg = 0,
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int64_t),
@@ -217,7 +218,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   for (int32_t i = 10; i < 15; i++) {  // int32_t
     SCompressInfo cinfo = {
-        .cmprAlg = brinBlk->cmprAlg,
+        .cmprAlg = 0,
         .dataType = TSDB_DATA_TYPE_INT,
         .compressedSize = brinBlk->size[i],
         .originalSize = brinBlk->numRec * sizeof(int32_t),
@@ -710,7 +711,7 @@ int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxV
   return 0;
 }
 
-int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
+int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmprAlg, int64_t *fileSize,
                                TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range) {
   if (brinBlock->numOfRecords == 0) return 0;
 
@@ -756,7 +757,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
   // write to file
   for (int32_t i = 0; i < 10; ++i) {
     SCompressInfo info = {
-        .cmprAlg = cmprAlg,
+        .cmprAlg = 0,
         .dataType = TSDB_DATA_TYPE_BIGINT,
         .originalSize = brinBlock->buffers[i].size,
     };
@@ -772,7 +773,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
   }
   for (int32_t i = 10; i < 15; ++i) {
     SCompressInfo info = {
-        .cmprAlg = cmprAlg,
+        .cmprAlg = 0,
         .dataType = TSDB_DATA_TYPE_INT,
         .originalSize = brinBlock->buffers[i].size,
     };

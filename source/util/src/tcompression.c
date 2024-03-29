@@ -859,7 +859,7 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
 }
 
 int32_t tsCompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type) {
-  int32_t bytes = tDataTypes[type].type * nelements;
+  int32_t bytes = tDataTypes[type].bytes * nelements;
   output[0] = 0;
   memcpy(output + 1, input, bytes);
   return bytes + 1;
