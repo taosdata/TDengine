@@ -107,7 +107,7 @@ class TDTestCase:
         self.taosBenchmark(" -d db -t 2 -v 2 -n 1000000 -y")
         # create stream
         tdSql.execute("use db")
-        tdSql.execute("create stream stream1 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
+        tdSql.execute("create stream stream3 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
         sql = "select count(*) from sta"
         # loop wait max 60s to check count is ok
         tdLog.info("loop wait result ...")
