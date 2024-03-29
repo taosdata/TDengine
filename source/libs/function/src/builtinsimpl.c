@@ -434,7 +434,12 @@ int32_t funcInputUpdate(SqlFunctionCtx* pCtx) {
     pIter->pPkCol = pIter->pInput->pPrimaryKey;
     pIter->rowIndex = pIter->pInput->startRowIndex;
     pIter->inputEndIndex = pIter->rowIndex + pIter->pInput->numOfRows - 1;
-    pIter->pSrcBlock = pCtx->pSrcBlock; 
+    pIter->pSrcBlock = pCtx->pSrcBlock;
+    if (!pIter->hasGroupId || pIter->groupId != pIter->pSrcBlock->info.id.groupId) {
+      pIter->hasGroupId = true;
+      pIter->groupId = pIter->pSrcBlock->info.id.groupId;
+      pIter->hasPrev = false;
+    }
   } else {
     pIter->finalRow = true;
   }

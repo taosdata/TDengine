@@ -1306,6 +1306,7 @@ static void appendToRowIndexDataBlock(SSortHandle* pHandle, SSDataBlock* pSource
 static void initRowIdSort(SSortHandle* pHandle) {
   SBlockOrderInfo* pkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->aExtRowsOrders, 1) : NULL;
   SColumnInfoData* extPkCol = (pHandle->bSortPk) ? taosArrayGet(pHandle->pDataBlock->pDataBlock, pkOrder->slotId) : NULL;
+  SColumnInfoData pkCol = {0};
 
   SSDataBlock* pSortInput = createDataBlock();
   SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
@@ -1317,7 +1318,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
   SColumnInfoData  lengthCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 4);
   blockDataAppendColInfo(pSortInput, &lengthCol);
   if (pHandle->bSortPk) {
-    SColumnInfoData pkCol = createColumnInfoData(extPkCol->info.type, extPkCol->info.bytes, 5);
+    pkCol = createColumnInfoData(extPkCol->info.type, extPkCol->info.bytes, 5);
     blockDataAppendColInfo(pSortInput, &pkCol);
   }
   blockDataDestroy(pHandle->pDataBlock);
@@ -1343,7 +1344,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
     biPk.order = pkOrder->order;
     biPk.slotId = 4;
     biPk.nullFirst = (biPk.order == TSDB_ORDER_ASC);
-    biPk.compFn = getKeyComparFunc(extPkCol->info.type, biPk.order);
+    biPk.compFn = getKeyComparFunc(pkCol.info.type, biPk.order);
     taosArrayPush(aOrder, &biPk);
   }
   taosArrayDestroy(pHandle->pSortInfo);
