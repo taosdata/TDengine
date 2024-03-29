@@ -3,37 +3,37 @@ title: 安装与配置
 sidebar_label: 安装与配置
 ---
 
-## 简介
+## Linux 平台
 
-TDengine Enterprise 包含两个安装包： 
-- `TDengine-server-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-server-3.1.0.3-Linux-x64.tar.gz`
-- `taosX-<version>-<OS-<platform>.tar.gz`，例如 `taosX-1.2.0-Linux-x64.tar.gz`
+TDengine Enterprise 的安装包是一个包含了 TDengine Enterprise 所有核心组件的 all in one 安装包，其命名方式如下：
 
-TDengine-server 安装包中主要包含： 
+- `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`
+
+TDengine Enterprise 安装包中主要包含：
+
 - `taosd`: 数据库服务端核心组件
 - `taosAdapter`：提供 RESTful 接入与 Websocket 连接的代理服务
 - `taosKeeper`:  taosd 上报数据的代理服务
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
+- taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
+- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
+- Explorer (`taos-explorer`)：可视化管理工具的服务端
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 Agent 调用
 
-taosX 安装包中主要包含：
-- `taosX`：数据接入、同步、备份和恢复的零代码平台
-- `taosAgent`：用于一些特定数据源接入时（taosX）的代理服务
-- `taosExplorer`：可视化管理工具的服务端
-- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
+安装步骤如下：
 
-## 安装 TDengine Server
-
-### Linux 安装
-
-1. 获取 TDengine server 安装包
+1. 获取 TDengine Enterprise 安装包
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+4. 默认安装路径为 /usr/local/taos
+5. start-all.sh 可以快速在本机启动所有必要的服务
+6. stop-all.sh 可以快速停止本机上所有与 TDengine Enterprise 有关的服务
 
 示例： 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+tar -zxvf TDengine-enterprise-<version>-Linux-x64.tar.gz
 ```
 
 解压文件后，进入相应子目录，执行其中的 `install.sh` 安装脚本：
@@ -43,68 +43,55 @@ sudo ./install.sh
 ```
 
 :::info
-install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+
+1. install.sh 安装脚本在执行过程中，缺省会通过命令行交互界面询问一些配置信息，并完成单机运行环境的配置。
+2. 如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。
+3. 运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 :::
 
-## 安装 taosX
+## Windows 平台
 
-### Linux 安装
+TDengine Enterprise 的安装包是一个包含了 TDengine Enterprise 所有核心组件的 all in one 安装包，其命名方式如下：
 
-下载需要的 taosX 安装包，下文以安装包 `taosx-1.0.0-linux-x64.tar.gz` 为例展示如何安装：
+- `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-enterprise-3.1.0.3-Windows-x64.tar.gz`
 
-``` bash
-# 在任意目录下解压文件
-tar -zxf taosx-1.0.0-linux-x64.tar.gz
-cd taosx-1.0.0-linux-x64
+TDengine Enterprise 安装包中主要包含：
 
-# 安装
-sudo ./install.sh
+- `taosd`: 数据库服务端核心组件
+- `taosAdapter`：提供 RESTful 接入与 Websocket 连接的代理服务
+- `taosKeeper`:  taosd 上报数据的代理服务
+- `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
+- `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
+- taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
+- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
+- Explorer (`taos-explorer`)：可视化管理工具的服务端
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
 
-# 验证
-taosx -V 
-# taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
-taosx-agent -V 
-# taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
+安装步骤如下：
 
-# 卸载
-cd /usr/local/taosx
-sudo ./uninstall.sh
-```
+- 下载需要的版本的 TDengine Enterprise 安装包，例如 TDengine-Enterprise-3.1.1.13-Windows-x64.exe，执行安装
+- 可使用 uninstall_TDengine.exe 进行卸载
+- 命令行执行 ```sc.exe start/stop taosd``` 启动/停止 taosd 服务
+- 命令行执行 ```sc.exe start/stop taosadapter``` 启动/停止 taosadapter 服务
+- 命令行执行 ```sc.exe start/stop taoskeeper``` 启动/停止 taoskeeper 服务
+- 命令行执行 ```sc.exe start/stop taosx``` 启动/停止 taosx 服务
+- 命令行执行 ```sc.exe start/stop taosx-agent``` 启动/停止 taosx-agent 服务
+- 命令行执行 ```sc.exe start/stop taos-explorer``` 启动/停止 taosx-agent 服务
+- windows 默认安装在```C:\TDengine```,目录结构如下：
 
-**常见问题:**
-
-1. 安装后系统中增加了哪些文件？
-    * /usr/bin: taosx, taosx-agent, taos-explorer
-    * /usr/local/taosx/plugins: influxdb, mqtt, opc
-    * /etc/systemd/system:taosx.service, taosx-agent.service, taos-explorer.service
-    * /usr/local/taosx: uninstall.sh 
-    * /etc/taox: agent.toml, explorer.toml
-
-2. taosx -V 提示 "Command not found" 应该如何解决？
-    * 检验问题1，保证所有的文件都被复制到对应的目录
-    ``` bash
-    ls /usr/bin | grep taosx
-    ```
-
-### Windows 安装
-
-- 下载需要的 taosX 安装包，例如 taosx-1.0.0-Windows-x64-installer.exe，执行安装
-- 可使用 uninstall_taosx.exe 进行卸载
-- 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
-- 命令行执行 ```sc start/stop taosx-agent``` 启动/停止 taosx-agent 服务
-- 命令行执行 ```sc start/stop taos-explorer``` 启动/停止 taosx-agent 服务
-- windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
 ~~~
-├── bin
-│   ├── taosx.exe
-│   ├── taosx-srv.exe
-│   ├── taosx-srv.xml
-│   ├── taosx-agent.exe
-│   ├── taosx-agent-srv.exe
-│   ├── taosx-agent-srv.xml
-│   ├── taos-explorer.exe
-│   ├── taos-explorer-srv.exe
-│   └── taos-explorer-srv.xml
+├── taosd.exe
+├── taosadapter.exe
+├── taoskeeper.exe
+├── taosx.exe
+├── taosx-srv.exe
+├── taosx-srv.xml
+├── taosx-agent.exe
+├── taosx-agent-srv.exe
+├── taosx-agent-srv.xml
+├── taos-explorer.exe
+├── taos-explorer-srv.exe
+└── taos-explorer-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
@@ -116,9 +103,10 @@ sudo ./uninstall.sh
 │   |   └── taosx-pi.exe
 │   |   └── taosx-pi-backfill.exe
 │   |   └── ...
-└── config
+└── cfg
 │   ├── agent.toml
 │   ├── explorer.toml
-├── uninstall_taosx.exe
-├── uninstall_taosx.dat
+│   ├── taosx.toml
+├── uninstall_TDengine.exe
+├── uninstall_TDengine.dat
 ~~~

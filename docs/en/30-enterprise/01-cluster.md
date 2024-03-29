@@ -16,6 +16,8 @@ In some scenarios, data stored in TDengine may become fragmented or take up an e
 
 ```SQL
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
+SHOW COMPACTS [compact_id]；
+KILL COMPACT compact_id；
 ```
 
 ### Results
@@ -25,6 +27,9 @@ COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']；
 - STT files are combined.
 - You can use the `START WITH` keyword to specify a start time for the `COMPACT` command.
 - You can use the `END WITH` keyword to specify an end time for the `COMPACT` command.
+- The `COMPACT` command returns a compact ID.
+- The `COMPACT` tasks run asynchronously. You can use the `SHOW COMPACTS` command to view the progress of the `COMPACT` tasks.
+- The `SHOW` command returns the compact ID of the `COMPACT` command. You can use the `KILL COMPACT` command to terminate the `COMPACT` command.
 
 
 ### Additional Notes
@@ -33,17 +38,18 @@ COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']；
 - The `COMPACT` command blocks data ingestion but does not block data querying.
 - The progress of the `COMPACT` command is not displayed.
 
-## Raft Leader Balancing
+## Vgroup Leader Balancing
 
 If one or more nodes in a multi-replica cluster are restarted due to an upgrade or another reason, load on the cluster may become unevenly distributed among the dnodes in the cluster. In extreme cases, it is possible that a single dnode becomes the leader node of all vgroups in the cluster. You can run the following command to rebalance your cluster:
 
 ```SQL
-balance vgroup leader;
+balance vgroup leader; # balance leaders on all vgroups
+balance vgroup leader on <vgroup_id>; # balance leader on a given vgroup
 ```
 
 ### Features
 
-The command distributes all vgroup leader nodes evenly across replicas. It implements this by forcing vgroups to reelect their leaders.
+The command tries to distribute one or all vgroup leaders nodes evenly across replicas. It implements this by forcing vgroups to reelect their leaders.
 
 ### Notes
 

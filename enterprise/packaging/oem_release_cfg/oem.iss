@@ -24,17 +24,18 @@ AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
 AppName={#CusName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
-AppPublisher={#MyAppPublisher}
+AppPublisher={#CusName}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={#MyAppInstallDir}
-DefaultGroupName={#MyAppName}
+DefaultGroupName={#CusName}
 DisableProgramGroupPage=yes
 InfoBeforeFile={#MyAppBeforeInstallTxt}
 OutputDir={#MyAppOutputDir}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
+UninstallDisplayIcon={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 DisableDirPage=yes
@@ -147,7 +148,7 @@ Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm
 Name:"{group}\Taos Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
 Name:"{group}\Open {#CusName} Directory"; Filename: "{code:GetCustomPath}\" 
 Name:"{group}\Taosdemo"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taosdemo.exe" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
+Name: "{group}\{cm:UninstallProgram,{#CusName}}"; Filename: "{uninstallexe}" ; IconFilename: "{#MyAppIco}" 
 Name:"{commondesktop}\Taos Shell"; Filename: "{code:GetCustomPath}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{code:GetCustomPath}" ; IconFilename: "{code:GetCustomPath}\include\{#MyAppIco}" 
 
 

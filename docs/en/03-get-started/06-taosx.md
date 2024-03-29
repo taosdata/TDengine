@@ -5,14 +5,44 @@ sidebar_label: taosX
 
 ## Introduction
 
-This document describes how to install taosX. The taosX installation package includes taosX. For more information, see [Installation Guide](../install/).
+This section describes how to deploy taosX. Once the taosX installation package is installed, taosX is available in the system. For details, please refer to [Installation and Configuration](../install).
 
 ## Configuration
 
-You can configure taosX with command-line parameters. To view the supported parameters when taosX is run as a service, run the following command:
+taosX supports configuration through a configuration file. On Linux, the default configuration file path is `/etc/taos/taosx.toml`, and on Windows, it is `C:\\TDengine\\config\\taosx.toml`. A complete taosX configuration file looks like the following:
 
-```
-taosx serve --help
+
+```toml
+# plugins home
+#plugins_home = "/usr/local/taos/plugins"
+
+# data dir
+#data_dir = "/var/lib/taos/taosx"
+
+# logs home
+#logs_home = "/var/log/taos"
+
+# log level: off/error/warn/info/debug/trace
+#log_level = "info"
+
+# log keep days
+#log_keep_days = 30
+
+# number of threads
+#jobs = 0
+
+# enable OpenTelemetry tracing and metrics exporter
+#otel = false
+
+#[serve]
+# listen to ip:port address
+#listen = "0.0.0.0:6050"
+
+# GRPC listen address
+#grpc = "0.0.0.0:6055"
+
+# database url
+#database_url = "sqlite:taosx.db"
 ```
 
 The `systemd` configuration file for taosX is located at `/etc/systemd/system/taosx.service`. To configure the taosX service, modify the following line in the `taosx.service` file:

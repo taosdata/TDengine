@@ -5,35 +5,31 @@ sidebar_label: taos-Agent
 
 ## Introduction
 
-This document describes how to install the taosX agent. The taosX agent is installed automatically when you install taosX. For more information, see [Installation Guide](../install/).
+This section explains how to deploy the Agent (for taosX). Once the taosX installation package is installed, the system has the Agent. For details, please refer to [Installation and Configuration](../install).
 
-## Configure
+## Configuration
 
-The configuration file for the taosX agent is located at `/etc/taos/agent.toml`. The configuration options are described as follows:
-- endpoint: (Mandatory) Specify the GRPC endpoint of taosX.
-- token: (Mandatory) Specify the token generated for the agent in taosExplorer.
-- debug_level: (Optional) Specify the debug level. You can enter `info`, `debug`, or `trace`. The default value is `info`.
+The default configuration file for the Agent is located at `/etc/taos/agent.toml`, and it includes the following configuration items:
 
-The configuration file is described as follows:
+- `endpoint`: Mandatory, the GRPC service address of taosX.
+- `token`: Mandatory, the Token generated when creating the Agent on Explorer.
+- `log_level`: Optional, log level, default is `info`. Similar to taosX, it supports `error`, `warn`, `info`, `debug`, `trace`.
+- `log_keep_days`: Optional, the number of days to keep logs, default is `30` days.
+
+As shown below:
 
 ```TOML
 endpoint = "grpc://<taosx-ip>:6055"
 token = "<token>"
-log_level = "debug"
-```
-
-Log retention settings
-You can configure the length of time for which log files are stores by specifying a value for the `TAOSX_LOGS_KEEP_DAYS` environmental variable. The default value is 30 days.
-
-```shell
-export TAOSX_LOGS_KEEP_DAYS=7
+log_level = "info"
+log_keep_days = 30
 ```
 
 ## Start taos-Agent
 
 On Linux, use the `systemctl` command to start the taosX agent:
 
-```
+```bash
 systemctl start taosx-agent
 ```
 
@@ -41,8 +37,10 @@ On Windows, open the **Services** app and start the **taosx-agent** service.
 
 ## Troubleshooting
 
-You can use the `journalctl` command to view the logs for the taosX agent:
+You can view the Agent's logs using `journalctl` or by checking the log file `/var/log/taos/agent.log` on Linux or `C:\\TDengine\\log\agent.log` on Windows.
 
-```
+The command to view logs using `journalctl` on Linux is as follows:
+
+```bash
 journalctl -u taosx-agent -f
 ```

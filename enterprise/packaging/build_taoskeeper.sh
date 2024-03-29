@@ -21,12 +21,13 @@ Build taoskeeper in latest tag.
 -r, --arch <arch>                           Remove TDinsight dashboard, TDengine data source and the plugin.
 -f, --force                                 Force rebuild and pack
 -e, --repo                                  Code repositories
+-t, --tag                                   tag
 EOF
 }
 
 prepare_repo_taoskeeperinternal() {
   ([ -d build-taoskeeper ] && [ -d build-taoskeeper/.git ] && cd build-taoskeeper/ && git pull) || \
-    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/$REPO.git -b 3.0 build-taoskeeper && cd build-taoskeeper)
+    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/$REPO.git build-taoskeeper && cd build-taoskeeper)
 }
 
 prepare_repo_taoskeeper() {
@@ -36,14 +37,24 @@ prepare_repo_taoskeeper() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-  git fetch
-  # get latest tag
-  latest=`git tag --sort=-creatordate | head -1`
 
-   if [ "$REPO" = "taoskeeper" ]; then
-     git checkout $latest
-   fi
-   echo $latest
+  git fetch
+  # get tag  
+  if [ -n "$TAG" ] && [ $(git tag -l "$TAG") ]; then
+    latest=$TAG
+  else
+    latest=`git tag --sort=-creatordate | head -1`
+  fi
+
+  echo $latest
+
+  latestv=$(echo "$latest" | sed 's/ver-//')
+
+  gitinfo=`git rev-parse HEAD`
+  buildinfo=`date +"%F %T %:z"`
+
+  git checkout $latest
+  echo $latest
 }
 
 build_binary() {
@@ -51,10 +62,10 @@ build_binary() {
     true
   else
     if [ "$REPO" = "taoskeeperinternal" ]; then
-      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest'" -o taoskeeper main.go
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latestv' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
     elif [ "$REPO" = "taoskeeper" ]; then
-      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'" -o taoskeeper main.go
-          # if os != darwin, use upx to compress binary
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latestv' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+         # if os != darwin, use upx to compress binary
       if [ "$current_os" != "Darwin" ]; then
          upx taoskeeper > /dev/null 2>&1 || :
       fi
@@ -65,7 +76,7 @@ build_binary() {
 }
 
 # eval set -- "$OPTIONS"
-while getopts "ho:r:e:f" arg
+while getopts "ho:r:e:f:t:" arg
 do
   case $arg in
   h)
@@ -83,6 +94,9 @@ do
     ;;
   f)
     export FORCE=1
+    ;;
+  t)
+    export TAG=$OPTARG
     ;;
   ?)
     break

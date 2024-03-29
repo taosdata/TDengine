@@ -36,7 +36,7 @@ rm -rf debs/*
 rm -rf rpms/*
 
 if [ "$cpuType" == "x64" ]; then
-  allocator=jemalloc
+  allocator=glibc
 fi
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
@@ -68,7 +68,7 @@ elif [ "$cpuType" = "mips64" ]; then
 else
   arch=$cpuType
 fi
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper -t ver=$version`
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
@@ -79,8 +79,6 @@ tar axf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
 cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
-cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
-cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
 rm -rf $prefix/taos $prefix/package.tar
 tar acf $server_tar $prefix

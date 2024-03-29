@@ -170,13 +170,9 @@ Query OK, 8 row(s) in set (0.001154s)
 Launch the TDengine CLI and execute below command:
 
 ```sql
-DROP DNODE "fqdn:port";
-```
-
-or
-
-```sql
-DROP DNODE dnodeId;
+DROP DNODE dnodeId; # drop an online dnode
+DROP DNODE dnodeId FORCE; # drop an offline dnode with vnodes of multiple replicas only
+DROP DNODE dnodeId UNSAFE; # drop an offline dnode with vnodes of single replica too
 ```
 
 to drop or remove a dnode from the cluster. In the command, you can get `dnodeId` from `show dnodes`.
@@ -201,4 +197,4 @@ to drop or remove a dnode from the cluster. In the command, you can get `dnodeId
   3. Ensure that the new node is not running as an independent cluster. Run the `taos -h <fqdn>` command to log in to the node and then `SHOW DNODES` to view the cluster.
     If the new node shows different information from your primary dnode, stop the taosd service on the new node and delete  
     all files in the `dataDir` directory specified in `taos.cfg`. Then restart the new node.
-```  
+```

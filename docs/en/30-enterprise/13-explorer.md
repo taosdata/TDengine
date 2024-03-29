@@ -30,23 +30,67 @@ taosExplorer has a simple built-in dashboard displaying the following cluster in
 
 ## Data Explorer
 
-You can create and delete databases, create and delete super tables and sub-tables, execute SQL statements, and view the results of SQL statements by clicking the "Data Browser" entry in the function list. In addition, the Super Administrator has administrative rights to the database, a feature not available to other users.
+You can create and delete databases, create and delete super tables and sub-tables, execute SQL statements, and view the results of SQL statements by clicking the "Data Browser" entry in the function list. In addition, the Super Administrator has administrative rights to the database, a feature not available to other users.As shown in the picture below:
 
-Permissions include:
+![explorer-01-explorer-01-explorer-entry.jpeg](./pic/explorer-01-explorer-entry.jpeg)
 
-1. View (provides basic information on database/super table/general table)
+Here, by creating a database, to familiarize yourself with the functions and operations of the data browser page, then look at two ways to create a database:
 
-2. Edit (Edit information of database/super table/general table)
+1. Click the + sign in the figure to jump to the page of creating data database, and click the Create button, as shown in the following figure:
 
-3. Database management rights (super administrator only, this operation can be configured for the specified user database management rights)
+Step 1 Click the + sign;
+![explorer-02-explorer-02-createDbentry.jpeg](./pic/explorer-02-createDbentry.jpeg)
 
-4. Delete (delete database/super table/general table)
+The second step is to fill in the database name and required database configuration parameters. The configuration parameters are classified and folded, and click to expand;
+![explorer-03-createDbPage.jpeg](./pic/explorer-03-createDbPage.jpeg)
+![explorer-04-createDbPage2.jpeg](./pic/explorer-04-createDbPage2.jpeg)
 
-5. Append (select the corresponding database/super table/general table name to append directly to the right sql input area, avoiding manual input)
+After clicking the "Create" button in Step 3, the database name appears on the left side of the following figure, and the database is successfully created.
+![explorer-05-createDbtest01.jpeg](./pic/explorer-05-createDbtest01.jpeg)
 
-In Data Explorer, the stables and tables in different databases can be checked in a tree structure. If there are many stables/tables in a database, the search button on the right of STables/Tables can be clicked, and after submitting the keyword of the tables in the dialogue box, the matched stables/tables will be shown.
+2. By data Sql statement in sql editor, click "Run" button, as shown below:
 
-Besides querying database by inputing SQL queries manually, a wizard is available on Data Explorer. After inputing necessary information by following the wizard, the database queries can be made. Now, the wizard supports WHERE, ORDER BY, GROUP BY, PARTITION BY, Window Clause, etc.
+The first step is to enter the sql statement;
+![explorer-06-sqlCreateDb.jpeg](./pic/explorer-06-sqlCreateDb.jpeg)
+
+Step 2 Click the "Run" button, test02 appears on the left, the database is successfully created.
+![explorer-07-createDbtest02.jpeg](./pic/explorer-07-createDbtest02.jpeg)
+
+Since creating, modifying, and deleting a super table, creating a table, and creating a child table are consistent in behavior, let's take creating a super table as an example:
+
+### Create a super table
+
+The first step is to move the mouse to STables, click the + sign, the Create super table tab appears;
+![explorer-08-createStbEntry.jpeg](./pic/explorer-08-createStbEntry.jpeg)
+
+Step 2 Fill in the super form information, click "Create" button;
+![explorer-09-createStbPage.jpeg](./pic/explorer-09-createStbPage.jpeg)
+
+
+Step 3 Click Stables to show the super table name just filled in, which proves that the creation is successful.
+![explorer-10-createStbSucc.jpeg](./pic/explorer-10-createStbSucc.jpeg)
+
+### View super table
+
+Put the mouse on the super table to be viewed, and the icon as shown in the following picture appears. Click the "eye icon" to view the information of the super table 
+![explorer-11-viewStableEntry.jpeg](./pic/explorer-11-viewStableEntry.jpeg)
+![explorer-12-viewStableInfo.jpeg](./pic/explorer-12-viewStableInfo.jpeg)
+
+### Modify super table
+
+Put the mouse on the super table to be edited, and the icon as shown in the following picture appears. Click "Edit Icon" to modify the information of the super table
+![explorer-13-editStableEntry.jpeg](./pic/explorer-13-editStableEntry.jpeg)
+![explorer-14-editStableInfo.jpeg](./pic/explorer-14-editStableInfo.jpeg)
+
+### Delete super table
+
+Put the mouse on the super table to be deleted, and the icon as shown in the picture below will appear. Click "Delete icon" to delete the super table
+![explorer-15-delStb.jpeg](./pic/explorer-15-delStb.jpeg)
+
+### Sql editor to use
+
+When entering multiple statements, you can select the statement you want to refer to, or comment the statement (shortcut key Control-/ Command-/), and then click Execute
+![explorer-16-sqlEdtor.jpeg](./pic/explorer-16-sqlEdtor.jpeg)
 
 ## System Administration
 
@@ -54,42 +98,68 @@ By clicking on the "System Administration" portal in the function list, you can 
 
 In the "License" tab of "Management", to make it easier to activate TDengine Enterprise, users can check the cluster ID of TDengine on this page directly.
 
+![management-01-systemEntry.jpeg](./pic/management-01-systemEntry.jpeg)
+
 ### User Management
 
 After clicking "System Administration", you will be taken to the "Users" tab by default.
 In the user list, you can view the existing users in the system and their creation time, and you can enable, disable, edit (including changing passwords, database read/write permissions, etc.), delete and other operations on the users.
-Click the "+Add" button at the top right of the user list to open the "Add User" dialog:
-1. Enter the user name of the new user, mandatory fields
-2. Enter the login password of the new user, required, the password length is required to be 8-16 characters, and at least three of the following four conditions must be met: uppercase letters, lowercase letters, numbers, and special characters.
-3. Select the read/write privileges of the new user to the existing databases in the system, non-required, by default, the new user has no read/write privileges to all existing databases.
-4. Once the writeup is complete, click the OK button to add the new user.
+
+Step 1 Click the "+ Add" button on the top right of the user list to open the "Add User" dialog box, fill in the information of the new user, and click the "Confirm" button:
+![management-02-addUser.jpeg](./pic/management-02-addUser.jpeg)
+
+The second step is to view the new user
+![management-03-addUserSucc.jpeg](./pic/management-02-addUserSucc.jpeg)
+
+
+### Backup Management
+
+You can back up the data in the currently connected TDengine cluster to one or more local files.
+
+Step 1 Go to the system management page, click "Backup" to enter the data backup page, click "Create New Backup" in the upper right corner;
+![management-04-backupEntry.jpeg](./pic/management-04-backupEntry.jpeg)
+
+Step 2 In the data backup configuration page, you can set three parameters:
+![management-05-backupModal.jpeg](./pic/management-04-backupModal.jpeg)
+  
+Step 3 Click "Confirm" to create a data backup task.
+
+
+### Data Replication
+
+Synchronize data between databases, from DB1 to DB2.
+
+Step 1 Go to the system management page, click "Data synchronization page" to enter the data replication page, click "Add New Replication" in the upper right corner.
+
+Step 2 Set parameters on the data synchronization page
+![management-10-replication.jpeg](./pic/management-10-replication.jpeg "新增数据同步弹框")
+
+Step 3 Click "Confirm" to create a data synchronization task.
+
 
 ### System Information
 
 After clicking the "Cluster" tab, you can view the status, creation time and other information of DNodes, MNodes and QNodes, and you can add and delete the above nodes.
+![management-06-cluster.jpeg](./pic/management-06-cluster.jpeg "集群")
 
 ### License Management
 
-By clicking on the "License" tab, you can view the license information for the system and each connector.
+By clicking on the "license" tab, you can view the license information for the system and each connector.
+![management-07-许可证.jpeg](./pic/management-07-license.jpeg "集群")
+
 Click on the "Activate License" button located in the upper right corner of the "License" tab, enter the "Activation Code" and "Connector Activation Code" and click on the "OK" button to activate the license, the activation code should be obtained by contacting TDengine Customer Success team.
+![management-08-activationCode.jpeg](./pic/management-08-activationCode.jpeg "激活码")
+
+### Audit Management
+
+After clicking the "Audit" TAB, you can view the operation database table and login information of each user.
+![management-09-audit.jpeg](./pic/management-09-audit.jpeg "审计")
 
 ## Data Ingestion
 
 By clicking "Data Write" in the function list, you can configure different types of data sources, including TDengine Subscription, PI, OPC-UA, OPC-DA, InfluxDB, MQTT, Kafka, CSV, etc., to write their data to the TDengine cluster that is currently being managed.
 
 In the task list of the Data Source page, the following 3 operations can be made to every task: edit, delete and duplicate. Through the duplication operation, a new task can be created easily based on an existing task. After submitting the task, the metrics of the task can be obtained by clicking the "View" button on the task list.
-
-### TDengine Subscription
-
-Go to the TDengine Subscription Task Configuration page:
-1. In the Connection Protocol field, configure the connection protocol, which defaults to Native Connection and can be configured as WS, WSS;
-2. Configure the IP or domain name of the server in the Server field;
-3. Configure the port number for the connection in the Port field; the default value is 6030;
-4. In the Subject field, Configure can configure a subscription to one or more databases, either super or normal tables, or a created Topic;
-5. In the Authentication field, you can configure the user name and password for accessing TDengine, the default value of the user name is root and the default value of the password is taosdata; if the data source is a cloud service instance, you can select the token authentication method and configure the instance token;
-6. In the Subscription Initial Position field, you can configure the subscription to start with the earliest data (earliest) or the latest data (latest), with the default being earliest;
-7. Configure the timeout in the Timeout field, which can be configured as never. Indicates that the subscription continues without a timeout, or you can specify a timeout: 5s, 1m, etc. The supported units are ms (milliseconds), s (seconds), m (minutes), h (hours), d (days), M (months), and y (years).
-8. In the Target Database column, select the local TDengine library as the target library and click Submit to start a TDengine subscription task.
 
 ### Pi
 
@@ -118,38 +188,6 @@ Go to the TDengine Subscription Task Configuration page:
 4. In the Library Table Configuration column, configure the super table and sub-table structure information of the data stored in the target TDengine.
 5. In the Other Configuration column, configure the degree of parallelism, the number of report batches for a single collection (default value 100), the report timeout (unit: seconds, default value 10), and whether or not to turn on debug level logging.
 6. In the Target Database field, select the TDengine database you want to write to and click Submit to start a OPC- DA data access task.
-
-### InfluxDB
-
-After you enter the edit page for the InfluxDB Data Source Synchronization task:
-1. In the Protocol drop-down list, select a protocol of the InfluxDB connection, available items are "HTTP Protocol" or "HTTPS Protocol", this field is required;
-2. In the Server Address input box, enter the address of the InfluxDB server, either an IP address or a domain name; this field is required;
-3. In the Port input box, enter the InfluxDB server port. By default, InfluxDB listens for HTTP requests on port 8086 and HTTPS requests on port 8088, this field is required;
-4. In the Authentication section, 1.x versions and 2.x versions were supported for InfluxDB server, choose the corresponding version according to your requirement, this field is required;
-5. If InfluxDB server is 1.x version, select the correct one from version drop-down list, 1.7 and 1.8 are supported now, then fill in the username and password, these 3 fields are required;
-6. If InfluxDB server is 2.x version, select the correct one from version drop-down list, from 2.0 to 2.7 are supported now, then fill in enter the ID of the organization to be synchronized into Organization ID input box, enter a required field for a token that has at least read access to the specified bucket under this organization ID into the Token input box, these 3 fields are required;
-7. In the Bucket input box, enter a bucket to be synchronized, only one bucket can be synchronized to TDengine database, and also could get all bucket list by clicking "Get Schema" button, this field is required;
-8. In the Measurements input box, select one or more specified measurements to migrate, and if not specified, it will migrate all measurements, this is an optional field;
-9. Under Start time of synchronization settings, select a start time for synchronizing the data by clicking on it, the start time is in UTC time, this field is required.
-10. Under End Time of Synchronization Settings, when no end time is specified, synchronization of the latest data will continue; when an end time is specified, synchronization will continue only up to this end time; the end time is in UTC time, and this is an optional field;
-11. In the Read Window drop-down list, select a type of read window(D-Day, H-Hour, M-Minute), if not specified, the default value is "M-Minute", this is an optional field;
-12. In the Tolerance interval input box (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000, this is an optional field;
-13. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with nanosecond precision are supported to be synchronized), this field is required;
-14. After completing the above information, click the Submit button to start the data synchronization from InfluxDB to TDengine directly.
-
-### OpenTSDB
-
-After you enter the edit page for the OpenTSDB Data Source Synchronization task:
-1. In the Protocol drop-down list, select a protocol of the OpenTSDB connection, available items are "HTTP Protocol" or "HTTPS Protocol", this field is required;
-2. In the Server Address input box, enter the address of the OpenTSDB server, either an IP address or a domain name; this field is required;
-3. In the Port input box, enter the OpenTSDB server port. By default, OpenTSDB listens for HTTP requests on port 4242, this field is required;
-4. In the Metrics input box, select one or more specified metrics to migrate, and if not specified, it will migrate all metrics, this is an optional field;
-5. Under Start time of synchronization settings, select a start time for synchronizing the data by clicking on it, the start time is in UTC time, this field is required.
-6. Under End Time of Synchronization Settings, when no end time is specified, synchronization of the latest data will continue; when an end time is specified, synchronization will continue only up to this end time; the end time is in UTC time, and this is an optional field;
-7. In the Read Window drop-down list, select a type of read window(D-Day, H-Hour, M-Minute), if not specified, the default value is "M-Minute", this is an optional field;
-8. In the Tolerance interval input box (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000, this is an optional field;
-9. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with millisecond precision are supported to be synchronized), this field is required;
-10. After completing the above information, click the Submit button to start the data synchronization from OpenTSDB to TDengine directly.
 
 ### MQTT
 
@@ -240,65 +278,76 @@ You can back up the data in the currently connected TDengine cluster to one or m
 1. After completing the creation of a data backup task, click [Data Recovery] on the right side of the corresponding data backup task on the page to restore the data that has been backed up to the specified path to the current TDengine.
 
 
-## Data Subscription
-
-In this section, you will learn how to create topics and share them with other users in a TDengine cluster, as well as how to view consumer information for a topic.
-
-With Explorer, you can easily manage your data subscriptions to take advantage of the data subscription capabilities offered by TDengine.
-Click "Data Subscription" in the left navigation bar to jump to the data subscription configuration management page.
-You can create topics in two ways: using the wizard and customizing SQL statements. When creating topics via custom SQL, you need to understand the syntax of the data subscription SQL statements provided by TDengine and ensure that they are correct.
-
-Note: For detailed description of data subscription, you can refer to the official documentation of the "Data Subscription" section, before creating a data subscription you need to prepare the source database (or the source database contains the appropriate super-table or table), in which the source database needs to be configured wal_retention_period > 0.
-
-Includes themes, consumers, shared themes and sample code
-
-### Create a Topic 
-
-1. In the "Themes" tab, after clicking the "Add New Theme" button, select the Wizard pane and enter a "Theme Name";
-2. In the "Database" drop-down list, select the appropriate database;
-3. Under the "Type" tab, select "Database" or "Supertable" or "Subquery". The default value of "Database" is used as an example;
-4. Then click the "Create" button to create the corresponding theme.
-
-### Share a Topic 
-
-1. On the Share Topic tab, in the Topic drop-down list, select the topic you want to share;
-2. Click the "Add users who can consume this topic" button, and then select the corresponding user in the "Username" drop-down list, and then click "Add" to share this topic then click "Add" to share the topic with this user.
-
-
-### View Consumer Groups
-
-1. Shared topics can be consumed by executing the "Full Example" described in the "Sample Code" in the next section.
-2. On the "Consumer" tab, information about the consumer can be viewed.
-
-### Sample Code
-
-1. In the Sample Code tab, in the Theme drop-down list, select the appropriate theme;
-2. Choose a language you are familiar with, and then you can read and use this part of the sample code to "create consumption", "subscribe to the theme", by executing the "full example" in the program in the "Full Example" to consume shared topics
-
-## Stream Processing
+## Stream
 
 With Explorer, you can easily manage your streams to take advantage of the streaming capabilities provided by TDengine.
 Click "Streaming Calculation" in the left navigation bar to jump to the Streaming Calculation Configuration Management page.
 You can create streams in two ways: the Stream Calculation Wizard and custom SQL statements. Currently, the grouping feature is not supported when creating a flow through the Flow Calculation Wizard. When creating streams via custom SQL, you need to understand the syntax of the stream computation SQL statement provided by TDengine and ensure that it is correct.
 
-Note: For a detailed description of streaming computation, you can refer to the official documentation of the "Streaming Computing" chapter, you need to prepare the source database as well as the corresponding super table or table, the output database before creating the streaming computation.
+ ![stream-01-stream-01-streamEntry.jpeg](./pic/stream-01-streamEntry.jpeg)
 
-### Stream Processing Wizard
+### Create a Stream
 
-1. After clicking the Create Stream Calculation button, select the Stream Calculation Wizard pane and enter a Stream Name;
-2. In the "Output" section, enter the appropriate "Database", "Supertable" and "Subtable Prefix". in the "Output" section;
-3. In the "Source" section, select the appropriate "Database" and then choose to use either "Super Table" or "Table" as appropriate. The "Table" section:
-  1. If you are using a "Supertable", select the appropriate supertable from the "Supertable" drop-down list, and select the appropriate fields in the "Field Settings" area.
-  2. If you are using "Tables", select the appropriate table from the "Table" drop-down list, and in the "Field Settings" area, select the appropriate field.
-4. For window settings, select "SESSION", "STATE" or "INTERVAL" as required, and configure the values accordingly;
-5. For the "Execution" section, select the appropriate "Trigger" type and set "Watermark", "Ignore Expired", " DELETE_MARK", "FILL_HISTORY", "IGNORE UPDATE";
-6. Then click the "Create" button to create the corresponding flow calculation.
+![stream-02-createStreamEntry.jpeg](./pic/stream-02-createStreamEntry.jpeg)
+ 1. Stream Processing Wizard
+Step 1 Fill in the information needed to create a stream calculation, click "Create" button;
 
-### Building streams with SQL statements
+![stream-03-createStreamWizard.jpeg](./pic/stream-03-createStreamWizard.jpeg)
+![stream-04-createStreamWizard.jpeg](./pic/stream-04-createStreamWizard.jpeg)
 
-1. After clicking the "Create Streaming Calculation" button, select the Streaming Calculation SQL pane, and then enter the SQL statement similar to the following (inside the quotation marks are the source database and the corresponding super-table or table, and the output database, please update the contents inside the quotation marks according to your environment).
-   
-```shell
-CREATE STREAM `test_stream` TRIGGER WINDOW_CLOSE IGNORE EXPIRED 1 INTO `db_name`.`stable1` SUBTABLE(CONCAT('table1',tbname)) AS SELECT count(*) FROM `test_db`.`stable_name` PARTITION BY tbname INTERVAL(1m)
-```
-2. Then click the "Create" button to create the corresponding flow calculation.
+If the following records appear on the second step page, the creation is successful.
+![stream-05-createStreamSucc1.jpeg](./pic/stream-05-createStreamSucc1.jpeg)
+
+2. Building streams with SQL statements
+
+The first step is to switch to the SQL page, directly enter the create flow calculation sql, click the "Create" button;
+![stream-06-createStreamSql.jpeg](./pic/stream-06-createStreamSql.jpeg)
+
+If the following records appear on the second step page, the creation is successful.
+![stream-07-createStreamSucc2.jpeg](./pic/stream-07-createStreamSucc2.jpeg)
+
+
+## Data Subscription
+In this section, you will learn how to create topics and share them with other users in a TDengine cluster, as well as how to view consumer information for a topic.
+
+With Explorer, you can easily manage your data subscriptions to take advantage of the data subscription capabilities offered by TDengine.
+Click "Data Subscription" in the left navigation bar to jump to the data subscription configuration management page.
+
+ ![topic-01-datacription.jpeg](./pic/topic-01-datacription.jpeg)
+
+ ### Create a Topic 
+ 
+![topic-02-addTopic.jpeg](./pic/topic-02-addTopic.jpeg)
+ 1. Data Subscription Processing Wizard
+
+Step 1 Fill in the information needed to add a new theme, click "Create" button;
+![topic-03-addTopicWizard.jpeg](./pic/topic-03-addTopicWizard.jpeg)
+
+If the following records appear on the second step page, the creation is successful.
+![topic-05-05addTopicSucc1.jpeg](./pic/topic-05addTopicSucc1.jpeg)
+
+2.  Building Topic with SQL statements
+
+The first step is to switch to the SQL page, directly enter to add a new theme sql, click the "Create" button;
+![topic-06-addTopicSql.jpeg](./pic/topic-06-addTopicSql.jpeg)
+
+If the following records appear on the second step page, the creation is successful.
+![topic-07-addTopicsSucc2.jpeg](./pic/topic-07-addTopicsSucc2.jpeg)
+
+### Share a Topic 
+On the Share Topic tab, in the Topic drop-down list, select the topic you want to share;
+Click the "Add users who can consume this topic" button, and then select the corresponding user in the "Username" drop-down list, and then click "Add" to share this topic then click "Add" to share the topic with this user.
+
+![topic-08-共享主题.jpeg](./pic/topic-08-shareTopic.jpeg)
+
+### View Consumer Groups
+- Shared topics can be consumed by executing the "Full Example" described in the "Sample Code" in the next section.
+- On the "Consumer" tab, information about the consumer can be viewed.
+![topic-10-consumer.jpeg](./pic/topic-10-consumer.jpeg)
+
+## Sample Code
+
+- In the Sample Code tab, in the Theme drop-down list, select the appropriate theme;
+- Choose a language you are familiar with, and then you can read and use this part of the sample code to "create consumption", "subscribe to the theme", by executing the "full example" in the program in the "Full Example" to consume shared topics
+![topic-09-sample.jpeg](./pic/topic-09-sample.jpeg)
+

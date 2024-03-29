@@ -28,8 +28,9 @@ Audit log data is in the following format:
     "cluster_id": string,
     "user": string,
     "operation": string,
-    "target1": string,
-    "target2": string
+    "db": string,
+    "resource": string,
+    "client_add": string,
     "details": string
 }
 ```
@@ -39,49 +40,50 @@ Audit log data is in the following format:
 taosKeeper automatically creates a supertable in the specified database to store audit log data. This supertable is created as follows:
 
 ```sql
-CREATE STABLE operations(ts timestamp, details VARCHAR(1000)， User VARCHAR(25), Operation VARCHAR(20)) TAGS (target1 VARCHAR(100)，target2 VARCHAR(300), clusterID VARCHAR(64) );
+CREATE STABLE operations(ts timestamp, details VARCHAR(64000), User VARCHAR(25), Operation VARCHAR(20), db VARCHAR(65)，resource VARCHAR(193), client_add(25)) TAGS (clusterID VARCHAR(64) );
 ```
 
 The parameters are:
-1. The `target1` and `target2` tags record the object on which the operation was performed. For example, `target1` = `db1`, `target2` = `stableA`. In some cases, these values may represent different objects. The value of `target2` may be empty.
+1. The `db` records the database name, the `resource` records the resouce which is operated.
 2. The `User` and `Operation` columns record the user who performed the operation and the operation that was performed, respectively.
 3. The `timestamp` column records the time at which the operation was performed.
 4. The `details` column records additional information about the operation.
+5. The `client_add` records the client ip and port.
 
 ## Operation List
 
-The operations that are recorded in TDengine audit logs are described in the following table. Note that the `user` and `timestamp` columns are not shown in this example.
+The operations that are recorded in TDengine audit logs are described in the following table. Note that the `user` , `timestamp` and `client_add` columns are not shown in this example.
 
 | Statement        | Operation | Target1 | Target 2 | Details |
 | ----------------| ----------| ---------| ---------| --------|
-| create database | createDB  | db name  | NULL     | Configuration of the database |
-| alter database  | alterDB   | db name  | NULL     | Any parameters modified or added |
-| drop database   | dropDB    | db name  | NULL     | NULL |
-| create stable   | createStb | db name  | stable name | Schema of the supertable |
-| alter stable    | alterStb  | db name  | stable name | SQL statement executed |
-| drop stable     | dropStb   | db name  | stable name | NULL |
-| create user     | createUser | User name |  NULL | User parameters |
-| alter user      | alterUser | User name | NULL | Any parameters modified or added (except the user's password) |
-| drop user       | dropUser | User name | NULL | NULL |
-| create topic    | createTopic | Topic name | Database in which the topic was created | Topic parameters |
-| drop topic      | cropTopic | Topic name | NULL | NULL |
-| create dnode    | createDnode | IP:Port or FQDN:Port | NULL | NULL |
-| drop dnode      | dropDnode | IP:Port or FQDN:Port | dnodeId | NULL |
-| alter dnode     | alterDnode | IP:Port or FQDN:Port | dnodeId | Any parameters modified or added |
-| create mnode    | createMnode | IP:Port or FQDN:Port | dnodeId | NULL |
-| drop mnode      | dropMnode | IP:Port or FQDN:Port | dnodeId | NULL |
-| create qnode    | createQnode | IP:Port or FQDN:Port | NULL | NULL |
-| drop qnode      | dropQnode | IP:Port or FQDN:Port | NULL | NULL |
-| login           | login  | appName | IP address and port of the client | NULL |
-| create stream   | createStream | Stream name | NULL | Stream parameters |
-| drop stream     | dropStream | Stream name | NULL | NULL |
-| grant privileges| grantPrivileges | User name | Object to which privileges were granted | Privileges granted | 
-| remove privileges | revokePrivileges | User name | Object from which privileges were revoked | Revoked privileges | 
-| compact database| compact | database name  | NULL | time range (if specified) |
-| balance vgroup leader | balanceVgroupLead | NULL | NULL | NULL |
-| restore dnode | restoreDnode | dnodeId | NULL | Parameters |
-| restribute vgroup | restributeVgroup | vgroupId | NULL | NULL |
-| balance vgroup | balanceVgroup | vgroupId | NULL | NULL |
+| create database | createDB  | db name  | NULL     | SQL |
+| alter database  | alterDB   | db name  | NULL     | SQL |
+| drop database   | dropDB    | db name  | NULL     | SQL |
+| create stable   | createStb | db name  | stable name | SQL |
+| alter stable    | alterStb  | db name  | stable name | SQL |
+| drop stable     | dropStb   | db name  | stable name | SQL |
+| create user     | createUser | NULL |  User name | User parameters (except the user's password) |
+| alter user      | alterUser | NULL | User name | Any parameters modified or added (except the user's password) if operation is password, else SQL|
+| drop user       | dropUser | NULL | User name | SQL |
+| create topic    | createTopic | Database in which the topic was created | Topic name | SQL |
+| drop topic      | cropTopic | Database in which the topic was created | Topic name | Topic name | SQL |
+| create dnode    | createDnode | NULL | IP:Port or FQDN:Port | SQL |
+| drop dnode      | dropDnode | NULL | dnodeId | SQL |
+| alter dnode     | alterDnode | NULL | dnodeId | SQL |
+| create mnode    | createMnode | NULL | dnodeId | SQL |
+| drop mnode      | dropMnode | NULL | dnodeId | SQL |
+| create qnode    | createQnode | NULL | IP:Port or FQDN:Port | SQL |
+| drop qnode      | dropQnode | NULL | dnodeId | SQL |
+| login           | login  | NULL | NULL | appName |
+| create stream   | createStream | NULL | Stream name | SQL |
+| drop stream     | dropStream | NULL | Stream name | SQL |
+| grant privileges| grantPrivileges | NULL | User name | SQL | 
+| remove privileges | revokePrivileges | NULL | User name | SQL | 
+| compact database| compact | database name  | NULL | SQL |
+| balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
+| restore dnode | restoreDnode | NULL | dnodeId | SQL |
+| restribute vgroup | restributeVgroup | NULL | vgroupId | SQL |
+| balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
 
 
 
