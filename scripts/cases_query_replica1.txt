@@ -207,6 +207,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/ta
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_interval.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_interval.py --keep --containers
 
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/count_window.py --keep --containers
 
 # 100 seconds (at most)
 
