@@ -27,10 +27,10 @@ The preceding SQL command shows all dnodes in the cluster with the ID, endpoint,
 ## Delete a DNODE
 
 ```sql
-DROP DNODE {dnode_id | dnode_endpoint}
+DROP DNODE dnode_id
 ```
 
-You can delete a dnode by its ID or by its endpoint. Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
+Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
 
 ## Modify Dnode Configuration
 

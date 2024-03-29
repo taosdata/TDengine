@@ -16,9 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tmisce.h"
 #include "tglobal.h"
-#include "tlog.h"
-#include "tname.h"
-
+#include "tjson.h"
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
@@ -62,7 +60,7 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
 
 void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
   if (pSrc == NULL || pDst == NULL) {
-      return;
+    return;
   }
 
   pDst->inUse = pSrc->inUse;
@@ -71,6 +69,47 @@ void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
     pDst->eps[i].port = pSrc->eps[i].port;
     tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
   }
+}
+void epAssign(SEp* pDst, SEp* pSrc) {
+  if (pSrc == NULL || pDst == NULL) {
+    return;
+  }
+  memset(pDst->fqdn, 0, tListLen(pSrc->fqdn));
+  tstrncpy(pDst->fqdn, pSrc->fqdn, tListLen(pSrc->fqdn));
+  pDst->port = pSrc->port;
+}
+void epsetSort(SEpSet* pDst) {
+  if (pDst->numOfEps <= 1) {
+    return;
+  }
+  int validIdx = false;
+  SEp ep = {0};
+  if (pDst->inUse >= 0 && pDst->inUse < pDst->numOfEps) {
+    validIdx = true;
+    epAssign(&ep, &pDst->eps[pDst->inUse]);
+  }
+
+  for (int i = 0; i < pDst->numOfEps - 1; i++) {
+    for (int j = 0; j < pDst->numOfEps - 1 - i; j++) {
+      SEp* f = &pDst->eps[j];
+      SEp* s = &pDst->eps[j + 1];
+      int  cmp = strncmp(f->fqdn, s->fqdn, sizeof(f->fqdn));
+      if (cmp > 0 || (cmp == 0 && f->port > s->port)) {
+        SEp ep = {0};
+        epAssign(&ep, f);
+        epAssign(f, s);
+        epAssign(s, &ep);
+      }
+    }
+  }
+  if (validIdx == true)
+    for (int i = 0; i < pDst->numOfEps; i++) {
+      int cmp = strncmp(ep.fqdn, pDst->eps[i].fqdn, sizeof(ep.fqdn));
+      if (cmp == 0 && ep.port == pDst->eps[i].port) {
+        pDst->inUse = i;
+        break;
+      }
+    }
 }
 
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
@@ -86,4 +125,64 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   taosCorEndRead(&pEpSet->version);
 
   return ep;
+}
+
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
+  SJson* pJson = tjsonCreateObject();
+  if (pJson == NULL) return -1;
+  char tmp[4096] = {0};
+
+  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+
+  tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
+  tjsonAddIntegerToObject(pJson, "startTime", startTime);
+
+  // Do NOT invoke the taosGetFqdn here.
+  // this function may be invoked when memory exception occurs,so we should assume that it is running in a memory locked
+  // environment. The lock operation by taosGetFqdn may cause this program deadlock.
+  tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn);
+
+  tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
+
+  taosGetAppName(tmp, NULL);
+  tjsonAddStringToObject(pJson, "appName", tmp);
+
+  if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
+    tjsonAddStringToObject(pJson, "os", tmp);
+  }
+
+  float numOfCores = 0;
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
+    tjsonAddStringToObject(pJson, "cpuModel", tmp);
+    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+  } else {
+    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+  }
+
+  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  tjsonAddStringToObject(pJson, "memory", tmp);
+
+  tjsonAddStringToObject(pJson, "version", version);
+  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
+  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
+
+  tjsonAddIntegerToObject(pJson, "crashSig", signum);
+  tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
+
+#ifdef _TD_DARWIN_64
+  taosLogTraceToBuf(tmp, sizeof(tmp), 4);
+#elif !defined(WINDOWS)
+  taosLogTraceToBuf(tmp, sizeof(tmp), 3);
+#else
+  taosLogTraceToBuf(tmp, sizeof(tmp), 8);
+#endif
+
+  tjsonAddStringToObject(pJson, "stackInfo", tmp);
+
+  char* pCont = tjsonToString(pJson);
+  tjsonDelete(pJson);
+
+  *pMsg = pCont;
+
+  return TSDB_CODE_SUCCESS;
 }

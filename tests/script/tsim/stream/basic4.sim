@@ -1,0 +1,323 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 135
+system sh/cfg.sh -n dnode1 -c streamBufferSize -v 10
+system sh/exec.sh -n dnode1 -s start
+
+sleep 500
+
+sql connect
+
+print step1=============
+
+sql create database test  vgroups 1;
+sql use test;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams0 trigger at_once ignore expired 0 ignore update 0  into streamt as select  _wstart, count(*) c1 from t1 interval(1s);
+
+sql insert into t1 values(1648791211000,1,2,3,1.0);
+sql insert into t1 values(1648791212001,2,2,3,1.1);
+sql insert into t1 values(1648791213002,3,2,3,2.1);
+sql insert into t1 values(1648791214003,4,2,3,3.1);
+sql insert into t1 values(1648791215003,4,2,3,3.1);
+sql insert into t1 values(1648791216004,4,2,3,4.1);
+sql insert into t1 values(1648791217004,4,2,3,4.1);
+sql insert into t1 values(1648791218004,4,2,3,4.1);
+
+sql insert into t1 values(1648791221004,4,2,3,4.1);
+sql insert into t1 values(1648791222004,4,2,3,4.1);
+sql insert into t1 values(1648791223004,4,2,3,4.1);
+sql insert into t1 values(1648791224004,4,2,3,4.1);
+sql insert into t1 values(1648791225005,4,2,3,4.1);
+sql insert into t1 values(1648791226005,4,2,3,4.1);
+sql insert into t1 values(1648791227005,4,2,3,4.1);
+sql insert into t1 values(1648791228005,4,2,3,4.1);
+
+$loop_count = 0
+
+loop0:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt
+sql select * from streamt;
+
+if $rows != 16 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+sql insert into t1 values(1648791231004,4,2,3,4.1) (1648791232004,4,2,3,4.1) (1648791233004,4,2,3,4.1) (1648791234004,4,2,3,4.1) (1648791235004,4,2,3,4.1) (1648791236004,4,2,3,4.1) (1648791237004,4,2,3,4.1) (1648791238004,4,2,3,4.1) (1648791239004,4,2,3,4.1) (1648791240004,4,2,3,4.1) (1648791241004,4,2,3,4.1) (1648791242004,4,2,3,4.1) (1648791243004,4,2,3,4.1);
+
+$loop_count = 0
+
+loop1:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 2 select * from streamt
+sql select * from streamt;
+
+if $rows != 29 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+print step2=============
+
+sql create database test2  vgroups 10;
+sql use test2;
+sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create stream streams2 trigger at_once ignore expired 0 ignore update 0 waterMark 200s  into streamt2 as select  _wstart, count(*) c1 from t1 interval(1s);
+sleep 1000
+
+sql insert into t1 values(1648791211000,1,2,3,1.0);
+sql insert into t1 values(1648791212001,2,2,3,1.1);
+sql insert into t1 values(1648791213002,3,2,3,2.1);
+sql insert into t1 values(1648791214003,4,2,3,3.1);
+sql insert into t1 values(1648791215003,4,2,3,3.1);
+sql insert into t1 values(1648791216004,4,2,3,4.1);
+sql insert into t1 values(1648791217004,4,2,3,4.1);
+sql insert into t1 values(1648791218004,4,2,3,4.1);
+
+sql insert into t1 values(1648791221004,4,2,3,4.1);
+sql insert into t1 values(1648791222004,4,2,3,4.1);
+sql insert into t1 values(1648791223004,4,2,3,4.1);
+sql insert into t1 values(1648791224004,4,2,3,4.1);
+sql insert into t1 values(1648791225005,4,2,3,4.1);
+sql insert into t1 values(1648791226005,4,2,3,4.1);
+sql insert into t1 values(1648791227005,4,2,3,4.1);
+sql insert into t1 values(1648791228005,4,2,3,4.1);
+
+$loop_count = 0
+
+loop2:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt2
+sql select * from streamt2;
+
+if $rows != 16 then
+  print =====rows=$rows
+  goto loop2
+endi
+
+sql insert into t1 values(1648791231004,4,2,3,4.1) (1648791232004,4,2,3,4.1) (1648791233004,4,2,3,4.1) (1648791234004,4,2,3,4.1) (1648791235004,4,2,3,4.1) (1648791236004,4,2,3,4.1) (1648791237004,4,2,3,4.1) (1648791238004,4,2,3,4.1) (1648791239004,4,2,3,4.1) (1648791240004,4,2,3,4.1) (1648791241004,4,2,3,4.1) (1648791242004,4,2,3,4.1) (1648791243004,4,2,3,4.1);
+
+$loop_count = 0
+
+loop3:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 2 select * from streamt2
+sql select * from streamt2;
+
+if $rows != 29 then
+  print =====rows=$rows
+  goto loop3
+endi
+
+print step3=============
+
+sql create database test1  vgroups 1;
+sql use test1;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once ignore expired 0 ignore update 0 into streamt1 as select  _wstart, count(*) c1 from t1 session(ts, 1s);
+
+sql insert into t1 values(1648791211000,1,2,3,1.0);
+sql insert into t1 values(1648791213000,1,2,3,1.1);
+sql insert into t1 values(1648791215000,1,2,3,1.1);
+sql insert into t1 values(1648791217000,1,2,3,1.1);
+sql insert into t1 values(1648791219000,1,2,3,1.1);
+sql insert into t1 values(1648791221000,1,2,3,1.0);
+sql insert into t1 values(1648791223000,1,2,3,1.0);
+sql insert into t1 values(1648791225000,1,2,3,1.0);
+sql insert into t1 values(1648791227000,1,2,3,1.0);
+sql insert into t1 values(1648791229000,1,2,3,1.0);
+
+sql insert into t1 values(1648791231000,1,2,3,1.0);
+sql insert into t1 values(1648791233000,1,2,3,1.1);
+sql insert into t1 values(1648791235000,1,2,3,1.1);
+sql insert into t1 values(1648791237000,1,2,3,1.1);
+sql insert into t1 values(1648791239000,1,2,3,1.1);
+sql insert into t1 values(1648791241000,1,2,3,1.0);
+sql insert into t1 values(1648791243000,1,2,3,1.0);
+sql insert into t1 values(1648791245000,1,2,3,1.0);
+sql insert into t1 values(1648791247000,1,2,3,1.0);
+sql insert into t1 values(1648791249000,1,2,3,1.0);
+
+sql insert into t1 values(1648791251000,1,2,3,1.0);
+sql insert into t1 values(1648791253000,1,2,3,1.1);
+sql insert into t1 values(1648791255000,1,2,3,1.1);
+sql insert into t1 values(1648791257000,1,2,3,1.1);
+sql insert into t1 values(1648791259000,1,2,3,1.1);
+sql insert into t1 values(1648791261000,1,2,3,1.0);
+sql insert into t1 values(1648791263000,1,2,3,1.0);
+sql insert into t1 values(1648791265000,1,2,3,1.0);
+sql insert into t1 values(1648791267000,1,2,3,1.0);
+sql insert into t1 values(1648791269000,1,2,3,1.0);
+
+$loop_count = 0
+
+loop4:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt1;
+sql select * from streamt1;
+
+if $rows != 30 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+sql insert into t1 values(1648791211001,1,2,3,1.0);
+sql insert into t1 values(1648791213001,1,2,3,1.1);
+sql insert into t1 values(1648791215001,1,2,3,1.1);
+sql insert into t1 values(1648791217001,1,2,3,1.1);
+sql insert into t1 values(1648791219001,1,2,3,1.1);
+sql insert into t1 values(1648791221001,1,2,3,1.0);
+sql insert into t1 values(1648791223001,1,2,3,1.0);
+sql insert into t1 values(1648791225001,1,2,3,1.0);
+sql insert into t1 values(1648791227001,1,2,3,1.0);
+sql insert into t1 values(1648791229001,1,2,3,1.0);
+
+$loop_count = 0
+
+loop5:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt1;
+sql select * from streamt1;
+
+if $rows != 30 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+if $data01 != 2 then 
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data91 != 2 then 
+  print =====data91=$data91
+  goto loop5
+endi
+
+sql insert into t1 values(1648791231001,1,2,3,1.0);
+sql insert into t1 values(1648791233001,1,2,3,1.1);
+sql insert into t1 values(1648791235001,1,2,3,1.1);
+sql insert into t1 values(1648791237001,1,2,3,1.1);
+sql insert into t1 values(1648791239001,1,2,3,1.1);
+sql insert into t1 values(1648791241001,1,2,3,1.0);
+sql insert into t1 values(1648791243001,1,2,3,1.0);
+sql insert into t1 values(1648791245001,1,2,3,1.0);
+sql insert into t1 values(1648791247001,1,2,3,1.0);
+sql insert into t1 values(1648791249001,1,2,3,1.0);
+
+$loop_count = 0
+
+loop6:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt1;
+sql select * from streamt1;
+
+if $rows != 30 then
+  print =====rows=$rows
+  goto loop6
+endi
+
+if $data[10][1] != 2 then 
+  print =====data[10][1]=$data[10][1]
+  goto loop6
+endi
+
+if $data[19][1] != 2 then 
+  print =====data[19][1]=$data[19][1]
+  goto loop6
+endi
+
+sql insert into t1 values(1648791251001,1,2,3,1.0);
+sql insert into t1 values(1648791253001,1,2,3,1.1);
+sql insert into t1 values(1648791255001,1,2,3,1.1);
+sql insert into t1 values(1648791257001,1,2,3,1.1);
+sql insert into t1 values(1648791259001,1,2,3,1.1);
+sql insert into t1 values(1648791261001,1,2,3,1.0);
+sql insert into t1 values(1648791263001,1,2,3,1.0);
+sql insert into t1 values(1648791265001,1,2,3,1.0);
+sql insert into t1 values(1648791267001,1,2,3,1.0);
+sql insert into t1 values(1648791269001,1,2,3,1.0);
+
+$loop_count = 0
+
+loop7:
+
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print 1 select * from streamt1;
+sql select * from streamt1;
+
+if $rows != 30 then
+  print =====rows=$rows
+  goto loop7
+endi
+
+if $data[20][1] != 2 then 
+  print =====[20][1]=$[20][1]
+  goto loop7
+endi
+
+if $data[29][1] != 2 then 
+  print =====[29][1]=$[29][1]
+  goto loop7
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

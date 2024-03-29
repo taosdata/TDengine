@@ -89,7 +89,7 @@ typedef struct {
       RET = -1;                      \
     }                                \
     tEncoderClear(&coder);           \
-  } while (0)
+  } while (0);
 
 static void* tEncoderMalloc(SEncoder* pCoder, int32_t size);
 static void* tDecoderMalloc(SDecoder* pCoder, int32_t size);

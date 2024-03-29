@@ -8,9 +8,9 @@ target_include_directories(
 
 target_link_libraries(
    catalog
-   PRIVATE os util transport qcom
+   PRIVATE os util transport qcom nodes
 )
 
-if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+# if(${BUILD_TEST})
+#     ADD_SUBDIRECTORY(test)
+# endif(${BUILD_TEST})

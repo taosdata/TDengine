@@ -28,6 +28,10 @@
 
 #ifdef WEBSOCKET
 #include "taosws.h"
+
+#define SHELL_WS_TIMEOUT                        30
+#define SHELL_WS_DSN_BUFF                       256
+#define SHELL_WS_DSN_MASK                       10
 #endif
 
 #define SHELL_MAX_HISTORY_SIZE                 1000
@@ -41,6 +45,8 @@
 #define SHELL_MAX_PKG_NUM                      1 * 1024 * 1024
 #define SHELL_MIN_PKG_NUM                      1
 #define SHELL_DEF_PKG_NUM                      100
+#define SHELL_FLOAT_WIDTH                      20
+#define SHELL_DOUBLE_WIDTH                     25
 
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];
@@ -60,6 +66,7 @@ typedef struct {
   char        file[PATH_MAX];
   char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
+  bool        is_bi_mode;
   bool        is_raw_time;
   bool        is_version;
   bool        is_dump_config;
@@ -74,6 +81,7 @@ typedef struct {
 #ifdef WEBSOCKET
   bool        restful;
   bool        cloud;
+  bool        local;
   char*       dsn;
   int32_t     timeout;
 #endif
@@ -99,7 +107,7 @@ typedef struct {
   bool            exit;
 #ifdef WEBSOCKET
   WS_TAOS*        ws_conn;
-  bool		      stop_query;
+  bool            stop_query;
 #endif
 } SShellObj;
 
@@ -139,7 +147,7 @@ void    shellExit();
 void shellTestNetWork();
 
 #ifdef WEBSOCKET
-void	shellCheckConnectMode();
+void shellCheckConnectMode();
 // shellWebsocket.c
 int shell_conn_ws_server(bool first);
 int32_t shell_run_websocket();

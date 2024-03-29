@@ -111,6 +111,12 @@ int32_t udfStartUdfd(int32_t startDnodeId);
  */
 int32_t udfStopUdfd();
 
+/**
+ * get udfd pid
+ *
+ */
+ int32_t udfGetUdfdPid(int32_t* pUdfdPid);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,15 @@
+sql connect
+sql use testa;
+
+sql create view view1 as select * from cta11;
+sql_error insert into view1 values (now, 1);
+sql create table ctat using sta1 tags(1);
+sql insert into ctat select * from view1;
+sql drop view view1;
+sql drop table ctat;
+
+sql use information_schema;
+sql create view view1 as select * from ins_dnodes;
+sql_error insert into ins_dnodes select * from view1;
+sql drop view view1;
+

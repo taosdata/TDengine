@@ -42,7 +42,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -136,7 +136,7 @@ class TDTestCase:
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("select * from information_schema.ins_dnodes;")
-        print(tdSql.queryResult)
+        # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         # recreate mnode
@@ -160,80 +160,39 @@ class TDTestCase:
             if tdSql.queryResult[i][0] == "%s"%username :
                 tdLog.info("create user:%s successfully"%username)
 
-        # # create database and stable
-        # clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
-        # tdLog.info("Take turns stopping Mnodes ")
-
-        # tdDnodes=cluster.dnodes
-        # stopcount =0
-        # threads=[]
-
-        # # create stable:stb_0
-        # stableName= paraDict['stbName']
-        # newTdSql=tdCom.newTdSql()
-        # clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
-        # #create child table:ctb_0
-        # for i in range(paraDict['stbNumbers']):
-        #     stableName= '%s_%d'%(paraDict['stbName'],i)
-        #     newTdSql=tdCom.newTdSql()
-        #     clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        # #insert date
-        # for i in range(paraDict['stbNumbers']):
-        #     stableName= '%s_%d'%(paraDict['stbName'],i)
-        #     newTdSql=tdCom.newTdSql()
-        #     threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
-        # for tr in threads:
-        #     tr.start()
-        # for tr in threads:
-        #     tr.join()
-
-        # while stopcount < restartNumbers:
-        #     tdLog.info(" restart loop: %d"%stopcount )
-        #     if stopRole == "mnode":
-        #         for i in range(mnodeNums):
-        #             tdDnodes[i].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i].starttaosd()
-        #             # sleep(10)
-        #     elif stopRole == "vnode":
-        #         for i in range(vnodeNumbers):
-        #             tdDnodes[i+mnodeNums].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i+mnodeNums].starttaosd()
-        #             # sleep(10)
-        #     elif stopRole == "dnode":
-        #         for i in range(dnodeNumbers):
-        #             tdDnodes[i].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i].starttaosd()
-        #             # sleep(10)
-
-        #     # dnodeNumbers don't include database of schema
-        #     if clusterComCheck.checkDnodes(dnodeNumbers):
-        #         tdLog.info("dnode is ready")
-        #     else:
-        #         print("dnodes is not  ready")
-        #         self.stopThread(threads)
-        #         tdLog.exit("one or more of dnodes failed to start ")
-        #         # self.check3mnode()
-        #     stopcount+=1
+        """ case for TS-3524 and test 'taos -h' """
+        bPath = self.getBuildPath()
+        for i in range(6):
+            nodePort = 6030 + i*100
+            newTdSql=tdCom.newTdSql(port=nodePort)
 
 
-        # clusterComCheck.checkDnodes(dnodeNumbers)
-        # clusterComCheck.checkDbRows(dbNumbers)
-        # # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
+        tdDnodes[1].stoptaosd()
 
-        # tdSql.execute("use %s" %(paraDict["dbName"]))
-        # tdSql.query("show stables")
-        # tdSql.checkRows(paraDict["stbNumbers"])
-        # # for i in range(paraDict['stbNumbers']):
-        # #     stableName= '%s_%d'%(paraDict['stbName'],i)
-        # #     tdSql.query("select * from %s"%stableName)
-        # #     tdSql.checkRows(rowsPerStb)
+        dataPath = tdDnodes[1].dataDir
+        os.system(f"rm -rf {dataPath}/*")
+        os.system(f"rm -rf {dataPath}/.runing")
+
+        tdDnodes[1].starttaosd()
+        sleep(5)
+        for i in range(6):
+            nodePort = 6030 + i*100 
+            newTdSql=tdCom.newTdSql(port=nodePort)
+
+        tdDnodes[0].stoptaosd()
+        dataPath = tdDnodes[0].dataDir
+        os.system(f"rm -rf {dataPath}/*")
+        os.system(f"rm -rf {dataPath}/.runing")
+        tdDnodes[0].starttaosd()
+        sleep(5)
+        for i in range(6):
+            nodePort = 6030 + i*100 
+            newTdSql=tdCom.newTdSql(port=nodePort)                        
+        
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=1,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

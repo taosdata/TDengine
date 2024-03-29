@@ -35,11 +35,11 @@ TDengine supports the `UNION` and `UNION ALL` operations. UNION ALL collects all
 | #   | **Operator** | **Supported Data Types** | **Description**                   |
 | --- | :---------------: | -------------------------------------------------------------------- | -------------------- |
 | 1   |         =         | All types except BLOB, MEDIUMBLOB, and JSON                             | Equal to |
-| 2   |      <\>, !=      | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Not equal to               |
-| 3   |      \>, <       | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than and less than           |
-| 4   |     \>=, <=      | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than or equal to and less than or equal to   |
+| 2   |      &lt;&gt;, !=      | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Not equal to               |
+| 3   |      &gt;, &lt;       | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than and less than           |
+| 4   |     &gt;=, &lt;=      | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than or equal to and less than or equal to   |
 | 5   |   IS [NOT] NULL   | All types                                                             | Indicates whether the value is null           |
-| 6   | [NOT] BETWEEN AND | All types except BLOB, MEDIUMBLOB, and JSON                       | Closed interval comparison           |
+| 6   | [NOT] BETWEEN AND | All types except BLOB, MEDIUMBLOB, JSON and GEOMETRY                  | Closed interval comparison           |
 | 7   |        IN         | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Equal to any value in the list |
 | 8   |       LIKE        | BINARY, NCHAR, and VARCHAR                                             | Wildcard match           |
 | 9   |   MATCH, NMATCH   | BINARY, NCHAR, and VARCHAR                                             | Regular expression match       |
@@ -54,7 +54,8 @@ LIKE is used together with wildcards to match strings. Its usage is described as
 MATCH and NMATCH are used together with regular expressions to match strings. Their usage is described as follows:
 
 - Use POSIX regular expression syntax. For more information, see Regular Expressions.
-- Regular expression can be used against only table names, i.e. `tbname`, and tags of binary/nchar types, but can't be used against data columns.
+- The `MATCH` operator returns true when the regular expression is matched. The `NMATCH` operator returns true when the regular expression is not matched.
+- Regular expression can be used against only table names, i.e. `tbname`, and tags/columns of binary/nchar types.
 - The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on the client side, and will take effect after restarting the client.
 
 ## Logical Operators

@@ -18,21 +18,45 @@
 #include "syncUtil.h"
 #include "tjson.h"
 
+const char* syncRoleToStr(ESyncRole role) {
+  switch (role) {
+    case TAOS_SYNC_ROLE_VOTER:
+      return "true";
+    case TAOS_SYNC_ROLE_LEARNER:
+      return "false";
+    default:
+      return "unknown";
+  }
+}
+
+const ESyncRole syncStrToRole(char* str) {
+  if(strcmp(str, "true") == 0){
+    return TAOS_SYNC_ROLE_VOTER;
+  }
+  if(strcmp(str, "false") == 0){
+    return TAOS_SYNC_ROLE_LEARNER;
+  }
+
+  return TAOS_SYNC_ROLE_ERROR;
+}
+
 static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
   if (tjsonAddDoubleToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
+  if (tjsonAddDoubleToObject(pJson, "changeVersion", pCfg->changeVersion) < 0) return -1;
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "nodeInfo", nodeInfo) < 0) return -1;
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SJson *info = tjsonCreateObject();
     if (info == NULL) return -1;
     if (tjsonAddDoubleToObject(info, "nodePort", pCfg->nodeInfo[i].nodePort) < 0) return -1;
     if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pCfg->nodeInfo[i].nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pCfg->nodeInfo[i].clusterId) < 0) return -1;
+    if (tjsonAddStringToObject(info, "isReplica", syncRoleToStr(pCfg->nodeInfo[i].nodeRole)) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
   }
 
@@ -79,7 +103,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   if (buffer == NULL) goto _OVER;
   terrno = 0;
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);
@@ -90,7 +114,9 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
-  sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d", pNode->vgId, realfile, len);
+  sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", "
+        "changeVersion:%d", pNode->vgId, 
+        realfile, len, pNode->raftCfg.lastConfigIndex, pNode->raftCfg.cfg.changeVersion);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
@@ -112,12 +138,14 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "myIndex", pCfg->myIndex, code);
   if (code < 0) return -1;
+  tjsonGetInt32ValueFromDouble(pJson, "changeVersion", pCfg->changeVersion, code);
+  if (code < 0) return -1;
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "nodeInfo");
   if (nodeInfo == NULL) return -1;
-  pCfg->replicaNum = tjsonGetArraySize(nodeInfo);
+  pCfg->totalReplicaNum = tjsonGetArraySize(nodeInfo);
 
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SJson *info = tjsonGetArrayItem(nodeInfo, i);
     if (info == NULL) return -1;
     tjsonGetUInt16ValueFromDouble(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
@@ -126,6 +154,15 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
     if (code < 0) return -1;
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
+    char role[10] = {0};
+    code = tjsonGetStringValue(info, "isReplica", role);
+    if(code < 0) return -1;
+    if(strlen(role) != 0){
+      pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);
+    }
+    else{
+      pCfg->nodeInfo[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+    }
   }
 
   return 0;
@@ -209,7 +246,8 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
   }
 
   code = 0;
-  sInfo("vgId:%d, succceed to read sync cfg file %s", pNode->vgId, file);
+  sInfo("vgId:%d, succceed to read sync cfg file %s, changeVersion:%d", 
+    pNode->vgId, file, pCfg->cfg.changeVersion);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);

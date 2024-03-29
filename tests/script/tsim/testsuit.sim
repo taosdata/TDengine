@@ -114,6 +114,7 @@ run tsim/insert/basic1.sim
 run tsim/insert/commit-merge0.sim
 run tsim/insert/basic0.sim
 run tsim/insert/update0.sim
+run tsim/insert/delete0.sim
 run tsim/insert/backquote.sim
 run tsim/insert/null.sim
 run tsim/catalog/alterInCurrent.sim
@@ -129,5 +130,6 @@ run tsim/sync/3Replica1VgElect.sim
 run tsim/sync/threeReplica1VgElectWihtInsert.sim
 run tsim/sma/tsmaCreateInsertQuery.sim
 run tsim/sma/rsmaCreateInsertQuery.sim
+run tsim/sma/rsmaCreateInsertQueryDelete.sim
 run tsim/valgrind/basic.sim
 run tsim/valgrind/checkError.sim

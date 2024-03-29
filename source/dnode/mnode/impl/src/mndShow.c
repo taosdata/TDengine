@@ -17,9 +17,11 @@
 #include "mndShow.h"
 #include "mndPrivilege.h"
 #include "systable.h"
+#include "mndUser.h"
 
 #define SHOW_STEP_SIZE 100
 #define SHOW_COLS_STEP_SIZE 4096
+#define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -57,8 +59,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_DNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_MNODE;
+/*
   } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
     type = TSDB_MGMT_TABLE_MODULE;
+*/
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
@@ -113,6 +117,18 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VIEWS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_LOGS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MACHINES, len) == 0) {
+    type = TSDB_MGMT_TABLE_MACHINES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -134,7 +150,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
-  strncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
+  tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -201,14 +217,14 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     if (pMeta == NULL) {
       pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
-        terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+        terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
         return -1;
       }
@@ -234,6 +250,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
     rowsToRead = SHOW_COLS_STEP_SIZE;
+  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
+    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
@@ -324,7 +342,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = size;
 
-  if (rowsRead == 0 || rowsRead < rowsToRead) {
+  if (rowsRead == 0 || mndCheckRetrieveFinished(pShow)) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
     mndReleaseShowObj(pShow, true);

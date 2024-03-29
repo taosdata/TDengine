@@ -15,10 +15,10 @@ print $data00 $data01 $data02
 
 sql use test
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger window_close IGNORE EXPIRED 0 into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
+sql create stream streams1 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 
 sql insert into t1 values(1648791213001,1,2,3,1.0);
-sleep 300
+sleep 1000
 sql select * from streamt;
 if $rows != 0 then
   print ======$rows
@@ -35,7 +35,7 @@ print step 0
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -61,7 +61,7 @@ print step 1
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -91,7 +91,7 @@ print step 2
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -123,7 +123,7 @@ print step 3
 $loop_count = 0
 
 loop3:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

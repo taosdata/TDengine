@@ -199,9 +199,10 @@ TEST_F(NodesCloneTest, physiScan) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
     STagScanPhysiNode* pSrcNode = (STagScanPhysiNode*)pSrc;
     STagScanPhysiNode* pDstNode = (STagScanPhysiNode*)pDst;
-    ASSERT_EQ(pSrcNode->uid, pDstNode->uid);
-    ASSERT_EQ(pSrcNode->suid, pDstNode->suid);
-    ASSERT_EQ(pSrcNode->tableType, pDstNode->tableType);
+    ASSERT_EQ(pSrcNode->scan.uid, pDstNode->scan.uid);
+    ASSERT_EQ(pSrcNode->scan.suid, pDstNode->scan.suid);
+    ASSERT_EQ(pSrcNode->scan.tableType, pDstNode->scan.tableType);
+    ASSERT_EQ(pSrcNode->onlyMetaCtbIdx, pDstNode->onlyMetaCtbIdx);
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);

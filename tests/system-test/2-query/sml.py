@@ -1,21 +1,15 @@
 
-import taos
 import sys
-import time
-import socket
 import os
-import threading
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
 class TDTestCase:
-    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost'}, 'fqdn': 'localhost'}
+    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'smlAutoChildTableNameDelimiter': '', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
     print("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
@@ -24,7 +18,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), True)
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkFileContent(self, dbname="sml_db"):
+    def checkContent(self, dbname="sml_db"):
         simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/sml_test %s'%(buildPath, simClientCfg)
@@ -32,7 +26,10 @@ class TDTestCase:
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:
-            tdLog.info("sml_test ret != 0")
+            tdLog.exit("sml_test ret != 0")
+
+        tdSql.query(f"select * from ts3303.stb2")
+        tdSql.query(f"select * from ts3303.meters")
 
         # tdSql.execute('use sml_db')
         tdSql.query(f"select * from {dbname}.t_b7d815c9222ca64cdf2614c61de8f211")
@@ -83,12 +80,12 @@ class TDTestCase:
         tdSql.checkData(0, 1, 13.000000000)
         tdSql.checkData(0, 2, "web01")
         tdSql.checkData(0, 3, None)
-        tdSql.checkData(0, 4, "lga")
+        tdSql.checkData(0, 4, 1)
 
         tdSql.checkData(1, 1, 9.000000000)
         tdSql.checkData(1, 2, "web02")
         tdSql.checkData(3, 3, "t1")
-        tdSql.checkData(0, 4, "lga")
+        tdSql.checkData(2, 4, 4)
 
         tdSql.query(f"select * from {dbname}.macylr")
         tdSql.checkRows(2)
@@ -98,11 +95,25 @@ class TDTestCase:
 
         tdSql.query(f"desc {dbname}.macylr")
         tdSql.checkRows(25)
+
+        tdSql.query(f"select * from ts3724.`.stb2`")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select * from ts3724.`stb.2`")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select * from ts3724.`stb2.`")
+        tdSql.checkRows(1)
+
+        # tdSql.query(f"select * from td24559.stb order by _ts")
+        # tdSql.checkRows(4)
+        # tdSql.checkData(0, 2, "POINT (4.343000 89.342000)")
+        # tdSql.checkData(3, 2, "GEOMETRYCOLLECTION (MULTIPOINT ((0.000000 0.000000), (1.000000 1.000000)), POINT (3.000000 4.000000), LINESTRING (2.000000 3.000000, 3.000000 4.000000))")
         return
 
     def run(self):
         tdSql.prepare()
-        self.checkFileContent()
+        self.checkContent()
 
     def stop(self):
         tdSql.close()

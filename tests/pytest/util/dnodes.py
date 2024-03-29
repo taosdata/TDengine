@@ -36,12 +36,12 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "rpcDebugFlag": "143",
+            "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "143",
-            "uDebugFlag": "143",
-            "jniDebugFlag": "143",
-            "qDebugFlag": "143",
+            "cDebugFlag": "135",
+            "uDebugFlag": "135",
+            "jniDebugFlag": "135",
+            "qDebugFlag": "135",
             "supportVnodes": "1024",
             "enableQueryHb": "1",
             "telemetryReporting": "0",
@@ -50,11 +50,11 @@ class TDSimClient:
         }
 
     def getLogDir(self):
-        self.logDir = "%s/sim/psim/log" % (self.path)
+        self.logDir = os.path.join(self.path,"sim","psim","log")
         return self.logDir
 
     def getCfgDir(self):
-        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
+        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
         return self.cfgDir
 
     def setTestCluster(self, value):
@@ -69,9 +69,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self, *updatecfgDict):
-        self.logDir = "%s/sim/psim/log" % (self.path)
-        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
-        self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
+        self.logDir = os.path.join(self.path,"sim","psim","log")
+        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
+        self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -130,18 +130,21 @@ class TDDnode:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
+            "DebugFlag": "131",
             "mDebugFlag": "143",
             "dDebugFlag": "143",
             "vDebugFlag": "143",
             "tqDebugFlag": "143",
             "cDebugFlag": "143",
+            "stDebugFlag": "143",
+            "smaDebugFlag": "143",
             "jniDebugFlag": "143",
             "qDebugFlag": "143",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "uDebugFlag": "143",
-            "sDebugFlag": "143",
-            "wDebugFlag": "143",
+            "uDebugFlag": "135",
+            "sDebugFlag": "135",
+            "wDebugFlag": "135",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
             "enableQueryHb": "1",
@@ -207,11 +210,10 @@ class TDDnode:
             self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
-        self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
-        self.dataDir = "%s/sim/dnode%d/data" % (self.path, self.index)
-        self.cfgDir = "%s/sim/dnode%d/cfg" % (self.path, self.index)
-        self.cfgPath = "%s/sim/dnode%d/cfg/taos.cfg" % (
-            self.path, self.index)
+        self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
+        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
+        self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
+        self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
 
         cmd = "rm -rf " + self.dataDir
         if os.system(cmd) != 0:
@@ -472,20 +474,25 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            if self.asan:
-               asanDir = "%s/sim/asan/dnode%d.asan" % (
-                   self.path, self.index)
-               cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
-                   binPath, self.cfgDir, asanDir)
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s -c %s" % (binPath, self.cfgDir)
             else:
-                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                    binPath, self.cfgDir)
+                if self.asan:
+                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                        self.path, self.index)
+                    cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
+                        binPath, self.cfgDir, asanDir)
+                else:
+                    cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                        binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
-
-            cmd = "nohup %s %s -c %s 2>&1 & " % (
-                valgrindCmdline, binPath, self.cfgDir)
-
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s %s -c %s" % (
+                    valgrindCmdline, binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s %s -c %s 2>&1 & " % (
+                    valgrindCmdline, binPath, self.cfgDir)
             print(cmd)
 
         if (self.remoteIP == ""):
@@ -541,6 +548,8 @@ class TDDnode:
 
 
     def stoptaosd(self):
+        tdLog.debug("start to stop taosd on dnode: %d "% (self.index))
+        # print(self.asan,self.running,self.remoteIP,self.valgrind)
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
@@ -568,6 +577,8 @@ class TDDnode:
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
                     killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    if platform.system().lower() == 'windows':
+                        killCmd = "kill -INT %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
@@ -635,11 +646,11 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = "%s/sim/psim/dnode%d" % (self.path, index)
+        dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim/psim" % (self.path)
+        dnodesRootDir = os.path.join(self.path,"sim","psim")
         return dnodesRootDir
 
 
@@ -660,7 +671,7 @@ class TDDnodes:
         self.testCluster = False
         self.valgrind = 0
         self.asan = False
-        self.killValgrind = 1
+        self.killValgrind = 0
 
     def init(self, path, remoteIP = ""):
         binPath = self.dnodes[0].getPath() + "/../../../"
@@ -767,9 +778,41 @@ class TDDnodes:
             tdLog.info("execute finished")
             return
 
+    def killProcesser(self, processerName):
+        if platform.system().lower() == 'windows':
+            killCmd = ("wmic process where name=\"%s.exe\" call terminate > NUL 2>&1" % processerName)
+            psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
+        else:
+            killCmd = (
+                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                % processerName
+            )
+            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+
+        processID = ""
+        
+        try: 
+            processID = subprocess.check_output(psCmd, shell=True)
+            while processID:
+                os.system(killCmd)
+                time.sleep(1)
+                try: 
+                    processID = subprocess.check_output(psCmd, shell=True)
+                except Exception as err:
+                    processID = ""
+                    tdLog.debug('**** kill pid warn: {err}')
+        except Exception as err:
+            processID = ""
+            tdLog.debug(f'**** find pid warn: {err}')        
+        
+
+
     def stopAll(self):
         tdLog.info("stop all dnodes, asan:%d" % self.asan)
-        distro_id = distro.id()
+        if platform.system().lower() != 'windows':
+            distro_id = distro.id()
+        else:
+            distro_id = "not alpine"
         if self.asan and distro_id != "alpine":
             tdLog.info("execute script: %s" % self.stopDnodesPath)
             os.system(self.stopDnodesPath)
@@ -784,20 +827,19 @@ class TDDnodes:
 
 
         if (distro_id == "alpine"):
-            print(distro_id)
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 print(processID)
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -9 %s > nul 2>&1" % processID
-                else:
-                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
-
+        elif platform.system().lower() == 'windows':
+            self.killProcesser("taosd")
+            self.killProcesser("tmq_sim")
+            self.killProcesser("taosBenchmark")
         else:
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
@@ -809,15 +851,11 @@ class TDDnodes:
             psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -9 %s > nul 2>&1" % processID
-                else:
-                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
-
         if self.killValgrind == 1:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
@@ -849,6 +887,5 @@ class TDDnodes:
 
     def getAsan(self):
         return self.asan
-
 
 tdDnodes = TDDnodes()

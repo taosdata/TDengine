@@ -212,13 +212,38 @@ typedef struct SIndexMetaArg {
   void*    idx;
   void*    ivtIdx;
   uint64_t suid;
+  int (*metaFilterFunc)(void* metaEx, void* param, SArray* result);
 } SIndexMetaArg;
+
+/**
+ * the underlying storage module must implement this API to employ the index functions.
+ * @param pMeta
+ * @param param
+ * @param results
+ * @return
+ */
+typedef struct SMetaFltParam {
+  uint64_t suid;
+  int16_t  cid;
+  int16_t  type;
+  void    *val;
+  bool     reverse;
+  bool     equal;
+  int (*filterFunc)(void *a, void *b, int16_t type);
+} SMetaFltParam;
+
+typedef struct SMetaDataFilterAPI {
+  int32_t (*metaFilterTableIds)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterCreateTime)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterTableName)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterTtl)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+} SMetaDataFilterAPI;
 
 typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
 
-SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode, SMetaDataFilterAPI* pAPI);
 
-int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status);
+int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status, SMetaDataFilterAPI* pAPI);
 
 /*
  *  init index env

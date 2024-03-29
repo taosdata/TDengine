@@ -21,6 +21,9 @@ static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
 static int32_t instMgt;
+static int32_t transSyncMsgMgt;
+
+void transDestroySyncMsg(void* msg);
 
 int32_t transCompressMsg(char* msg, int32_t len) {
   int32_t        ret = 0;
@@ -67,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
@@ -84,6 +87,7 @@ void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
+  tTrace("rpc free cont:%p", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
@@ -192,7 +196,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       memcpy((char*)&head, connBuf->buf, sizeof(head));
       int32_t msgLen = (int32_t)htonl(head.msgLen);
       p->total = msgLen;
-      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum));
+      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum)) || head.version != TRANS_VER;
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;
@@ -203,10 +207,10 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
-int transSetConnOption(uv_tcp_t* stream) {
+int transSetConnOption(uv_tcp_t* stream, int keepalive) {
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  uv_tcp_keepalive(stream, 1, 20);
+  uv_tcp_keepalive(stream, 1, keepalive);
 #endif
   return uv_tcp_nodelay(stream, 1);
   // int ret = uv_tcp_keepalive(stream, 5, 60);
@@ -295,7 +299,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-  ctx->freeFunc(ctx->brokenVal.val);
+  if (ctx->freeFunc) ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
@@ -599,15 +603,28 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   }
   return true;
 }
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static void transInitEnv() {
-  refMgt = transOpenRefMgt(50000, transDestoryExHandle);
+  refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
+  transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
   transCloseRefMgt(instMgt);
+  transCloseRefMgt(transSyncMsgMgt);
 }
 
 void transInit() {
@@ -617,6 +634,7 @@ void transInit() {
 
 int32_t transGetRefMgt() { return refMgt; }
 int32_t transGetInstMgt() { return instMgt; }
+int32_t transGetSyncMsgMgt() { return transSyncMsgMgt; }
 
 void transCleanup() {
   // clean env
@@ -648,9 +666,127 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
   return taosReleaseRef(refMgt, refId);
 }
-void transDestoryExHandle(void* handle) {
+void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
+  SExHandle* eh = handle;
+  if (!QUEUE_IS_EMPTY(&eh->q)) {
+    tDebug("handle %p mem leak", handle);
+  }
   taosMemoryFree(handle);
+}
+
+void transDestroySyncMsg(void* msg) {
+  if (msg == NULL) return;
+
+  STransSyncMsg* pSyncMsg = msg;
+  tsem_destroy(pSyncMsg->pSem);
+  taosMemoryFree(pSyncMsg->pSem);
+  transFreeMsg(pSyncMsg->pRsp->pCont);
+  taosMemoryFree(pSyncMsg->pRsp);
+  taosMemoryFree(pSyncMsg);
+}
+
+// void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
+//   char ip_addr_cpy[20];
+//   char ip[5];
+
+//   tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
+
+//   char *s_start, *s_end;
+//   s_start = ip_addr_cpy;
+//   s_end = ip_addr_cpy;
+
+//   int32_t k = 0;
+
+//   for (k = 0; *s_start != '\0'; s_start = s_end) {
+//     for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
+//     }
+//     if (*s_end == '.') {
+//       *s_end = '\0';
+//       s_end++;
+//     }
+//     dst[k++] = (char)atoi(s_start);
+//   }
+// }
+
+uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
+  uint32_t ip = pRange->ip;
+  return ((ip & 0xFF) << 24) | ((ip & 0xFF00) << 8) | ((ip & 0xFF0000) >> 8) | ((ip >> 24) & 0xFF);
+}
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
+  if (pRange->mask == 32) {
+    pUtils->type = 0;
+    pUtils->address = pRange->ip;
+    return 0;
+  }
+  pUtils->address = subnetIpRang2Int(pRange);
+
+  for (int i = 0; i < pRange->mask; i++) {
+    pUtils->netmask |= (1 << (31 - i));
+  }
+
+  pUtils->network = pUtils->address & pUtils->netmask;
+  pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
+  pUtils->type = (pRange->mask == 32 ? 0 : 1);
+
+  return 0;
+}
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
+  sprintf(buf, "raw: %s, address: %d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
+          pUtils->netmask, pUtils->network, pUtils->broadcast);
+  return 0;
+}
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
+  // impl later
+  if (pUtils == NULL) return false;
+  if (pUtils->type == 0) {
+    return pUtils->address == ip;
+  } else {
+    SIpV4Range range = {.ip = ip, .mask = 32};
+
+    uint32_t t = subnetIpRang2Int(&range);
+    return t >= pUtils->network && t <= pUtils->broadcast;
+  }
+}
+
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
+  int32_t len = 0;
+
+  struct in_addr addr;
+  addr.s_addr = pRange->ip;
+
+  uv_inet_ntop(AF_INET, &addr, buf, 32);
+
+  len = strlen(buf);
+
+  if (pRange->mask != 32) {
+    len += sprintf(buf + len, "/%d", pRange->mask);
+  }
+  buf[len] = 0;
+  return len;
+}
+
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
+  if (pList->num == 0) {
+    *ppBuf = NULL;
+    return 0;
+  }
+  int32_t len = 0;
+  char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range* pRange = &pList->pIpRange[i];
+
+    char tbuf[32] = {0};
+    int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
+    len += sprintf(pBuf + len, "%s,", tbuf);
+  }
+  if (len > 0) {
+    pBuf[len - 1] = 0;
+  }
+
+  *ppBuf = pBuf;
+  return len;
 }

@@ -29,7 +29,7 @@ extern "C" {
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);
 char   *strnchr(const char *haystack, char needle, int32_t len, bool skipquote);
-TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len);
+TdUcs4 *wcsnchr(const TdUcs4 *haystack, TdUcs4 needle, size_t len);
 
 char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
@@ -37,11 +37,11 @@ char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
 
-size_t  tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
-size_t  twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
+size_t tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
+size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
 
-char   *strbetween(char *string, char *begin, char *end);
-char   *paGetToken(char *src, char **token, int32_t *tokenLen);
+char *strbetween(char *string, char *begin, char *end);
+char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
@@ -79,24 +79,62 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
+static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
+  T_MD5_CTX ctx;
+  tMD5Init(&ctx);
+  tMD5Update(&ctx, (uint8_t*)pBuf, len);
+  tMD5Final(&ctx);
+  char* p = pBuf;
+  int32_t resLen = 0;
+  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+    resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
+    p += 2;
+  }
+  return resLen;
+}
+
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
                                              int32_t suffix) {
-  if (prefix == 0 && suffix == 0) {
+  if ((prefix == 0 && suffix == 0) || (tblen <= (prefix + suffix)) || (tblen <= -1 * (prefix + suffix)) ||
+      prefix * suffix < 0) {
     return MurmurHash3_32(tbname, tblen);
+  } else if (prefix > 0 || suffix > 0) {
+    return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
   } else {
-    if (tblen <= (prefix + suffix)) {
-      return MurmurHash3_32(tbname, tblen);
-    } else {
-      return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
+    char    tbName[TSDB_TABLE_FNAME_LEN];
+    int32_t offset = 0;
+    if (prefix < 0) {
+      offset = -1 * prefix;
+      strncpy(tbName, tbname, offset);
     }
+    if (suffix < 0) {
+      strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
+      offset += -1 * suffix;
+    }
+    return MurmurHash3_32(tbName, offset);
   }
 }
 
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
-  if (CODE) {                              \
-    LINO = __LINE__;                       \
-    goto LABEL;                            \
+  do {                                     \
+    if ((CODE)) {                          \
+      LINO = __LINE__;                     \
+      goto LABEL;                          \
+    }                                      \
+  } while (0)
+
+#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
+  if ((ptr) == NULL) {                                 \
+    (CODE) = (ERRNO);                                  \
+    (LINO) = __LINE__;                                 \
+    goto LABEL;                                        \
   }
+
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+
+#define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
+
+#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,9 @@ SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId);
 void       mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj);
 int32_t    mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit);
 int32_t    mndSetDropQnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SQnodeObj *pObj, bool force);
+bool       mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId);
+int32_t    mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj);
+int32_t    mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj);
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,7 @@ The FQDN of all hosts must be setup properly. For e.g. FQDNs may have to be conf
 
 ### Step 1
 
-If any previous version of TDengine has been installed and configured on any host, the installation needs to be removed and the data needs to be cleaned up. For details about uninstalling please refer to [Install and Uninstall](/operation/pkg-install). To clean up the data, please use `rm -rf /var/lib/taos/\*` assuming the `dataDir` is configured as `/var/lib/taos`.
+If any previous version of TDengine has been installed and configured on any host, the installation needs to be removed and the data needs to be cleaned up. To clean up the data, please use `rm -rf /var/lib/taos/\*` assuming the `dataDir` is configured as `/var/lib/taos`.
 
 :::note
 FQDN information is written to file. If you have started TDengine without configuring or changing the FQDN, ensure that data is backed up or no longer needed before running the `rm -rf /var/lib\taos/\*` command.
@@ -62,16 +62,17 @@ serverPort            6030
 
 For all the dnodes in a TDengine cluster, the below parameters must be configured exactly the same, any node whose configuration is different from dnodes already in the cluster can't join the cluster.
 
-| **#** | **Parameter**      | **Definition**                                                                    |
-| ----- | ------------------ | ------------------------------------------- |
-| 1     | statusInterval     | The interval by which dnode reports its status to mnode                           |
-| 2     | timezone           | Timezone                                                                          |
-| 3     | locale             | System region and encoding                       |
-| 4     | charset            | Character set |
+| **#** | **Parameter**    | **Definition**                                                                |
+| ----- | ---------------- | ----------------------------------------------------------------------------- |
+| 1     | statusInterval   | The interval by which dnode reports its status to mnode                       |
+| 2     | timezone         | Timezone                                                                      |
+| 3     | locale           | System region and encoding                                                    |
+| 4     | charset          | Character set                                                                 |
+| 5     | ttlChangeOnWrite | Whether the ttl expiration time changes with the table modification operation |
 
 ## Start Cluster
 
-The first dnode can be started following the instructions in [Get Started](/get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
+The first dnode can be started following the instructions in [Get Started](../../get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
 
 ```
 taos> show dnodes;
@@ -89,7 +90,7 @@ From the above output, it is shown that the end point of the started dnode is "h
 
 There are a few steps necessary to add other dnodes in the cluster.
 
-Second, we can start `taosd` as instructed in [Get Started](/get-started/).
+Second, we can start `taosd` as instructed in [Get Started](../../get-started/).
 
 Then, on the first dnode i.e. h1.tdengine.com in our example, use TDengine CLI `taos` to execute the following command:
 
@@ -97,7 +98,7 @@ Then, on the first dnode i.e. h1.tdengine.com in our example, use TDengine CLI `
 CREATE DNODE "h2.taos.com:6030";
 ````
 
-This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode. 
+This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode.
 
 Then on the first dnode h1.tdengine.com, execute `show dnodes` in `taos`
 
@@ -171,12 +172,6 @@ Query OK, 8 row(s) in set (0.001154s)
 ## Drop DNODE
 
 Before running the TDengine CLI, ensure that the taosd process has been stopped on the dnode that you want to delete.
-
-```sql
-DROP DNODE "fqdn:port";
-```
-
-or
 
 ```sql
 DROP DNODE dnodeId;

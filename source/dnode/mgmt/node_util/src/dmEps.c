@@ -57,6 +57,8 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "dnodeVer", pData->dnodeVer, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "engineVer", pData->engineVer, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "clusterId", pData->clusterId, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
@@ -96,11 +98,12 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   pData->dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
   if (pData->dnodeEps == NULL) {
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
+    code = terrno;
+    dError("failed to calloc dnodeEp array since %s", terrstr());
     goto _OVER;
   }
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
     code = 0;
     goto _OVER;
@@ -173,7 +176,7 @@ _OVER:
   dmResetEps(pData, pData->dnodeEps);
 
   if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
+    dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
   }
@@ -184,6 +187,7 @@ _OVER:
 static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddDoubleToObject(pJson, "dnodeId", pData->dnodeId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "dnodeVer", pData->dnodeVer) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
 
@@ -218,14 +222,17 @@ int32_t dmWriteEps(SDnodeData *pData) {
   snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+
+  if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
+  pData->engineVer = tsVersion;
   if (dmEncodeEps(pJson, pData) != 0) goto _OVER;
   buffer = tjsonToString(pJson);
   if (buffer == NULL) goto _OVER;
   terrno = 0;
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);
@@ -282,11 +289,14 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
     pData->mnodeEps.eps[mIndex] = pDnodeEp->ep;
     mIndex++;
   }
+  epsetSort(&pData->mnodeEps);
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
     taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
   }
+
+  pData->validMnodeEps = true;
 
   dmPrintEps(pData);
 }
@@ -348,6 +358,7 @@ void dmRotateMnodeEpSet(SDnodeData *pData) {
 }
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  if (!pData->validMnodeEps) return;
   dmGetMnodeEpSet(pData, pEpSet);
   dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
@@ -466,7 +477,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dDebug("dnode file:%s not exist", file);
     code = 0;
     goto _OVER;

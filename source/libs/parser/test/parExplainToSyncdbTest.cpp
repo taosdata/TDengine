@@ -36,8 +36,10 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
 
   SAlterUserReq expect = {0};
 
-  auto setAlterUserReq = [&](int8_t alterType, const string& user, const string& obj) {
+  auto setAlterUserReq = [&](int8_t alterType, int64_t privileges, const string& user, const string& obj) {
     expect.alterType = alterType;
+    expect.privileges = privileges;
+    expect.tabName[0] = 0;
     snprintf(expect.user, sizeof(expect.user), "%s", user.c_str());
     snprintf(expect.objname, sizeof(expect.objname), "%s", obj.c_str());
   };
@@ -50,21 +52,25 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
     ASSERT_EQ(req.alterType, expect.alterType);
     ASSERT_EQ(string(req.user), string(expect.user));
     ASSERT_EQ(string(req.objname), string(expect.objname));
+    tFreeSAlterUserReq(&req);
   });
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.*");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");
   run("GRANT ALL ON *.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_READ_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_READ, "wxy", "0.test");
   run("GRANT READ ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_WRITE_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("GRANT WRITE ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_ALTER, "wxy", "0.test");
+  run("GRANT ALTER ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_READ | PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("GRANT READ, WRITE ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC, "wxy", "0.tp1");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("GRANT SUBSCRIBE ON tp1 TO wxy");
 }
 
@@ -101,6 +107,60 @@ TEST_F(ParserExplainToSyncdbTest, mergeVgroup) {
   run("MERGE VGROUP 1 2");
 }
 
+TEST_F(ParserExplainToSyncdbTest, pauseStreamStmt) {
+  useDb("root", "test");
+
+  SMPauseStreamReq expect = {0};
+
+  auto setMPauseStreamReq = [&](const string& name, bool igNotExists = false) {
+    snprintf(expect.name, sizeof(expect.name), "0.%s", name.c_str());
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_PAUSE_STREAM_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_PAUSE_STREAM);
+    SMPauseStreamReq req = {0};
+    ASSERT_EQ(tDeserializeSMPauseStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(string(req.name), string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setMPauseStreamReq("str1");
+  run("PAUSE STREAM str1");
+
+  setMPauseStreamReq("str2", true);
+  run("PAUSE STREAM IF EXISTS str2");
+}
+
+TEST_F(ParserExplainToSyncdbTest, resumeStreamStmt) {
+  useDb("root", "test");
+
+  SMResumeStreamReq expect = {0};
+
+  auto setMResumeStreamReq = [&](const string& name, bool igNotExists = false, bool igUntreated = false) {
+    snprintf(expect.name, sizeof(expect.name), "0.%s", name.c_str());
+    expect.igNotExists = igNotExists;
+    expect.igUntreated = igUntreated;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESUME_STREAM_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESUME_STREAM);
+    SMResumeStreamReq req = {0};
+    ASSERT_EQ(tDeserializeSMResumeStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(string(req.name), string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+    ASSERT_EQ(req.igUntreated, expect.igUntreated);
+  });
+
+  setMResumeStreamReq("str1");
+  run("RESUME STREAM str1");
+
+  setMResumeStreamReq("str2", true, true);
+  run("RESUME STREAM IF EXISTS IGNORE UNTREATED str2");
+}
+
 TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
   useDb("root", "test");
 
@@ -124,6 +184,7 @@ TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
     ASSERT_EQ(req.dnodeId1, expect.dnodeId1);
     ASSERT_EQ(req.dnodeId2, expect.dnodeId2);
     ASSERT_EQ(req.dnodeId3, expect.dnodeId3);
+    tFreeSRedistributeVgroupReq(&req);
   });
 
   setRedistributeVgroupReqFunc(3, 1);
@@ -133,6 +194,64 @@ TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
   run("REDISTRIBUTE VGROUP 5 DNODE 10 DNODE 20 DNODE 30");
 }
 
+TEST_F(ParserExplainToSyncdbTest, restoreDnode) {
+  useDb("root", "test");
+
+  SRestoreDnodeReq expect = {0};
+
+  auto clearRestoreDnodeReq = [&]() { memset(&expect, 0, sizeof(SRestoreDnodeReq)); };
+
+  auto setRestoreDnodeReq = [&](int32_t dnodeId, int8_t type) {
+    expect.dnodeId = dnodeId;
+    expect.restoreType = type;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    int32_t expectNodeType = 0;
+    switch (expect.restoreType) {
+      case RESTORE_TYPE__ALL:
+        expectNodeType = QUERY_NODE_RESTORE_DNODE_STMT;
+        break;
+      case RESTORE_TYPE__MNODE:
+        expectNodeType = QUERY_NODE_RESTORE_MNODE_STMT;
+        break;
+      case RESTORE_TYPE__VNODE:
+        expectNodeType = QUERY_NODE_RESTORE_VNODE_STMT;
+        break;
+      case RESTORE_TYPE__QNODE:
+        expectNodeType = QUERY_NODE_RESTORE_QNODE_STMT;
+        break;
+      default:
+        break;
+    }
+    ASSERT_EQ(nodeType(pQuery->pRoot), expectNodeType);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESTORE_DNODE);
+    SRestoreDnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSRestoreDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    ASSERT_EQ(req.restoreType, expect.restoreType);
+    tFreeSRestoreDnodeReq(&req);
+  });
+
+  setRestoreDnodeReq(1, RESTORE_TYPE__ALL);
+  run("RESTORE DNODE 1");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(2, RESTORE_TYPE__MNODE);
+  run("RESTORE MNODE ON DNODE 2");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(1, RESTORE_TYPE__VNODE);
+  run("RESTORE VNODE ON DNODE 1");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(2, RESTORE_TYPE__QNODE);
+  run("RESTORE QNODE ON DNODE 2");
+  clearRestoreDnodeReq();
+}
+
+
+
 // todo reset query cache
 
 TEST_F(ParserExplainToSyncdbTest, revoke) {
@@ -140,8 +259,10 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
 
   SAlterUserReq expect = {0};
 
-  auto setAlterUserReq = [&](int8_t alterType, const string& user, const string& obj) {
+  auto setAlterUserReq = [&](int8_t alterType, int64_t privileges, const string& user, const string& obj) {
     expect.alterType = alterType;
+    expect.privileges = privileges;
+    expect.tabName[0] = 0;
     snprintf(expect.user, sizeof(expect.user), "%s", user.c_str());
     snprintf(expect.objname, sizeof(expect.objname), "%s", obj.c_str());
   };
@@ -154,21 +275,25 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
     ASSERT_EQ(req.alterType, expect.alterType);
     ASSERT_EQ(string(req.user), string(expect.user));
     ASSERT_EQ(string(req.objname), string(expect.objname));
+    tFreeSAlterUserReq(&req);
   });
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_ALL_DB, "wxy", "0.*");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");
   run("REVOKE ALL ON *.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_READ_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_READ, "wxy", "0.test");
   run("REVOKE READ ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_WRITE_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("REVOKE WRITE ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_ALL_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_ALTER, "wxy", "0.test");
+  run("REVOKE ALTER ON test.* FROM wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_READ|PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("REVOKE READ, WRITE ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC, "wxy", "0.tp1");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("REVOKE SUBSCRIBE ON tp1 FROM wxy");
 }
 

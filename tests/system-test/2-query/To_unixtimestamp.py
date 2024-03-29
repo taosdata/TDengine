@@ -26,7 +26,7 @@ class TDTestCase:
             'c1':'int',
             'c2':'float',
             'c3':'binary(20)'
-            
+
         }
         # structure of tag
         self.tag_dict = {
@@ -60,7 +60,7 @@ class TDTestCase:
             if tb_type == 'ntb' or tb_type == 'ctb':
                 tdSql.checkRows(len(values_list))
             elif tb_type == 'stb':
-                tdSql.checkRows(len(self.values_list)*tb_num)    
+                tdSql.checkRows(len(self.values_list)*tb_num)
         for time in ['2020-01-32T08:00:00','2020-13-32T08:00:00','acd']:
             tdSql.query(f"select to_unixtimestamp('{time}') from {tbname}")
             if tb_type == 'ntb' or tb_type == 'ctb':
@@ -74,7 +74,7 @@ class TDTestCase:
             if tb_type == 'ntb' or tb_type == 'ctb':
                 tdSql.checkRows(len(values_list))
             elif tb_type == 'stb':
-                tdSql.checkRows(len(values_list)*tb_num)    
+                tdSql.checkRows(len(values_list)*tb_num)
         for time in self.error_param:
             tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
     def timestamp_change_check_ntb(self):
@@ -95,9 +95,20 @@ class TDTestCase:
             self.data_check(f'{self.stbname}_{i}',self.values_list,'ctb')
         self.data_check(self.stbname,self.values_list,'stb',self.tbnum)
         tdSql.execute(f'drop database {self.dbname}')
+    def timestamp_change_return_type(self):
+        tdSql.query(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 0);")
+        tdSql.checkEqual(tdSql.queryResult[0][0], 0)
+        tdSql.query(f"select to_unixtimestamp('1970-01-01 00:00:00', 1);")
+        tdSql.checkData(0, 0, datetime.datetime(1970, 1, 1, 0, 0, 0))
+        tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 2);")
+        tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1.5);")
+        tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 'abc');")
+        tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', true);")
+        tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1, 3);")
     def run(self):  # sourcery skip: extract-duplicate-method
         self.timestamp_change_check_ntb()
         self.timestamp_change_check_stb()
+        self.timestamp_change_return_type()
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

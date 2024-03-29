@@ -32,6 +32,7 @@ bool         mndTopicExistsForDb(SMnode *pMnode, SDbObj *pDb);
 const char  *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]);
 
 int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
+int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics);
 
 #ifdef __cplusplus
 }

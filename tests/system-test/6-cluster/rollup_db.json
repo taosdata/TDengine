@@ -1,0 +1,77 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/home/lisa/Documents/workspace/tdengine/debug/../sim/dnode1/cfg/",
+  "host": "localhost",
+  "port": 6030,
+  "rest_port": 6041,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 4,
+  "create_table_thread_count": 4,
+  "result_file": "taosBenchmark_result.log",
+  "confirm_parameter_prompt": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 1000,
+  "max_sql_len": 1024000,
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "dbtest",
+        "drop": "yes",
+        "replica": 1,
+        "duration": 10,
+        "precision": "ms",
+        "keep": 3650,
+        "comp": 2,
+        "vgroups": 2,
+        "buffer": 1000
+      },
+      "super_tables": [
+        {
+          "name": "meters",
+          "child_table_exists": "no",
+          "childtable_count": 100,
+          "childtable_prefix": "ctb",
+          "escape_character": "no",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 500,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "continue_if_fail": "yes",
+          "keep_trying": 500,
+          "trying_interval": 100,
+          "interlace_rows": 0,
+          "line_protocol": null,
+          "tcp_transfer": "no",
+          "insert_rows": 0,
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "rows_per_tbl": 0,
+          "max_sql_len": 1048576, 
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 1000,
+          "start_timestamp": "2022-10-22 17:20:36",
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "tags_file": "",
+          "partial_col_num": 999,
+          "columns": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 29, "count":1,
+            "values": ["d1", "d2"]
+          }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 23, "count":1,
+            "values": ["b1","b2"]
+          }],
+          "tags": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 17, "count":1,
+            "values": ["d1", "d2"]
+          }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 19, "count":1,
+            "values": ["b1","b2"]
+          }]
+        }
+      ]
+    }
+  ],
+  "prepare_rand": 10000,
+  "chinese": "no",
+  "streams": false,
+  "test_log": "/root/testlog/"
+}

@@ -17,6 +17,7 @@ sql create table mt_float (ts timestamp, c float) tags (tagname float)
 
 ## case 00: static create table for test tag values
 sql create table st_float_0  using mt_float tags (NULL)
+sql show create table st_float_0
 sql show tags from  st_float_0
 if $data05 != NULL then
   return -1
@@ -299,6 +300,7 @@ endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_float_16 using mt_float tags (NULL)   values (now, NULL)
+sql show create table st_float_16
 sql show tags from  st_float_16
 if $data05 != NULL then
   return -1

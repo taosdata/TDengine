@@ -43,7 +43,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -72,7 +72,7 @@ class TDTestCase:
 
         for couti in range(countstart,countstop):
             tdLog.debug("drop database if exists db%d" %couti)
-            tdSql.execute("drop database if exists db%d" %couti)
+            tdSql.execute("drop database if exists db%d" %couti, 20)
             print("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("use db%d" %couti)

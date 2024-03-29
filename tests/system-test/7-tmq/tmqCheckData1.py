@@ -21,34 +21,6 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkFileContent(self, consumerId, queryString):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
-        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
-        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
-
-        consumeFile = open(consumeRowsFile, mode='r')
-        queryFile = open(dstFile, mode='r')
-
-        # skip first line for it is schema
-        queryFile.readline()
-
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-
-            if dst:
-                if dst != src:
-                    tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
-            else:
-                break
-        return
-
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db1',
@@ -79,7 +51,8 @@ class TDTestCase:
         tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
         tdLog.info("insert data")
         tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
-
+        tdSql.execute("insert into ctb0  values(now,1,'');")
+        
         tdLog.info("create topics from stb with filter")
         queryString = "select ts,c1,c2 from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as stable %s.%s" %(topicNameList[0], paraDict["dbName"],paraDict["stbName"])
@@ -109,7 +82,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("0 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
@@ -134,7 +107,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[1], resultList[0]))
             tdLog.exit("1 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
@@ -159,7 +132,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
             tdLog.exit("2 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):

@@ -4,9 +4,9 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create db
-sql create database root_d1 vgroups 1;
-sql create database root_d2 vgroups 1;
-sql create database root_d3 vgroups 1;
+sql create database root_d1 vgroups 1 wal_retention_period 3600;
+sql create database root_d2 vgroups 1 wal_retention_period 3600;
+sql create database root_d3 vgroups 1 wal_retention_period 3600;
 
 sql show user privileges
 if $rows != 1 then 

@@ -60,7 +60,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
   }
 
   int64_t sz = 0;
-  if (taosStatFile(fname, &sz, NULL) < 0) {
+  if (taosStatFile(fname, &sz, NULL, NULL) < 0) {
     taosCloseFile(&pFile);
     taosMemoryFree(fname);
     return -1;
@@ -85,6 +85,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
   *ppData = (uint8_t*)buf;
 
   pReader->readEnd = 1;
+  taosCloseFile(&pFile);
   return 0;
 }
 
@@ -159,6 +160,7 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
       taosCloseFile(&pFile);
       return -1;
     }
+    taosCloseFile(&pFile);
   } else {
     return -1;
   }

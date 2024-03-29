@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "audit.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
@@ -24,8 +25,16 @@ static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
 }
 
+static void dmGetMonitorBasicInfoBasic(SDnode *pDnode, SMonBasicInfo *pInfo) {
+  pInfo->protocol = 2;
+  pInfo->dnode_id = pDnode->data.dnodeId;
+  pInfo->cluster_id = pDnode->data.clusterId;
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+}
+
 static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
-  pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / (86400000.0f);
+  //pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) / (86400000.0f);
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->data.rebootTime) /1000.0f;
   pInfo->has_mnode = pDnode->wrappers[MNODE].required;
   pInfo->has_qnode = pDnode->wrappers[QNODE].required;
   pInfo->has_snode = pDnode->wrappers[SNODE].required;
@@ -40,6 +49,12 @@ static void dmGetDmMonitorInfo(SDnode *pDnode) {
   dmGetMonitorBasicInfo(pDnode, &dmInfo.basic);
   dmGetMonitorDnodeInfo(pDnode, &dmInfo.dnode);
   dmGetMonitorSystemInfo(&dmInfo.sys);
+  monSetDmInfo(&dmInfo);
+}
+
+static void dmGetDmMonitorInfoBasic(SDnode *pDnode) {
+  SMonDmInfo dmInfo = {0};
+  dmGetMonitorBasicInfoBasic(pDnode, &dmInfo.basic);
   monSetDmInfo(&dmInfo);
 }
 
@@ -105,7 +120,22 @@ void dmSendMonitorReport() {
   dmGetVmMonitorInfo(pDnode);
   dmGetQmMonitorInfo(pDnode);
   dmGetSmMonitorInfo(pDnode);
-  monSendReport();
+  monGenAndSendReport();
+}
+
+void dmSendMonitorReportBasic() {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
+
+  SDnode *pDnode = dmInstance();
+  dmGetDmMonitorInfoBasic(pDnode);
+  dmGetMmMonitorInfo(pDnode);
+  monGenAndSendReportBasic();
+}
+
+//Todo: put this in seperate file in the future
+void dmSendAuditRecords() {
+  auditSendRecordsInBatch();
 }
 
 void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
@@ -114,6 +144,17 @@ void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
   if (dmMarkWrapper(pWrapper) == 0) {
     if (pWrapper->pMgmt != NULL) {
       vmGetVnodeLoads(pWrapper->pMgmt, pInfo, false);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+
+void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo) {
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmGetVnodeLoadsLite(pWrapper->pMgmt, pInfo);
     }
     dmReleaseWrapper(pWrapper);
   }

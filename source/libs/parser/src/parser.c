@@ -51,6 +51,10 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
+  if (pCxt->parseOnly) {
+    return code;
+  }
+
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
     TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
     return TSDB_CODE_SUCCESS;
@@ -97,8 +101,17 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   pVal->node.resType.bytes = inputSize;
 
   switch (pParam->buffer_type) {
-    case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pVal->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+      memcpy(varDataVal(pVal->datum.p), pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -203,7 +216,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
     code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -220,11 +233,76 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
   return parseInsertSql(pCxt, &pQuery, pCatalogReq, pMetaData);
 }
 
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_STREAM_STMT: {
+      code = translatePostCreateStream(pCxt, pQuery, pBlock);
+      break;
+    }
+    case QUERY_NODE_CREATE_INDEX_STMT: {
+      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return code;
+}
+
+
+static void destoryTablesReq(void *p) {
+  STablesReq *pRes = (STablesReq *)p;
+  taosArrayDestroy(pRes->pTables);
+}
+
+void destoryCatalogReq(SCatalogReq *pCatalogReq) {
+  if (NULL == pCatalogReq) {
+    return;
+  }
+  taosArrayDestroy(pCatalogReq->pDbVgroup);
+  taosArrayDestroy(pCatalogReq->pDbCfg);
+  taosArrayDestroy(pCatalogReq->pDbInfo);
+  if (pCatalogReq->cloned) {
+    taosArrayDestroy(pCatalogReq->pTableMeta);
+    taosArrayDestroy(pCatalogReq->pTableHash);
+#ifdef TD_ENTERPRISE
+    taosArrayDestroy(pCatalogReq->pView);
+#endif
+  } else {
+    taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
+    taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
+#ifdef TD_ENTERPRISE
+    taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
+#endif  
+  }
+  taosArrayDestroy(pCatalogReq->pUdf);
+  taosArrayDestroy(pCatalogReq->pIndex);
+  taosArrayDestroy(pCatalogReq->pUser);
+  taosArrayDestroy(pCatalogReq->pTableIndex);
+  taosArrayDestroy(pCatalogReq->pTableCfg);
+  taosArrayDestroy(pCatalogReq->pTableTag);
+}
+
+
+void tfreeSParseQueryRes(void* p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SParseQueryRes* pRes = p;
+  destoryCatalogReq(pRes->pCatalogReq);
+  taosMemoryFree(pRes->pCatalogReq);
+  catalogFreeMetaData(&pRes->meta);
+}
+
 void qDestroyParseContext(SParseContext* pCxt) {
   if (NULL == pCxt) {
     return;
   }
 
+  taosArrayDestroyEx(pCxt->pSubMetaList, tfreeSParseQueryRes);
   taosArrayDestroy(pCxt->pTableMetaPos);
   taosArrayDestroy(pCxt->pTableVgroupPos);
   taosMemoryFree(pCxt);

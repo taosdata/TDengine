@@ -24,12 +24,16 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "selfIndex", pOption->selfIndex, code);
   if (code < 0) return 0;
+  tjsonGetInt32ValueFromDouble(pJson, "lastIndex", pOption->lastIndex, code);
+  if (code < 0) return 0;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
   if (replicas == NULL) return 0;
-  pOption->numOfReplicas = tjsonGetArraySize(replicas);
+  pOption->numOfTotalReplicas = tjsonGetArraySize(replicas);
 
-  for (int32_t i = 0; i < pOption->numOfReplicas; ++i) {
+  pOption->numOfReplicas = 0;
+
+  for (int32_t i = 0; i < pOption->numOfTotalReplicas; ++i) {
     SJson *replica = tjsonGetArrayItem(replicas, i);
     if (replica == NULL) return -1;
 
@@ -40,6 +44,14 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
     if (code < 0) return -1;
     tjsonGetUInt16ValueFromDouble(replica, "port", pReplica->port, code);
     if (code < 0) return -1;
+    tjsonGetInt32ValueFromDouble(replica, "role", pOption->nodeRoles[i], code);
+    if (code < 0) return -1;
+    if (pOption->nodeRoles[i] == TAOS_SYNC_ROLE_VOTER) {
+      pOption->numOfReplicas++;
+    }
+  }
+
+  for (int32_t i = 0; i < pOption->numOfTotalReplicas; ++i) {
   }
 
   return 0;
@@ -53,7 +65,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%smnode.json", path, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("mnode file:%s not exist", file);
     return 0;
   }
@@ -112,14 +124,14 @@ _OVER:
 }
 
 static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
-  if (pOption->deploy && pOption->numOfReplicas > 0) {
+  if (pOption->deploy && pOption->numOfTotalReplicas > 0) {
     if (tjsonAddDoubleToObject(pJson, "selfIndex", pOption->selfIndex) < 0) return -1;
 
     SJson *replicas = tjsonCreateArray();
     if (replicas == NULL) return -1;
     if (tjsonAddItemToObject(pJson, "replicas", replicas) < 0) return -1;
 
-    for (int32_t i = 0; i < pOption->numOfReplicas; ++i) {
+    for (int32_t i = 0; i < pOption->numOfTotalReplicas; ++i) {
       SJson *replica = tjsonCreateObject();
       if (replica == NULL) return -1;
 
@@ -127,9 +139,12 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
       if (tjsonAddDoubleToObject(replica, "id", pReplica->id) < 0) return -1;
       if (tjsonAddStringToObject(replica, "fqdn", pReplica->fqdn) < 0) return -1;
       if (tjsonAddDoubleToObject(replica, "port", pReplica->port) < 0) return -1;
+      if (tjsonAddDoubleToObject(replica, "role", pOption->nodeRoles[i]) < 0) return -1;
       if (tjsonAddItemToArray(replicas, replica) < 0) return -1;
     }
   }
+
+  if (tjsonAddDoubleToObject(pJson, "lastIndex", pOption->lastIndex) < 0) return -1;
 
   if (tjsonAddDoubleToObject(pJson, "deployed", pOption->deploy) < 0) return -1;
 
@@ -154,7 +169,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   if (buffer == NULL) goto _OVER;
   terrno = 0;
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);

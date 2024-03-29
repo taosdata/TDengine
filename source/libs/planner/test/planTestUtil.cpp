@@ -441,6 +441,16 @@ class PlannerTestBaseImpl {
       pCxt->topicQuery = true;
     } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
       SMCreateSmaReq req = {0};
+      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
+      SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+      if (NULL == pCmdMsg) FAIL();
+      pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
+      pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
+      pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
+      if (!pCmdMsg->pMsg) FAIL();
+      tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq);
+      ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
+
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);

@@ -26,6 +26,38 @@ if pidof taosd &> /dev/null; then
     sleep 1
 fi
 
+# Stop adapter service if running
+if pidof taosadapter &> /dev/null; then
+    if pidof systemd &> /dev/null; then
+        ${csudo}systemctl stop taosadapter || :
+    elif $(which service  &> /dev/null); then
+        ${csudo}service taosadapter stop || :
+    else
+        pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
+        if [ -n "$pid" ]; then
+           ${csudo}kill -9 $pid   || :
+        fi
+    fi
+    echo "Stop taosadapter service success!"
+    sleep 1
+fi
+
+# Stop keeper service if running
+if pidof taoskeeper &> /dev/null; then
+    if pidof systemd &> /dev/null; then
+        ${csudo}systemctl stop taoskeeper || :
+    elif $(which service  &> /dev/null); then
+        ${csudo}service taoskeeper stop || :
+    else
+        pid=$(ps -ef | grep "taoskeeper" | grep -v "grep" | awk '{print $2}')
+        if [ -n "$pid" ]; then
+           ${csudo}kill -9 $pid   || :
+        fi
+    fi
+    echo "Stop taoskeeper service success!"
+    sleep 1
+fi
+
 # if taos.cfg already softlink, remove it
 cfg_install_dir="/etc/taos"
 install_main_dir="/usr/local/taos"
@@ -40,6 +72,11 @@ fi
 if [ -f "${install_main_dir}/taosadapter.service" ]; then
     ${csudo}rm -f ${install_main_dir}/cfg/taosadapter.service || :
 fi
+
+if [ -f "${install_main_dir}/taoskeeper.toml" ]; then
+    ${csudo}rm -f ${install_main_dir}/cfg/taoskeeper.toml     || :
+fi
+
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f ${install_main_dir}/driver/libtaos.*   || :

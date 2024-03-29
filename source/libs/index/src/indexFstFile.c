@@ -29,7 +29,10 @@ typedef struct {
   char    buf[0];
 } SDataBlock;
 
-static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
+static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value, void* ud) {
+  (void)ud;
+  taosMemoryFree(value);
+}
 
 static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
   char* p = buf;
@@ -127,8 +130,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
         ASSERTS(blk->nread <= kBlockSize, "index read incomplete data");
-        if (blk->nread > kBlockSize) break;
-
         if (blk->nread < kBlockSize && blk->nread < len) {
           taosMemoryFree(blk);
           break;
@@ -138,7 +139,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         memcpy(buf + total, blk->buf + blkOffset, nread);
 
         LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
-                                         TAOS_LRU_PRIORITY_LOW);
+                                         TAOS_LRU_PRIORITY_LOW, NULL);
         if (s != TAOS_LRU_STATUS_OK) {
           return -1;
         }
@@ -161,7 +162,7 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
       return ctx->offset;
     } else {
       int64_t file_size = 0;
-      taosStatFile(ctx->file.buf, &file_size, NULL);
+      taosStatFile(ctx->file.buf, &file_size, NULL, NULL);
       return (int)file_size;
     }
   }
@@ -198,7 +199,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       code = taosFtruncateFile(ctx->file.pFile, 0);
       UNUSED(code);
 
-      code = taosStatFile(path, &ctx->file.size, NULL);
+      code = taosStatFile(path, &ctx->file.size, NULL, NULL);
       UNUSED(code);
 
       ctx->file.wBufOffset = 0;

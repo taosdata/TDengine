@@ -52,18 +52,34 @@ sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) in
 
 print --> show sma
 sql show indexes from stb from d1;
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
-if $data[0][0] != sma_index_name1 then
-  return -1
+
+if $data[0][6] == tag_index then 
+    if $data[1][0] != sma_index_name1 then
+      return -1
+    endi
+    if $data[1][1] != d1 then
+      return -1
+    endi
+    if $data[1][2] != stb then
+      return -1
+    endi
+else
+    if $data[0][0] != sma_index_name1 then
+      return -1
+    endi
+    if $data[0][1] != d1 then
+      return -1
+    endi
+    if $data[0][2] != stb then
+      return -1
+    endi
 endi
-if $data[0][1] != d1 then
-  return -1
-endi
-if $data[0][2] != stb then
-  return -1
-endi
+
+
+
 
 print --> drop stb
 sql drop table stb;
@@ -78,17 +94,30 @@ sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) in
 
 print --> show sma
 sql show indexes from stb from d1;
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
-if $data[0][0] != sma_index_name1 then
-  return -1
-endi
-if $data[0][1] != d1 then
-  return -1
-endi
-if $data[0][2] != stb then
-  return -1
+
+if $data[0][6] == tag_index then
+  if $data[1][0] != sma_index_name1 then
+    return -1
+  endi
+  if $data[1][1] != d1 then
+    return -1
+  endi
+  if $data[1][2] != stb then
+    return -1
+  endi
+else 
+  if $data[0][0] != sma_index_name1 then
+    return -1
+  endi
+  if $data[0][1] != d1 then
+    return -1
+  endi
+  if $data[0][2] != stb then
+    return -1
+  endi
 endi
 
 print --> drop stb
@@ -129,6 +158,7 @@ sql DROP INDEX sma_index_3 ;
 
 print ========== step8
 sql drop database if exists db;
+sleep 2000
 sql create database db duration 300;
 sql use db;
 sql create table stb1(ts timestamp, c_int int, c_bint bigint, c_sint smallint, c_tint tinyint,c_float float, c_double double, c_bool bool,c_binary binary(16), c_nchar nchar(32), c_ts timestamp,c_tint_un tinyint unsigned, c_sint_un smallint unsigned,c_int_un int unsigned, c_bint_un bigint unsigned) tags (t_int int);

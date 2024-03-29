@@ -21,6 +21,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "types.h"
+#include "geosWrapper.h"
 
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -115,8 +116,7 @@ int smlProcess_json1_Test() {
 
   const char *sql[] = {
       "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":"
-      "\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":"
-      "\"lga\"}}]"};
+      "34}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":4}}]"};
 
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
@@ -141,8 +141,8 @@ int smlProcess_json1_Test() {
 
 
   const char *sql2[] = {
-      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":\"lga\"}"
-      "},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}"
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":1}"
+      "},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":4}"
       "}]",
   };
 
@@ -245,8 +245,7 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\","
-      "\"dc\":\"lga\"}}]"};
+      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"};
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
@@ -267,6 +266,98 @@ int smlProcess_json3_Test() {
   for (int i = 0; i < 1; i++) {
     taosMemoryFree(sql1[i]);
   }
+  return code;
+}
+
+int smlProcess_json_tag_not_same_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "[{\"metric\":\"jstable\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":"
+      "\"lga\"}},{\"metric\":\"jstable\",\"timestamp\":1662344045,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":"
+      "\"lga\"}}]"};
+
+  char *sql1[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql1[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql1[i], sql[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  int code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql1[i]);
+  }
+  ASSERT(code == 0);
+
+
+  const char *sql2[] = {
+      "[{\"metric\":\"jstable\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":6,\"dc\":\"lga\"}}]",
+  };
+
+  char *sql3[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql3[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql3[i], sql2[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql3[i]);
+  }
+
+  ASSERT(code != 0);
+
+  const char *sql4[] = {
+      "[{\"metric\":\"jstable\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":6,\"dc\":\"lga\"}},"
+      "{\"metric\":\"jstable\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":false,\"dc\":\"lga\"}}]",
+  };
+  char *sql5[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql5[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql5[i], sql4[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql5[i]);
+  }
+  ASSERT(code != 0);
+
+  taos_close(taos);
+
   return code;
 }
 
@@ -774,26 +865,26 @@ int sml_dup_time_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {//"test_ms,t0=t c0=f 1626006833641",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=f,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
@@ -851,7 +942,7 @@ int smlProcess_18784_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "disk,device=sdc inodes_used=176059i,total=1081101176832i 1661943960000000000",
+      "disk,device=sdc inodes_used=176059i,total=1076048383523889174i 1661943960000000000",
       "disk,device=sdc inodes_free=66932805i 1661943960000000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
@@ -876,7 +967,7 @@ int smlProcess_18784_Test() {
     if (rowIndex == 0) {
       ASSERT(ts == 1661943960000);
       ASSERT(used == 176059);
-      ASSERT(total == 1081101176832);
+      ASSERT(total == 1076048383523889174);
       ASSERT(freed == 66932805);
       //      ASSERT_EQ(latitude, 24.5208);
       //      ASSERT_EQ(longitude, 28.09377);
@@ -887,6 +978,63 @@ int smlProcess_18784_Test() {
       //      ASSERT_EQ(fuel_consumption, 25);
     } else {
       //      ASSERT(0);
+    }
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_escape_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_escape");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use db_escape");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "d\\,i=\\ s\\k\",dev\"i\\,\\=\\ ce=s\"i\\,\\=\\ dc inode\"i\\,\\=\\ s_used=176059i,total=1076048383523889174i 1661943960000000000",
+      "d\\,i=\\ s\\k\",dev\"i\\,\\=\\ ce=s\"i\\,\\=\\ dc inode\"i\\,\\=\\ s_f\\\\ree=\"\\\"id,= ei\\\\\\f\" 1661943960000000000",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(!code);
+  ASSERT(taos_affected_rows(pRes) == 1);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from `d,i= s\\k\"`");     //check stable name
+  ASSERT(pRes);
+  int fieldNum = taos_field_count(pRes);
+  ASSERT(fieldNum == 5);
+  printf("fieldNum:%d\n", fieldNum);
+
+  int         numFields = taos_num_fields(pRes);
+  TAOS_FIELD *fields = taos_fetch_fields(pRes);
+  ASSERT(numFields == 5);
+  ASSERT(strncmp(fields[1].name, "inode\"i,= s_used", sizeof("inode\"i,= s_used") - 1) == 0);
+  ASSERT(strncmp(fields[2].name, "total", sizeof("total") - 1) == 0);
+  ASSERT(strncmp(fields[3].name, "inode\"i,= s_f\\\\ree", sizeof("inode\"i,= s_f\\\\ree") - 1) == 0);
+  ASSERT(strncmp(fields[4].name, "dev\"i,= ce", sizeof("dev\"i,= ce") - 1) == 0);
+
+  TAOS_ROW row = NULL;
+  int32_t  rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int64_t ts = *(int64_t *)row[0];
+    int64_t used = *(int64_t *)row[1];
+    int64_t total = *(int64_t *)row[2];
+
+    if (rowIndex == 0) {
+      ASSERT(ts == 1661943960000);
+      ASSERT(used == 176059);
+      ASSERT(total == 1076048383523889174);
+      ASSERT(strncmp(row[3], "\"id,= ei\\\\f", sizeof("\"id,= ei\\\\f") - 1) == 0);
+      ASSERT(strncmp(row[4], "s\"i,= dc", sizeof("s\"i,= dc") - 1) == 0);
+
     }
     rowIndex++;
   }
@@ -933,13 +1081,18 @@ int sml_ts2164_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
   TAOS_RES *pRes =
-      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test MINROWS 1000 PRECISION 'ns'");
   taos_free_result(pRes);
 
   const char *sql[] = {
       //      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
       "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "ts3038,location=l2a,groupid=ca current=L\"11.8\"",
+      "ts3038,location=l2a,groupid=ca voltage=L\"221\"",
+      "ts3038,location=l2a,groupid=ca phase=L\"221\"",
+//      "qgyltizmkq,id=sub_table_0123456,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64",
+//      "qgyltizmkq,id=sub_table_0123456,t=3,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64"
       //      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 
@@ -951,6 +1104,55 @@ int sml_ts2164_Test() {
 
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+
+int sml_ts3116_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes =
+      taos_query(taos, "DROP DATABASE IF EXISTS ts3116");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS ts3116  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
+  taos_free_result(pRes);
+
+  char *sql = {
+      "meters,location=la,groupid=ca current=11.8,voltage=221",
+  };
+
+  pRes = taos_query(taos, "use ts3116");
+  taos_free_result(pRes);
+  int32_t totalRows = 0;
+  char *tmp = (char *)taosMemoryCalloc(1024, 1);
+  memcpy(tmp, sql, strlen(sql));
+  totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  taosMemoryFree(tmp);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+
+  char *sql1 = {
+      "meters,location=la,groupid=ca\\=3 current=11.8,voltage=221\nmeters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+  };
+
+  pRes = taos_query(taos, "use ts3116");
+  taos_free_result(pRes);
+
+  tmp = (char *)taosMemoryCalloc(1024, 1);
+  memcpy(tmp, sql1, strlen(sql1));
+  totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, tmp, strlen(tmp), &totalRows, TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  taosMemoryFree(tmp);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
   taos_free_result(pRes);
   taos_close(taos);
 
@@ -1017,6 +1219,233 @@ int sml_td22900_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td24070_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "CREATE user test_db pass 'test'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS td24070_read");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant read on td24070_read to test_db");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS td24070_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant write on td24070_write to test_db");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+
+  // test db privilege
+  taos = taos_connect("localhost", "test_db", "test", NULL, 0);
+  const char* sql[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299372000"};
+
+  pRes = taos_query(taos, "use td24070_read");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(code != 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use td24070_write");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+  // test db privilege end
+
+
+  // test stable privilege
+  taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  pRes = taos_query(taos, "CREATE user test_stb_read pass 'test'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE user test_stb_write pass 'test'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant read on td24070_write.stb2 to test_stb_read");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant write on td24070_write.stb2 to test_stb_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  taos = taos_connect("localhost", "test_stb_read", "test", "td24070_write", 0);
+  const char* sql1[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299373000"};
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code != 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  taos = taos_connect("localhost", "test_stb_write", "test", "td24070_write", 0);
+  const char* sql2[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299373000"};
+
+  pRes = taos_schemaless_insert(taos, (char **)sql2, sizeof(sql2) / sizeof(sql2[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+  // test stable privilege
+
+  // test table privilege
+  taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  pRes = taos_query(taos, "CREATE user test_tb_read pass 'test'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE user test_tb_write pass 'test'");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant read on td24070_write.stb2 with t1=1 to test_tb_read");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant write on td24070_write.stb2 with t1=1 to test_tb_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  taos = taos_connect("localhost", "test_tb_read", "test", "td24070_write", 0);
+  const char* sql3[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299374000"};
+
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code != 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  taos = taos_connect("localhost", "test_tb_write", "test", "td24070_write", 0);
+  const char* sql4[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299374000"};
+
+  pRes = taos_schemaless_insert(taos, (char **)sql4, sizeof(sql4) / sizeof(sql4[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+  taos_close(taos);
+  // test table privilege
+
+  return code;
+}
+
+int sml_td23881_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes =
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_23881 PRECISION 'ns'");
+  taos_free_result(pRes);
+
+  char tmp[26375] = {0};
+  memset(tmp, 'a', 26374);
+  char sql[102400] = {0};
+  sprintf(sql,"lujixfvqor,t0=t c0=f,c1=\"%s\",c2=\"%s\",c3=\"%s\",c4=\"wthvqxcsrlps\" 1626006833639000000", tmp, tmp, tmp);
+
+  pRes = taos_query(taos, "use line_23881");
+  taos_free_result(pRes);
+
+  int totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, sql, strlen(sql), &totalRows, TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_NANO_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_ts3303_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists ts3303");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists ts3303");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stb2,t1=1,dataModelName=t0 f1=283i32 1632299372000",
+      "stb2,t1=1,dataModelName=t0 f1=106i32 1632299378000",
+      "stb2,t1=4,dataModelName=t0 f1=144i32 1629716944000",
+      "stb2,t1=4,dataModelName=t0 f1=125i32 1629717012000",
+      "stb2,t1=4,dataModelName=t0 f1=144i32 1629717012000",
+      "stb2,t1=4,dataModelName=t0 f1=107i32 1629717013000",
+      "stb2,t1=6,dataModelName=t0 f1=154i32 1629717140000",
+      "stb2,t1=6,dataModelName=t0 f1=93i32 1629717140000",
+      "stb2,t1=6,dataModelName=t0 f1=134i32 1629717140000",
+      "stb2,t1=4,dataModelName=t0 f1=73i32 1629717140000",
+      "stb2,t1=4,dataModelName=t0 f1=83i32 1629717140000",
+      "stb2,t1=4,dataModelName=t0 f1=72i32 1629717140000",
+  };
+
+  const char *sql1[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+      "meters,groupid=2,location=California.LosAngeles current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+  };
+
+  pRes = taos_query(taos, "use ts3303");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_MILLI_SECONDS, 20);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+  ASSERT(code == 0);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
+
+  printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
@@ -1185,14 +1614,174 @@ int sml_ts2385_Test() {
   return code;
 }
 
+int sml_ts3724_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists ts3724");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists ts3724");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stb.2,t1=1 f1=283i32 1632299372000",
+      "stb_2,t1=1 f1=283i32 1632299372000",
+      ".stb2,t1=1 f1=106i32 1632299378000",
+      "stb2.,t1=1 f1=106i32 1632299378000",
+  };
+
+  pRes = taos_query(taos, "use ts3724");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from stb_2");
+  TAOS_ROW row = taos_fetch_row(pRes);
+  int numRows = taos_affected_rows(pRes);
+  ASSERT(numRows == 1);
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td24559_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists td24559");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299372000",
+      "stb,t1=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299373000",
+      "stb,t2=1 f2=G\"Point(4.343 89.342)\",f1=106i32 1632299374000",
+      "stb,t1=1 f1=106i32,f2=G\"GEOMETRYCOLLECTION (MULTIPOINT((0 0), (1 1)), POINT(3 4), LINESTRING(2 3, 3 4))\" 1632299378000",
+  };
+
+  pRes = taos_query(taos, "use td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  TAOS_ROW row = NULL;
+  pRes = taos_query(taos, "select * from stb order by _ts;");
+  int rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+
+    int32_t*    length = taos_fetch_lengths(pRes);
+
+    code = initCtxAsText();
+    ASSERT (code == TSDB_CODE_SUCCESS);
+    char *outputWKT = NULL;
+    code = doAsText(row[2], length[2], &outputWKT);
+    ASSERT (code == TSDB_CODE_SUCCESS);
+
+    if (rowIndex == 0) {
+      ASSERT(strcmp("POINT (4.343000 89.342000)", outputWKT) == 0);
+    }
+    if (rowIndex == 3) {
+      ASSERT(strcmp( "GEOMETRYCOLLECTION (MULTIPOINT ((0.000000 0.000000), (1.000000 1.000000)), POINT (3.000000 4.000000), LINESTRING (2.000000 3.000000, 3.000000 4.000000))", outputWKT) == 0);
+    }
+    geosFreeBuffer(outputWKT);
+
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td18789_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists td18789");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists td18789");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "vbin,t1=1 f1=283i32,f2=b\"hello\" 1632299372000",
+      "vbin,t1=1 f2=B\"\\x98f46e\",f1=106i32 1632299373000",
+  };
+
+  pRes = taos_query(taos, "use td18789");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
+  TAOS_ROW row = NULL;
+  pRes = taos_query(taos, "select *,tbname from vbin order by _ts");
+  int rowIndex = 0;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    int32_t*    length = taos_fetch_lengths(pRes);
+    void*         data = NULL;
+    uint32_t      size = 0;
+    if(taosAscii2Hex(row[2], length[2], &data, &size) < 0){
+      ASSERT(0);
+    }
+
+    if (rowIndex == 0) {
+      ASSERT(memcmp(data, "\\x68656C6C6F", size) == 0);
+    }
+    if (rowIndex == 1) {
+      ASSERT(memcmp(data, "\\x98F46E", size) == 0);
+    }
+    taosMemoryFree(data);
+
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   }
 
   int ret = 0;
+  ret = sml_td24559_Test();
+  ASSERT(!ret);
+  ret = sml_td18789_Test();
+  ASSERT(!ret);
+  ret = sml_td24070_Test();
+  ASSERT(!ret);
+  ret = sml_td23881_Test();
+  ASSERT(ret);
+  ret = sml_escape_Test();
+  ASSERT(!ret);
+  ret = sml_ts3116_Test();
+  ASSERT(!ret);
   ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
   ASSERT(!ret);
+  ret = sml_ts3303_Test();
+  ASSERT(!ret);
+
   //  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
   //    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));
   //  }
@@ -1231,5 +1820,10 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_19221_Test();
   ASSERT(!ret);
+  ret = smlProcess_json_tag_not_same_Test();
+  ASSERT(ret);
+  ret = sml_ts3724_Test();
+  ASSERT(!ret);
+
   return ret;
 }

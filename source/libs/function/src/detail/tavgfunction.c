@@ -565,7 +565,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows;
     pAvgRes->count += pInput->numOfRows;
 
-    bool simdAvailable = tsAVXEnable && tsSIMDBuiltins && (numOfRows > THRESHOLD_SIZE);
+    bool simdAvailable = tsAVXEnable && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
 
     switch(type) {
       case TSDB_DATA_TYPE_UTINYINT:
@@ -724,6 +724,7 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
@@ -786,6 +787,7 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);

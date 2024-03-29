@@ -43,7 +43,7 @@
       "disorder_ratio": 0,
       "disorder_range": 1000,
       "timestamp_step": 1,
-      "start_timestamp": "now",
+      "start_timestamp": 1641976781440,
       "sample_file": "./5-taos-tools/taosbenchmark/csv/sample_use_ts.csv",
       "use_sample_ts": "yes",
       "tags_file": "./5-taos-tools/taosbenchmark/csv/sample_tags.csv",

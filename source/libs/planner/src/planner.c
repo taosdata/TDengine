@@ -19,13 +19,21 @@
 #include "scalar.h"
 #include "tglobal.h"
 
+static void debugPrintNode(SNode* pNode) {
+  char* pStr = NULL;
+  nodesNodeToString(pNode, false, &pStr, NULL);
+  printf("%s\n", pStr);
+  taosMemoryFree(pStr);
+  return;
+}
+
 static void dumpQueryPlan(SQueryPlan* pPlan) {
   if (!tsQueryPlannerTrace) {
     return;
   }
   char* pStr = NULL;
   nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
-  planDebugL("QID:0x%" PRIx64 " Query Plan: %s", pPlan->queryId, pStr);
+  planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
   taosMemoryFree(pStr);
 }
 
@@ -48,6 +56,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = validateQueryPlan(pCxt, *pPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
@@ -88,6 +99,12 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   }
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qContinuePlanPostQuery(void *pPostPlan) {
+  //TODO
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
   planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);

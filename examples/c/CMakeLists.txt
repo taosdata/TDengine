@@ -42,27 +42,27 @@ IF (TD_LINUX)
     )
 
   target_link_libraries(tmq
-      taos_static
+      taos
       )
 
   target_link_libraries(stream_demo
-      taos_static
+      taos
       )
 
   target_link_libraries(schemaless
-      taos_static
+      taos
       )
 
   target_link_libraries(prepare
-      taos_static
+      taos
       )
   
   target_link_libraries(demo
-      taos_static
+      taos
       )
 
   target_link_libraries(asyncdemo
-      taos_static
+      taos
       )
 
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)

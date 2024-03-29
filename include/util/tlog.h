@@ -55,6 +55,7 @@ extern int32_t tmrDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t qDebugFlag;
+extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
@@ -65,6 +66,8 @@ extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
+extern int32_t sndDebugFlag;
+extern int32_t simDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
@@ -82,6 +85,12 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
     __attribute__((format(printf, 4, 5)))
 #endif
     ;
+
+void taosPrintSlowLog(const char *format, ...)
+#ifdef __GNUC__
+      __attribute__((format(printf, 1, 2)))
+#endif
+      ;
 
 bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
 bool taosAssertRelease(bool condition);
@@ -102,7 +111,6 @@ bool taosAssertRelease(bool condition);
 void    taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
 void    taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
 void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
-int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
@@ -112,6 +120,7 @@ int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t 
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
 #define uDebugL(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
+#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO) { taosPrintLongString("UTL ", DEBUG_INFO, uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }

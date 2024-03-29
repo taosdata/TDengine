@@ -44,22 +44,6 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 
-bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
-  // I am leader, I agree
-  if (syncUtilSameId(pRaftId, &(pSyncNode->myRaftId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    return true;
-  }
-
-  // follower agree
-  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
-  if (matchIndex >= index) {
-    return true;
-  }
-
-  // not agree
-  return false;
-}
-
 static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
   ASSERT(a >= 0);
   ASSERT(b >= 0);
@@ -75,27 +59,16 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   SSyncIndexMgr* pMatches = pNode->pMatchIndex;
   ASSERT(pNode->replicaNum == pMatches->replicaNum);
 
-  for (int i = 0; i < pNode->replicaNum; i++) {
-    SyncIndex matchIndex = pMatches->index[i];
-    if (matchIndex >= index) {
-      count++;
+  for (int i = 0; i < pNode->totalReplicaNum; i++) {
+    if(pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_VOTER){
+      SyncIndex matchIndex = pMatches->index[i];
+      if (matchIndex >= index) {
+        count++;
+      }
     }
   }
 
   return count >= pNode->quorum;
-}
-
-bool syncAgree(SSyncNode* pNode, SyncIndex index) {
-  int agreeCount = 0;
-  for (int i = 0; i < pNode->replicaNum; ++i) {
-    if (syncAgreeIndex(pNode, &(pNode->replicasId[i]), index)) {
-      ++agreeCount;
-    }
-    if (agreeCount >= pNode->quorum) {
-      return true;
-    }
-  }
-  return false;
 }
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {

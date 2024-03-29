@@ -400,6 +400,8 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_BINARY:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_GEOMETRY:
             params->buffer_length = sizeof(v.c6);
             params->buffer = &v.c6;
             params->length = &params->buffer_length;

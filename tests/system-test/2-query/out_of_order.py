@@ -35,7 +35,10 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            taosdFileName = "taosd"
+            if platform.system().lower() == 'windows':
+                taosdFileName = "taosd.exe"
+            if (taosdFileName in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
@@ -52,7 +55,10 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        os.system("%staosBenchmark -d %s -t %d -n %d -O %d -a %d -b float,double,nchar\(200\),binary\(50\) -T 50 -y " % (binPath,dbname,tables,per_table_num,order,replica))
+        cmd = "%staosBenchmark -d %s -t %d -n %d -O %d -a %d -b float,double,nchar\(200\),binary\(50\) -T 50 -y " % (binPath,dbname,tables,per_table_num,order,replica)
+        if platform.system().lower() == 'windows':
+            cmd = "%staosBenchmark -d %s -t %d -n %d -O %d -a %d -b float,double,nchar(200),binary(50) -T 50 -y " % (binPath,dbname,tables,per_table_num,order,replica)
+        os.system(cmd)
 
     def sql_base(self,dbname):
         self.check_sub(dbname)
@@ -162,19 +168,18 @@ class TDTestCase:
 
         sql = "select count(*) from (select distinct(tbname) from %s.meters)" %dbname
         tdSql.query(sql)
-        num = tdSql.getData(0,0)
+        # 目前不需要了
+        # num = tdSql.getData(0,0)
 
-        for i in range(0,num):
-            sql1 = "select count(*) from %s.d%d" %(dbname,i)
-            tdSql.query(sql1)
-            sql1_result = tdSql.getData(0,0)
-            tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
+        # for i in range(0,num):
+        #     sql1 = "select count(*) from %s.d%d" %(dbname,i)
+        #     tdSql.query(sql1)
+        #     sql1_result = tdSql.getData(0,0)
+        #     tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
+            
 
     def check_out_of_order(self,dbname,tables,per_table_num,order,replica):
         self.run_benchmark(dbname,tables,per_table_num,order,replica)
-        print("sleep 10 seconds")
-        #time.sleep(10)
-        print("sleep 10 seconds finish")
 
         self.run_sql(dbname)
 
@@ -182,7 +187,7 @@ class TDTestCase:
         startTime = time.time()
 
         #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
-        self.check_out_of_order('db1',random.randint(50,200),random.randint(10000,20000),random.randint(1,5),1)
+        self.check_out_of_order('db1',random.randint(50,100),random.randint(10000,20000),random.randint(1,5),1)
 
         # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)
 

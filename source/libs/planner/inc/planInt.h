@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "planner.h"
+#include "tsimplehash.h"
 #include "taoserror.h"
 
 #define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
@@ -42,6 +43,24 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
+int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
+
+bool        getBatchScanOptionFromHint(SNodeList* pList);
+bool        getSortForGroupOptHint(SNodeList* pList);
+bool        getparaTablesSortOptHint(SNodeList* pList);
+bool        getOptHint(SNodeList* pList, EHintOption hint);
+SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
+int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
+bool        isPartTableAgg(SAggLogicNode* pAgg);
+bool        isPartTagAgg(SAggLogicNode* pAgg);
+bool        isPartTableWinodw(SWindowLogicNode* pWindow);
+bool        keysHasCol(SNodeList* pKeys);
+bool        keysHasTbname(SNodeList* pKeys);
+
+#define CLONE_LIMIT 1
+#define CLONE_SLIMIT 1 << 1
+#define CLONE_LIMIT_SLIMIT (CLONE_LIMIT | CLONE_SLIMIT)
+bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat);
 
 #ifdef __cplusplus
 }

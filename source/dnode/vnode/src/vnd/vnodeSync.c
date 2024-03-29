@@ -14,6 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "sync.h"
+#include "tq.h"
+#include "tqCommon.h"
+#include "tsdb.h"
 #include "vnd.h"
 
 #define BATCH_ENABLE 0
@@ -91,6 +95,11 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING) {
     vnodeRedirectRpcMsg(pVnode, pMsg, code);
+  } else if (code == TSDB_CODE_MSG_PREPROCESSED) {
+    SRpcMsg rsp = {.code = TSDB_CODE_SUCCESS, .info = pMsg->info};
+    if (rsp.info.handle != NULL) {
+      tmsgSendRsp(&rsp);
+    }
   } else {
     const STraceId *trace = &pMsg->info.traceId;
     vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
@@ -112,9 +121,6 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
     pVnode->blocked = true;
     pVnode->blockSec = taosGetTimestampSec();
     pVnode->blockSeq = seq;
-#if 0
-    pVnode->blockInfo = pMsg->info;
-#endif
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
@@ -129,8 +135,8 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   return code;
 }
 
-void vnodeProposeCommitOnNeed(SVnode *pVnode) {
-  if (!vnodeShouldCommit(pVnode)) {
+void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
+  if (!vnodeShouldCommit(pVnode, atExit)) {
     return;
   }
 
@@ -145,18 +151,18 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode) {
   rpcMsg.pCont = pHead;
   rpcMsg.info.noResp = 1;
 
+  vInfo("vgId:%d, propose vnode commit", pVnode->config.vgId);
   bool isWeak = false;
-  if (vnodeProposeMsg(pVnode, &rpcMsg, isWeak) < 0) {
-    vTrace("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
-    goto _out;
+
+  if (!atExit) {
+    if (vnodeProposeMsg(pVnode, &rpcMsg, isWeak) < 0) {
+      vTrace("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
+    }
+    rpcFreeCont(rpcMsg.pCont);
+    rpcMsg.pCont = NULL;
+  } else {
+    tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
-
-  vInfo("vgId:%d, proposed vnode commit", pVnode->config.vgId);
-
-_out:
-  vnodeUpdCommitSched(pVnode);
-  rpcFreeCont(rpcMsg.pCont);
-  rpcMsg.pCont = NULL;
 }
 
 #if BATCH_ENABLE
@@ -219,7 +225,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+             TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_SYN_RESTORING;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
@@ -236,7 +243,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       continue;
     }
 
-    vnodeProposeCommitOnNeed(pVnode);
+    bool atExit = false;
+    vnodeProposeCommitOnNeed(pVnode, atExit);
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
@@ -281,19 +289,23 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+             TMSG_INFO(pMsg->msgType));
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       continue;
     }
 
-    vnodeProposeCommitOnNeed(pVnode);
+    bool atExit = false;
+    vnodeProposeCommitOnNeed(pVnode, atExit);
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
-      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
-      if (terrno != 0) code = terrno;
+      if (code != TSDB_CODE_MSG_PREPROCESSED) {
+        vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
+        if (terrno != 0) code = terrno;
+      }
       vnodeHandleProposeError(pVnode, pMsg, code);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -378,7 +390,7 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_RD_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -406,7 +418,7 @@ static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -414,8 +426,8 @@ static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return code;
 }
 
-static void vnodeSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
-  vnodeGetSnapshot(pFsm->data, pSnapshot);
+static int32_t vnodeSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+  return vnodeGetSnapshot(pFsm->data, pSnapshot);
 }
 
 static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
@@ -432,18 +444,39 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
   return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
 }
 
-static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
+  if (pMsg->code == 0) {
+    return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
+  }
+
+  const STraceId *trace = &pMsg->info.traceId;
+  SVnode         *pVnode = pFsm->data;
+  vnodePostBlockMsg(pVnode, pMsg);
+
+  SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
+  if (rsp.info.handle != NULL) {
+    tmsgSendRsp(&rsp);
+  }
+
+  vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, TD_VID(pVnode), pMsg, rsp.code, pMeta->index);
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+  return 0;
 }
 
-static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
   return 0;
 }
 
-static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+static SyncIndex vnodeSyncAppliedIndex(const SSyncFSM *pFSM) {
+  SVnode *pVnode = pFSM->data;
+  return atomic_load_64(&pVnode->state.applied);
+}
+
+static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
@@ -451,9 +484,8 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
 }
 
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
-  SVnode         *pVnode = pFsm->data;
-  SSnapshotParam *pSnapshotParam = pParam;
-  int32_t code = vnodeSnapReaderOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapReader **)ppReader);
+  SVnode *pVnode = pFsm->data;
+  int32_t code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
   return code;
 }
 
@@ -469,8 +501,7 @@ static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **p
 }
 
 static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void **ppWriter) {
-  SVnode         *pVnode = pFsm->data;
-  SSnapshotParam *pSnapshotParam = pParam;
+  SVnode *pVnode = pFsm->data;
 
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
@@ -483,7 +514,7 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
     }
   } while (true);
 
-  int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
+  int32_t code = vnodeSnapWriterOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapWriter **)ppWriter);
   return code;
 }
 
@@ -493,7 +524,10 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
         pVnode->config.vgId, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
-  vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
+  if (code != 0) {
+    vError("vgId:%d, failed to finish applying vnode snapshot since %s, code:0x%x", pVnode->config.vgId, terrstr(),
+           code);
+  }
   return code;
 }
 
@@ -505,24 +539,64 @@ static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *p
   return code;
 }
 
-static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
-  SVnode *pVnode = pFsm->data;
+static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
+  SVnode   *pVnode = pFsm->data;
+  int32_t   vgId = pVnode->config.vgId;
+  SyncIndex appliedIdx = -1;
 
   do {
-    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-    if (itemSize == 0) {
-      vInfo("vgId:%d, apply queue is empty, restore finish", pVnode->config.vgId);
+    appliedIdx = vnodeSyncAppliedIndex(pFsm);
+    ASSERT(appliedIdx <= commitIdx);
+    if (appliedIdx == commitIdx) {
+      vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %d items in apply queue", pVnode->config.vgId, itemSize);
+      vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+            ", applied-index:%" PRId64,
+            vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
       taosMsleep(10);
     }
   } while (true);
 
-  walApplyVer(pVnode->pWal, pVnode->state.applied);
-
+  ASSERT(commitIdx == vnodeSyncAppliedIndex(pFsm));
+  walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
-  vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
+
+  SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
+  streamMetaWLock(pMeta);
+
+  if (pMeta->startInfo.tasksWillRestart) {
+    vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
+    streamMetaWUnLock(pMeta);
+    return;
+  }
+
+  if (vnodeIsRoleLeader(pVnode)) {
+    // start to restore all stream tasks
+    if (tsDisableStream) {
+      vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
+    } else {
+      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
+      int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
+      if (numOfTasks > 0) {
+        if (pMeta->startInfo.taskStarting == 1) {
+          pMeta->startInfo.restartCount += 1;
+          tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
+                  pMeta->startInfo.restartCount);
+        } else {
+          pMeta->startInfo.taskStarting = 1;
+
+          streamMetaWUnLock(pMeta);
+          tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+          return;
+        }
+      }
+    }
+  } else {
+    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
+  }
+
+  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -536,11 +610,32 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
+
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, false);
+    tqStopStreamTasksAsync(pVnode->pTq);
+  }
+}
+
+static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vInfo("vgId:%d, become learner", pVnode->config.vgId);
+
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
 }
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, true);
+  }
 }
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
@@ -569,8 +664,10 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
+  pFsm->FpAppliedIndexCb = vnodeSyncAppliedIndex;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
+  pFsm->FpGetSnapshot = NULL;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshotInfo;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
@@ -578,6 +675,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
+  pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -589,7 +687,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   return pFsm;
 }
 
-int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
+int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
       .batchSize = 1,
@@ -610,13 +708,13 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
-          pNode->nodeId, pNode->clusterId);
+    vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn,
+          pNode->nodePort, pNode->nodeId, pNode->clusterId);
   }
 
-  pVnode->sync = syncOpen(&syncInfo);
+  pVnode->sync = syncOpen(&syncInfo, vnodeVersion);
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync since %s", pVnode->config.vgId, terrstr());
     return -1;
@@ -668,7 +766,7 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       vError("vgId:%d, failed to propose since timeout and post block, start:%d cur:%d delta:%d seq:%" PRId64,
              pVnode->config.vgId, pVnode->blockSec, curSec, delta, pVnode->blockSeq);
       if (syncSendTimeoutRsp(pVnode->sync, pVnode->blockSeq) != 0) {
-#if 0  
+#if 0
         SRpcMsg rpcMsg = {.code = TSDB_CODE_SYN_TIMEOUT, .info = pVnode->blockInfo};
         vError("send timeout response since its applyed, seq:%" PRId64 " handle:%p ahandle:%p", pVnode->blockSeq,
               rpcMsg.info.handle, rpcMsg.info.ahandle);
@@ -711,4 +809,21 @@ bool vnodeIsLeader(SVnode *pVnode) {
   }
 
   return true;
+}
+
+int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
+  int code = 0;
+  pSnap->lastApplyIndex = pVnode->state.committed;
+  pSnap->lastApplyTerm = pVnode->state.commitTerm;
+  pSnap->lastConfigIndex = -1;
+  pSnap->state = SYNC_FSM_STATE_COMPLETE;
+
+  if (tsdbSnapGetFsState(pVnode) != TSDB_FS_STATE_NORMAL) {
+    pSnap->state = SYNC_FSM_STATE_INCOMPLETE;
+  }
+
+  if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    code = tsdbSnapPrepDescription(pVnode, pSnap);
+  }
+  return code;
 }

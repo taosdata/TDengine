@@ -65,7 +65,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   connId = connectRsp.connId;
 }
 
-TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
+TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
   char passwd[] = "taosdata";
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
@@ -73,7 +73,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
   SConnectReq connectReq = {0};
   connectReq.pid = 1234;
   strcpy(connectReq.app, "mnode_test_profile");
-  strcpy(connectReq.db, "invalid_db");
+  strcpy(connectReq.db, "not_exist_db");
   strcpy(connectReq.user, "root");
   strcpy(connectReq.passwd, secretEncrypt);
   strcpy(connectReq.sVer, version);
@@ -84,7 +84,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DB);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DB_NOT_EXIST);
   ASSERT_EQ(pRsp->contLen, 0);
 }
 

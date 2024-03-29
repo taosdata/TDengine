@@ -45,6 +45,7 @@ typedef struct {
   uint64_t cqueryProcessed;
   uint64_t fetchProcessed;
   uint64_t dropProcessed;
+  uint64_t notifyProcessed;
   uint64_t hbProcessed;
   uint64_t deleteProcessed;
 
@@ -90,6 +91,8 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
 int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
+int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
+
 int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
 int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes);
@@ -105,6 +108,8 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
 
 int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
                                  void **pRsp, SArray *explainRes);
+
+int32_t qWorkerDbgEnableDebug(char *option);
 
 #ifdef __cplusplus
 }

@@ -181,7 +181,8 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
   if (pSet->nodeList[hash]) pSet->nodeList[hash]->prev = pNode;
   pSet->nodeList[hash] = pNode;
 
-  uTrace("rsetId:%d p:%p rid:%" PRId64 " is added, count:%d", rsetId, p, rid, pSet->count);
+  uTrace("rsetId:%d p:%p rid:%" PRId64 " is added, count:%d, remain count:%d", rsetId, p, rid, pSet->count,
+         pNode->count);
 
   taosUnlockList(pSet->lockedBy + hash);
 
@@ -235,7 +236,7 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
     if (pNode->removed == 0) {
       pNode->count++;
       p = pNode->p;
-      uTrace("rsetId:%d p:%p rid:%" PRId64 " is acquired", rsetId, pNode->p, rid);
+      uTrace("rsetId:%d p:%p rid:%" PRId64 " is acquired, remain count:%d", rsetId, pNode->p, rid, pNode->count);
     } else {
       terrno = TSDB_CODE_REF_NOT_EXIST;
       uTrace("rsetId:%d p:%p rid:%" PRId64 " is already removed, failed to acquire", rsetId, pNode->p, rid);

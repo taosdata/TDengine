@@ -45,6 +45,7 @@ typedef struct {
  */
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption);
 
+int32_t sndInit(SSnode * pSnode);
 /**
  * @brief Stop Snode in Dnode.
  *

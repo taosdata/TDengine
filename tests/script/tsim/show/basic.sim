@@ -244,5 +244,15 @@ if $rows <= 0 then
   return -1
 endi
 
+sql show cluster alive;
+if $rows <= 0 then
+  return -1
+endi
+
+sql show db.alive;
+if $rows <= 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

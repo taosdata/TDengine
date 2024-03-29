@@ -355,7 +355,7 @@ system sh/exec.sh -n dnode4 -s start
 $loop_cnt = 0
 check_dnode_ready_2:
 	$loop_cnt = $loop_cnt + 1
-	sleep 200
+	sleep 1500
 	if $loop_cnt == 10 then
 	  print ====> dnode not ready!
 		return -1

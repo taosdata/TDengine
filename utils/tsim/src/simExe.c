@@ -37,15 +37,15 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
-#ifdef WINDOWS
-  hostName[0] = '\"';
-  taosGetFqdn(&hostName[1]);
-  int strEndIndex = strlen(hostName);
-  hostName[strEndIndex] = '\"';
-  hostName[strEndIndex + 1] = '\0';
-#else
+//#ifdef WINDOWS
+//  hostName[0] = '\"';
+//  taosGetFqdn(&hostName[1]);
+//  int strEndIndex = strlen(hostName);
+//  hostName[strEndIndex] = '\"';
+//  hostName[strEndIndex + 1] = '\0';
+//#else
   sprintf(hostName, "%s", "localhost");
-#endif
+//#endif
   return hostName;
 }
 
@@ -92,6 +92,8 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
   if (strncmp(varName, "error", varLen) == 0) return script->error;
 
   if (strncmp(varName, "rows", varLen) == 0) return script->rows;
+
+  if (strncmp(varName, "cols", varLen) == 0) return script->cols;
 
   if (strncmp(varName, "system_exit", varLen) == 0) return script->system_exit_code;
 
@@ -376,6 +378,20 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
+void simReplaceDirSep (char *buf){
+#ifdef WINDOWS
+  int i=0;
+  while(buf[i] != '\0')
+  {
+      if(buf[i] == '/')
+      {
+          buf[i] = '\\';
+      }
+      i++;
+  }
+#endif
+}
+
 bool simReplaceStr(char *buf, char *src, char *dst) {
   bool  replaced = false;
   char *begin = strstr(buf, src);
@@ -407,9 +423,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s", simScriptDir);
+  sprintf(buf, "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
+  simReplaceDirSep(buf);
 #endif
 
   if (useValgrind) {
@@ -419,7 +436,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simLogSql(buf, true);
   int32_t code = system(buf);
   int32_t repeatTimes = 0;
-  while (code < 0) {
+  while (code != 0) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
@@ -471,6 +488,8 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
 #ifdef WINDOWS
   sprintf(buf, "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
+  simReplaceStr(buf, ".sh", ".bat");
+  simReplaceDirSep(buf);
   sprintf(buf1, "%s > %s 2>nul", buf, filename);
 #else
   sprintf(buf, "cd %s; ", simScriptDir);
@@ -480,6 +499,26 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
+
+  script->linePos++;
+  return true;
+}
+
+bool simExecuteSetBIModeCmd(SScript *script, char *option) {
+  char    buf[1024];
+
+  simVisuallizeOption(script, option, buf);
+  option = buf;
+
+  int32_t mode = atoi(option);
+
+  simInfo("script:%s, set bi mode %d", script->fileName, mode);
+
+  if (mode != 0) {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 1);
+  } else {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 0);
+  }
 
   script->linePos++;
   return true;
@@ -654,8 +693,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
       ret = 0;
       break;
     } else if (ret != 0) {
-      simDebug("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s", script->fileName, script->taos, rest, ret & 0XFFFF,
-               tstrerror(ret), taos_errstr(pSql));
+      simDebug("script:%s, taos:%p, %s failed, ret:%d:%s", script->fileName, script->taos, rest, ret & 0XFFFF,
+               tstrerror(ret));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -735,6 +774,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_GEOMETRY:
               if (length[i] < 0 || length[i] > 1 << 20) {
                 fprintf(stderr, "Invalid length(%d) of BINARY or NCHAR\n", length[i]);
                 exit(-1);
@@ -755,7 +795,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
 
-              taosLocalTime(&tt, &tp);
+              if (taosLocalTime(&tt, &tp, timeStr) == NULL) {
+                break;
+              }
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
@@ -788,6 +830,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
   taos_free_result(pSql);
   sprintf(script->rows, "%d", numOfRows);
+  sprintf(script->cols, "%d", num_fields);
 
   script->linePos++;
   return true;
@@ -802,6 +845,7 @@ bool simExecuteSqlImpCmd(SScript *script, char *rest, bool isSlow) {
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
+  strcpy(script->cols, "-1");
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
       strcpy(script->data[row][col], "null");
@@ -898,6 +942,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
+  strcpy(script->cols, "-1");
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
       strcpy(script->data[row][col], "null");

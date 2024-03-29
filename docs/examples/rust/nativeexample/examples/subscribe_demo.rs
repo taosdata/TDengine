@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     taos.exec_many([
         format!("DROP TOPIC IF EXISTS tmq_meters"),
         format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
+        format!("CREATE DATABASE `{db}` WAL_RETENTION_PERIOD 3600"),
         format!("USE `{db}`"),
         // create super table
         format!("CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(24))"),

@@ -62,11 +62,19 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   }
   memset(pDb->pgrHash, 0, tsize);
 
-  taosMulModeMkDir(dbname, 0755);
+  ret = taosMulModeMkDir(dbname, 0755, false);
+  if (ret < 0) {
+    return -1;
+  }
 
 #ifdef USE_MAINDB
   // open main db
   ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
+  if (ret < 0) {
+    return -1;
+  }
+
+  ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
   if (ret < 0) {
     return -1;
   }
@@ -82,6 +90,7 @@ int tdbClose(TDB *pDb) {
   if (pDb) {
 #ifdef USE_MAINDB
     if (pDb->pMainDb) tdbTbClose(pDb->pMainDb);
+    if (pDb->pFreeDb) tdbTbClose(pDb->pFreeDb);
 #endif
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {

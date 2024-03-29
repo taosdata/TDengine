@@ -13,8 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
+#include "sync.h"
 #include "vnd.h"
 #include "vnodeInt.h"
+
+extern int32_t tsdbPreCommit(STsdb *pTsdb);
+extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
+extern int32_t tsdbCommitCommit(STsdb *pTsdb);
+extern int32_t tsdbCommitAbort(STsdb *pTsdb);
 
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
@@ -143,26 +150,16 @@ _exit:
   return code;
 }
 
-void vnodeUpdCommitSched(SVnode *pVnode) {
-  int64_t randNum = taosRand();
-  pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
-  pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
-}
-
-int vnodeShouldCommit(SVnode *pVnode) {
-  SVCommitSched *pSched = &pVnode->commitSched;
-  int64_t        nowMs = taosGetMonoTimestampMs();
-  bool           diskAvail = osDataSpaceAvailable();
-  bool           needCommit = false;
+int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
+  bool diskAvail = osDataSpaceAvailable();
+  bool needCommit = false;
 
   taosThreadMutexLock(&pVnode->mutex);
-  if (!pVnode->inUse || !diskAvail) {
-    goto _out;
+  if (pVnode->inUse && diskAvail) {
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
+                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed ||
+                             pVnode->state.applied - pVnode->state.committed > 4096));
   }
-  needCommit =
-      (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
-       (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
-_out:
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
 }
@@ -183,7 +180,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   // save info to a vnode_tmp.json
-  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -207,8 +204,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
 
   return 0;
 
@@ -289,8 +286,12 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
+  int64_t lastCommitted = pInfo->info.state.committed;
 
-  tsem_wait(&pVnode->canCommit);
+  // wait last commit task
+  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+
+  if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -302,11 +303,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
@@ -314,7 +311,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tsdbPrepareCommit(pVnode->pTsdb);
+  tsdbPreCommit(pVnode->pTsdb);
 
   metaPrepareAsyncCommit(pVnode->pMeta);
 
@@ -372,16 +369,20 @@ static int32_t vnodeCommitTask(void *arg) {
 
   // commit
   code = vnodeCommitImpl(pInfo);
-  if (code) goto _exit;
+  if (code) {
+    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+    taosMsleep(100);
+    exit(EXIT_FAILURE);
+    goto _exit;
+  }
 
   vnodeReturnBufPool(pVnode);
 
 _exit:
-  // end commit
-  tsem_post(&pVnode->canCommit);
-  taosMemoryFree(pInfo);
   return code;
 }
+
+static void vnodeCompleteCommit(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
@@ -399,14 +400,14 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeScheduleTask(vnodeCommitTask, pInfo);
+  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
+                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
 
 _exit:
   if (code) {
     if (NULL != pInfo) {
       taosMemoryFree(pInfo);
     }
-    tsem_post(&pVnode->canCommit);
     vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
@@ -418,8 +419,7 @@ _exit:
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
+  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
   return 0;
 }
 
@@ -433,25 +433,23 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
-  vnodeUpdCommitSched(pVnode);
-
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
     vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
     return -1;
   }
 
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
-  // commit each sub-system
-  code = tsdbCommit(pVnode->pTsdb, pInfo);
+  code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (!TSDB_CACHE_NO(pVnode->config)) {
+    code = tsdbCacheCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (VND_IS_RSMA(pVnode)) {
     code = smaCommit(pVnode->pSma, pInfo);
@@ -469,7 +467,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbFinishCommit(pVnode->pTsdb);
+  code = tsdbCommitCommit(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {
@@ -501,17 +499,23 @@ _exit:
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
-  char tFName[TSDB_FILENAME_LEN] = {0};
-  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-           VND_INFO_FNAME_TMP);
+  char    tFName[TSDB_FILENAME_LEN] = {0};
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  offset = strlen(tFName);
+  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   return taosCheckExistFile(tFName);
 }
 
 void vnodeRollback(SVnode *pVnode) {
-  char tFName[TSDB_FILENAME_LEN] = {0};
-  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-           VND_INFO_FNAME_TMP);
+  char    tFName[TSDB_FILENAME_LEN] = {0};
+  int32_t offset = 0;
+
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  offset = strlen(tFName);
+  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   (void)taosRemoveFile(tFName);
 }

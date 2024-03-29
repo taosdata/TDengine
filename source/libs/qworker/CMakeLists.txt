@@ -7,8 +7,8 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(qworker
-        PRIVATE os util transport nodes planner qcom executor
+TARGET_LINK_LIBRARIES(qworker
+        PRIVATE os util transport nodes planner qcom executor index
         )
 
 if(${BUILD_TEST})

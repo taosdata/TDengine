@@ -25,13 +25,6 @@
 extern "C" {
 #endif
 
-// TODO remove it
-enum {
-  TMQ_CONF__RESET_OFFSET__NONE = -3,
-  TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
-  TMQ_CONF__RESET_OFFSET__LATEST = -1,
-};
-
 // clang-format off
 #define IS_META_MSG(x) ( \
      x == TDMT_VND_CREATE_STB     \
@@ -44,6 +37,13 @@ enum {
 )
 // clang-format on
 
+typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
+
+typedef struct STableKeyInfo {
+  uint64_t uid;
+  uint64_t groupId;
+} STableKeyInfo;
+
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
@@ -53,6 +53,13 @@ typedef struct SSessionKey {
   STimeWindow win;
   uint64_t    groupId;
 } SSessionKey;
+
+typedef int64_t COUNT_TYPE;
+
+typedef struct SVersionRange {
+  int64_t minVer;
+  int64_t maxVer;
+} SVersionRange;
 
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
@@ -89,7 +96,7 @@ typedef struct STuplePos {
       int32_t pageId;
       int32_t offset;
     };
-    STupleKey streamTupleKey;
+    SWinKey streamTupleKey;
   };
 } STuplePos;
 
@@ -130,12 +137,11 @@ static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2,
 }
 
 enum {
-  TMQ_MSG_TYPE__DUMMY = 0,
-  TMQ_MSG_TYPE__POLL_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_RSP = 0,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
-  TMQ_MSG_TYPE__TAOSX_RSP,
-  TMQ_MSG_TYPE__END_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_META_RSP,
+  TMQ_MSG_TYPE__WALINFO_RSP,
 };
 
 enum {
@@ -146,6 +152,8 @@ enum {
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
+  STREAM_INPUT__CHECKPOINT_TRIGGER,
+  STREAM_INPUT__TRANS_STATE,
   STREAM_INPUT__REF_DATA_BLOCK,
   STREAM_INPUT__DESTROY,
 };
@@ -162,7 +170,10 @@ typedef enum EStreamType {
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
   STREAM_FILL_OVER,
+  STREAM_CHECKPOINT,
   STREAM_CREATE_CHILD_TABLE,
+  STREAM_TRANS_STATE,
+  STREAM_MID_RETRIEVE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -192,11 +203,13 @@ typedef struct SBlockID {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int32_t     rows;  // todo hide this attribute
+  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
+  uint8_t     scanFlag;
+  bool        blankFill;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -214,22 +227,6 @@ typedef struct SSDataBlock {
   SDataBlockInfo   info;
 } SSDataBlock;
 
-enum {
-  FETCH_TYPE__DATA = 1,
-  FETCH_TYPE__META,
-  FETCH_TYPE__SEP,
-  FETCH_TYPE__NONE,
-};
-
-typedef struct {
-  int8_t       fetchType;
-  STqOffsetVal offset;
-  union {
-    SSDataBlock data;
-    void*       meta;
-  };
-} SFetchRet;
-
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data
@@ -246,6 +243,7 @@ typedef struct SColumnInfoData {
   };
   SColumnInfo info;     // column info
   bool        hasNull;  // if current column data has null value.
+  bool        reassigned; // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
@@ -255,16 +253,16 @@ typedef struct SQueryTableDataCond {
   SColumnInfo* colList;
   int32_t*     pSlotList;  // the column output destation slot, and it may be null
   int32_t      type;       // data block load type:
+  bool         skipRollup;
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
+  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
-void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
@@ -299,7 +297,7 @@ typedef struct STableBlockDistInfo {
   int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
   uint32_t numOfInmemRows;
-  uint32_t numOfSmallBlocks;
+  uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
@@ -351,6 +349,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -367,6 +367,11 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+typedef struct SNonSortExecInfo {
+  int32_t blkNums;
+} SNonSortExecInfo;
+
 
 typedef struct STUidTagInfo {
   char*    name;
@@ -388,6 +393,8 @@ typedef struct STUidTagInfo {
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
+
+int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 #ifdef __cplusplus
 }

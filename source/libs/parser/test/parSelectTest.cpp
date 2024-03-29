@@ -117,6 +117,15 @@ TEST_F(ParserSelectTest, timelineFunc) {
   run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) WHERE t1.ts = t2.ts", TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
+
 }
 
 TEST_F(ParserSelectTest, selectFunc) {
@@ -239,6 +248,19 @@ TEST_F(ParserSelectTest, groupBySemanticCheck) {
   run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
+TEST_F(ParserSelectTest, havingCheck) {
+  useDb("root", "test");
+
+  run("select tbname,count(*) from st1 partition by tbname having c1>0", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+
+  run("select tbname,count(*) from st1 group by tbname having c1>0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+
+  run("select max(c1) from st1 group by tbname having c1>0");
+
+  run("select max(c1) from st1 partition by tbname having c1>0");
+}
+
+
 TEST_F(ParserSelectTest, orderBy) {
   useDb("root", "test");
 
@@ -286,7 +308,7 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
+  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
@@ -311,6 +333,10 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
       "INTERVAL(1n)");
+
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag1");
+
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
@@ -355,9 +381,9 @@ TEST_F(ParserSelectTest, semanticCheck) {
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
   run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
 
-  run("SELECT LAST(*) + SUM(c1) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("SELECT LAST(*) + SUM(c1) FROM t1", TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT);
 
-  run("SELECT CEIL(LAST(ts, c1)) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("SELECT CEIL(LAST(ts, c1)) FROM t1", TSDB_CODE_FUNC_FUNTION_PARA_NUM);
 
   // TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION
   run("SELECT c2 FROM t1 tt1 join t1 tt2 on COUNT(*) > 0", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
@@ -386,6 +412,28 @@ TEST_F(ParserSelectTest, semanticCheck) {
   run("SELECT COUNT(*) FROM t1 order by c1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
 
   run("SELECT c1 FROM t1 order by COUNT(*)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+
+  run("SELECT COUNT(*) FROM t1 order by COUNT(*)");
+
+  run("SELECT COUNT(*) FROM t1 order by last(c2)");
+
+  run("SELECT c1 FROM t1 order by last(ts)");
+
+  run("SELECT ts FROM t1 order by last(ts)");
+
+  run("SELECT c2 FROM t1 order by last(ts)");
+
+  run("SELECT * FROM t1 order by last(ts)");
+
+  run("SELECT last(ts) FROM t1 order by last(ts)");
+
+  run("SELECT last(ts), ts, c1 FROM t1 order by last(ts)");
+
+  run("SELECT ts, last(ts) FROM t1 order by last(ts)");
+
+  run("SELECT first(ts), c2 FROM t1 order by last(c1)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+
+  run("SELECT c1 FROM t1 order by concat(c2, 'abc')");
 
   // TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION
   run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
@@ -459,6 +507,8 @@ TEST_F(ParserSelectTest, joinSemanticCheck) {
 
   run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
       TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }
 
 }  // namespace ParserTest

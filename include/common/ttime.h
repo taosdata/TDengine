@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
+#define IS_CALENDAR_TIME_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
 
 #define TIME_UNIT_NANOSECOND  'b'
 #define TIME_UNIT_MICROSECOND 'u'
@@ -64,7 +64,7 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
                                                                 : 1000000000;
   time_t    t = taosTime(NULL);
   struct tm tm;
-  taosLocalTime(&t, &tm);
+  taosLocalTime(&t, &tm, NULL);
   tm.tm_hour = 0;
   tm.tm_min = 0;
   tm.tm_sec = 0;
@@ -74,8 +74,9 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
 
-int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision);
-int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision);
+int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
+int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
+int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);
 
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision);
@@ -89,6 +90,41 @@ int64_t convertTimeFromPrecisionToUnit(int64_t ts, int32_t fromPrecision, char t
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
+
+struct STm {
+  struct tm tm;
+  int64_t   fsec;  // in NANOSECOND
+};
+
+int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm);
+int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
+
+/// @brief convert a timestamp to a formatted string
+/// @param format the timestamp format, must null terminated
+/// @param [in,out] formats the formats array pointer generated. Shouldn't be NULL.
+/// If (*formats == NULL), [format] will be used and [formats] will be updated to the new generated
+/// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
+/// @param out output buffer, should be initialized by memset
+/// @notes remember to free the generated formats
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
+/// @brief convert a formatted timestamp string to a timestamp
+/// @param format must null terminated
+/// @param [in, out] formats, see taosTs2Char
+/// @param tsStr must null terminated
+/// @retval 0 for success, otherwise error occured
+/// @notes remember to free the generated formats even when error occured
+int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
+                    int32_t errMsgLen);
+
+void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
+
+/// @brief get offset seconds from zero timezone to input timezone
+///        for +XX timezone, the offset to zero is negative value
+/// @param tzStr timezonestr, eg: +0800, -0830, -08
+/// @param offset seconds, eg: +08 offset -28800, -01 offset 3600
+/// @return 0 success, other fail
+int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
 
 #ifdef __cplusplus
 }

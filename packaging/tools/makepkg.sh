@@ -28,7 +28,7 @@ productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -42,7 +42,7 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName2}-enterprise-server-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-${version}"
 elif [ "$verMode" == "cloud" ]; then
   install_dir="${release_dir}/${productName2}-cloud-server-${version}"
 else
@@ -51,9 +51,9 @@ fi
 
 if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
-  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
+  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+  [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
   taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -69,34 +69,34 @@ if [ "$pagMode" == "lite" ]; then
   bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark "
   taostools_bin_files=""
 else
-
-  wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
+  if [ "$verMode" == "cloud" ]; then
+    taostools_bin_files=" ${build_dir}/bin/taosBenchmark"
+  else
+    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
       && echo "TDinsight.sh downloaded!" \
       || echo "failed to download TDinsight.sh"
-  # download TDinsight caches
-  orig_pwd=$(pwd)
-  tdinsight_caches=""
-  cd ${build_dir}/bin/ && \
-    chmod +x TDinsight.sh
-  ./TDinsight.sh --download-only ||:
-#  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
-  cd $orig_pwd
-  echo "TDinsight caches: $tdinsight_caches"
+    # download TDinsight caches
+    orig_pwd=$(pwd)
+    tdinsight_caches=""
+    cd ${build_dir}/bin/ && \
+      chmod +x TDinsight.sh
+    ./TDinsight.sh --download-only ||:
+    #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
+    cd $orig_pwd
+    echo "TDinsight caches: $tdinsight_caches"
 
-  taostools_bin_files=" ${build_dir}/bin/taosdump \
+    taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5sum"
-  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
-  explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
+      ${build_dir}/bin/tdengine-datasource.zip.md5"
+  fi
+
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
-      ${taosx_bin} \
-      ${explorer_bin_files} \
-      ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
@@ -111,7 +111,7 @@ else
     lib_files="${build_dir}/lib/libtaos.so.${version}"
     wslib_files="${build_dir}/lib/libtaosws.so"
 fi
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
 wsheader_files="${build_dir}/include/taosws.h"
 
@@ -122,7 +122,6 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -135,12 +134,12 @@ mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.toml" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.toml ${install_dir}/cfg || :
 fi
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.service" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -150,18 +149,19 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
+# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
-  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
   sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
   sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
 
-  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  mv ${install_dir}/cfg/${clientName2}adapter.service ${install_dir}/cfg/$adapterName.service
   sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
-  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/${clientName2}adapter ${install_dir}/bin/${adapterName}
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
@@ -171,22 +171,22 @@ if [ -n "${taostools_bin_files}" ]; then
         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
-            || echo -e "failed to copy install-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/install-tools.sh \
+            || echo -e "failed to copy install-tools.sh"
     else
-        echo -e "install-taostools.sh not found"
+        echo -e "install-tools.sh not found"
     fi
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
-            || echo -e "failed to copy uninstall-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
+            || echo -e "failed to copy uninstall-tools.sh"
     else
-        echo -e "uninstall-taostools.sh not found"
+        echo -e "uninstall-tools.sh not found"
     fi
 
     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
@@ -212,12 +212,12 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
     cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
     ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
   fi
-  if [ -f ${build_dir}/lib/libjemalloc.a ]; then
-    cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
-  fi
-  if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
-    cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
-  fi
+  # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+  # fi
+  # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+  #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+  # fi
   if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
     cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
   fi
@@ -233,8 +233,10 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" remove_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -262,8 +264,10 @@ if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -276,8 +280,13 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install.sh
 
-if [[ $dbName == "taos" ]]; then
-  # Copy example code
+if [[ $dbName == "taos" ]]; then  
+  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  chmod a+x ${install_dir}/start-all.sh
+  chmod a+x ${install_dir}/stop-all.sh
+  # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
@@ -311,28 +320,36 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  # Add web files
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
-    if [ -d "${web_dir}/admin" ] ; then
-      mkdir -p ${install_dir}/share/
-      cp -Rfap ${web_dir}/admin ${install_dir}/share/
-      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
-    else
-      echo "directory not found for enterprise release: ${web_dir}/admin"
-    fi
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
+    mkdir -p ${install_dir}/share/        
+    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
   fi
+
 fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
-# Copy connector
-if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+# Copy connector && taosx
+if [ "$verMode" == "cluster" ]; then    
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+        tmp_pwd=`pwd`
+    	  cd ${install_dir}/connector
+    	  if [ ! -d taos-connector-jdbc ];then
+          	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+    	  fi
+    	  cd taos-connector-jdbc
+    	  mvn clean package -Dmaven.test.skip=true
+    	  echo  ${build_dir}/lib/
+    	  cp target/*.jar  ${build_dir}/lib/
+    	  cd ${install_dir}/connector
+    	  rm -rf taos-connector-jdbc
+    	  cd ${tmp_pwd}
+   	    jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+        [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
         git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
         rm -rf ${install_dir}/connector/go/.git ||:
 
@@ -348,8 +365,13 @@ if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
 
-        # cp -r ${connector_dir}/python ${install_dir}/connector
-        # cp -r ${connector_dir}/nodejs ${install_dir}/connector
+        # copy taosx
+        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}
+          cp ${top_dir}/../enterprise/packaging/install_taosx.sh ${install_dir}/taosx
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
+          sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall.sh
+        fi
     fi
 fi
 
@@ -405,7 +427,7 @@ if [ "$exitcode" != "0" ]; then
   exit $exitcode
 fi
 
-if [ -n "${taostools_bin_files}" ]; then
+if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
     if [ "$osType" != "Darwin" ]; then
         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :

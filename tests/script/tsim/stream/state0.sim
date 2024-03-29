@@ -17,16 +17,16 @@ sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
 
-print create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+print create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,1,2,3,1.0,2);
 $loop_count = 0
 loop0:
 sql select * from streamt1 order by c desc;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -41,7 +41,7 @@ sql insert into t1 values(1648791214000,1,2,3,1.0,3);
 $loop_count = 0
 loop00:
 sql select * from streamt1 order by c desc;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -58,7 +58,7 @@ sql insert into t1 values(1648791214000,1,2,3,1.0,6);
 $loop_count = 0
 loop1:
 sql select * from streamt1 where c >=4 order by `_wstart`;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -169,7 +169,7 @@ sql insert into t1 values(1648791213011,1,2,3,1.0,7);
 $loop_count = 0
 loop2:
 sql select * from streamt1 where c in (5,4,7) order by `_wstart`;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -211,7 +211,7 @@ sql insert into t1 values(1648791213011,1,2,3,1.0,8);
 $loop_count = 0
 loop21:
 sql select * from streamt1 where c in (5,4,8) order by `_wstart`;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -231,7 +231,7 @@ sql insert into t1 values(1648791213011,10,20,10,10.0,12);
 $loop_count = 0
 loop3:
 sql select * from streamt1 where c in (5,4,10,11,12) order by `_wstart`;
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -337,7 +337,7 @@ sql insert into t1 values(1648791213030,3,14,14,14.0,15) (1648791214020,15,15,15
 $loop_count = 0
 loop4:
 sql select * from streamt1 where c in (14,15,16) order by `_wstart`;
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -453,9 +453,9 @@ sql use test1;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
 
-print create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+print create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
 sql insert into t1 values(1648791212000,2,2,3,1.0,1);
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
@@ -463,7 +463,7 @@ sql insert into t1 values(1648791213000,1,2,4,1.0,2);
 $loop_count = 0
 loop5:
 
-sleep 300
+sleep 1000
 sql select * from streamt1 order by c desc;
 
 $loop_count = $loop_count + 1
@@ -501,9 +501,9 @@ sql use test3;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
 
-print create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
+print create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
 
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
 sql insert into t1 values(1648791212000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,2,2,3,1.0,1);
 sql insert into t1 values(1648791214000,3,2,4,1.0,2);
@@ -530,7 +530,7 @@ sql insert into t1 values(1648791220000,10,2,4,1.0,2);
 $loop_count = 0
 loop6:
 
-sleep 300
+sleep 1000
 
 sql select * from streamt3;
 
@@ -553,9 +553,9 @@ sql create table st (ts timestamp, c1 tinyint, c2 smallint) tags (t1 tinyint) ;
 sql create table t1 using st tags (-81) ;
 sql create table t2 using st tags (-81) ;
 
-print create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
+print create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
-sql create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
+sql create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
 sql insert into t1 (ts, c1) values (1668073288209, 11);
 sql insert into t1 (ts, c1) values (1668073288210, 11);
@@ -568,7 +568,7 @@ sql insert into t1 (ts, c1) values (1668073288215, 29);
 $loop_count = 0
 loop7:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt4 order by startts;
 
@@ -607,7 +607,7 @@ sql delete from t1 where ts = cast(1668073288219 as timestamp);
 $loop_count = 0
 loop8:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt4 order by startts;
 
@@ -641,7 +641,7 @@ sql insert into t1 (ts, c1) values (1668073288226, 65);
 $loop_count = 0
 loop81:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt4 order by startts;
 
@@ -680,7 +680,7 @@ sql insert into t1 (ts, c1) values (1668073288224, 64);
 $loop_count = 0
 loop9:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt4 order by startts;
 
@@ -742,9 +742,9 @@ sql create table tb (ts timestamp, a int);
 sql insert into tb values (now + 1m , 1 );
 sql create table b (c timestamp, d int, e int , f int, g double);
 
-print create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+print create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
 
-sql create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
 sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
 sql select * from streamt order by c1, c2, c3;
 
@@ -779,7 +779,7 @@ sql delete from b where c >= 1648791213001 and c <= 1648791233005;;
 $loop_count = 0
 loop10:
 
-sleep 200
+sleep 1000
 
 sql select c2 from streamt;
 

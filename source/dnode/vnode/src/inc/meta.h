@@ -17,6 +17,7 @@
 #define _TD_VNODE_META_H_
 
 #include "index.h"
+#include "metaTtl.h"
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -70,7 +71,7 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
 int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
-void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t delta);
+void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 
 struct SMeta {
@@ -78,6 +79,7 @@ struct SMeta {
 
   char*   path;
   SVnode* pVnode;
+  bool    changed;
   TDB*    pEnv;
   TXN*    txn;
   TTB*    pTbDb;
@@ -89,10 +91,10 @@ struct SMeta {
   // ivt idx and idx
   void* pTagIvtIdx;
 
-  TTB* pTagIdx;
-  TTB* pTtlIdx;
+  TTB*        pTagIdx;
+  STtlManger* pTtlMgr;
 
-  TTB* pCtimeIdx;  // table created time idx
+  TTB* pBtimeIdx;  // table created time idx
   TTB* pNcolIdx;   // ncol of table idx, normal table only
 
   TTB* pSmaIdx;
@@ -139,19 +141,14 @@ typedef struct {
 #pragma pack(pop)
 
 typedef struct {
-  int64_t  dtime;
-  tb_uid_t uid;
-} STtlIdxKey;
-
-typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
 
 typedef struct {
-  int64_t  ctime;
+  int64_t  btime;
   tb_uid_t uid;
-} SCtimeIdxKey;
+} SBtimeIdxKey;
 
 typedef struct {
   int64_t  ncol;
@@ -161,6 +158,12 @@ typedef struct {
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey** ppTagIdxKey, int32_t* nTagIdxKey);
+
+// TODO, refactor later
+int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *param, SArray *results);
+int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *parm, SArray *pUids);
+int32_t metaFilterTableName(void *pVnode, SMetaFltParam *param, SArray *pUids);
+int32_t metaFilterTtl(void *pVnode, SMetaFltParam *param, SArray *pUids);
 
 #ifndef META_REFACT
 // SMetaDB

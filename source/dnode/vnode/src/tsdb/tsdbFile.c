@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "vnd.h"
 
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   int32_t n = 0;
@@ -111,7 +112,10 @@ static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t 
   p += titoa(TD_VID(pTsdb->pVnode), 10, p);
   *(p++) = 'f';
 
-  p += titoa(fid, 10, p);
+  if (fid < 0) {
+    *(p++) = '-';
+  }
+  p += titoa((fid < 0) ? -fid : fid, 10, p);
 
   memcpy(p, "ver", 3);
   p += 3;
@@ -173,7 +177,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
 
   // open
-  pFD = taosOpenFile(fname, TD_FILE_WRITE);
+  pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_WRITE_THROUGH);
   if (pFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -282,8 +286,13 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
 
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
+  int32_t offset = 0;
+  SVnode *pVnode = pTsdb->pVnode;
+
+  vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  offset = strlen(fname);
+  snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%sv%dver%" PRId64 ".del", TD_DIRSEP,
+           TD_VID(pTsdb->pVnode), pFile->commitID);
 }
 
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {

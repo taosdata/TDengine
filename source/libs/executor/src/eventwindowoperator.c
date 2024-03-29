@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -56,16 +58,6 @@ static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->groupId = groupId;
 }
 
-static void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, bool includeEndpoint) {
-  int64_t* ts = (int64_t*)pColData->pData;
-  int32_t  delta = includeEndpoint ? 1 : 0;
-
-  int64_t duration = pWin->ekey - pWin->skey + delta;
-  ts[2] = duration;            // set the duration
-  ts[3] = pWin->skey;          // window start key
-  ts[4] = pWin->ekey + delta;  // window end key
-}
-
 SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo) {
   SEventWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SEventWindowOperatorInfo));
@@ -90,7 +82,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   if (pEventWindowNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pEventWindowNode->window.pExprs, NULL, &numOfScalarExpr);
-    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -108,7 +100,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -118,6 +110,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
+  pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
 
   pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
                                          .calTrigger = pEventWindowNode->window.triggerType};
@@ -129,7 +123,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregate, NULL, destroyEWindowOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -172,6 +166,7 @@ void destroyEWindowOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSup);
   taosMemoryFreeClear(param);
 }
 
@@ -180,7 +175,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
-  int32_t    order = TSDB_ORDER_ASC;
+  int32_t    order = pInfo->binfo.inputTsOrder;
 
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
@@ -188,11 +183,12 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
     }
 
+    pRes->info.scanFlag = pBlock->info.scanFlag;
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 
@@ -224,7 +220,6 @@ static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWi
 
   (*pResult)->win = *win;
 
-  clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
   setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
@@ -244,7 +239,7 @@ static void doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* pSu
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
   }
 
-  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, false);
+  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
   applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startIndex, numOfRows,
                                   pBlock->info.rows, numOfOutput);
 }
@@ -266,6 +261,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   } else if (pInfo->groupId != gid) {
     // this is a new group, reset the info
     pInfo->inWindow = false;
+    pInfo->groupId = gid;
   }
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
@@ -281,7 +277,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   SFilterColumnParam param2 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(pInfo->pEndCondInfo, &param2);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    goto _return;
   }
 
   int32_t status2 = 0;
@@ -323,6 +319,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           doKeepNewWindowStartInfo(pRowSup, tsList, rowIndex, gid);
           pInfo->inWindow = true;
           startIndex = rowIndex;
+          if (pInfo->pRow != NULL) {
+            clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+          }
           break;
         }
       }
@@ -335,10 +334,12 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     }
   }
 
+_return:
+
   colDataDestroy(ps);
   taosMemoryFree(ps);
   colDataDestroy(pe);
   taosMemoryFree(pe);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }

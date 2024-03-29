@@ -33,7 +33,7 @@ class TDTestCase:
         self.colname_length_boundary = self.boundary.COL_KEY_MAX_LENGTH
         self.tagname_length_boundary = self.boundary.TAG_KEY_MAX_LENGTH
         self.username_length_boundary = 23
-        self.password_length_boundary = 128
+        self.password_length_boundary = 31
     def dbname_length_check(self):
         dbname_length = randint(1,self.dbname_length_boundary-1)
         for dbname in [tdCom.get_long_name(self.dbname_length_boundary),tdCom.get_long_name(dbname_length)]:
@@ -166,6 +166,61 @@ class TDTestCase:
         else:
             tdLog.exit("error info is not true")
         tdSql.execute('drop database db')
+
+    def row_col_tag_maxlen_check(self):
+        tdSql.prepare()
+        tdSql.execute('use db')
+        tdSql.execute('create table if not exists stb1 (ts timestamp, c1 int,c2 binary(1000)) tags (city binary(16382))')
+        tdSql.error('create table if not exists stb1 (ts timestamp, c1 int,c2 binary(1000)) tags (city binary(16383))')
+        tdSql.execute('create table if not exists stb2 (ts timestamp, c0 tinyint, c1 int, c2 nchar(16379)) tags (city binary(16382))')
+        tdSql.error('create table if not exists stb2 (ts timestamp, c0 smallint, c1 int, c2 nchar(16379)) tags (city binary(16382))')
+        tdSql.execute('create table if not exists stb3 (ts timestamp, c1 int, c2 binary(65517)) tags (city binary(16382))')
+        tdSql.error('create table if not exists stb3 (ts timestamp, c0 bool, c1 int, c2 binary(65517)) tags (city binary(16382))')
+        # prepare the column and tag data
+        char100='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123456789'
+        tag_max_16382=''
+        binary_max_65517 = ''
+        nchar_max_16379=''
+        for num in range(163):
+            nchar_max_16379 += char100
+            for num in range(4):
+                binary_max_65517 += char100
+        
+        nchar_max_16379 += '0123456789012345678901234567890123456789012345678901234567890123456789012345678'
+        tag_max_16382 = nchar_max_16379
+        tag_max_16382 += '9ab'
+
+        for num in range(3):
+            binary_max_65517 += char100
+        binary_max_65517 += '01234567890123456'
+
+        # insert/query and check
+        tdSql.execute(f"create table ct1 using stb1 tags('{tag_max_16382}')")
+        tdSql.execute(f"create table ct2 using stb2 tags('{tag_max_16382}')")
+        tdSql.execute(f"create table ct3 using stb3 tags('{tag_max_16382}')")
+        tdSql.execute(f"insert into ct1 values (now,1,'nchar_max_16379')")
+        tdSql.execute(f"insert into ct2 values (now,1,1,'{nchar_max_16379}')")
+        tdSql.execute(f"insert into ct3 values (now,1,'{binary_max_65517}')")
+
+        tdSql.query("select * from stb1")
+        tdSql.checkEqual(tdSql.queryResult[0][3],tag_max_16382)
+
+        tdSql.query("select * from ct2")
+        tdSql.checkEqual(tdSql.queryResult[0][3],nchar_max_16379)
+
+        tdSql.query("select * from stb2")
+        tdSql.checkEqual(tdSql.queryResult[0][3],nchar_max_16379)
+        tdSql.checkEqual(tdSql.queryResult[0][4],tag_max_16382)
+
+        tdSql.query("select * from ct3")
+        tdSql.checkEqual(tdSql.queryResult[0][2],binary_max_65517)
+
+        tdSql.query("select * from stb3")
+        tdSql.checkEqual(tdSql.queryResult[0][2],binary_max_65517)
+        tdSql.checkEqual(tdSql.queryResult[0][3],tag_max_16382)
+
+        tdSql.execute('drop database db')
+
     def run(self):
         self.dbname_length_check()
         self.tbname_length_check()
@@ -174,6 +229,7 @@ class TDTestCase:
         self.username_length_check()
         self.password_length_check()
         self.sql_length_check()
+        self.row_col_tag_maxlen_check()
 
     def stop(self):
         tdSql.close()

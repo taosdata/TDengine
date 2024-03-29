@@ -43,7 +43,7 @@ target_link_libraries(
 )
 if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version
+        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32
     )
 elseif(TD_DARWIN_64)
     find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)
@@ -64,7 +64,7 @@ else()
 endif()
 
 IF (JEMALLOC_ENABLED)
-    target_link_libraries(os PUBLIC -ljemalloc)
+    target_link_libraries(os PUBLIC -L${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
 ENDIF ()
 
 if(${BUILD_TEST})

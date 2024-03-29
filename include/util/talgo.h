@@ -31,7 +31,7 @@ typedef void *(*__array_item_dup_fn_t)(void *);
 
 typedef void (*FDelete)(void *);
 typedef int32_t (*FEncode)(void **buf, const void *dst);
-typedef void *(*FDecode)(const void *buf, void *dst);
+typedef void *(*FDecode)(const void *buf, void *dst, int8_t sver);
 
 #define TD_EQ 0x1
 #define TD_GT 0x2
@@ -53,6 +53,17 @@ typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void 
  * @param comparFn
  */
 void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
+
+/**
+ * merge sort, with the compare function requiring additional parameters support
+ *
+ * @param src
+ * @param numOfElem
+ * @param size
+ * @param comparFn
+ * @return  int32_t 0 for success, other for failure.
+ */
+int32_t taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn);
 
 /**
  * binary search, with range support

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tsched.h"
 #include "tdef.h"
+#include "tgeosctx.h"
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -114,6 +115,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   return (void *)pSched;
 }
 
+#ifdef BUILD_NO_CALL
 void *taosInitSchedulerWithInfo(int32_t queueSize, int32_t numOfThreads, const char *label, void *tmrCtrl) {
   SSchedQueue *pSched = taosInitScheduler(queueSize, numOfThreads, label, NULL);
 
@@ -124,6 +126,7 @@ void *taosInitSchedulerWithInfo(int32_t queueSize, int32_t numOfThreads, const c
 
   return pSched;
 }
+#endif
 
 void *taosProcessSchedQueue(void *scheduler) {
   SSchedMsg    msg;
@@ -137,7 +140,6 @@ void *taosProcessSchedQueue(void *scheduler) {
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
       uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
-      ASSERT(0);
     }
     if (atomic_load_8(&pSched->stop)) {
       break;
@@ -145,7 +147,6 @@ void *taosProcessSchedQueue(void *scheduler) {
 
     if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
       uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
-      ASSERT(0);
     }
 
     msg = pSched->queue[pSched->fullSlot];
@@ -154,12 +155,10 @@ void *taosProcessSchedQueue(void *scheduler) {
 
     if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
       uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
-      ASSERT(0);
     }
 
     if ((ret = tsem_post(&pSched->emptySem)) != 0) {
       uFatal("post %s emptySem failed(%s)", pSched->label, strerror(errno));
-      ASSERT(0);
     }
 
     if (msg.fp)
@@ -167,6 +166,8 @@ void *taosProcessSchedQueue(void *scheduler) {
     else if (msg.tfp)
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
+
+  destroyThreadLocalGeosCtx();
 
   return NULL;
 }
@@ -187,12 +188,10 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
 
   if ((ret = tsem_wait(&pSched->emptySem)) != 0) {
     uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
-    ASSERT(0);
   }
 
   if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
     uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
-    ASSERT(0);
   }
 
   pSched->queue[pSched->emptySlot] = *pMsg;
@@ -200,12 +199,10 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
 
   if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
     uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
-    ASSERT(0);
   }
 
   if ((ret = tsem_post(&pSched->fullSem)) != 0) {
     uFatal("post %s fullSem failed(%s)", pSched->label, strerror(errno));
-    ASSERT(0);
   }
   return ret;
 }
@@ -246,6 +243,7 @@ void taosCleanUpScheduler(void *param) {
   // taosMemoryFree(pSched);
 }
 
+#ifdef BUILD_NO_CALL
 // for debug purpose, dump the scheduler status every 1min.
 void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
   SSchedQueue *pSched = (SSchedQueue *)qhandle;
@@ -260,3 +258,4 @@ void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
 
   taosTmrReset(taosDumpSchedulerStatus, DUMP_SCHEDULER_TIME_WINDOW, pSched, pSched->pTmrCtrl, &pSched->pTimer);
 }
+#endif

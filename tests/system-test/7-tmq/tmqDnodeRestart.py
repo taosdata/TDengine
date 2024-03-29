@@ -4,6 +4,7 @@ import sys
 import time
 import socket
 import os
+import platform
 import threading
 from enum import Enum
 
@@ -24,7 +25,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -55,6 +56,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -136,7 +138,7 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
+        time.sleep(5)
 
         tdLog.info(" restart taosd end and wait to check consume result")
         expectRows = 1
@@ -145,7 +147,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQury = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
@@ -183,6 +185,9 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
+        # ARM64：time cost is so long for stopping taosd, so add the pollDdelay to 120s
+        if platform.system() == "Linux" and platform.machine() == "aarch64":
+            paraDict['pollDelay'] = 300
 
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -220,7 +225,7 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
+        time.sleep(5)
 
         tdLog.info("create some new child table and insert data ")
         paraDict["batchNum"] = 100
@@ -234,7 +239,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQuery = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsFromQuery))

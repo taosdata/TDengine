@@ -62,7 +62,15 @@ const char *sdbTableName(ESdbType type) {
       return "func";
     case SDB_IDX:
       return "idx";
-    default:
+    case SDB_VIEW:
+      return "view";
+    case SDB_STREAM_SEQ:
+      return "stream_seq";
+    case SDB_COMPACT:
+      return "compact";
+    case SDB_COMPACT_DETAIL:
+      return "compact_detail";
+     default:
       return "undefine";
   }
 }
@@ -79,6 +87,8 @@ const char *sdbStatusName(ESdbStatus status) {
       return "dropped";
     case SDB_STATUS_INIT:
       return "init";
+    case SDB_STATUS_UPDATE:
+      return "update";
     default:
       return "undefine";
   }
@@ -176,7 +186,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
   }
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT64) {
-    pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+    pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int64_t *)pRow->pObj));
   }
   pSdb->tableVer[pRow->type]++;
 
@@ -196,13 +206,13 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
   sdbPrintOper(pSdb, pOldRow, "update");
-  sdbUnLock(pSdb, type);
 
   int32_t     code = 0;
   SdbUpdateFp updateFp = pSdb->updateFps[type];
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
+  sdbUnLock(pSdb, type);
 
   // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);
@@ -256,6 +266,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_READY:
+    case SDB_STATUS_UPDATE:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
       break;

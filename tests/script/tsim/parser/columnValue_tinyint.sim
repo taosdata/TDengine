@@ -17,6 +17,7 @@ sql create table mt_tinyint (ts timestamp, c tinyint) tags (tagname tinyint)
 
 ## case 00: static create table for test tag values
 sql create table st_tinyint_0  using mt_tinyint tags (NULL)
+sql show create table st_tinyint_0
 sql show tags from  st_tinyint_0
 if $data05 != NULL then
   print expect NULL, actually: $data05
@@ -173,6 +174,7 @@ endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_tinyint_16 using mt_tinyint tags (NULL)   values (now, NULL)
+sql show create table st_tinyint_16
 sql show tags from  st_tinyint_16
 if $data05 != NULL then
   return -1

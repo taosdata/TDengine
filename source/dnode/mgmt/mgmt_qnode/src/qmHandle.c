@@ -39,15 +39,18 @@ int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
+    tFreeSMCreateQnodeReq(&createReq);
     return -1;
   }
 
   bool deployed = true;
   if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write qnode file since %s", terrstr());
+    tFreeSMCreateQnodeReq(&createReq);
     return -1;
   }
 
+  tFreeSMCreateQnodeReq(&createReq);
   return 0;
 }
 
@@ -61,15 +64,18 @@ int32_t qmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
   bool deployed = false;
   if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write qnode file since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
+  tFreeSMCreateQnodeReq(&dropReq);
   return 0;
 }
 
@@ -89,6 +95,7 @@ SArray *qmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_SCH_CANCEL_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SCH_DROP_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SCH_TASK_NOTIFY, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
 
   code = 0;
 _OVER:

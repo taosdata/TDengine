@@ -76,6 +76,12 @@ class TDTestCase:
         for i in range(tdSql.queryRows):
             tdSql.checkData(i,0, data_ct1_c8[i])
 
+        tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(0)) tags(tg1 int)")
+        tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 varchar(0))")
+        tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 nchar(0))")
+        tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 binary(0))")
+        tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 varbinary(0))")
+
 
         # tdSql.query("select c8 from ct4")
         # data_ct4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]

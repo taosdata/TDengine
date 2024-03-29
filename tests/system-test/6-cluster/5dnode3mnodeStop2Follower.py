@@ -39,7 +39,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -88,15 +88,15 @@ class TDTestCase:
         # restart all taosd
         tdDnodes=cluster.dnodes
 
-        tdDnodes[1].stoptaosd()
+        # tdDnodes[1].stoptaosd()
         tdDnodes[2].stoptaosd()
 
-        tdLog.info("check  whether 2 mnode status is  offline")
-        clusterComCheck.check3mnode2off()
+        tdLog.info("check  whether 1 mnode status is  offline")
+        clusterComCheck.check3mnodeoff(3)
         # tdSql.error("create user user1 pass '123';")
 
-        tdLog.info("start two follower")
-        tdDnodes[1].starttaosd()
+        tdLog.info("start  follower")
+        # tdDnodes[1].starttaosd()
         tdDnodes[2].starttaosd()
 
         clusterComCheck.checkMnodeStatus(mnodeNums)

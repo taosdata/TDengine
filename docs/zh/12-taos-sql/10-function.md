@@ -292,11 +292,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**功能说明**：以字节计数的字符串长度。
+**功能说明**：以字节计数的长度。
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR, VARBINARY。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
+**适用数据类型**：输入参数 expr 的类型可以是除JSON和VARBINARY外的所有类型。如果 type_name 为 VARBINARY，则 expr 只能是 VARCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -449,7 +449,7 @@ TO_JSON(str_literal)
 
 **返回结果数据类型**: JSON。
 
-**适用数据类型**: JSON 字符串，形如 '{ "literal" : literal }'。'{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
+**适用数据类型**: JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -459,12 +459,17 @@ TO_JSON(str_literal)
 #### TO_UNIXTIMESTAMP
 
 ```sql
-TO_UNIXTIMESTAMP(expr)
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
 
-**返回结果数据类型**：BIGINT。
+**返回结果数据类型**：BIGINT, TIMESTAMP。
 
 **应用字段**：VARCHAR, NCHAR。
 
@@ -476,6 +481,98 @@ TO_UNIXTIMESTAMP(expr)
 
 - 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- return_timestamp 指定函数返回值是否为时间戳类型，设置为1时返回 TIMESTAMP 类型，设置为0时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
+
+#### TO_CHAR
+
+```sql
+TO_CHAR(ts, format_str_literal)
+```
+
+**功能说明**: 将timestamp类型按照指定格式转换为字符串
+
+**版本**: ver-3.2.2.0
+
+**返回结果数据类型**: VARCHAR
+
+**应用字段**: TIMESTAMP
+
+**嵌套子查询支持**: 适用于内层查询和外层查询
+
+**适用于**: 表和超级表
+
+**支持的格式**
+
+| **格式** | **说明**| **例子** |
+| --- | --- | --- |
+|AM,am,PM,pm| 无点分隔的上午下午 | 07:00:00am|
+|A.M.,a.m.,P.M.,p.m.| 有点分隔的上午下午| 07:00:00a.m.|
+|YYYY,yyyy|年, 4个及以上数字| 2023-10-10|
+|YYY,yyy| 年, 最后3位数字| 023-10-10|
+|YY,yy| 年, 最后2位数字| 23-10-10|
+|Y,y|年, 最后一位数字| 3-10-10|
+|MONTH|月, 全大写| 2023-JANUARY-01|
+|Month|月, 首字母大写| 2023-January-01|
+|month|月, 全小写| 2023-january-01|
+|MON| 月, 缩写, 全大写(三个字符)| JAN, SEP|
+|Mon| 月, 缩写, 首字母大写| Jan, Sep|
+|mon|月, 缩写, 全小写| jan, sep|
+|MM,mm|月, 数字 01-12|2023-01-01|
+|DD,dd|月日, 01-31||
+|DAY|周日, 全大写|MONDAY|
+|Day|周日, 首字符大写|Monday|
+|day|周日, 全小写|monday|
+|DY|周日, 缩写, 全大写|MON|
+|Dy|周日, 缩写, 首字符大写|Mon|
+|dy|周日, 缩写, 全小写|mon|
+|DDD|年日, 001-366||
+|D,d|周日, 数字, 1-7, Sunday(1) to Saturday(7)||
+|HH24,hh24|小时, 00-23|2023-01-30 23:59:59|
+|hh12,HH12, hh, HH| 小时, 01-12|2023-01-30 12:59:59PM|
+|MI,mi|分钟, 00-59||
+|SS,ss|秒, 00-59||
+|MS,ms|毫秒, 000-999||
+|US,us|微秒, 000000-999999||
+|NS,ns|纳秒, 000000000-999999999||
+|TZH,tzh|时区小时|2023-01-30 11:59:59PM +08|
+
+**使用说明**:
+- `Month`, `Day`等的输出格式是左对齐的, 右侧添加空格, 如`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, 9月是月份中英文字母数最长的, 因此9月没有空格. 星期类似.
+- 使用`ms`, `us`, `ns`时, 以上三种格式的输出只在精度上不同, 比如ts为 `1697182085123`,  `ms` 的输出为 `123`, `us` 的输出为 `123000`, `ns` 的输出为 `123000000`.
+- 时间格式中无法匹配规则的内容会直接输出. 如果想要在格式串中指定某些能够匹配规则的部分不做转换, 可以使用双引号, 如`to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. 如果想要输出双引号, 那么在双引号之前加一个反斜杠, 如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`.
+- 那些输出是数字的格式, 如`YYYY`, `DD`, 大写与小写意义相同, 即`yyyy` 和 `YYYY` 可以互换.
+- 推荐在时间格式中带时区信息，如果不带则默认输出的时区为服务端或客户端所配置的时区.
+- 输入时间戳的精度由所查询表的精度确定, 若未指定表, 则精度为毫秒.
+
+#### TO_TIMESTAMP
+
+```sql
+TO_TIMESTAMP(ts_str_literal, format_str_literal)
+```
+
+**功能说明**: 将字符串按照指定格式转化为时间戳.
+
+**版本**: ver-3.2.2.0
+
+**返回结果数据类型**: TIMESTAMP
+
+**应用字段**: VARCHAR
+
+**嵌套子查询支持**: 适用于内层查询和外层查询
+
+**适用于**: 表和超级表
+
+**支持的格式**: 与`to_char`相同
+
+**使用说明**:
+- 若`ms`, `us`, `ns`同时指定, 那么结果时间戳包含上述三个字段的和. 如 `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` 输出为 `2023-10-10 10:10:10.123456789`对应的时间戳.
+- `MONTH`, `MON`, `DAY`, `DY` 以及其他输出为数字的格式的大小写意义相同, 如 `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month`可以被替换为`MONTH` 或者`Month`.
+- 如果同一字段被指定了多次, 那么前面的指定将会被覆盖.  如 `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, 输出年份是`2022`.
+- 为避免转换时使用了非预期的时区，推荐在时间中携带时区信息，例如'2023-10-10 10:10:10+08'，如果未指定时区则默认时区为服务端或客户端指定的时区。
+- 如果没有指定完整的时间，那么默认时间值为指定或默认时区的 `1970-01-01 00:00:00`, 未指定部分使用该默认值中的对应部分. 暂不支持只指定年日而不指定月日的格式, 如'yyyy-mm-DDD', 支持'yyyy-mm-DD'.
+- 如果格式串中有`AM`, `PM`等, 那么小时必须是12小时制, 范围必须是01-12.
+- `to_timestamp`转换具有一定的容错机制, 在格式串和时间戳串不完全对应时, 有时也可转换, 如: `to_timestamp('200101/2', 'yyyyMM1/dd')`, 格式串中多出来的1会被丢弃. 格式串与时间戳串中多余的空格字符(空格, tab等)也会被 自动忽略. 如`to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` 可以被成功转换. 虽然`MM`等字段需要两个数字对应(只有一位时前面补0), 在`to_timestamp`时, 一个数字也可以成功转换.
+- 输出时间戳的精度与查询表的精度相同, 若查询未指定表, 则输出精度为毫秒. 如`select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')`的输出将会把微妙和纳秒进行截断. 如果指定一张纳秒表, 那么就不会发生截断, 如`select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
 
 
 ### 时间和日期函数
@@ -533,9 +630,9 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+TIMETRUNCATE(expr, time_unit [, use_current_timezone])
 
-ignore_timezone: {
+use_current_timezone: {
     0
   | 1
 }
@@ -554,10 +651,11 @@ ignore_timezone: {
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
-- 当使用 1d 作为时间单位对时间戳进行截断时， 可通过设置 ignore_timezone 参数指定返回结果的显示是否忽略客户端时区的影响。
-  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为 '2020-01-01 08:00:00'。
-  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 设置忽略时区时，返回结果为 '2020-01-01 00:00:00'
-  ignore_timezone 如果忽略的话，则默认值为 1 。
+- 当使用 1d/1w 作为时间单位对时间戳进行截断时， 可通过设置 use_current_timezone 参数指定是否根据当前时区进行截断处理。
+  值 0 表示使用 UTC 时区进行截断，值 1 表示使用当前时区进行截断。
+  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为东八区时间 '2020-01-01 08:00:00'。
+  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 时，返回结果为东八区时间 '2020-01-01 00:00:00'。
+  当不指定 use_current_timezone 时，use_current_timezone 默认值为 1 。
 
 
 
@@ -694,7 +792,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
+**功能说明**：统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
 **返回数据类型**：字符串表达式（斜率, 截距）。
 
@@ -785,11 +883,11 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
     - "user_input": "[1, 3, 5, 7]"
        用户指定 bin 的具体数值。
 
-    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+    - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
 
-    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+    - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
 - normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
@@ -863,10 +961,15 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为0。
 
 **返回数据类型**：同字段类型。
 
@@ -879,10 +982,11 @@ INTERP(expr)
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
 - INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
-- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
+- INTERP 作用于超级表时, 会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
 - INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
 
@@ -979,18 +1083,13 @@ SAMPLE(expr, k)
 
 **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
 
-**返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+**返回结果类型**： 同原始数据类型。
 
-**适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
+**适用数据类型**： 全部类型字段。
 
 **嵌套子查询支持**： 适用于内层查询和外层查询。
 
 **适用于**：表和超级表。
-
-**使用说明**：
-
-- 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1036,11 +1135,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**功能说明**：返回该列的数值首次出现的值。该函数功能与 distinct 相似，但是可以匹配标签和时间戳信息。可以针对除时间列以外的字段进行查询，可以匹配标签和时间戳，其中的标签和时间戳是第一次出现时刻的标签和时间戳。
+**功能说明**：返回该列数据首次出现的值。该函数功能与 distinct 相似。
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：适合于除时间类型以外的字段。
+**适用数据类型**：全部类型字段。
 
 **适用于**: 表和超级表。
 
@@ -1055,7 +1154,7 @@ UNIQUE(expr)
 CSUM(expr)
 ```
 
-**功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
+**功能说明**：累加和（Cumulative sum），忽略 NULL 值。
 
 **返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
@@ -1069,7 +1168,6 @@ CSUM(expr)
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1093,7 +1191,6 @@ ignore_negative: {
 
 **使用说明**:
 
-- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
@@ -1156,7 +1253,6 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### STATECOUNT
@@ -1182,7 +1278,6 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1210,7 +1305,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1227,8 +1321,6 @@ TWA(expr)
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
-
-**使用说明**： TWA 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 
 
 ## 系统信息函数
@@ -1265,3 +1357,148 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。
+
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**说明**：获取当前用户。
+
+
+## Geometry 函数
+
+### Geometry 输入函数：
+
+#### ST_GeomFromText
+
+```sql
+ST_GeomFromText(VARCHAR WKT expr)
+```
+
+**功能说明**：根据 Well-Known Text (WKT) 表示从指定的几何值创建几何数据。
+
+**返回值类型**：GEOMETRY
+
+**适用数据类型**：VARCHAR
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输入可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。输出是以二进制字符串形式定义的 GEOMETRY 数据类型。
+
+### Geometry 输出函数：
+
+#### ST_AsText
+
+```sql
+ST_AsText(GEOMETRY geom)
+```
+
+**功能说明**：从几何数据中返回指定的 Well-Known Text (WKT) 表示。
+
+**返回值类型**：VARCHAR
+
+**适用数据类型**：GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：输出可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。
+
+### Geometry 关系函数：
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果给定的几何对象是"空间相等"的，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
+
+#### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 包含 B，描述：如果几何形状 A 包含几何形状 B，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：A 包含 B 当且仅当 B 的所有点位于 A 的内部（即位于内部或边界上）（或等效地，B 的没有点位于 A 的外部），并且 A 和 B 的内部至少有一个公共点。
+
+#### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 的每个点都位于 A 内部，则返回 TRUE。
+
+**返回值类型**：BOOL
+
+**适用数据类型**：GEOMETRY，GEOMETRY
+
+**适用表类型**：标准表和超表
+
+**使用说明**：B 的没有点位于 A 的边界或外部。

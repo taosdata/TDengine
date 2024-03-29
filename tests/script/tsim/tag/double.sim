@@ -123,6 +123,15 @@ sql select * from $mt where tgcol = 1
 if $rows != 100 then
   return -1
 endi
+
+sql select * from $mt where tgcol = '1';
+if $rows != 100 then
+  return -1
+endi
+sql select * from $mt where tgcol = "1.0"
+if $rows != 100 then
+  return -1
+endi
 sql select * from $mt where tgcol <> 1
 if $rows != 100 then
   return -1

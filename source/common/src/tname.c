@@ -122,10 +122,8 @@ int32_t tNameLen(const SName* name) {
   int32_t len2 = (int32_t)strlen(name->tname);
 
   if (name->type == TSDB_DB_NAME_T) {
-    ASSERT(len2 == 0);
     return len + len1 + TSDB_NAME_DELIMITER_LEN;
   } else {
-    ASSERT(len2 > 0);
     return len + len1 + len2 + TSDB_NAME_DELIMITER_LEN * 2;
   }
 }
@@ -298,7 +296,10 @@ static int compareKv(const void* p1, const void* p2) {
 void buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
-  if (sb.buf == NULL) return;
+  if (sb.buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return;
+  }
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');

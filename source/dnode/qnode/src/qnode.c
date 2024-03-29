@@ -14,7 +14,6 @@
  */
 
 #include "executor.h"
-#include "libs/function/function.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
@@ -58,6 +57,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   pLoad->numOfProcessedCQuery = stat.cqueryProcessed;
   pLoad->numOfProcessedFetch = stat.fetchProcessed;
   pLoad->numOfProcessedDrop = stat.dropProcessed;
+  pLoad->numOfProcessedNotify = stat.notifyProcessed;
   pLoad->numOfProcessedHb = stat.hbProcessed;
   pLoad->numOfProcessedDelete = stat.deleteProcessed;
 
@@ -100,6 +100,9 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       // break;
     case TDMT_SCH_QUERY_HEARTBEAT:
       code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg, ts);
+      break;
+    case TDMT_SCH_TASK_NOTIFY:
+      code = qWorkerProcessNotifyMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     default:
       qError("unknown msg type:%d in qnode queue", pMsg->msgType);

@@ -47,18 +47,13 @@ typedef int32_t TdUcs4;
 #define strtof      STR_TO_F_FUNC_TAOS_FORBID
 #endif
 
-#ifdef WINDOWS
-#define tstrdup(str) _strdup(str)
-#else
-#define tstrdup(str) strdup(str)
-#endif
-
 #define tstrncpy(dst, src, size)   \
   do {                             \
     strncpy((dst), (src), (size)); \
     (dst)[(size)-1] = 0;           \
   } while (0)
 
+char   *tstrdup(const char *src);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int64_t taosStr2int64(const char *str);
 
@@ -90,6 +85,11 @@ int8_t   taosStr2Int8(const char *str, char **pEnd, int32_t radix);
 uint8_t  taosStr2UInt8(const char *str, char **pEnd, int32_t radix);
 double   taosStr2Double(const char *str, char **pEnd);
 float    taosStr2Float(const char *str, char **pEnd);
+int32_t  taosHex2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+int32_t  taosAscii2Hex(const char *z, uint32_t n, void** data, uint32_t* size);
+//int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+bool isHex(const char* z, uint32_t n);
+bool isValidateHex(const char* z, uint32_t n);
 
 #ifdef __cplusplus
 }

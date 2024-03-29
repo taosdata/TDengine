@@ -14,6 +14,10 @@
  */
 
 #include "tsdb.h"
+#include "tsdbFS2.h"
+
+extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
+extern int32_t tsdbCloseCompMonitor(STsdb *tsdb);
 
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -22,6 +26,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   pKeepCfg->keep0 = pCfg->keep0;
   pKeepCfg->keep1 = pCfg->keep1;
   pKeepCfg->keep2 = pCfg->keep2;
+  pKeepCfg->keepTimeOffset = pCfg->keepTimeOffset;
   return 0;
 }
 
@@ -33,7 +38,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -51,7 +56,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
-  taosThreadRwlockInit(&pTsdb->rwLock, NULL);
+  taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
@@ -66,7 +71,12 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb, rollback) < 0) {
+  if (tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback) < 0) {
+    goto _err;
+  }
+
+  if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
+    terrno = TSDB_CODE_NEED_RETRY;
     goto _err;
   }
 
@@ -74,28 +84,43 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
-  tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
-            pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
+#ifdef TD_ENTERPRISE
+  if (tsdbOpenCompMonitor(pTsdb) < 0) {
+    goto _err;
+  }
+#endif
+
+  tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d, keepTimeoffset:%d", TD_VID(pVnode), pTsdb->path,
+            pTsdb->keepCfg.days, pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2,
+            pTsdb->keepCfg.keepTimeOffset);
 
   *ppTsdb = pTsdb;
   return 0;
 
 _err:
+  tsdbCloseFS(&pTsdb->pFS);
+  taosThreadMutexDestroy(&pTsdb->mutex);
   taosMemoryFree(pTsdb);
   return -1;
 }
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
-    taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
+    STsdb *pdb = *pTsdb;
+    tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
+              pdb->keepCfg.days, pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2,
+              pdb->keepCfg.keepTimeOffset);
+    taosThreadMutexLock(&(*pTsdb)->mutex);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
-    taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
+    taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
-    taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
-
-    tsdbFSClose(*pTsdb);
+    tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
+#ifdef TD_ENTERPRISE
+    tsdbCloseCompMonitor(*pTsdb);
+#endif
+    taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
   return 0;

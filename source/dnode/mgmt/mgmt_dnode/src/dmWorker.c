@@ -22,23 +22,50 @@ static void *dmStatusThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
 
-  const static int16_t TRIM_FREQ = 30;
-  int32_t              trimCount = 0;
+  int32_t upTimeCount = 0;
+  int64_t upTime = 0;
+
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
 
-      trimCount = (trimCount + 1) % TRIM_FREQ;
-      if (trimCount == 0) {
-        taosMemoryTrim(0);
+      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
+        upTime = taosGetOsUptime() - tsDndStartOsUptime;
+        tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
     }
+  }
+
+  return NULL;
+}
+
+SDmNotifyHandle dmNotifyHdl = {.state = 0};
+static void *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  setThreadName("dnode-notify");
+
+  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+    return NULL;
+  }
+
+  bool wait = true;
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+    if (wait) tsem_wait(&dmNotifyHdl.sem);
+    atomic_store_8(&dmNotifyHdl.state, 1);
+    dmSendNotifyReq(pMgmt);
+    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+      wait = true;
+      continue;
+    }
+    wait = false;
   }
 
   return NULL;
@@ -47,16 +74,57 @@ static void *dmStatusThreadFp(void *param) {
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
+  int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
+
+  static int32_t TRIM_FREQ = 20;
+  int32_t        trimCount = 0;
 
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
+      lastTime = curTime;
+
+      trimCount = (trimCount + 1) % TRIM_FREQ;
+      if (trimCount == 0) {
+        taosMemoryTrim(0);
+      }
+    }
+    
+    if(tsMonitorForceV2){
+      if (curTime < lastTimeForBasic) lastTimeForBasic = curTime;
+      float intervalForBasic = (curTime - lastTimeForBasic) / 1000.0f;
+      if (intervalForBasic >= tsMonitorIntervalForBasic) {
+        (*pMgmt->sendMonitorReportFpBasic)();
+        lastTimeForBasic = curTime;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+static void *dmAuditThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-audit");
+
+  while (1) {
+    taosMsleep(100);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = curTime - lastTime;
+    if (interval >= tsAuditInterval) {
+      (*pMgmt->sendAuditRecordsFp)();
       lastTime = curTime;
     }
   }
@@ -70,14 +138,15 @@ static void *dmCrashReportThreadFp(void *param) {
   setThreadName("dnode-crashReport");
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
-  char *pMsg = NULL;
-  int64_t msgLen = 0;
+  char     *pMsg = NULL;
+  int64_t   msgLen = 0;
   TdFilePtr pFile = NULL;
-  bool truncateFile = false;
-  int32_t sleepTime = 200;
-  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;;
+  bool      truncateFile = false;
+  int32_t   sleepTime = 200;
+  int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
+  ;
   int32_t loopTimes = reportPeriodNum;
-  
+
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (loopTimes++ < reportPeriodNum) {
@@ -91,6 +160,10 @@ static void *dmCrashReportThreadFp(void *param) {
         dError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
+
+          taosMsleep(sleepTime);
+          loopTimes = 0;
           continue;
         }
       } else {
@@ -107,19 +180,19 @@ static void *dmCrashReportThreadFp(void *param) {
       pMsg = NULL;
       continue;
     }
-    
+
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
       truncateFile = false;
     }
-    
+
     taosMsleep(sleepTime);
     loopTimes = 0;
   }
 
   return NULL;
 }
-
 
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
@@ -142,6 +215,29 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   }
 }
 
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
+    dError("failed to create notify thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-notify", "initialized");
+  return 0;
+}
+
+void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->notifyThread)) {
+    tsem_post(&dmNotifyHdl.sem);
+    taosThreadJoin(pMgmt->notifyThread, NULL);
+    taosThreadClear(&pMgmt->notifyThread);
+  }
+  tsem_destroy(&dmNotifyHdl.sem);
+}
+
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -156,10 +252,31 @@ int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->auditThread, &thAttr, dmAuditThreadFp, pMgmt) != 0) {
+    dError("failed to create audit thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-audit", "initialized");
+  return 0;
+}
+
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     taosThreadJoin(pMgmt->monitorThread, NULL);
     taosThreadClear(&pMgmt->monitorThread);
+  }
+}
+
+void dmStopAuditThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->auditThread)) {
+    taosThreadJoin(pMgmt->auditThread, NULL);
+    taosThreadClear(&pMgmt->auditThread);
   }
 }
 
@@ -192,11 +309,10 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  STraceId   *trace = &pMsg->info.traceId;
+  STraceId *  trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   switch (pMsg->msgType) {
@@ -227,6 +343,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
+    case TDMT_DND_ALTER_MNODE_TYPE:
+      code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);
+      break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);
       break;
@@ -235,6 +354,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_MND_GRANT:
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
+      break;
+    case TDMT_MND_GRANT_NOTIFY:
+      code = dmProcessGrantNotify(NULL, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

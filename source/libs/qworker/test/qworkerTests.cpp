@@ -818,6 +818,9 @@ void *fetchQueueThread(void *param) {
       case TDMT_SCH_DROP_TASK:
         qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
+      case TDMT_SCH_TASK_NOTIFY:
+        qWorkerProcessNotifyMsg(mockPointer, mgmt, fetchRpc, 0);
+        break;
       default:
         printf("unknown msg type:%d in fetch queue", fetchRpc->msgType);
         assert(0);

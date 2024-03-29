@@ -1,0 +1,150 @@
+---
+title: PHP Client Library
+sidebar_label: PHP
+description: This document describes the TDengine PHP client library.
+---
+
+`php-tdengine` is the TDengine PHP client library provided by TDengine community. In particular, it supports Swoole coroutine.
+
+PHP client library relies on TDengine client driver.
+
+Project Repository: [https://github.com/Yurunsoft/php-tdengine](https://github.com/Yurunsoft/php-tdengine)
+
+After TDengine client or server is installed, `taos.h` is located at:
+
+- Linux: `/usr/local/taos/include`
+- Windows: `C:\TDengine\include`
+- macOS: `/usr/local/include`
+
+TDengine client driver is located at:
+
+- Linux: `/usr/local/taos/driver/libtaos.so`
+- Windows: `C:\TDengine\taos.dll`
+- macOS: `/usr/local/lib/libtaos.dylib`
+
+## Supported Platforms
+
+- Windows, Linux, and macOS
+
+- PHP >= 7.4
+
+- TDengine >= 2.0
+
+- Swoole >= 4.8 (Optional)
+
+## Supported Versions
+
+Because the version of TDengine client driver is tightly associated with that of TDengine server, it's strongly suggested to use the client driver of same version as TDengine server, even though the client driver can work with TDengine server if the first 3 sections of the versions are same.
+
+## Installation
+
+### Install TDengine Client Driver
+
+Regarding how to install TDengine client driver please refer to [Install Client Driver](../#installation-steps)
+
+### Install php-tdengine
+
+**Download Source Code Package and Unzip: **
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+**Non-Swoole Environment: **
+
+```shell
+phpize && ./configure && make -j && make install
+```
+
+**Specify TDengine location: **
+
+```shell
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
+```
+
+> `--with-tdengine-dir=` is followed by TDengine location.
+> It's useful in case TDengine installatio location can't be found automatically or MacOS.
+
+**Swoole Environment: **
+
+```shell
+phpize && ./configure --enable-swoole && make -j && make install
+```
+
+**Enable Extension:**
+
+Option One: Add `extension=tdengine` in `php.ini`.
+
+Option Two: Use CLI `php -dextension=tdengine test.php`.
+
+## Sample Programs
+
+In this section a few sample programs which use TDengine PHP client library to access TDengine cluster are demonstrated.
+
+> Any error would throw exception: `TDengine\Exception\TDengineException`
+
+### Establish Connection
+
+<details>
+<summary>Establish Connection</summary>
+
+```c
+{{#include docs/examples/php/connect.php}}
+```
+
+</details>
+
+### Insert Data
+
+<details>
+<summary>Insert Data</summary>
+
+```c
+{{#include docs/examples/php/insert.php}}
+```
+
+</details>
+
+### Synchronous Query
+
+<details>
+<summary>Synchronous Query</summary>
+
+```c
+{{#include docs/examples/php/query.php}}
+```
+
+</details>
+
+### Parameter Binding
+
+<details>
+<summary>Parameter Binding</summary>
+
+```c
+{{#include docs/examples/php/insert_stmt.php}}
+```
+
+</details>
+
+## Constants
+
+| Constant               | Description |
+| ----------------------------------- | ----------- |
+| `TDengine\TSDB_DATA_TYPE_NULL`      | null        |
+| `TDengine\TSDB_DATA_TYPE_BOOL`      | bool        |
+| `TDengine\TSDB_DATA_TYPE_TINYINT`   | tinyint     |
+| `TDengine\TSDB_DATA_TYPE_SMALLINT`  | smallint    |
+| `TDengine\TSDB_DATA_TYPE_INT`       | int         |
+| `TDengine\TSDB_DATA_TYPE_BIGINT`    | bigint      |
+| `TDengine\TSDB_DATA_TYPE_FLOAT`     | float       |
+| `TDengine\TSDB_DATA_TYPE_DOUBLE`    | double      |
+| `TDengine\TSDB_DATA_TYPE_BINARY`    | binary      |
+| `TDengine\TSDB_DATA_TYPE_TIMESTAMP` | timestamp   |
+| `TDengine\TSDB_DATA_TYPE_NCHAR`     | nchar       |
+| `TDengine\TSDB_DATA_TYPE_UTINYINT`  | utinyint    |
+| `TDengine\TSDB_DATA_TYPE_USMALLINT` | usmallint   |
+| `TDengine\TSDB_DATA_TYPE_UINT`      | uint        |
+| `TDengine\TSDB_DATA_TYPE_UBIGINT`   | ubigint     |

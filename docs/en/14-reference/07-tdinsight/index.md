@@ -12,8 +12,8 @@ After TDengine starts, it automatically writes many metrics in specific interval
 
 To deploy TDinsight, we need
 - a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 3.0.1.0 and above, with the monitoring feature enabled. For detailed configuration, please refer to [TDengine monitoring configuration](../config/#monitoring-parameters).
-- taosAdapter has been instaleld and running, please refer to [taosAdapter](../taosadapter).
-- taosKeeper has been installed and running, please refer to  [taosKeeper](../taoskeeper).
+- taosAdapter has been installed and running, please refer to [taosAdapter](../taosadapter).
+- taosKeeper has been installed and running, please note the monitor-related items in taos.cfg file need be configured. Refer to [taosKeeper](../taosKeeper) for details.
 
 Please record
 - The endpoint of taosAdapter REST service, for example `http://tdengine.local:6041`
@@ -80,7 +80,7 @@ chmod +x TDinsight.sh
 ./TDinsight.sh
 ```
 
-This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
+This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc.
 
 Assume you use TDengine and Grafana's default services on the same host. Run `. /TDinsight.sh` and open the Grafana browser window to see the TDinsight dashboard.
 
@@ -112,9 +112,6 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 -i, --tdinsight-uid <string>                Replace with a non-space ASCII code as the dashboard id. [default: tdinsight]
 -t, --tdinsight-title <string>              Dashboard title. [default: TDinsight]
 -e, --tdinsight-editable                    If the provisioning dashboard could be editable. [default: false]
-
--E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
-
 ```
 
 Most command-line options can take effect the same as environment variables.
@@ -132,24 +129,15 @@ Most command-line options can take effect the same as environment variables.
 | -i | --tdinsight-uid | TDINSIGHT_DASHBOARD_UID | TDinsight `uid` of the dashboard. [default: tdinsight] |
 | -t | --tdinsight-title | TDINSIGHT_DASHBOARD_TITLE | TDinsight dashboard title. [Default: TDinsight] | -e | -tdinsight-title
 | -e | --tdinsight-editable | TDINSIGHT_DASHBOARD_EDITABLE | If the dashboard is configured to be editable. [Default: false] | -e | --external
-| -E | --external-notifier | EXTERNAL_NOTIFIER | Apply the external notifier uid to the TDinsight dashboard.                                | -s
+
+:::note
+The `-E` option is deprecated. We use Grafana unified alerting function instead.
+:::
 
 Suppose you start a TDengine database on host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script.
 
 ```bash
 sudo . /TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
-```
-
-We provide a "-E" option to configure TDinsight to use the existing Notification Channel from the command line. Assuming your Grafana user and password is `admin:admin`, use the following command to get the `uid` of an existing notification channel.
-
-```bash
-curl --no-progress-meter -u admin:admin http://localhost:3000/api/alert-notifications | jq
-```
-
-Use the `uid` value obtained above as `-E` input.
-
-```bash
-sudo ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
 ```
 
 If you want to monitor multiple TDengine clusters, you need to set up numerous TDinsight dashboards. Setting up non-default TDinsight requires some changes: the `-n` `-i` `-t` options need to be changed to non-default names, and `-N` and `-L` should also be changed if using the built-in SMS alerting feature.
@@ -233,7 +221,7 @@ After the importing is done, `TDinsight for 3.x` dashboard is available on the p
 
 In the `TDinsight for 3.x` dashboard, choose the database used by taosKeeper to store monitoring data, you can see the monitoring result.
 
-![TDengine Database TDinsight 选择数据库](./assets/select_dashboard_db.webp)
+![TDengine Database TDinsight select database](./assets/select_dashboard_db.webp)
 
 ## TDinsight dashboard details
 

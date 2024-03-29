@@ -57,7 +57,7 @@ if $data(2)[7] != @status msg timeout@ then
 endi
 
 print ========== step4
-sql drop dnode 2
+sql drop dnode 2 force
 sql select * from information_schema.ins_dnodes
 if $rows != 1 then
 	return -1

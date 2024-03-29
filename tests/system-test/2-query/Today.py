@@ -16,6 +16,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.today_date = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
         self.today_ts = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d").timestamp()
+        self.today_ts_ns = 0
         self.time_unit = ['b','u','a','s','m','h','d','w']
         self.error_param = ['1.5','abc','!@#','"abc"','today()']
         self.arithmetic_operators = ['+','-','*','/']
@@ -74,8 +75,10 @@ class TDTestCase:
             num_same = 0
             if v.lower() == 'timestamp':
                 tdSql.query(f'select {k} from {tbname}')
+                
                 for i in tdSql.queryResult:
                     if precision == 'ms':
+                        self.today_ts_trans = int(self.today_ts)*1000
                         if int(i[0].timestamp())*1000 > int(self.today_ts)*1000:
                             num_up += 1
                         elif int(i[0].timestamp())*1000 == int(self.today_ts)*1000:
@@ -83,6 +86,7 @@ class TDTestCase:
                         elif int(i[0].timestamp())*1000 < int(self.today_ts)*1000:
                             num_down += 1
                     elif precision == 'us':
+                        self.today_ts_trans = int(self.today_ts)*1000000
                         if int(i[0].timestamp())*1000000 > int(self.today_ts)*1000000:
                             num_up += 1
                         elif int(i[0].timestamp())*1000000 == int(self.today_ts)*1000000:
@@ -90,6 +94,7 @@ class TDTestCase:
                         elif int(i[0].timestamp())*1000000 < int(self.today_ts)*1000000:
                             num_down += 1
                     elif precision == 'ns':
+                        self.today_ts_trans = int(self.today_ts)*1000000000
                         if i[0] > int(self.today_ts)*1000000000:
                             num_up += 1
                         elif i[0] == int(self.today_ts)*1000000000:
@@ -97,8 +102,9 @@ class TDTestCase:
                         elif i[0] < int(self.today_ts)*1000000000:
                             num_down += 1
                 tdSql.query(f"select today() from {tbname}")
-                tdSql.checkRows(len(values_list)*tb_num)
-                tdSql.checkData(0, 0, str(self.today_date))
+                tdSql.checkRows(len(values_list)*tb_num)    
+                print(self.today_ts_trans,self.today_ts,precision,num_up,num_down,i[0])
+                tdSql.checkData(0, 0, self.today_ts_trans)
                 tdSql.query(f"select * from {tbname} where {k}=today()")
                 if tb == 'tb':
                     tdSql.checkRows(num_same*tb_num)
@@ -149,11 +155,12 @@ class TDTestCase:
                 if tb == 'tb':
                     tdSql.checkRows(num_same*tb_num)
                     for i in range(num_same*tb_num):
-                        tdSql.checkData(i, 0, str(self.today_date))
+                        print(self.today_ts_trans,precision,num_up,num_down)
+                        tdSql.checkData(i, 0, self.today_ts_trans)
                 elif tb == 'stb':
                     tdSql.checkRows(num_same)
                     for i in range(num_same):
-                        tdSql.checkData(i, 0, str(self.today_date))
+                        tdSql.checkData(i, 0, self.today_ts_trans)
     def today_check_ntb(self):
         for time_unit in self.db_percision:
             

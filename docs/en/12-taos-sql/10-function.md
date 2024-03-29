@@ -5,9 +5,9 @@ description: This document describes the standard SQL functions available in TDe
 toc_max_heading_level: 4
 ---
 
-## Single Row Functions
+## Scalar Functions
 
-Single row functions return a result for each row.
+Scalar functions return one result for each row.
 
 ### Mathematical Functions
 
@@ -292,11 +292,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**Description**: The length in bytes of a string
+**Description**: The length in bytes
 
 **Return value type**: Bigint
 
-**Applicable data types**: VARCHAR and NCHAR fields or columns
+**Applicable data types**: VARCHAR and NCHAR and VARBINARY 
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **Return value type**: The type specified by parameter `type_name`
 
-**Applicable data types**: All data types except JSON
+**Applicable data types**: All data types except JSON and VARBINARY. If type_name is VARBINARY, expr can only be VARCHAR.
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
@@ -434,7 +434,7 @@ TO_ISO8601(expr [, timezone])
 
 **More explanations**:
 
-- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。 For example, TO_ISO8601(1, "+00:00").
+- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
 - If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp
 - If the input is a column of TIMESTAMP type, the precision of the returned value is same as the precision set for the current data base in use
 
@@ -459,12 +459,17 @@ TO_JSON(str_literal)
 #### TO_UNIXTIMESTAMP
 
 ```sql
-TO_UNIXTIMESTAMP(expr)
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
 ```
 
 **Description**: UNIX timestamp converted from a string of date/time format
 
-**Return value type**: BIGINT
+**Return value type**: BIGINT, TIMESTAMP
 
 **Applicable column types**: VARCHAR and NCHAR
 
@@ -476,6 +481,98 @@ TO_UNIXTIMESTAMP(expr)
 
 - The input string must be compatible with ISO8601/RFC3339 standard, NULL will be returned if the string can't be converted
 - The precision of the returned timestamp is same as the precision set for the current data base in use
+- return_timestamp indicates whether the returned value type is TIMESTAMP or not. If this parameter set to 1, function will return TIMESTAMP type. Otherwise function will return BIGINT type. If parameter is omitted, default return value type is BIGINT.
+
+#### TO_CHAR
+
+```sql
+TO_CHAR(ts, format_str_literal)
+```
+
+**Description**: Convert a ts column to string as the format specified
+
+**Version**: Since ver-3.2.2.0
+
+**Return value type**: VARCHAR
+
+**Applicable column types**: TIMESTAMP
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Supported Formats**
+
+| **Format** | **Comment**| **example** |
+| --- | --- | --- |
+|AM,am,PM,pm| Meridiem indicator(without periods) | 07:00:00am|
+|A.M.,a.m.,P.M.,p.m.| Meridiem indicator(with periods)| 07:00:00a.m.|
+|YYYY,yyyy|year, 4 or more digits| 2023-10-10|
+|YYY,yyy| year, last 3 digits| 023-10-10|
+|YY,yy| year, last 2 digits| 23-10-10|
+|Y,y| year, last digit| 3-10-10|
+|MONTH|full uppercase of month| 2023-JANUARY-01|
+|Month|full capitalized month| 2023-January-01|
+|month|full lowercase of month| 2023-january-01|
+|MON| abbreviated uppercase of month(3 char)| JAN, SEP|
+|Mon| abbreviated capitalized month| Jan, Sep|
+|mon|abbreviated lowercase of month| jan, sep|
+|MM,mm|month number 01-12|2023-01-01|
+|DD,dd|month day, 01-31||
+|DAY|full uppercase of week day|MONDAY|
+|Day|full capitalized week day|Monday|
+|day|full lowercase of week day|monday|
+|DY|abbreviated uppercase of week day|MON|
+|Dy|abbreviated capitalized week day|Mon|
+|dy|abbreviated lowercase of week day|mon|
+|DDD|year day, 001-366||
+|D,d|week day number, 1-7, Sunday(1) to Saturday(7)||
+|HH24,hh24|hour of day, 00-23|2023-01-30 23:59:59|
+|hh12,HH12, hh, HH| hour of day, 01-12|2023-01-30 12:59:59PM|
+|MI,mi|minute, 00-59||
+|SS,ss|second, 00-59||
+|MS,ms|milli second, 000-999||
+|US,us|micro second, 000000-999999||
+|NS,ns|nano second, 000000000-999999999||
+|TZH,tzh|time zone hour|2023-01-30 11:59:59PM +08|
+
+**More explanations**:
+- The output format of `Month`, `Day` are left aligined, like`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, `September` is the longest, no paddings. Week days are slimilar.
+- When `ms`,`us`,`ns` are used in `to_char`, like `to_char(ts, 'yyyy-mm-dd hh:mi:ss.ms.us.ns')`, The time of `ms`,`us`,`ns` corresponds to the same fraction seconds. When ts is `1697182085123`, the output of `ms` is `123`, `us` is `123000`, `ns` is `123000000`.
+- If we want to output some characters of format without converting, surround it with double quotes. `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If want to output double quotes, add a back slash before double quote, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- For formats that output digits, the uppercase and lowercase formats are the same.
+- It's recommended to put time zone in the format, if not, the default time zone will be that in server or client.
+- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
+
+#### TO_TIMESTAMP
+
+```sql
+TO_TIMESTAMP(ts_str_literal, format_str_literal)
+```
+
+**Description**: Convert a formated timestamp string to a timestamp
+
+**Version**: Since ver-3.2.2.0
+
+**Return value type**: TIMESTAMP
+
+**Applicable column types**: VARCHAR
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Supported Formats**: The same as `TO_CHAR`.
+
+**More explanations**:
+- When `ms`, `us`, `ns` are used in `to_timestamp`, if multi of them are specified, the results are accumulated. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` will output the timestamp of `2023-10-10 10:10:10.123456789`.
+- The uppercase or lowercase of `MONTH`, `MON`, `DAY`, `DY` and formtas that output digits have same effect when used in `to_timestamp`, like `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced by `MONTH`, or `month`. The cases are ignored.
+- If multi times are specified for one component, the previous will be overwritten. Like `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year will be `2022`.
+- To avoid unexpected time zone used during the convertion, it's recommended to put time zone in the ts string, e.g. '2023-10-10 10:10:10+08'. If time zone not specified, default will be that in server or client.
+- The default timestamp if some components are not specified will be: `1970-01-01 00:00:00` with the timezone specified or default to local timezone. Only `DDD` is specified without `DD` is not supported currently, e.g. format 'yyyy-mm-ddd' is not supported, but 'yyyy-mm-dd' is supported.
+- If `AM` or `PM` is specified in formats, the Hour must between `1-12`.
+- In some cases, `to_timestamp` can convert correctly even the format and the timestamp string are not totally matched. Like `to_timetamp('200101/2', 'yyyyMM1/dd')`, the digit `1` in format string are ignored, and the output timestsamp is `2001-01-02 00:00:00`. Spaces and tabs in formats and tiemstamp string are also ignored automatically.
+- The precision of the output timestamp will be the same as the table in SELECT stmt, millisecond will be used if no table is specified. The output of `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` will be truncated to millisecond precision. If a nano precision table is specified, no truncation will be applied. Like `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
 
 
 ### Time and Date Functions
@@ -533,9 +630,9 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+TIMETRUNCATE(expr, time_unit [, use_current_timezone])
 
-ignore_timezone: {
+use_current_timezone: {
     0
   | 1
 }
@@ -554,10 +651,11 @@ ignore_timezone: {
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 - If the input data is not formatted as a timestamp, the returned value is null.
-- If `1d` is used as `time_unit` to truncate the timestamp, `ignore_timezone` option can be set to indicate if the returned result is affected by client timezone or not.
-  For example, if client timezone is set to UTC+0800, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) will return '2020-01-01 08:00:00'.
-  Otherwise, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) will return '2020-01-01 00:00:00'.
-  If `ignore_timezone` option is omitted, the default value is set to 1.
+- When using 1d/1w as the time unit to truncate timestamp, you can specify whether to truncate based on the current time zone by setting the use_current_timezone parameter.
+  Value 0 indicates truncation using the UTC time zone, value 1 indicates truncation using the current time zone.
+  For example, if the time zone configured by the Client is UTC + 0800, TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 0) returns the result of '2020-01-01 08:00:00'.
+  When using TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 1), the result is 2020-01-01 00:00:00 '.
+  When use_current_timezone is not specified, use_current_timezone defaults to 1.
 
 #### TIMEZONE
 
@@ -620,7 +718,7 @@ algo_type: {
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**:
 - _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
 - `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
 - The approximation result of `t-digest` algorithm is sensitive to input data order. For example, when querying STable with different input data order there might be minor differences in calculated results.
@@ -666,15 +764,15 @@ If you input a specific column, the number of non-null values in the column is r
 ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+**Description**: `elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` clause, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
 
 **Return value type**: Double if the input value is not NULL;
 
 **Return value type**: TIMESTAMP
 
-**Applicable tables**: table, STable, outter in nested query
+**Applicable tables**: table, STable, outer in nested query
 
-**Explanations**：
+**Explanations**:
 - `ts_primary_key` parameter can only be the first column of a table, i.e. timestamp primary key.
 - The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default time unit. Time unit specified by `time_unit` can be:
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
@@ -692,7 +790,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**Description**: The linear regression function of the specified column and the timestamp column (primary key), `start_val` is the initial value and `step_val` is the step value.
+**Description**: The linear regression function of a specified column, `start_val` is the initial value and `step_val` is the step value.
 
 **Return value type**: A string in the format of "(slope, intercept)"
 
@@ -752,9 +850,9 @@ SUM(expr)
 HYPERLOGLOG(expr)
 ```
 
-**Description**：
+**Description**:
   The cardinal number of a specific column is returned by using hyperloglog algorithm. The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge.
-  However, when the data volume is very small, the result may be not accurate, it's recommented to use `select count(data) from (select unique(col) as data from table)` in this case.
+  However, when the data volume is very small, the result may be not accurate, it's recommended to use `select count(data) from (select unique(col) as data from table)` in this case.
 
 **Return value type**: Integer
 
@@ -766,10 +864,10 @@ HYPERLOGLOG(expr)
 ### HISTOGRAM
 
 ```sql
-HISTOGRAM(expr，bin_type, bin_description, normalized)
+HISTOGRAM(expr, bin_type, bin_description, normalized)
 ```
 
-**Description**：Returns count of data points in user-specified ranges.
+**Description**: Returns count of data points in user-specified ranges.
 
 **Return value type** If normalized is set to 1, a DOUBLE is returned; otherwise a BIGINT is returned
 
@@ -777,18 +875,18 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
 
 **Applicable table types**: table, STable
 
-**Explanations**：
-- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-- bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+**Explanations**:
+- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin".
+- bin_description: parameter to describe how to generate buckets can be in the following JSON formats for each bin_type respectively:
     - "user_input": "[1, 3, 5, 7]":
        User specified bin values.
 
-    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+    - "linear_bin": "&lcub;"start": 0.0, "width": 5.0, "count": 5, "infinity": true&rcub;"
+       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated set of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
 
-    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+    - "log_bin": "&lcub;"start":1.0, "factor": 2.0, "count": 5, "infinity": true&rcub;"
+       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated range of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
 - normalized: setting to 1/0 to turn on/off result normalization. Valid values are 0 or 1.
 
@@ -801,7 +899,7 @@ PERCENTILE(expr, p [, p1] ...)
 
 **Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
-**Return value type**: This function takes 2 minumum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
+**Return value type**: This function takes 2 minimum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
                        If more than 2 parameters are given, the return value type is a VARCHAR string, the format of which is a JSON ARRAY containing all return values.
 
 **Applicable column types**: Numeric
@@ -811,7 +909,7 @@ PERCENTILE(expr, p [, p1] ...)
 **More explanations**:
 
 - _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
-- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is adviced, as this can largely reduce the query response time.
+- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is advised, as this can largely reduce the query response time.
   For example, using SELECT percentile(col, 90, 95, 99) FROM table will perform better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
 
 ## Selection Functions
@@ -861,10 +959,16 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
+**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned. The value of `ignore_null_values` can be 0 or 1, 1 means null values are ignored. The default value of this parameter is 0.
+
 
 **Return value type**: Same as the column being operated upon
 
@@ -877,12 +981,22 @@ INTERP(expr)
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
 - `INTERP` must be used along with `RANGE`, `EVERY`, `FILL` keywords.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1 <= timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified.
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1 &lt;= timestamp2. timestamp1 is the starting point of the output time range. timestamp2 is the ending point of the output time range.
 - The number of rows in the result set of `INTERP` is determined by the parameter `EVERY(time_unit)`. Starting from timestamp1, one interpolation is performed for every time interval specified `time_unit` parameter. The parameter `time_unit` must be an integer, with no quotes, with a time unit of: a(millisecond)), s(second), m(minute), h(hour), d(day), or w(week). For example, `EVERY(500a)` will interpolate every 500 milliseconds.
 - Interpolation is performed based on `FILL` parameter. For more information about FILL clause, see [FILL Clause](../distinguished/#fill-clause).
-- `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
+- When only one timestamp value is specified in `RANGE` clause, `INTERP` is used to generate interpolation at this point in time. In this case, `EVERY` clause can be omitted. For example, SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
+- `INTERP` can be applied to supertable by interpolating primary key sorted data of all its childtables. It can also be used with `partition by tbname` when applied to supertable to generate interpolation on each single timeline.
 - Pseudocolumn `_irowts` can be used along with `INTERP` to return the timestamps associated with interpolation points(support after version 3.0.2.0).
 - Pseudocolumn `_isfilled` can be used along with `INTERP` to indicate whether the results are original records or data points generated by interpolation algorithm(support after version 3.0.3.0).
+
+**Example**
+
+- We use the smart meters example used in this documentation to illustrate how to use the INTERP function.
+- We want to downsample every 1 hour and use a linear fill for missing values. Note the order in which the "partition by" clause and the "range", "every" and "fill" parameters are used.
+
+```sql
+SELECT _irowts,INTERP(current) FROM test.meters PARTITION BY TBNAME RANGE('2017-07-22 00:00:00','2017-07-24 12:25:00') EVERY(1h) FILL(LINEAR)
+```
 
 ### LAST
 
@@ -977,18 +1091,13 @@ SAMPLE(expr, k)
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
-**Return value type**: Same as the column being operated plus the associated timestamp
+**Return value type**: Same as the column being operated
 
-**Applicable data types**: Any data type except for tags of STable
+**Applicable data types**: Any data type
 
 **Applicable nested query**: Inner query and Outer query
 
 **Applicable table types**: standard tables and supertables
-
-**More explanations**:
-
-This function cannot be used in expression calculation.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
 ### TAIL
@@ -1034,11 +1143,11 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword.
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable column types**: Any data types except for timestamp
+**Applicable column types**: Any data types
 
 **Applicable table types**: table, STable
 
@@ -1053,7 +1162,7 @@ TDengine includes extensions to standard SQL that are intended specifically for 
 CSUM(expr)
 ```
 
-**Description**: The cumulative sum of each row for a specific column. The number of output rows is same as that of the input rows.
+**Description**: The cumulative sum of each row for a specific column, NULL value will be discard.
 
 **Return value type**: Long integer for integers; Double for floating points. uint64_t for unsigned integers
 
@@ -1067,7 +1176,6 @@ CSUM(expr)
 
 - Arithmetic operation can't be performed on the result of `csum` function
 - Can only be used with aggregate functions This function can be used with supertables and standard tables.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
 ### DERIVATIVE
@@ -1091,8 +1199,7 @@ ignore_negative: {
 
 **More explanation**:
 
-- It can be used together with `PARTITION BY tbname` against a STable.
-- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from。
+- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from.
 
 ### DIFF
 
@@ -1116,7 +1223,7 @@ ignore_negative: {
 **More explanation**:
 
 - The number of result rows is the number of rows subtracted by one, no output for the first row
-- It can be used together with a selected column. For example: select \_rowts, DIFF() from。
+- It can be used together with a selected column. For example: select \_rowts, DIFF() from.
 
 
 ### IRATE
@@ -1154,7 +1261,6 @@ MAVG(expr, k)
 
 - Arithmetic operation can't be performed on the result of `MAVG`.
 - Can only be used with data columns, can't be used with tags. - Can't be used with aggregate functions.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
 ### STATECOUNT
@@ -1168,7 +1274,7 @@ STATECOUNT(expr, oper, val)
 **Applicable parameter values**:
 
 - oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val ： Numeric types
+- val: Numeric types
 
 **Return value type**: Integer
 
@@ -1180,7 +1286,6 @@ STATECOUNT(expr, oper, val)
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
 - Can't be used with window operation, like interval/state_window/session_window
 
 
@@ -1195,7 +1300,7 @@ STATEDURATION(expr, oper, val, unit)
 **Applicable parameter values**:
 
 - oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val ： Numeric types
+- val: Numeric types
 - unit: The unit of time interval. Enter one of the following options: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks) If you do not enter a unit of time, the precision of the current database is used by default.
 
 **Return value type**: Integer
@@ -1208,7 +1313,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
 - Can't be used with window operation, like interval/state_window/session_window
 
 
@@ -1226,7 +1330,6 @@ TWA(expr)
 
 **Applicable table types**: standard tables and supertables
 
-- Must be used together with `PARTITION BY tbname` to force the result into each single timeline.
 
 
 ## System Information Functions
@@ -1263,3 +1366,169 @@ SELECT SERVER_STATUS();
 ```
 
 **Description**: The server status.
+
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**Description**: get current user.
+
+
+## Geometry Functions
+
+### Geometry Input Functions
+
+Geometry input functions create geometry data from WTK.
+
+#### ST_GeomFromText
+
+```sql
+ST_GeomFromText(VARCHAR WKT expr)
+```
+
+**Description**: Return a specified GEOMETRY value from Well-Known Text representation (WKT).
+
+**Return value type**: GEOMETRY
+
+**Applicable data types**: VARCHAR
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- The input can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
+- The output is a GEOMETRY data type, internal defined as binary string.
+
+### Geometry Output Functions
+
+Geometry output functions convert geometry data into WTK.
+
+#### ST_AsText
+
+```sql
+ST_AsText(GEOMETRY geom)
+```
+
+**Description**: Return a specified Well-Known Text representation (WKT) value from GEOMETRY data.
+
+**Return value type**: VARCHAR
+
+**Applicable data types**: GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- The output can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
+
+### Geometry Relationships Functions
+
+Geometry relationships functions determine spatial relationships between geometries.
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Compares two geometries and returns true if they intersect.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- Geometries intersect if they have any point in common.
+
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if the given geometries are "spatially equal".
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- 'Spatially equal' means ST_Contains(A,B) = true and ST_Contains(B,A) = true, and the ordering of points can be different but represent the same geometry structure.
+
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if A and B intersect, but their interiors do not intersect.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A and B have at least one point in common, and the common points lie in at least one boundary.
+- For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
+
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if every point in Geometry B lies inside (intersects the interior or boundary of) Geometry A.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A covers B means no point of B lies outside (in the exterior of) A.
+
+
+#### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if geometry A contains geometry B.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A contains B if and only if all points of B lie inside (i.e. in the interior or boundary of) A (or equivalently, no points of B lie in the exterior of A), and the interiors of A and B have at least one point in common.
+
+
+#### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if every point of B lies inside A.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- There is no point of B that lies on the boundary of A or in the exterior of A.

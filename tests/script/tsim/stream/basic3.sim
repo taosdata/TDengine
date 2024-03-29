@@ -1,11 +1,9 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/cfg.sh -n dnode1 -c keepColumnName -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 5000
-
+sleep 1000
 sql connect
 
 print ========== interval\session\state window
@@ -32,7 +30,6 @@ sql create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), 
 
 
 sql alter local 'keepColumnName' '1'
-
 sql CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));
 
 sql_error create stream realtime_meters fill_history 1 into realtime_meters as select last(parttime),first(close),last(close) from meters_test_data partition by tbname state_window(parttime_str);
@@ -58,17 +55,13 @@ sql_error create stream streamd11 into streamd11 as select _wstart, _wend, count
 sql alter local 'keepColumnName' '0'
 
 sql create stream realtime_meters fill_history 1 into realtime_meters as select last(parttime),first(close),last(close) from meters_test_data partition by tbname state_window(parttime_str);
-
 sql desc realtime_meters;
-
 if $rows == 0 then
   return -1
 endi
 
-sql create stream streamd7 into streamt7 as select  _wstart, _wend, count(*), first(ca), last(ca) from t1 interval(10s);
-
+sql create stream streamd7 into streamt7 as select  _wstart t1, _wend t2, count(*), first(ca), last(ca) from t1 interval(10s);
 sql desc streamt7;
-
 if $rows == 0 then
   return -1
 endi
@@ -76,12 +69,11 @@ endi
 sql create stream streamd71 into streamt71 as select _wstart, _wend, count(*) as ca, first(ca), last(ca) as c2 from t1 interval(10s);
 
 sql desc streamt71;
-
 if $rows == 0 then
   return -1
 endi
 
-sleep 3000
+sleep 1000
 
 sql drop stream if exists streamd1;
 sql drop stream if exists streamd2;
@@ -93,22 +85,18 @@ sql drop stream if exists streamd6;
 sql create stream streamd10 into streamd10 as select _wstart, _wend, count(*), first(ca), last(cb) as c2 from t1 interval(10s);
 
 sql desc streamd10;
-
 if $rows == 0 then
   return -1
 endi
 
 sql_error create stream streamd11 into streamd11 as select _wstart, _wend, count(*), last(ca), last(ca) from t1 interval(10s);
 
-
 sql create stream streamd12 into streamd12 as select _wstart, _wend, count(*), last(ca), last(cb) as c2 from t1 interval(10s);
-
 sql desc streamd12;
 
 if $rows == 0 then
   return -1
 endi
-
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

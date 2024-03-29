@@ -44,12 +44,16 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         return false;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
+        return false;
+      }
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+      if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
         return false;
       }
     } else {
@@ -137,7 +141,7 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   if (NULL == pMsgBody) {
     return;
   }
-  
+
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
@@ -169,7 +173,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .contLen = pInfo->msgInfo.len,
     .info.ahandle = (void*)pInfo,
     .info.handle = pInfo->msgInfo.handle,
-    .info.persistHandle = persistHandle, 
+    .info.persistHandle = persistHandle,
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
@@ -194,6 +198,8 @@ char* jobTaskStatusStr(int32_t status) {
       return "EXECUTING";
     case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_FETCH:
+      return "FETCHING";
     case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
     case JOB_TASK_STATUS_FAIL:
@@ -246,7 +252,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       taosMemoryFreeClear(pRes->res);
       break;
     }
-    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
@@ -294,7 +300,25 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
       break;
 
+    case TSDB_DATA_TYPE_VARBINARY:{
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      void* data = NULL;
+      uint32_t size = 0;
+      if(taosAscii2Hex(buf, bufSize, &data, &size) < 0){
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      *str = '"';
+      memcpy(str + 1, data, size);
+      *(str + size + 1) = '"';
+      n = size + 2;
+      taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -447,6 +471,18 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+void getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType) {
+  int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
+  for (int32_t i = 0; i < nums; ++i) {
+    if (0 == strcmp(pName, pMeta->schema[i].name)) {
+      *pType = (i < pMeta->tableInfo.numOfColumns) ? TCOL_TYPE_COLUMN : TCOL_TYPE_TAG;
+      return;
+    }
+  }
+
+  *pType = TCOL_TYPE_NONE;
+}
+
 void freeVgInfo(SDBVgInfo* vgInfo) {
   if (NULL == vgInfo) {
     return;
@@ -513,7 +549,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->name = taosStrdup(pSrc->name);
   }
   (*pDst)->uid = pSrc->uid;
-  (*pDst)->ctime = pSrc->ctime;
+  (*pDst)->btime = pSrc->btime;
   (*pDst)->ttl = pSrc->ttl;
   (*pDst)->commentLen = pSrc->commentLen;
   if (pSrc->comment) {
@@ -546,3 +582,11 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+void freeDbCfgInfo(SDbCfgInfo *pInfo) {
+  if (pInfo) {
+    taosArrayDestroy(pInfo->pRetensions);
+  }
+  taosMemoryFree(pInfo);
+}
+

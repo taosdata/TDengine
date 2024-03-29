@@ -72,7 +72,7 @@ namespace TDengineDriver
             {
                 if ("--help" == argv[i])
                 {
-                    Console.WriteLine("Usage: mono taosdemo.exe [OPTION...]");
+                    Console.WriteLine("Usage: taosdemo.exe [OPTION...]");
                     Console.WriteLine("");
                     HelpPrint("--help", "Show usage.");
                     Console.WriteLine("");
@@ -305,7 +305,7 @@ namespace TDengineDriver
             this.conn = TDengine.Connect(this.host, this.user, this.password, db, this.port);
             if (this.conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
+                Console.WriteLine("Connect to TDengine failed. Reason: {0}\n", TDengine.Error(0));
                 CleanAndExitProgram(1);
             }
             else

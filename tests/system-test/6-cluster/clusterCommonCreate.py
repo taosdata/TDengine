@@ -94,26 +94,26 @@ class ClusterComCreate:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
-    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
-                break
-            else:
-                time.sleep(0.1)
-        return
-
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == 2 :
-                print(tdSql.getData(0, 1), tdSql.getData(1, 1))
-                if tdSql.getData(1, 1) == 1:
-                    break
-            time.sleep(0.1)
-        return
+    # def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
+    #             break
+    #         else:
+    #             time.sleep(0.1)
+    #     return
+    #
+    # def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if tdSql.getRows() == 2 :
+    #             print(tdSql.getData(0, 1), tdSql.getData(1, 1))
+    #             if tdSql.getData(1, 1) == 1:
+    #                 break
+    #         time.sleep(0.1)
+    #     return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -215,7 +215,10 @@ class ClusterComCreate:
         return
 
     def alterStbMetaData(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
+        
         tdLog.debug("alter Stb column ............")
+        tdLog.debug(f"describe  {dbName}.{stbName} ")     
+        tsql.execute(f"describe  {dbName}.{stbName} ;")           
         tdLog.debug(f"ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
         tsql.execute(f" ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
         tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD COLUMN c4 DOUBLE;")

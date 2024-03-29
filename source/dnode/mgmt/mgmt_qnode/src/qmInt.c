@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
+#include "libs/function/tudf.h"
 
 static int32_t qmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);

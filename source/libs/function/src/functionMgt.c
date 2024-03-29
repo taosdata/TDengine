@@ -174,6 +174,8 @@ bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC
 
 bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
+bool fmIsDateTimeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_DATETIME_FUNC); }
+
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
 
 bool fmIsScanPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCAN_PC_FUNC); }
@@ -183,6 +185,7 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
 bool fmIsIndefiniteRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INDEFINITE_ROWS_FUNC); }
+
 
 bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_SPECIAL_DATA_REQUIRED);
@@ -215,6 +218,8 @@ bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsForbidSysTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_SYSTABLE_FUNC); }
 
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
@@ -276,6 +281,7 @@ void fmFuncMgtDestroy() {
   }
 }
 
+#ifdef BUILD_NO_CALL
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
@@ -309,6 +315,7 @@ bool fmIsInvertible(int32_t funcId) {
   }
   return res;
 }
+#endif
 
 // function has same input/output type
 bool fmIsSameInOutType(int32_t funcId) {
@@ -331,6 +338,20 @@ bool fmIsSameInOutType(int32_t funcId) {
   return res;
 }
 
+bool fmIsConstantResFunc(SFunctionNode* pFunc) {
+  SNode* pNode;
+  FOREACH(pNode, pFunc->pParameterList) {
+    if (nodeType(pNode) != QUERY_NODE_VALUE) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool fmIsSkipScanCheckFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_SKIP_SCAN_CHECK_FUNC);
+}
+
 void getLastCacheDataType(SDataType* pType) {
   pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
   pType->type = TSDB_DATA_TYPE_BINARY;
@@ -341,7 +362,7 @@ static int32_t getFuncInfo(SFunctionNode* pFunc) {
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 
-static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;
@@ -386,8 +407,10 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  snprintf((*pPartialFunc)->node.aliasName, sizeof((*pPartialFunc)->node.aliasName), "%s.%p",
-           (*pPartialFunc)->functionName, pSrcFunc);
+  char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
+  taosCreateMD5Hash(name, len);
+  strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -399,6 +422,35 @@ static int32_t createMergeFuncPara(const SFunctionNode* pSrcFunc, const SFunctio
   } else {
     return nodesListMakeStrictAppend(pParameterList, pRes);
   }
+}
+
+static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
+                                   SFunctionNode** pMidFunc) {
+  SNodeList*     pParameterList = NULL;
+  SFunctionNode* pFunc = NULL;
+
+  int32_t code = createMergeFuncPara(pSrcFunc, pPartialFunc, &pParameterList);
+  if (TSDB_CODE_SUCCESS == code) {
+    if(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc != NULL){
+      pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc, pParameterList);
+    }else{
+      pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
+    }
+    if (NULL == pFunc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    strcpy(pFunc->node.aliasName, pPartialFunc->node.aliasName);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pMidFunc = pFunc;
+  } else {
+    nodesDestroyList(pParameterList);
+  }
+
+  return code;
 }
 
 static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
@@ -430,20 +482,31 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   return code;
 }
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc) {
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc) {
   if (!fmIsDistExecFunc(pFunc->funcId)) {
     return TSDB_CODE_FAILED;
   }
 
   int32_t code = createPartialFunction(pFunc, pPartialFunc);
   if (TSDB_CODE_SUCCESS == code) {
+    code = createMidFunction(pFunc, *pPartialFunc, pMidFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = createMergeFunction(pFunc, *pPartialFunc, pMergeFunc);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)*pPartialFunc);
+    nodesDestroyNode((SNode*)*pMidFunc);
     nodesDestroyNode((SNode*)*pMergeFunc);
   }
 
   return code;
+}
+
+char* fmGetFuncName(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return taosStrdup("invalid function");
+  }
+  return  taosStrdup(funcMgtBuiltins[funcId].name);
 }

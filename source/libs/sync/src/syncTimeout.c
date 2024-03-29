@@ -58,7 +58,7 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   ths->tmrRoutineNum++;
 
-  if (ths->tmrRoutineNum % 60 == 0 && ths->replicaNum > 1) {
+  if (ths->tmrRoutineNum % 60 == 0 && ths->totalReplicaNum > 1) {
     sNInfo(ths, "timer routines");
   } else {
     sNTrace(ths, "timer routines");
@@ -77,28 +77,19 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   for (int i = 0; i < ths->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
-      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
-          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
-        snapshotReSend(pSender);
-      } else {
-        sTrace("vgId:%d, do not resend: nstart%d, now:%" PRId64 ", lstsend:%" PRId64 ", diff:%" PRId64, ths->vgId,
-               ths->isStart, timeNow, pSender->lastSendTime, timeNow - pSender->lastSendTime);
-      }
-    }
-  }
+      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start) {
+        int64_t elapsedMs = timeNow - pSender->lastSendTime;
+        if (elapsedMs < SYNC_SNAP_RESEND_MS) {
+          continue;
+        }
 
-  if (atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
-    // end timeout wal snapshot
-    if (timeNow - ths->snapshottingTime > SYNC_DEL_WAL_MS &&
-        atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
-      SSyncLogStoreData* pData = ths->pLogStore->data;
-      int32_t            code = walEndSnapshot(pData->pWal);
-      if (code != 0) {
-        sNError(ths, "timer wal snapshot end error since:%s", terrstr());
-        return -1;
-      } else {
-        sNTrace(ths, "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
-        atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+        if (elapsedMs > SYNC_SNAP_TIMEOUT_MS) {
+          sSError(pSender, "snap replication timeout, terminate.");
+          snapshotSenderStop(pSender, false);
+        } else {
+          sSWarn(pSender, "snap replication resend.");
+          snapshotReSend(pSender);
+        }
       }
     }
   }
@@ -120,9 +111,6 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
 
-      // syncNodePingAll(ths);
-      // syncNodePingPeers(ths);
-
       syncNodeTimerRoutine(ths);
     }
 
@@ -138,8 +126,6 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
       ++(ths->heartbeatTimerCounter);
       sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-
-      // syncNodeReplicate(ths, true);
     }
 
   } else {

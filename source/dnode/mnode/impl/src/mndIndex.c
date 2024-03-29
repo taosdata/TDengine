@@ -79,9 +79,12 @@ int32_t mndInitIdx(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName) {
+static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName, int8_t *hasIdx) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
     if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+      if (IS_IDX_ON(&pStb->pTags[tag])) {
+        *hasIdx = 1;
+      }
       return tag;
     }
   }
@@ -138,7 +141,7 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   mInfo("idx: %s start to build drop index req", pIdx->name);
 
   len = tSerializeSDropIdxReq(NULL, 0, &req);
-  if (ret < 0) {
+  if (len < 0) {
     goto _err;
   }
 
@@ -328,10 +331,10 @@ SDbObj *mndAcquireDbByIdx(SMnode *pMnode, const char *idxName) {
   return mndAcquireDb(pMnode, db);
 }
 
-int32_t mndSetCreateIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetCreateIdxPrepareLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
   if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) return -1;
 
   return 0;
@@ -346,10 +349,10 @@ int32_t mndSetCreateIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx)
   return 0;
 }
 
-int32_t mndSetAlterIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetAlterIdxPrepareLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
   if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) {
     sdbFreeRaw(pRedoRaw);
     return -1;
   }
@@ -436,7 +439,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, createReq.stbName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -479,10 +482,10 @@ _OVER:
   return code;
 }
 
-int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetDropIdxPrepareLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
   if (pRedoRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
 
   return 0;
@@ -515,7 +518,6 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     if (pDb == NULL) return 0;
   }
   SSmaAndTagIter *pIter = pShow->pIter;
-  int             invalid = -1;
   while (numOfRows < rows) {
     pIter->pIdxIter = sdbFetch(pSdb, SDB_IDX, pIter->pIdxIter, (void **)&pIdx);
     if (pIter->pIdxIter == NULL) break;
@@ -542,32 +544,32 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n2, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    colDataAppend(pColInfo, numOfRows, (const char *)&invalid, false);
+    colDataSetVal(pColInfo, numOfRows, NULL, true);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
 
     char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(col, (char *)pIdx->colName);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tag, (char *)"tag_index");
-    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pIdx);
@@ -595,10 +597,12 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   taosRUnLockLatch(&pOld->lock);
 
   pNew->pTags = NULL;
+  pNew->pColumns = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 
-  int32_t tag = mndFindSuperTableTagId(pOld, tagName);
+  int8_t  hasIdx = 0;
+  int32_t tag = mndFindSuperTableTagId(pOld, tagName, &hasIdx);
   if (tag < 0) {
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
     return -1;
@@ -613,14 +617,14 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   SSchema *pTag = pNew->pTags + tag;
 
   if (on == 1) {
-    if (IS_IDX_ON(pTag)) {
+    if (hasIdx && tag != 0) {
       terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
       return -1;
     } else {
       SSCHMEA_SET_IDX_ON(pTag);
     }
   } else {
-    if (!IS_IDX_ON(pTag)) {
+    if (hasIdx == 0) {
       terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
     } else {
       SSCHMEA_SET_IDX_OFF(pTag);
@@ -645,11 +649,11 @@ int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pSt
 
   // mInfo("trans:%d, used to add index to stb:%s", pTrans->id, pStb->name);
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   mndTransSetSerial(pTrans);
 
-  if (mndSetCreateIdxRedoLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
+  if (mndSetCreateIdxPrepareLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
   if (mndSetCreateIdxCommitLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
 
   if (mndSetUpdateIdxStbCommitLogs(pMnode, pTrans, pStb, &newStb, pIdx->colName, 1) != 0) goto _OVER;
@@ -668,11 +672,46 @@ _OVER:
   mndTransDrop(pTrans);
   return code;
 }
+int8_t mndCheckIndexNameByTagName(SMnode *pMnode, SIdxObj *pIdxObj) {
+  // build index on first tag, and no index name;
+  int8_t  exist = 0;
+  SDbObj *pDb = NULL;
+  if (strlen(pIdxObj->db) > 0) {
+    pDb = mndAcquireDb(pMnode, pIdxObj->db);
+    if (pDb == NULL) return 0;
+  }
+  SSmaAndTagIter *pIter = NULL;
+  SIdxObj        *pIdx = NULL;
+  SSdb           *pSdb = pMnode->pSdb;
 
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
+    if (pIter == NULL) break;
+
+    if (NULL != pDb && pIdx->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pIdx);
+      continue;
+    }
+    if (pIdxObj->stbUid != pIdx->stbUid) {
+      sdbRelease(pSdb, pIdx);
+      continue;
+    }
+    if (strncmp(pIdxObj->colName, pIdx->colName, TSDB_COL_NAME_LEN) == 0) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pIdx);
+      exist = 1;
+      break;
+    }
+    sdbRelease(pSdb, pIdx);
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  return exist;
+}
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
   SIdxObj idxObj = {0};
-  memcpy(idxObj.name, req->idxName, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.name, req->idxName, TSDB_INDEX_FNAME_LEN);
   memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
@@ -682,11 +721,20 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
   idxObj.stbUid = pStb->uid;
   idxObj.dbUid = pStb->dbUid;
 
-  int32_t tag = mndFindSuperTableTagId(pStb, req->colName);
+  int8_t  hasIdx = 0;
+  int32_t tag = mndFindSuperTableTagId(pStb, req->colName, &hasIdx);
   if (tag < 0) {
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
     return -1;
-  } else if (tag == 0) {
+  }
+  int8_t exist = 0;
+  if (tag == 0 && hasIdx == 1) {
+    exist = mndCheckIndexNameByTagName(pMnode, &idxObj);
+    if (exist) {
+      terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+      return -1;
+    }
+  } else if (hasIdx == 1) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     return -1;
   }
@@ -696,11 +744,11 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
     return -1;
   }
 
-  SSchema *pTag = pStb->pTags + tag;
-  if (IS_IDX_ON(pTag)) {
-    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-    return -1;
-  }
+  // SSchema *pTag = pStb->pTags + tag;
+  // if (IS_IDX_ON(pTag)) {
+  //   terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+  //   return -1;
+  // }
   code = mndAddIndexImpl(pMnode, pReq, pDb, pStb, &idxObj);
 
   return code;
@@ -721,10 +769,10 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
 
   mInfo("trans:%d, used to drop idx:%s", pTrans->id, pIdx->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   mndTransSetSerial(pTrans);
-  if (mndSetDropIdxRedoLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
+  if (mndSetDropIdxPrepareLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
   if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
 
   if (mndSetUpdateIdxStbCommitLogs(pMnode, pTrans, pStb, &newObj, pIdx->colName, 0) != 0) goto _OVER;
@@ -807,8 +855,8 @@ int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 
     if (pIdx->stbUid == pStb->uid) {
       if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
+        sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
         return -1;
       }
     }
@@ -831,6 +879,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
+      sdbCancelFetch(pSdb, pIter);
       return 0;
     }
 
@@ -851,7 +900,7 @@ int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     if (pIdx->dbUid == pDb->uid) {
       if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
         sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIter);
         return -1;
       }
     }

@@ -19,6 +19,278 @@
 #include "ttokendef.h"
 #include "tvariant.h"
 
+int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
+  // skip head 0b
+  const char *p = z + 2;
+  int32_t     l = n - 2;
+
+  while (*p == '0' && l > 0) {
+    p++;
+    l--;
+  }
+  if (l > 64) {  // too big
+    return TSDB_CODE_FAILED;
+  }
+
+  uint64_t val = 0;
+  for (int32_t i = 0; i < l; i++) {
+    val = val << 1;
+    if (p[i] == '1') {
+      val |= 1;
+    } else if (p[i] != '0') {  // abnormal char
+      return TSDB_CODE_FAILED;
+    }
+  }
+  *value = val;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *value) {
+  // parse sign
+  bool has_sign = false;
+  if (z[0] == '-') {
+    *is_neg = true;
+    has_sign = true;
+  } else if (z[0] == '+') {
+    has_sign = true;
+  } else if (z[0] != '.' && (z[0] < '0' || z[0] > '9')) {
+    return TSDB_CODE_FAILED;
+  }
+  if (has_sign) {
+    if (n < 2) {
+      return TSDB_CODE_FAILED;
+    }
+    z++;
+    n--;
+  }
+
+  errno = 0;
+  char  *endPtr = NULL;
+  bool parsed = false;
+  if (z[0] == '0' && n > 2) {
+    if (z[1] == 'b' || z[1] == 'B') {
+      // paring as binary
+      return parseBinaryUInteger(z, n, value);
+    }
+
+    if (z[1] == 'x' || z[1] == 'X') {
+      // parsing as hex
+      *value = taosStr2UInt64(z, &endPtr, 16);
+      parsed = true;
+    }
+  }
+
+  if (!parsed) {
+    // parsing as double
+    double val = taosStr2Double(z, &endPtr);
+    if (val > UINT64_MAX) {
+      return TSDB_CODE_FAILED;
+    }
+    *value = round(val);
+  }
+
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  errno = 0;
+  char* endPtr = NULL;
+  *value = taosStr2Double(z, &endPtr);
+
+  if (errno == ERANGE || errno == EINVAL) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (endPtr - z != n) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
+  errno = 0;
+  char *endPtr = NULL;
+  switch (type)
+  {
+    case TK_NK_INTEGER: {
+      *value = taosStr2Int64(z, &endPtr, 10);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    } break;
+    case TK_NK_FLOAT: {
+      double val = round(taosStr2Double(z, &endPtr));
+      if (!IS_VALID_INT64(val)) {
+        return TSDB_CODE_FAILED;
+      }
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      *value = val;
+      return TSDB_CODE_SUCCESS;
+    } break;
+  default:
+    break;
+  }
+
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // 1. try to parse as integer
+  *value = taosStr2Int64(z, &endPtr, 10);
+  if (endPtr - z == n) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (errno == 0 && *endPtr == '.') {
+    // pure decimal part
+    const char *s = endPtr + 1;
+    const char *end = z + n;
+    bool pure = true;
+    while (s < end) {
+      if (*s < '0' || *s > '9') {
+        pure = false;
+        break;
+      }
+      s++;
+    }
+    if (pure) {
+      if (endPtr+1 < end && endPtr[1] > '4') {
+        const char *p = z;
+        while (*p == ' ') {
+          p++;
+        }
+        if (*p == '-') {
+          if ( *value > INT64_MIN) {
+            (*value)--;
+          }
+        } else {
+          if ( *value < INT64_MAX) {
+            (*value)++;
+          }
+        }
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // 2. parse as other 
+  bool     is_neg = false;
+  uint64_t uv = 0;
+  int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv);
+  if (code == TSDB_CODE_SUCCESS) {
+    // truncate into int64
+    if (is_neg) {
+      if (uv > 1ull + INT64_MAX) {
+        *value = INT64_MIN;
+        return TSDB_CODE_FAILED;
+      } else {
+        *value = -uv;
+      }
+    } else {
+      if (uv > INT64_MAX) {
+        *value = INT64_MAX;
+        return TSDB_CODE_FAILED;
+      }
+      *value = uv;
+    }
+  }
+
+  return code;
+}
+
+int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
+  errno = 0;
+  char *endPtr = NULL;
+  const char *p = z;
+  while (*p == ' ') {
+    p++;
+  }
+  switch (type) {
+    case TK_NK_INTEGER: {
+      *value = taosStr2UInt64(p, &endPtr, 10);
+      if (*p == '-' && *value) {
+        return TSDB_CODE_FAILED;
+      }
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    } break;
+    case TK_NK_FLOAT: {
+      double val = round(taosStr2Double(p, &endPtr));
+      if (!IS_VALID_UINT64(val)) {
+        return TSDB_CODE_FAILED;
+      }
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      *value = val;
+      return TSDB_CODE_SUCCESS;
+    } break;
+    default:
+      break;
+  }
+
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // 1. parse as integer
+  *value = taosStr2UInt64(p, &endPtr, 10);
+  if (*p == '-' && *value) {
+    return TSDB_CODE_FAILED;
+  }
+  if (endPtr - z == n) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (errno == 0 && *endPtr == '.') {
+    const char *s = endPtr + 1;
+    const char *end = z + n;
+    bool pure = true;
+    while (s < end) {
+      if (*s < '0' || *s > '9') {
+        pure = false;
+        break;
+      }
+      s++;
+    }
+    if (pure) {
+      if (endPtr + 1 < end && endPtr[1] > '4' && *value < UINT64_MAX) {
+        (*value)++;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // 2. parse as other 
+  bool    is_neg = false;
+  int32_t code = parseSignAndUInteger(z, n, &is_neg, value);
+  if (is_neg) {
+    if (TSDB_CODE_SUCCESS == code && 0 == *value) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_FAILED;
+  }
+  return code;
+}
+
 int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
   errno = 0;
   char *endPtr = NULL;
@@ -26,10 +298,10 @@ int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
   *value = taosStr2Int64(z, &endPtr, base);
   if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     errno = 0;
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
@@ -39,16 +311,15 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
   const char *p = z;
   while (*p == ' ') p++;
   if (*p == '-') {
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   *value = taosStr2UInt64(z, &endPtr, base);
   if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     errno = 0;
-    return -1;
+    return TSDB_CODE_FAILED;
   }
-
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -121,7 +392,9 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
 
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
@@ -140,19 +413,20 @@ void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
-      pVar->nType == TSDB_DATA_TYPE_JSON) {
+      pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY ||
+      pVar->nType == TSDB_DATA_TYPE_VARBINARY) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
-
 }
 
 void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   pDst->nType = pSrc->nType;
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR ||
-      pSrc->nType == TSDB_DATA_TYPE_JSON) {
+  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_VARBINARY ||
+      pSrc->nType == TSDB_DATA_TYPE_NCHAR || pSrc->nType == TSDB_DATA_TYPE_JSON ||
+      pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
     ASSERT(p);
@@ -168,7 +442,6 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i = pSrc->i;
   }
-
 }
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
@@ -184,7 +457,8 @@ int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
     return 1;
   }
 
-  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_VARBINARY ||
+      p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_GEOMETRY) {
     if (p1->nLen == p2->nLen) {
       return memcmp(p1->pz, p2->pz, p1->nLen);
     } else {
@@ -236,7 +510,9 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_FLOAT:
       return (char *)&pVar->f;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (char *)pVar->pz;
     case TSDB_DATA_TYPE_NCHAR:
       return (char *)pVar->ucs4;

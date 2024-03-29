@@ -351,10 +351,10 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
 
   int32_t i = 0;
   uint64_t v = val;
-  while(v > 0) {
+  do {
     buf[i++] = s[v % radix];
     v /= radix;
-  }
+  } while (v > 0);
 
   // reverse order
   for(int32_t j = 0; j < i; ++j) {

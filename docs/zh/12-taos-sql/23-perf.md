@@ -69,7 +69,7 @@ TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其�
 | 1   |  consumer_id   | BIGINT       | 消费者的唯一 ID                                             |
 | 2   | consumer_group | BINARY(192)  | 消费者组                                                    |
 | 3   |   client_id    | BINARY(192)  | 用户自定义字符串，通过创建 consumer 时指定 client_id 来展示 |
-| 4   |     status     | BINARY(20)   | 消费者当前状态                                              |
+| 4   |     status     | BINARY(20)   | 消费者当前状态。消费者状态包括：ready(正常可用)、 lost(连接已丢失)、 rebalancing(消费者所属 vgroup 正在分配中)、unknown(未知状态)|
 | 5   |     topics     | BINARY(204)  | 被订阅的 topic。若订阅多个 topic，则展示为多行              |
 | 6   |    up_time     | TIMESTAMP    | 第一次连接 taosd 的时间                                     |
 | 7   | subscribe_time | TIMESTAMP    | 上一次发起订阅的时间                                        |

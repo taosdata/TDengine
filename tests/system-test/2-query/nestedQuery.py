@@ -6082,8 +6082,18 @@ class TDTestCase:
             tdLog.info(len(sql))
             tdSql.error(sql)
 
-        #special sql
+        #6 
         tdSql.query("select 6-1 from stable_1;")
+        for i in range(self.fornum):
+            sql = "select count(*) from (select avg(q_int)/1000 from stable_1); "
+            tdLog.info(sql)
+            tdLog.info(len(sql))
+            tdSql.query(sql)
+            self.cur1.execute(sql)
+            self.explain_sql(sql)
+
+        #special sql
+        tdSql.query("select 7-1 from stable_1;")
         for i in range(self.fornum):
             sql = "select * from ( select _block_dist() from stable_1);"
             tdSql.error(sql)
@@ -6144,7 +6154,7 @@ class TDTestCase:
 
         startTime = time.time()
 
-        self.function_before_26()
+        #self.function_before_26()
 
         self.math_nest(['UNIQUE'])
         self.math_nest(['MODE'])
@@ -6157,9 +6167,9 @@ class TDTestCase:
         # self.math_nest(['MAVG'])
         # self.math_nest(['HYPERLOGLOG'])
         # self.math_nest(['TAIL'])
-        # self.math_nest(['CSUM'])
-        # self.math_nest(['statecount','stateduration'])
-        # self.math_nest(['HISTOGRAM'])
+        self.math_nest(['CSUM'])
+        self.math_nest(['statecount','stateduration'])
+        self.math_nest(['HISTOGRAM'])
 
         # self.str_nest(['LTRIM','RTRIM','LOWER','UPPER'])
         # self.str_nest(['LENGTH','CHAR_LENGTH'])

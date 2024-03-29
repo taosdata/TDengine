@@ -1,11 +1,29 @@
 
 # rocksdb
-ExternalProject_Add(rocksdb
-        GIT_REPOSITORY https://github.com/taosdata-contrib/rocksdb.git
-        GIT_TAG v6.23.3
-        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
+if (${BUILD_CONTRIB})
+        ExternalProject_Add(rocksdb
+	        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+  	        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+  	        DOWNLOAD_NO_PROGRESS 1
+	        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+	        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ""
+            INSTALL_COMMAND ""
+            TEST_COMMAND ""
         )
+else()
+    if (NOT ${TD_LINUX})
+        ExternalProject_Add(rocksdb
+	        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+  	        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+  	        DOWNLOAD_NO_PROGRESS 1
+	        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+	        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ""
+            INSTALL_COMMAND ""
+            TEST_COMMAND ""
+        )
+    endif()
+endif()

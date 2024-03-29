@@ -110,6 +110,10 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
       .addColumn("privilege", TSDB_DATA_TYPE_BINARY, 10)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VIEWS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("view_name", TSDB_DATA_TYPE_BINARY, TSDB_VIEW_NAME_LEN)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
@@ -279,15 +283,13 @@ int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* d
   return g_mockCatalogService->catalogGetDBCfg(dbFName, pDbCfg);
 }
 
-int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                         bool* pass) {
-  *pass = true;
+int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes) {
+  pRes->pass[0] = true;
   return 0;
 }
 
-int32_t __catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
-                                  bool* exists) {
-  *pass = true;
+int32_t __catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
+  pRes->pass[0] = true;
   *exists = true;
   return 0;
 }
@@ -302,6 +304,8 @@ int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn
 }
 
 int32_t __catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
+
+int32_t __catalogRemoveViewMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
 
 int32_t __catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const SName* pName,
                                SArray** pRes) {
@@ -339,6 +343,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
+  stub.set(catalogRemoveViewMeta, __catalogRemoveViewMeta);
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);
   stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);

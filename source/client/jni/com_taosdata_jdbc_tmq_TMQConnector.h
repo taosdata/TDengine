@@ -92,6 +92,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqSubscriptionIm
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitSync(JNIEnv *, jobject, jlong, jlong);
 
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitAllSync(JNIEnv *, jobject, jlong);
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitOffsetSyncImp(JNIEnv *, jobject, jlong, jstring,
+                                                                                      jint, jlong);
 /*
  * Class:     com_taosdata_jdbc_tmq_TMQConnector
  * Method:    tmqCommitAsync
@@ -101,6 +105,12 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitAsync(JN
 
 JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_consumerCommitAsync(JNIEnv *, jobject, jlong, jlong,
                                                                                    jobject);
+
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_consumerCommitAllAsync(JNIEnv *, jobject, jlong,
+                                                                                      jobject);
+
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_consumerCommitOffsetAsync(JNIEnv *, jobject, jlong,
+                                                                                         jstring, jint, jlong, jobject);
 
 /*
  * Class:     com_taosdata_jdbc_tmq_TMQConnector
@@ -160,11 +170,29 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
 
 /*
  * Class:     com_taosdata_jdbc_tmq_TMQConnector
+ * Method:    tmqGetOffset
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetOffset(JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_tmq_TMQConnector
  * Method:    fetchBlockImp
  * Signature: (JJLcom/taosdata/jdbc/TSDBResultSetBlockData;ILjava/util/List;)I
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(JNIEnv *, jobject, jlong, jlong,
                                                                                 jobject, jobject);
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqSeekImp(JNIEnv *, jobject, jlong, jstring, jint,
+                                                                          jlong);
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssignmentImp(JNIEnv *, jobject, jlong,
+                                                                                        jstring, jobject);
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommittedImp(JNIEnv *, jobject, jlong, jstring,
+                                                                                jint);
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqPositionImp(JNIEnv *, jobject, jlong, jstring, jint);
 
 #ifdef __cplusplus
 }

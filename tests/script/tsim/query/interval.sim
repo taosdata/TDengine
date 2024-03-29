@@ -170,6 +170,55 @@ endi
 #  return -1
 #endi
 
+print ================ step10
+print -------- create database and table
+sql create database if not exists test
+sql use test
+sql create stable st (ts timestamp, c2 int) tags(tg int)
+print -------- insert 300 rows data
+$i = 0
+while $i < 300
+  $t = 1577807983000
+  $cc = $i * 1000
+  $t = $t + $cc
+  sql select $i % 3
+  if $data00 != 0.000000000 then
+    goto continue_while
+  endi
+  sql select $i % 4
+  if $data00 == 0.000000000 then
+    goto continue_while
+  endi
+  sql insert into t1 using st tags(1) values ( $t , $i )
+  continue_while:
+    $i = $i + 1
+endw
+
+$ms1 = 1577808120000
+$ms2 = 1577808000000
+sql select * from (select _wstart, last(ts) as ts, avg(c2) as av from t1 where ts <= $ms1 and ts >= $ms2 interval(10s) sliding(1s) fill(NULL)) order by ts asc
+print ----> select asc rows: $rows
+$asc_rows = $rows
+sql select * from (select _wstart, last(ts) as ts, avg(c2) as av from t1 where ts <= $ms1 and ts >= $ms2 interval(10s) sliding(1s) fill(NULL)) order by ts desc
+print ----> select desc rows: $rows
+$desc_rows = $rows
+if $desc_rows != $asc_rows then
+  return -1
+endi
+
+print ================= step11
+
+sql create database if not exists test0828
+sql use test0828
+sql create stable st (ts timestamp, c2 int) tags(tg int)
+sql insert into ct1 using st tags(1) values('2021-08-01', 0)
+sql insert into ct2 using st tags(2) values('2022-08-01', 1)
+sql select _wstart, _wend, count(*) from st where ts>='2021-01-01' and ts < '2023-08-28' interval(1n) fill(value, 0) order by _wstart desc
+print $rows
+if $rows != 32 then
+  return -1
+endi
+sql drop database test0828
 print =============== clear
 #sql drop database $db
 #sql select * from information_schema.ins_databases

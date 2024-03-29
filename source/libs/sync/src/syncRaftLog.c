@@ -59,7 +59,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   ASSERT(pData->pWal != NULL);
 
   taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReader(pData->pWal, NULL);
+  pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
   ASSERT(pData->pWalHandle != NULL);
 
   pLogStore->syncLogUpdateCommitIndex = raftLogUpdateCommitIndex;
@@ -70,6 +70,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->syncLogIsEmpty = raftLogIsEmpty;
   pLogStore->syncLogEntryCount = raftLogEntryCount;
   pLogStore->syncLogLastIndex = raftLogLastIndex;
+  pLogStore->syncLogIndexRetention = raftLogIndexRetention;
   pLogStore->syncLogLastTerm = raftLogLastTerm;
   pLogStore->syncLogAppendEntry = raftLogAppendEntry;
   pLogStore->syncLogGetEntry = raftLogGetEntry;
@@ -150,6 +151,15 @@ SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   SyncIndex          lastVer = walGetLastVer(pWal);
+
+  return lastVer;
+}
+
+SyncIndex raftLogIndexRetention(struct SSyncLogStore* pLogStore, int64_t bytes) {
+  SyncIndex          lastIndex;
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  SyncIndex          lastVer = walGetVerRetention(pWal, bytes);
 
   return lastVer;
 }

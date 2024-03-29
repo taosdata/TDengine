@@ -225,6 +225,27 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+int32_t compareLenBinaryVal(const void *pLeft, const void *pRight) {
+  int32_t len1 = varDataLen(pLeft);
+  int32_t len2 = varDataLen(pRight);
+
+  int32_t minLen = TMIN(len1, len2);
+  int32_t ret = memcmp(varDataVal(pLeft), varDataVal(pRight), minLen);
+  if (ret == 0) {
+    if (len1 == len2) {
+      return 0;
+    } else {
+      return len1 > len2 ? 1 : -1;
+    }
+  } else {
+    return ret > 0 ? 1 : -1;
+  }
+}
+
+int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) {
+  return compareLenBinaryVal(pRight, pLeft);
+}
+
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {
@@ -308,17 +329,19 @@ int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
   int8_t   left = GET_INT8_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
   int8_t   left = GET_INT8_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -380,17 +403,19 @@ int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
   int16_t  left = GET_INT16_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt16Uint64(const void *pLeft, const void *pRight) {
   int16_t  left = GET_INT16_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -452,17 +477,19 @@ int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
   int32_t  left = GET_INT32_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
   int32_t  left = GET_INT32_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -532,9 +559,10 @@ int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
 
 int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
   int64_t  left = GET_INT64_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -857,24 +885,27 @@ int32_t compareUint16Uint64(const void *pLeft, const void *pRight) {
 int32_t compareUint32Int8(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int8_t   right = GET_INT8_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint32Int16(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int16_t  right = GET_INT16_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint32Int32(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int32_t  right = GET_INT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
@@ -929,32 +960,36 @@ int32_t compareUint32Uint64(const void *pLeft, const void *pRight) {
 int32_t compareUint64Int8(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int8_t   right = GET_INT8_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int16(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int16_t  right = GET_INT16_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int32(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int32_t  right = GET_INT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int64(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int64_t  right = GET_INT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
@@ -1035,6 +1070,11 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
         return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
       }
 
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        c = pattern[i];
+        i++;
+      }
+
       char rejectList[2] = {toupper(c), tolower(c)};
 
       str += nMatchChar;
@@ -1062,9 +1102,13 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && pattern[i] == '_' && c1 == '_') {
-        i++;
-        continue;
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        if (c1 != pattern[i]) {
+          return TSDB_PATTERN_NOMATCH;
+        } else {
+          i++;
+          continue;
+        }
       }
 
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
@@ -1103,6 +1147,11 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
         return TSDB_PATTERN_MATCH;
       }
 
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        c = pattern[i];
+        i++;
+      }
+
       TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
 
       str += nMatchChar;
@@ -1130,9 +1179,13 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
       c1 = str[j++];
       nMatchChar++;
 
-      if (c == L'\\' && pattern[i] == L'_' && c1 == L'_') {
-        i++;
-        continue;
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        if (c1 != pattern[i]) {
+          return TSDB_PATTERN_NOMATCH;
+        } else {
+          i++;
+          continue;
+        }
       }
 
       if (c == c1 || towlower(c) == towlower(c1) || (c == pInfo->umatchOne && c1 != 0)) {
@@ -1241,7 +1294,7 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  ASSERT(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  ASSERT(varDataTLen(pRight) <= TSDB_MAX_FIELD_LEN);
   size_t pLen = varDataLen(pRight);
   size_t sz = varDataLen(pLeft);
 
@@ -1270,7 +1323,8 @@ int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight) {
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1293,7 +1347,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                                 type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1337,7 +1392,17 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+      if (optr == OP_TYPE_IN) {
+        comparFn = compareChkInString;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = compareChkNotInString;
+      } else { /* normal relational comparFn */
+        comparFn = compareLenBinaryVal;
+      }
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = comparestrRegexMatch;
       } else if (optr == OP_TYPE_NMATCH) {
@@ -1421,7 +1486,10 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
     case TSDB_DATA_TYPE_UBIGINT:
       return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
+    case TSDB_DATA_TYPE_VARBINARY:
+      return (order == TSDB_ORDER_ASC) ? compareLenBinaryVal : compareLenBinaryValDesc;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
@@ -1429,59 +1497,5 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareJsonVal : compareJsonValDesc;
     default:
       return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-  }
-}
-
-int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {
-  switch (type) {
-    case TSDB_DATA_TYPE_INT:
-      DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
-    case TSDB_DATA_TYPE_DOUBLE:
-      DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
-    case TSDB_DATA_TYPE_FLOAT:
-      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
-    case TSDB_DATA_TYPE_BIGINT:
-      DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
-    case TSDB_DATA_TYPE_SMALLINT:
-      DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_BOOL:
-      DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
-    case TSDB_DATA_TYPE_UTINYINT:
-      DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
-    case TSDB_DATA_TYPE_USMALLINT:
-      DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
-    case TSDB_DATA_TYPE_UINT:
-      DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
-    case TSDB_DATA_TYPE_UBIGINT:
-      DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR: {
-      tstr *t1 = (tstr *)f1;
-      tstr *t2 = (tstr *)f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len ? 1 : -1;
-      }
-      int32_t ret = memcmp((TdUcs4 *)t1, (TdUcs4 *)t2, t2->len);
-      if (ret == 0) {
-        return ret;
-      }
-      return (ret < 0) ? -1 : 1;
-    }
-    default: {  // todo refactor
-      tstr *t1 = (tstr *)f1;
-      tstr *t2 = (tstr *)f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len ? 1 : -1;
-      } else {
-        int32_t ret = strncmp(t1->data, t2->data, t1->len);
-        if (ret == 0) {
-          return 0;
-        } else {
-          return ret < 0 ? -1 : 1;
-        }
-      }
-    }
   }
 }

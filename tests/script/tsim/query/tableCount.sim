@@ -1,0 +1,119 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql create database db1;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql create table tba3 using sta tags(3, 3, 3);
+sql create table tba4 using sta tags(3, 3, 3);
+sql create table tba5 using sta tags(3, 3, 3);
+sql create table tba6 using sta tags(3, 3, 3);
+sql create table tba7 using sta tags(3, 3, 3);
+sql create table tba8 using sta tags(3, 3, 3);
+sql create table tbb1 using stb tags(4, 4, 4);
+sql create table tbb2 using stb tags(5, 5, 5);
+sql create table tbb3 using stb tags(6, 6, 6);
+sql create table tbb4 using stb tags(4, 4, 4);
+sql create table tbb5 using stb tags(5, 5, 5);
+sql create table tbb6 using stb tags(6, 6, 6);
+sql create table tbb7 using stb tags(7, 7, 7);
+sql create table tbb8 using stb tags(8, 8, 8);
+sql create table tbn1 (ts timestamp, f1 int);
+sql create database db2 vgroups 3;
+sql create database db2;
+sql use db2;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql create table tbb1 using stb tags(4, 4, 4);
+sql create table tbb2 using stb tags(5, 5, 5);
+sql create table tbb3 using stb tags(6, 6, 6);
+ 
+sql select count(table_name) from information_schema.ins_tables group by stable_name;
+if $rows != 3 then
+  return -1
+endi
+sql select count(table_name) from information_schema.ins_tables group by db_name;
+if $rows != 4 then
+  return -1
+endi
+sql select count(table_name) from information_schema.ins_tables group by db_name, stable_name;
+if $rows != 7 then
+  return -1
+endi
+sql select stable_name,count(table_name) from information_schema.ins_tables group by stable_name order by stable_name;
+if $rows != 3 then
+  return -1
+endi
+if $data01 != 35 then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data21 != 11 then
+  return -1
+endi
+sql select db_name,count(table_name) from information_schema.ins_tables group by db_name order by db_name;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 17 then
+  return -1
+endi
+if $data11 != 5 then
+  return -1
+endi
+if $data21 != 29 then
+  return -1
+endi
+if $data31 != 5 then
+  return -1
+endi
+sql select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;
+if $rows != 7 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data12 != 8 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+if $data32 != 2 then
+  return -1
+endi
+if $data42 != 3 then
+  return -1
+endi
+if $data52 != 29 then
+  return -1
+endi
+if $data62 != 5 then
+  return -1
+endi
+sql select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name
+print $rows , $data00
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 8 then
+  return -1
+endi
+sql select distinct db_name from information_schema.ins_tables;
+print $rows
+if $rows != 4 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

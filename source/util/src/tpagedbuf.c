@@ -166,7 +166,7 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   char* t = NULL;
   if ((!HAS_DATA_IN_DISK(pg)) || pg->dirty) {
     void* payload = GET_PAYLOAD_DATA(pg);
-    t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
+    t = doCompressData(payload, pBuf->pageSize + sizeof(SFilePage), &size, pBuf);
     if (size < 0) {
       uError("failed to compress data when flushing data to disk, %s", pBuf->id);
       terrno = TSDB_CODE_INVALID_PARA;
@@ -482,6 +482,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     SPageInfo** pInfo = (SPageInfo**)((*pi)->pn->data);
     if (*pInfo != *pi) {
+      terrno = TSDB_CODE_APP_ERROR;
       uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s", *pInfo, *pi, pBuf->id);
       return NULL;
     }

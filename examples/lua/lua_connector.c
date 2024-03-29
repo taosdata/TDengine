@@ -67,8 +67,7 @@ static int l_connect(lua_State *L){
 
   taos = taos_connect(host, user,password,database, port);
   if (taos == NULL) {
-    printf("failed to connect server, reason:%s\n", taos_errstr(taos));
-    
+//  printf("failed to connect server, reason:%s\n", taos_errstr(NULL));
     lua_pushinteger(L, -1);
     lua_setfield(L, table_index, "code");
     lua_pushstring(L, taos_errstr(taos));
@@ -79,7 +78,7 @@ static int l_connect(lua_State *L){
     // printf("success to connect server\n");
     lua_pushinteger(L, 0);
     lua_setfield(L, table_index, "code");
-    lua_pushstring(L, taos_errstr(taos));
+    lua_pushstring(L, "success");
     lua_setfield(L, table_index, "error");    
     lua_pushlightuserdata(L,taos);
     lua_setfield(L, table_index, "conn");
@@ -162,6 +161,7 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_JSON:
 	case TSDB_DATA_TYPE_BINARY:
 	case TSDB_DATA_TYPE_NCHAR:
+	case TSDB_DATA_TYPE_GEOMETRY:
 	  //printf("type:%d, max len:%d, current len:%d\n",fields[i].type, fields[i].bytes, length[i]);
 	  lua_pushlstring(L,(char *)row[i], length[i]);
 	  break;

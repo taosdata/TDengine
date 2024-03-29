@@ -20,15 +20,11 @@ ELSEIF (TD_DARWIN AND TD_WEBSOCKET)
     ADD_DEPENDENCIES(shell taosws-rs)
 ELSEIF (TD_WINDOWS AND TD_WEBSOCKET)
     ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.dll.lib")
+    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
     ADD_DEPENDENCIES(shell taosws-rs)
 ELSE ()
     SET(LINK_WEBSOCKET "")
 ENDIF ()
-
-IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
-    ADD_DEFINITIONS(-I${CMAKE_CURRENT_SOURCE_DIR}/../../../enterprise/packaging)
-ENDIF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
 
 IF (TD_LINUX AND TD_ALPINE)
     SET(LINK_ARGP "/usr/lib/libargp.a")
@@ -44,7 +40,7 @@ endif ()
 
 target_link_libraries(
     shell
-    PRIVATE os common transport util
+    PRIVATE os common transport geometry util
 )
 
 target_include_directories(

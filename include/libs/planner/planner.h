@@ -32,6 +32,8 @@ typedef struct SPlanContext {
   bool        streamQuery;
   bool        rSmaQuery;
   bool        showRewrite;
+  bool        isView;
+  bool        isAudit;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
@@ -52,6 +54,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @groupId id of a group of datasource subplans of this @pSubplan
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
+int32_t qContinuePlanPostQuery(void *pPostPlan);
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 

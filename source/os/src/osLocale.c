@@ -171,7 +171,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     strcpy(outLocale, "en_US.UTF-8");
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
-    // printf("locale not configured, set to system default:%s", outLocale);
+    //printf("locale not configured, set to system default:%s\n", outLocale);
   }
 
   // if user does not specify the charset, extract it from locale

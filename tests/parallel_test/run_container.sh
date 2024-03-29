@@ -102,7 +102,7 @@ ulimit -c unlimited
 TMP_DIR=$WORKDIR/tmp
 SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
-packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
+# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
 mkdir -p $SOURCEDIR
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
@@ -114,9 +114,9 @@ if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/$exec_dir" ]; then
     cp -rf ${REPDIR}/tests/$subdir ${TMP_DIR}/thread_volume/$thread_no/
 fi
 
-if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
-     wget -P  ${SOURCEDIR} https://taosdata.com/assets-download/3.0/${packageName}
-fi
+# if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
+#      wget -P  ${SOURCEDIR} https://taosdata.com/assets-download/3.0/${packageName}
+# fi
 
 MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
 echo "$thread_no -> ${exec_dir}:$cmd"
@@ -130,8 +130,6 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    -v $WORKDIR/taos-connector-python/taos:/usr/local/lib/python3.8/site-packages/taos:ro \
-    -v $WORKDIR/taos-connector-python/taosrest:/usr/local/lib/python3.8/site-packages/taosrest:ro \
     --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret

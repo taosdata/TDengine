@@ -17,6 +17,7 @@ sql create table mt_bool (ts timestamp, c bool) tags (tagname bool)
 
 ## case 00: static create table for test tag values
 sql create table st_bool_0  using mt_bool tags (NULL)
+sql show create table st_bool_0
 sql show tags from st_bool_0
 if $data05 != NULL then
   print ==1== expect: NULL, actually: $data05
@@ -291,6 +292,7 @@ endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_bool_16 using mt_bool tags (NULL)   values (now, NULL)
+sql show create table st_bool_16
 sql show tags from st_bool_16
 if $data05 != NULL then
   print ==33== expect: NULL, actually: $data00

@@ -32,6 +32,10 @@ int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   terrno = TSDB_CODE_INVALID_PTR;
   return -1;
 }
+int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  terrno = TSDB_CODE_INVALID_PTR;
+  return -1;
+}
 
 char *i642str(int64_t val) {
   static char str[24] = {0};
@@ -285,6 +289,7 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "subType", i642str(pObj->subType));
     tjsonAddStringToObject(item, "withMeta", i642str(pObj->withMeta));
     tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid));
+    tjsonAddStringToObject(item, "stbName", mndGetStableStr(pObj->stbName));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
     tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
@@ -329,24 +334,6 @@ void dumpSubscribe(SSdb *pSdb, SJson *json) {
   }
 }
 
-void dumpOffset(SSdb *pSdb, SJson *json) {
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "offsets");
-
-  while (1) {
-    SMqOffsetObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_OFFSET, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    SJson *item = tjsonCreateObject();
-    tjsonAddItemToArray(items, item);
-    tjsonAddStringToObject(item, "key", pObj->key);
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddStringToObject(item, "offset", i642str(pObj->offset));
-    sdbRelease(pSdb, pObj);
-  }
-}
-
 void dumpStream(SSdb *pSdb, SJson *json) {
   void  *pIter = NULL;
   SJson *items = tjsonAddArrayToObject(json, "streams");
@@ -366,10 +353,10 @@ void dumpStream(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "status", i642str(pObj->status));
-    tjsonAddStringToObject(item, "igExpired", i642str(pObj->igExpired));
-    tjsonAddStringToObject(item, "trigger", i642str(pObj->trigger));
-    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->triggerParam));
-    tjsonAddStringToObject(item, "watermark", i642str(pObj->watermark));
+    tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired));
+    tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger));
+    tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam));
+    tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark));
     tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid));
     tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid));
     tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb));
@@ -421,6 +408,7 @@ void dumpUser(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "superUser", i642str(pObj->superUser));
     tjsonAddStringToObject(item, "authVersion", i642str(pObj->authVersion));
+    tjsonAddStringToObject(item, "passVersion", i642str(pObj->passVersion));
     tjsonAddStringToObject(item, "numOfReadDbs", i642str(taosHashGetSize(pObj->readDbs)));
     tjsonAddStringToObject(item, "numOfWriteDbs", i642str(taosHashGetSize(pObj->writeDbs)));
     sdbRelease(pSdb, pObj);
@@ -557,6 +545,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
+    if(i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -584,6 +573,7 @@ void mndDumpSdb() {
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
   msgCb.sendReqFp = sendReq;
+  msgCb.sendSyncReqFp = sendSyncReq;
   msgCb.sendRspFp = sendRsp;
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
@@ -606,7 +596,7 @@ void mndDumpSdb() {
   dumpTopic(pSdb, json);
   dumpConsumer(pSdb, json);
   dumpSubscribe(pSdb, json);
-  dumpOffset(pSdb, json);
+  //  dumpOffset(pSdb, json);
   dumpStream(pSdb, json);
   dumpAcct(pSdb, json);
   dumpAuth(pSdb, json);
@@ -621,7 +611,7 @@ void mndDumpSdb() {
   char     *pCont = tjsonToString(json);
   int32_t   contLen = strlen(pCont);
   char      file[] = "sdb.json";
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to write %s since %s", file, terrstr());

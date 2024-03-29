@@ -93,6 +93,19 @@ endi
 print =============== step4: split 
 print split vgroup 2
 sql split vgroup 2
+$wt = 0
+ stepwt1:
+ 	$wt = $wt + 1
+ 	sleep 1000
+ 	if $wt == 200 then
+ 	  print ====> split vgroup not completed!
+ 		return -1
+ 	endi
+sql show transactions
+if $rows != 0 then
+  print wait 1 seconds to alter
+  goto stepwt1
+endi
 
 print =============== step5: check split result 
 sql show d1.tables

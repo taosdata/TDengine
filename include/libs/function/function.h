@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tcommon.h"
+#include "tsimplehash.h"
 #include "tvariant.h"
 
 struct SqlFunctionCtx;
@@ -76,7 +77,7 @@ enum {
 enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
-  PRE_SCAN = 0x2u,   // pre-scan belongs to the main scan and occurs before main scan
+  PRE_SCAN = 0x2u,      // pre-scan belongs to the main scan and occurs before main scan
 };
 
 typedef struct SPoint1 {
@@ -99,11 +100,11 @@ typedef struct SSubsidiaryResInfo {
 } SSubsidiaryResInfo;
 
 typedef struct SResultDataInfo {
-  int16_t precision;
-  int16_t scale;
-  int16_t type;
-  int16_t bytes;
-  int32_t interBufSize;
+  int16_t  precision;
+  int16_t  scale;
+  int16_t  type;
+  uint16_t bytes;
+  int32_t  interBufSize;
 } SResultDataInfo;
 
 #define GET_RES_INFO(ctx)        ((ctx)->resultInfo)
@@ -112,7 +113,8 @@ typedef struct SResultDataInfo {
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
   int32_t           startRowIndex;    // handle started row index
-  int32_t           numOfRows;        // the number of rows needs to be handled
+  int64_t           numOfRows;        // the number of rows needs to be handled
+  bool              blankFill;        // fill blank data to block for empty table
   int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
@@ -127,16 +129,67 @@ typedef struct SSerializeDataHandle {
   void                 *pState;
 } SSerializeDataHandle;
 
+// incremental state storage
+
+typedef struct SBackendCfWrapper {
+  void          *rocksdb;
+  void         **pHandle;
+  void          *writeOpts;
+  void          *readOpts;
+  void         **cfOpts;
+  void          *dbOpt;
+  void          *param;
+  void          *env;
+  SListNode     *pComparNode;
+  void          *pBackend;
+  void          *compactFactory;
+  TdThreadRwlock rwLock;
+  bool           remove;
+  int64_t        backendId;
+  char           idstr[64];
+} SBackendCfWrapper;
+typedef struct STdbState {
+  SBackendCfWrapper *pBackendCfWrapper;
+  int64_t            backendCfWrapperId;
+  char               idstr[64];
+
+  struct SStreamTask *pOwner;
+  void               *db;
+  void               *pStateDb;
+  void               *pFuncStateDb;
+  void               *pFillStateDb;  // todo refactor
+  void               *pSessionStateDb;
+  void               *pParNameDb;
+  void               *pParTagDb;
+  void               *txn;
+} STdbState;
+
+typedef struct {
+  STdbState               *pTdbState;
+  struct SStreamFileState *pFileState;
+  int32_t                  number;
+  SSHashObj               *parNameMap;
+  int32_t                  taskId;
+  int64_t                  streamId;
+  int64_t                  streamBackendRid;
+  int8_t                   dump;
+} SStreamState;
+
+typedef struct SFunctionStateStore {
+  int32_t (*streamStateFuncPut)(SStreamState *pState, const SWinKey *key, const void *value, int32_t vLen);
+  int32_t (*streamStateFuncGet)(SStreamState *pState, const SWinKey *key, void **ppVal, int32_t *pVLen);
+} SFunctionStateStore;
+
 // sql function runtime context
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
-  uint32_t             order;       // data block scanner order: asc|desc
-  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
-  uint8_t              isNotNullFunc;// not return null value.
-  uint8_t              scanFlag;    // record current running step, default: 0
-  int16_t              functionId;  // function id
-  char                *pOutput;     // final result output buffer, point to sdata->data
+  uint32_t             order;          // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
+  uint8_t              isNotNullFunc;  // not return null value.
+  uint8_t              scanFlag;       // record current running step, default: 0
+  int16_t              functionId;     // function id
+  char                *pOutput;        // final result output buffer, point to sdata->data
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
   SFunctParam *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum
@@ -155,6 +208,7 @@ typedef struct SqlFunctionCtx {
   SSerializeDataHandle saveHandle;
   int32_t              exprIdx;
   char                *udfName;
+  SFunctionStateStore *pStore;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -184,9 +238,9 @@ struct SScalarParam {
   int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
-void cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-bool isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
-bool isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
+#define cleanupResultRowEntry(p)  p->initialized = false
+#define isRowEntryCompleted(p)   (p->complete)
+#define isRowEntryInitialized(p) (p->initialized)
 
 typedef struct SPoint {
   int64_t key;
@@ -195,6 +249,10 @@ typedef struct SPoint {
 
 int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
+
+#define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25
+#define LEASTSQUARES_BUFF_LENGTH 128
+#define DOUBLE_PRECISION_DIGITS "16e"
 
 #ifdef __cplusplus
 }

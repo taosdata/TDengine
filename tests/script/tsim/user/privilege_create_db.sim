@@ -1,0 +1,97 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========================root user create user
+sql create user u1 pass "taosdata"
+sql create user u2 pass "taosdata"
+sql create database test
+sql select * from information_schema.ins_user_privileges where user_name == "root"
+if $rows != 1 then
+  return -1
+endi
+
+print =============connect with u1
+sql connect u1
+sql create database u1_d1
+sql use u1_d1
+sql create table u1_d1.t1(ts timestamp, c2 int)
+sql use information_schema
+sql select * from ins_user_privileges where user_name == "u1" order by privilege
+if $rows != 2 then
+  return -1
+endi
+if $data01 != read then
+  return -1
+endi
+if $data11 != write then
+  return -1
+endi
+if $data02 != u1_d1 then
+  return -1
+endi
+if $data12 != u1_d1 then
+  return -1
+endi
+
+sql_error grant all on *.* to u1
+sql_error grant all on test.* to u1
+
+print =============connect with u2
+sql connect u2
+sql create database u2_d1
+sql use u2_d1
+sql create table u2_d1.t1(ts timestamp, c2 int)
+sql use information_schema
+sql select * from ins_user_privileges where user_name == "u2" order by privilege
+if $rows != 2 then
+  return -1
+endi
+if $data01 != read then
+  return -1
+endi
+if $data11 != write then
+  return -1
+endi
+if $data02 != u2_d1 then
+  return -1
+endi
+if $data12 != u2_d1 then
+  return -1
+endi
+
+sql_error select * from u1_d1.t1
+sql_error revoke read on u2_d1.* from u2
+
+print =============connect with root, revoke read from u1, all from u2
+sql connect
+sql revoke read on u1_d1.* from u1
+sql revoke all on u2_d1.* from u2
+
+print =============connect with u1
+sql connect u1
+sql reset query cache
+sql insert into u1_d1.t1 values(now, 1)
+sql_error select * from u1_d1.t1;
+
+print =============connect with u2
+sql connect u2
+sql_error select * from u2_d1.t1;
+sql_error insert into u2_d1.t1 values(now, 1)
+
+print =============connect with root, grant read to u1, all to u2
+sql connect
+sql grant read on u1_d1.* to u1
+sql grant all on u2_d1.* to u2
+
+print =============connect with u1
+sql connect u1
+sql reset query cache
+sql select * from u1_d1.t1;
+sql insert into u1_d1.t1 values(now, 2)
+
+print =============connect with u2
+sql connect u2
+sql select * from u2_d1.t1;
+sql insert into u2_d1.t1 values(now, 2)

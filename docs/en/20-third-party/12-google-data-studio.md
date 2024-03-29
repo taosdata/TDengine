@@ -10,7 +10,7 @@ TDengine is a high-performance, scalable time-series database that supports SQL.
 
 The TDengine team immediately saw the benefits of using TDengine to process time-series data with Data Studio to analyze it, and they got to work to create a connector for Data Studio.
 
-With the release of the TDengine connector in Data Studio, you can now get even more out of your data. To obtain the connector, first go to the Data Studio Connector Gallery, click Connect to Data, and search for “TDengine”.
+With the release of the TDengine connector in Data Studio, you can now get even more out of your data. To obtain the connector, first go to the Data Studio Connector Gallery, click Connect to Data, and search for "TDengine".
 
 ![02](gds/gds-02.png.webp)
 
@@ -30,8 +30,8 @@ After the connection is established, you can use Data Studio to process your dat
 
 ![06](gds/gds-06.png.webp)
 
-In Data Studio, TDengine timestamps and tags are considered dimensions, and all other items are considered metrics. You can create all kinds of custom charts with your data – some examples are shown below.
+In Data Studio, TDengine timestamps and tags are considered dimensions, and all other items are considered metrics. You can create all kinds of custom charts with your data - some examples are shown below.
 
 ![07](gds/gds-07.png.webp)
 
-With the ability to process petabytes of data per day and provide monitoring and alerting in real time, TDengine is a great solution for time-series data management. Now, with the Data Studio connector, we’re sure you’ll be able to gain new insights and obtain even more value from your data.
+With the ability to process petabytes of data per day and provide monitoring and alerting in real time, TDengine is a great solution for time-series data management. Now, with the Data Studio connector, we're sure you'll be able to gain new insights and obtain even more value from your data.

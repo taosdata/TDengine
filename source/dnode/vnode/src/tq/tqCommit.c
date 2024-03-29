@@ -16,10 +16,13 @@
 #include "tq.h"
 
 int tqCommit(STQ* pTq) {
+#if 0
+  // stream meta commit does not be aligned to the vnode commit
   if (streamMetaCommit(pTq->pStreamMeta) < 0) {
     tqError("vgId:%d, failed to commit stream meta since %s", TD_VID(pTq->pVnode), terrstr());
     return -1;
   }
+#endif
 
   return tqOffsetCommitFile(pTq->pOffsetStore);
 }

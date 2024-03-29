@@ -52,9 +52,9 @@ class ConfigureyCluster:
             dnode.addExtraCfg("secondEp", f"{hostname}:{startPort_sec}")
 
             # configure  dnoe of independent mnodes
-            if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == True :
-                dnode.addExtraCfg("supportVnodes", 1024)
-            # print(dnode)
+            if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == "True" :
+                tdLog.info(f"set mnode:{num} supportVnodes 0")
+                dnode.addExtraCfg("supportVnodes", 0)
             self.dnodes.append(dnode)
         return self.dnodes
         
@@ -71,6 +71,7 @@ class ConfigureyCluster:
         tdSql.init(conn.cursor())
         mnodeNums=int(mnodeNums)
         for i in range(2,mnodeNums+1):
+            tdLog.info("create mnode on dnode %d"%i)
             tdSql.execute(" create mnode on  dnode %d;"%i)
 
 

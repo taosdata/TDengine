@@ -79,6 +79,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
+int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
@@ -101,6 +102,7 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
+int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight);
 
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight);
 int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight);
@@ -201,7 +203,6 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
-int32_t       doCompare(const char *a, const char *b, int32_t type, size_t size);
 
 #ifdef __cplusplus
 }

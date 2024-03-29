@@ -1,0 +1,37 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database test
+sql use test
+sql CREATE STABLE `meters` (`ts` TIMESTAMP, `c2` INT) TAGS (`cc` VARCHAR(3))
+
+
+sql insert into d1 using meters tags("MY") values("2022-05-15 00:01:08.000 ",234)
+sql insert into d1 using meters tags("MY") values("2022-05-16 00:01:08.000 ",136)
+sql insert into d1 using meters tags("MY") values("2022-05-17 00:01:08.000 ", 59)
+sql insert into d1 using meters tags("MY") values("2022-05-18 00:01:08.000 ", 58)
+sql insert into d1 using meters tags("MY") values("2022-05-19 00:01:08.000 ",243)
+sql insert into d1 using meters tags("MY") values("2022-05-20 00:01:08.000 ",120)
+sql insert into d1 using meters tags("MY") values("2022-05-21 00:01:08.000 ", 11)
+sql insert into d1 using meters tags("MY") values("2022-05-22 00:01:08.000 ",196)
+sql insert into d1 using meters tags("MY") values("2022-05-23 00:01:08.000 ",116)
+sql insert into d1 using meters tags("MY") values("2022-05-24 00:01:08.000 ",210)
+
+sql insert into d2 using meters tags("HT") values("2022-05-15 00:01:08.000", 234)
+sql insert into d2 using meters tags("HT") values("2022-05-16 00:01:08.000", 136)
+sql insert into d2 using meters tags("HT") values("2022-05-17 00:01:08.000",  59)
+sql insert into d2 using meters tags("HT") values("2022-05-18 00:01:08.000",  58)
+sql insert into d2 using meters tags("HT") values("2022-05-19 00:01:08.000", 243)
+sql insert into d2 using meters tags("HT") values("2022-05-20 00:01:08.000", 120)
+sql insert into d2 using meters tags("HT") values("2022-05-21 00:01:08.000",  11)
+sql insert into d2 using meters tags("HT") values("2022-05-22 00:01:08.000", 196)
+sql insert into d2 using meters tags("HT") values("2022-05-23 00:01:08.000", 116)
+sql insert into d2 using meters tags("HT") values("2022-05-24 00:01:08.000", 210)
+
+#sleep 10000000
+system taos -P7100 -s 'source tsim/query/t/explain_tsorder.sql' | grep -v 'Query OK' | grep -v 'Client Version' > /tmp/explain_tsorder.result
+system echo ----------------------diff start-----------------------
+system git diff --exit-code --color tsim/query/r/explain_tsorder.result /tmp/explain_tsorder.result
+system echo ----------------------diff succeed-----------------------

@@ -120,9 +120,9 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       }
 
       if (colNode->tableAlias[0]) {
-        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->node.userAlias);
       } else {
-        *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->colName);
+        *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->node.userAlias);
       }
 
       return TSDB_CODE_SUCCESS;

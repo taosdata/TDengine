@@ -69,7 +69,7 @@ sql create sma index smat2i on $mtPrefix function(max(c1)) interval(6m,10s) slid
 
 
 sql select * from information_schema.ins_indexes
-if $rows != 2 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -84,7 +84,7 @@ while $i < 5
 endw
 
 sql select * from information_schema.ins_indexes
-if $rows != 6 then 
+if $rows != 7 then 
   return -1
 endi
 
@@ -114,13 +114,13 @@ sql use $dbPrefix
 sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
 sql create index tagt2i on $mtPrefix (t2)
 sql select * from information_schema.ins_indexes
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 sql alter table $mtPrefix drop tag t2
 
 sql select * from information_schema.ins_indexes
-if $rows != 0 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -128,18 +128,22 @@ endi
 print ==== rename tag name, and update index colName
 sql create index tagt3i on $mtPrefix (t3)
 sql select * from information_schema.ins_indexes
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
 sql alter table $mtPrefix rename tag t3 txxx 
 sql select * from information_schema.ins_indexes
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
-if $data05 != txxx then
-  return -1
+if $data05 == txxx then
+  print "manual created index" 
+elif $data15 == txxx then
+  print "auto created index at tag0"
+else 
+  return -1;
 endi
 
 
@@ -153,7 +157,7 @@ sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2
 sql create index tagt3i on $mtPrefix (t3)
 sql select * from information_schema.ins_indexes  
 
-if $rows != 2 then 
+if $rows != 4 then 
   return -1
 endi
 

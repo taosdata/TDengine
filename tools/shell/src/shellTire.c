@@ -95,7 +95,7 @@ bool insertToTree(STire* tire, char* word, int len) {
   STireNode** nodes = tire->root.d;
   for (int i = 0; i < len; i++) {
     m = word[i] - FIRST_ASCII;
-    if (m < 0 || m > CHAR_CNT) {
+    if (m < 0 || m >= CHAR_CNT) {
       return false;
     }
 

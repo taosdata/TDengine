@@ -1,9 +1,9 @@
 ---
 title: Reference
-description: This document describes TDengine connectors and utilities.
+description: This document describes TDengine utilities.
 ---
 
-This section describes the TDengine connectors and utilities.
+This section describes the TDengine utilities.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

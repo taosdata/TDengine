@@ -15,11 +15,12 @@ uninstallScript="rmtaos"
 clientName2="taos"
 productName2="TDengine"
 
-benchmarkName2="${clientName}Benchmark"
-dumpName2="${clientName}dump"
-uninstallScript2="rm${clientName}"
+benchmarkName2="${clientName2}Benchmark"
+demoName2="${clientName2}demo"
+dumpName2="${clientName2}dump"
+uninstallScript2="rm${clientName2}"
 
-installDir="/usr/local/${clientName}"
+installDir="/usr/local/${clientName2}"
 
 #install main path
 install_main_dir=${installDir}
@@ -37,21 +38,25 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
-    ${csudo}kill -9 $pid   || :
-  fi
+    pid=$(ps -ef | grep ${clientName2} | grep -v grep | grep -v $uninstallScript2 | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        ${csudo}kill -9 $pid || :
+    fi
 }
 
 function clean_bin() {
     # Remove link
-    ${csudo}rm -f ${bin_link_dir}/${clientName}      || :
-    ${csudo}rm -f ${bin_link_dir}/taosdemo  || :
-    ${csudo}rm -f ${bin_link_dir}/taosdump  || :
+    ${csudo}rm -f ${bin_link_dir}/${clientName2}      || :
+    ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
+    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
+    ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+        ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
+        ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
     fi
@@ -69,6 +74,7 @@ function clean_header() {
     ${csudo}rm -f ${inc_link_dir}/taos.h           || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h        || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
+    ${csudo}rm -f ${inc_link_dir}/tdef.h      || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h      || :    
 }
 

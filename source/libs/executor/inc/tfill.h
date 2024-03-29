@@ -30,6 +30,7 @@ extern "C" {
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
+  int32_t    numOfFillExpr;
   SExprInfo* pExpr;
   bool       notFillCol;  // denote if this column needs fill operation
   SVariant   fillVal;
@@ -92,8 +93,8 @@ typedef struct SResultRowData {
 
 typedef struct SStreamFillLinearInfo {
   TSKEY   nextEnd;
-  SArray* pDeltaVal;      // double. value for Fill(linear).
-  SArray* pNextDeltaVal;  // double. value for Fill(linear).
+  SArray* pEndPoints;
+  SArray* pNextEndPoints;
   int64_t winIndex;
   bool    hasNext;
 } SStreamFillLinearInfo;
@@ -111,6 +112,7 @@ typedef struct SStreamFillInfo {
   int32_t                pos;
   SArray*                delRanges;
   int32_t                delIndex;
+  uint64_t               curGroupId;
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
@@ -118,6 +120,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t 
 void          taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 void          taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
 void          taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+void          taosFillUpdateStartTimestampInfo(SFillInfo* pFillInfo, int64_t ts);
+bool          taosFillNotStarted(const SFillInfo* pFillInfo);
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
                                 int32_t numOfNotFillCols, const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);

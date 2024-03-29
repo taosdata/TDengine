@@ -30,11 +30,17 @@ extern "C" {
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
+typedef struct SAssociationNode {
+  SNode** pPlace;
+  SNode*  pAssociationNode;
+} SAssociationNode;
+
 typedef struct SRawExprNode {
   ENodeType nodeType;
   char*     p;
   uint32_t  n;
   SNode*    pNode;
+  bool isPseudoColumn;
 } SRawExprNode;
 
 typedef struct SDataType {
@@ -52,6 +58,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
   bool      orderAlias;
   bool      asAlias;
+  bool      asParam;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -69,6 +76,7 @@ typedef struct SColumnNode {
   uint64_t    tableId;
   int8_t      tableType;
   col_id_t    colId;
+  uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -81,6 +89,7 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
+  SDataType resType;
   char      colName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
@@ -113,6 +122,20 @@ typedef struct SValueNode {
 typedef struct SLeftValueNode {
   ENodeType type;
 } SLeftValueNode;
+
+typedef enum EHintOption {
+  HINT_NO_BATCH_SCAN = 1,
+  HINT_BATCH_SCAN,
+  HINT_SORT_FOR_GROUP,
+  HINT_PARTITION_FIRST,
+  HINT_PARA_TABLES_SORT
+} EHintOption;
+
+typedef struct SHintNode {
+  ENodeType   type;
+  EHintOption option;
+  void*       value;
+} SHintNode;
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
@@ -167,11 +190,37 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
-typedef enum EJoinType { JOIN_TYPE_INNER = 1 } EJoinType;
+typedef struct SViewNode {
+  STableNode         table;  // QUERY_NODE_REAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  double             ratio;
+  SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
+} SViewNode;
+
+typedef enum EJoinType { 
+  JOIN_TYPE_INNER = 1,
+  JOIN_TYPE_LEFT,
+  JOIN_TYPE_RIGHT,
+} EJoinType;
+
+typedef enum EJoinAlgorithm { 
+  JOIN_ALGO_UNKNOWN = 0,
+  JOIN_ALGO_MERGE,
+  JOIN_ALGO_HASH,
+} EJoinAlgorithm;
+
+typedef enum EDynQueryType {
+  DYN_QTYPE_STB_HASH = 1,
+} EDynQueryType;
 
 typedef struct SJoinTableNode {
   STableNode table;  // QUERY_NODE_JOIN_TABLE
   EJoinType  joinType;
+  bool       hasSubQuery;
+  bool       isLowLevelJoin;
   SNode*     pLeft;
   SNode*     pRight;
   SNode*     pOnCond;
@@ -230,6 +279,13 @@ typedef struct SEventWindowNode {
   SNode*    pEndCond;
 } SEventWindowNode;
 
+typedef struct SCountWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  int64_t   windowCount;
+  int64_t   windowSliding;
+} SCountWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -240,6 +296,20 @@ typedef enum EFillMode {
   FILL_MODE_LINEAR,
   FILL_MODE_NEXT
 } EFillMode;
+
+typedef enum ETimeLineMode {
+  TIME_LINE_NONE = 1,
+  TIME_LINE_MULTI,
+  TIME_LINE_GLOBAL,
+} ETimeLineMode;
+
+typedef enum EShowKind {
+  SHOW_KIND_ALL = 1,
+  SHOW_KIND_TABLES_NORMAL,
+  SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_DATABASES_USER,
+  SHOW_KIND_DATABASES_SYSTEM
+} EShowKind;
 
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
@@ -263,49 +333,52 @@ typedef struct SCaseWhenNode {
 } SCaseWhenNode;
 
 typedef struct SSelectStmt {
-  ENodeType   type;  // QUERY_NODE_SELECT_STMT
-  bool        isDistinct;
-  SNodeList*  pProjectionList;
-  SNode*      pFromTable;
-  SNode*      pWhere;
-  SNodeList*  pPartitionByList;
-  SNodeList*  pTags;      // for create stream
-  SNode*      pSubtable;  // for create stream
-  SNode*      pWindow;
-  SNodeList*  pGroupByList;  // SGroupingSetNode
-  SNode*      pHaving;
-  SNode*      pRange;
-  SNode*      pEvery;
-  SNode*      pFill;
-  SNodeList*  pOrderByList;  // SOrderByExprNode
-  SLimitNode* pLimit;
-  SLimitNode* pSlimit;
-  STimeWindow timeRange;
-  char        stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t     precision;
-  int32_t     selectFuncNum;
-  int32_t     returnRows;  // EFuncReturnRows
-  bool        isEmptyResult;
-  bool        isTimeLineResult;
-  bool        isSubquery;
-  bool        hasAggFuncs;
-  bool        hasRepeatScanFuncs;
-  bool        hasIndefiniteRowsFunc;
-  bool        hasMultiRowsFunc;
-  bool        hasSelectFunc;
-  bool        hasSelectValFunc;
-  bool        hasOtherVectorFunc;
-  bool        hasUniqueFunc;
-  bool        hasTailFunc;
-  bool        hasInterpFunc;
-  bool        hasLastRowFunc;
-  bool        hasLastFunc;
-  bool        hasTimeLineFunc;
-  bool        hasUdaf;
-  bool        hasStateKey;
-  bool        onlyHasKeepOrderFunc;
-  bool        groupSort;
-  bool        tagScan;
+  ENodeType     type;  // QUERY_NODE_SELECT_STMT
+  bool          isDistinct;
+  SNodeList*    pProjectionList;
+  SNode*        pFromTable;
+  SNode*        pWhere;
+  SNodeList*    pPartitionByList;
+  SNodeList*    pTags;      // for create stream
+  SNode*        pSubtable;  // for create stream
+  SNode*        pWindow;
+  SNodeList*    pGroupByList;  // SGroupingSetNode
+  SNode*        pHaving;
+  SNode*        pRange;
+  SNode*        pEvery;
+  SNode*        pFill;
+  SNodeList*    pOrderByList;  // SOrderByExprNode
+  SLimitNode*   pLimit;
+  SLimitNode*   pSlimit;
+  STimeWindow   timeRange;
+  SNodeList*    pHint;
+  char          stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t       precision;
+  int32_t       selectFuncNum;
+  int32_t       returnRows;  // EFuncReturnRows
+  ETimeLineMode timeLineResMode;
+  bool          isEmptyResult;
+  bool          isSubquery;
+  bool          hasAggFuncs;
+  bool          hasRepeatScanFuncs;
+  bool          hasIndefiniteRowsFunc;
+  bool          hasMultiRowsFunc;
+  bool          hasSelectFunc;
+  bool          hasSelectValFunc;
+  bool          hasOtherVectorFunc;
+  bool          hasUniqueFunc;
+  bool          hasTailFunc;
+  bool          hasInterpFunc;
+  bool          hasInterpPseudoColFunc;
+  bool          hasLastRowFunc;
+  bool          hasLastFunc;
+  bool          hasTimeLineFunc;
+  bool          hasCountFunc;
+  bool          hasUdaf;
+  bool          hasStateKey;
+  bool          onlyHasKeepOrderFunc;
+  bool          groupSort;
+  bool          tagScan;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -320,6 +393,7 @@ typedef struct SSetOperator {
   SNode*           pLimit;
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
+  ETimeLineMode    timeLineResMode;  
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -365,7 +439,8 @@ typedef struct SVgDataBlocks {
 
 typedef void (*FFreeTableBlockHash)(SHashObj*);
 typedef void (*FFreeVgourpBlockArray)(SArray*);
-
+struct SStbRowsDataContext;
+typedef void (*FFreeStbRowsDataContext)(struct SStbRowsDataContext*);
 typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
@@ -378,11 +453,14 @@ typedef struct SVnodeModifyOpStmt {
   SName                 usingTableName;
   const char*           pBoundCols;
   struct STableMeta*    pTableMeta;
-  SHashObj*             pVgroupsHashObj;
+  SNode*                pTagCond;
+  SArray*               pTableTag;
+  SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
-  SHashObj*             pSubTableHashObj;
-  SHashObj*             pTableNameHashObj;
-  SHashObj*             pDbFNameHashObj;
+  SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
+  SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
+  SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
   SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;
@@ -390,6 +468,10 @@ typedef struct SVnodeModifyOpStmt {
   FFreeVgourpBlockArray freeArrayFunc;
   bool                  usingTableProcessing;
   bool                  fileProcessing;
+
+  bool                  stbSyntax;
+  struct SStbRowsDataContext*  pStbRowsCxt;
+  FFreeStbRowsDataContext     freeStbRowsCxtFunc;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
@@ -431,7 +513,9 @@ typedef struct SQuery {
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
   bool            haveResultSet;
+  SNode*          pPrevRoot;
   SNode*          pRoot;
+  SNode*          pPostRoot;
   int32_t         numOfResCols;
   SSchema*        pResSchema;
   int8_t          precision;
@@ -456,7 +540,8 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs);
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs);
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs);
 
 int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes);
 
@@ -476,12 +561,17 @@ void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+SValueNode* nodesMakeValueNodeFromString(char* literal);
+SValueNode* nodesMakeValueNodeFromBool(bool b);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);
 const char* logicConditionTypeStr(ELogicConditionType type);
+
+bool nodesIsStar(SNode* pNode);
+bool nodesIsTableStar(SNode* pNode);
 
 #ifdef __cplusplus
 }

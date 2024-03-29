@@ -101,6 +101,18 @@ class TDTestCase:
         self.now_check_ntb()
         self.now_check_stb()
 
+        ## TD-25540
+        tdSql.execute(f'create database db1')
+        tdSql.execute(f'use db1')
+        tdSql.execute(f"create table db1.tb (ts timestamp, c0 int)")
+        tdSql.execute(f'insert into db1.tb values(now + 1h, 1)')
+
+        for func in {"NOW", "NOW()", "TODAY()", "1", "'1970-01-01 00:00:00'"}:
+            tdSql.query(f"SELECT _wstart, count(*) FROM (SELECT ts, LAST(c0) FROM db1.tb WHERE ts > {func}) interval(1d);")
+            tdSql.checkRows(1)
+
+
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

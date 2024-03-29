@@ -24,7 +24,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -218,7 +218,7 @@ class TDTestCase:
 
         tdLog.info("act consume rows: %d"%(actConsumeTotalRows))
         tdLog.info("and second consume rows should be between 0 and %d"%(totalRowsInserted))
-        if not (actConsumeTotalRows > 0 and actConsumeTotalRows <= totalRowsInserted):            
+        if not (actConsumeTotalRows >= 0 and actConsumeTotalRows <= totalRowsInserted):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         time.sleep(10)

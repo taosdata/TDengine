@@ -29,6 +29,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tname.h"
 #include "transport.h"
+#include "nodes.h"
 
 typedef struct SCatalog SCatalog;
 
@@ -36,22 +37,37 @@ enum {
   CTG_DBG_DB_NUM = 1,
   CTG_DBG_META_NUM,
   CTG_DBG_STB_NUM,
+  CTG_DBG_VIEW_NUM,
   CTG_DBG_DB_RENT_NUM,
   CTG_DBG_STB_RENT_NUM,
+  CTG_DBG_VIEW_RENT_NUM,
 };
 
 typedef enum {
   AUTH_TYPE_READ = 1,
   AUTH_TYPE_WRITE,
+  AUTH_TYPE_ALTER,
   AUTH_TYPE_OTHER,
   AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
   char      user[TSDB_USER_LEN];
-  char      dbFName[TSDB_DB_FNAME_LEN];
+  SName     tbName;
+  bool      isView;
   AUTH_TYPE type;
 } SUserAuthInfo;
+
+typedef enum {
+  AUTH_RES_BASIC = 0,
+  AUTH_RES_VIEW,
+  AUTH_RES_MAX_VALUE
+} AUTH_RES_TYPE;
+
+typedef struct SUserAuthRes {
+  bool   pass[AUTH_RES_MAX_VALUE];
+  SNode* pCond[AUTH_RES_MAX_VALUE];
+} SUserAuthRes;
 
 typedef struct SDbInfo {
   int32_t vgVer;
@@ -76,10 +92,13 @@ typedef struct SCatalogReq {
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
+  SArray* pTableTag;      // element is SNAME
+  SArray* pView;          // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
+  bool    cloned;
 } SCatalogReq;
 
 typedef struct SMetaRes {
@@ -88,6 +107,7 @@ typedef struct SMetaRes {
 } SMetaRes;
 
 typedef struct SMetaData {
+  bool      ctgFree;      // need to freed by catalog module
   SArray*   pDbVgroup;    // pRes = SArray<SVgroupInfo>*
   SArray*   pDbCfg;       // pRes = SDbCfgInfo*
   SArray*   pDbInfo;      // pRes = SDbInfo*
@@ -96,38 +116,57 @@ typedef struct SMetaData {
   SArray*   pTableIndex;  // pRes = SArray<STableIndexInfo>*
   SArray*   pUdfList;     // pRes = SFuncInfo*
   SArray*   pIndex;       // pRes = SIndexInfo*
-  SArray*   pUser;        // pRes = bool*
+  SArray*   pUser;        // pRes = SUserAuthRes*
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
+  SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pView;        // pRes = SViewMeta*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
+  uint32_t maxViewCacheNum;
   uint32_t maxDBCacheNum;
   uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
+  uint32_t viewRentSec;
 } SCatalogCfg;
 
 typedef struct SSTableVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
-  uint64_t dbId;
+  int64_t  dbId;
   uint64_t suid;
-  int16_t  sversion;
-  int16_t  tversion;
+  int32_t  sversion;
+  int32_t  tversion;
   int32_t  smaVer;
 } SSTableVersion;
 
-typedef struct SDbVgVersion {
+typedef struct SDbCacheInfo {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t cfgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
   int64_t stateTs;
-} SDbVgVersion;
+} SDbCacheInfo;
+
+typedef struct SDynViewVersion {
+  int64_t  svrBootTs;
+  uint64_t dynViewVer;
+} SDynViewVersion;
+
+typedef struct SViewVersion {
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     viewName[TSDB_VIEW_NAME_LEN];
+  int64_t  dbId;
+  uint64_t viewId;
+  int32_t  version;
+} SViewVersion;
+
 
 typedef struct STbSVersion {
   char*   tbFName;
@@ -140,7 +179,6 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
-typedef SDbCfgRsp     SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
 
 typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
@@ -171,6 +209,8 @@ int32_t catalogGetDBVgList(SCatalog* pCatalog, SRequestConnInfo* pConn, const ch
 int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, TAOS_DB_ROUTE_INFO* pInfo);
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
+
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo);
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
@@ -204,7 +244,7 @@ int32_t catalogGetSTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const 
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
-int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
+int32_t catalogAsyncUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg);
 
 int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
@@ -296,7 +336,9 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
+int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
+
+int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
 
@@ -306,17 +348,17 @@ int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char*
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
+int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
 int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableCfg** pCfg);
 
 int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp* pRsp);
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* pInfo);
 
-int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                       bool* pass);
+int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
-                                bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
@@ -331,6 +373,16 @@ int32_t catalogClearCache(void);
 SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
+
+int32_t catalogRemoveViewMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* viewName, uint64_t viewId);
+
+int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer);
+
+int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
+
+int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
+
+int32_t catalogGetViewMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pViewName, STableMeta** pTableMeta);
 
 int32_t ctgdEnableDebug(char* option, bool enable);
 

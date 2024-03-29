@@ -20,7 +20,8 @@
 #include <time.h>
 #include "taos.h"
 
-static int running = 1;
+static int  running = 1;
+const char* topic_name = "topicname";
 
 static int32_t msg_process(TAOS_RES* msg) {
   char    buf[1024];
@@ -72,7 +73,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database tmqdb precision 'ns'");
+  pRes = taos_query(pConn, "create database tmqdb precision 'ns' WAL_RETENTION_PERIOD 3600");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
     goto END;
@@ -227,11 +228,6 @@ tmq_t* build_consumer() {
     tmq_conf_destroy(conf);
     return NULL;
   }
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
-  if (TMQ_CONF_OK != code) {
-    tmq_conf_destroy(conf);
-    return NULL;
-  }
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq = tmq_consumer_new(conf, NULL, 0);
@@ -243,7 +239,7 @@ _end:
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topicList = tmq_list_new();
-  int32_t     code = tmq_list_append(topicList, "topicname");
+  int32_t     code = tmq_list_append(topicList, topic_name);
   if (code) {
     tmq_list_destroy(topicList);
     return NULL;
@@ -267,6 +263,31 @@ void basic_consume_loop(tmq_t* tmq) {
   }
 
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+}
+
+void consume_repeatly(tmq_t* tmq) {
+  int32_t               numOfAssignment = 0;
+  tmq_topic_assignment* pAssign = NULL;
+
+  int32_t code = tmq_get_topic_assignment(tmq, topic_name, &pAssign, &numOfAssignment);
+  if (code != 0) {
+    fprintf(stderr, "failed to get assignment, reason:%s", tmq_err2str(code));
+  }
+
+  // seek to the earliest offset
+  for(int32_t i = 0; i < numOfAssignment; ++i) {
+    tmq_topic_assignment* p = &pAssign[i];
+
+    code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
+    if (code != 0) {
+      fprintf(stderr, "failed to seek to %d, reason:%s", (int)p->begin, tmq_err2str(code));
+    }
+  }
+
+  tmq_free_assignment(pAssign);
+
+  // let's do it again
+  basic_consume_loop(tmq);
 }
 
 int main(int argc, char* argv[]) {
@@ -294,9 +315,12 @@ int main(int argc, char* argv[]) {
   if ((code = tmq_subscribe(tmq, topic_list))) {
     fprintf(stderr, "Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
   }
+
   tmq_list_destroy(topic_list);
 
   basic_consume_loop(tmq);
+
+  consume_repeatly(tmq);
 
   code = tmq_consumer_close(tmq);
   if (code) {

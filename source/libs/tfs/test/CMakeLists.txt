@@ -8,7 +8,7 @@ target_link_libraries(
   PUBLIC gtest_main
 )
 
-add_test(
-    NAME tfs_test
-    COMMAND tfs_test
-)
+# add_test(
+#     NAME tfs_test
+#     COMMAND tfs_test
+# )

@@ -26,12 +26,12 @@ extern "C" {
 typedef struct MinMaxEntry {
   union {
     double   dMinVal;
-    int64_t  i64MinVal;
+    //double   i64MinVal;
     uint64_t u64MinVal;
   };
   union {
     double  dMaxVal;
-    int64_t i64MaxVal;
+    //double  i64MaxVal;
     int64_t u64MaxVal;
   };
 } MinMaxEntry;
@@ -53,7 +53,7 @@ typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *va
 typedef struct tMemBucket {
   int16_t            numOfSlots;
   int16_t            type;
-  int16_t            bytes;
+  int32_t            bytes;
   int32_t            total;
   int32_t            elemPerPage;  // number of elements for each object
   int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
@@ -67,7 +67,7 @@ typedef struct tMemBucket {
   SHashObj          *groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);
+tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 

@@ -15,13 +15,84 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "tfs.h"
+#include "vnd.h"
+#include "libs/function/tudf.h"
 
-SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
+int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  int32_t    diskId = -1;
   SVnodeObj *pVnode = NULL;
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
-  if (pVnode == NULL || pVnode->dropped) {
+  if (pVnode != NULL) {
+    diskId = pVnode->diskPrimary;
+  }
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  return diskId;
+}
+
+int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  STfs   *pTfs = pMgmt->pTfs;
+  int32_t diskId = 0;
+  if (!pTfs) {
+    return diskId;
+  }
+
+  // search fs
+  char vnodePath[TSDB_FILENAME_LEN] = {0};
+  snprintf(vnodePath, TSDB_FILENAME_LEN - 1, "vnode%svnode%d", TD_DIRSEP, vgId);
+  char fname[TSDB_FILENAME_LEN] = {0};
+  char fnameTmp[TSDB_FILENAME_LEN] = {0};
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s", vnodePath, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(fnameTmp, TSDB_FILENAME_LEN - 1, "%s%s%s", vnodePath, TD_DIRSEP, VND_INFO_FNAME_TMP);
+
+  diskId = tfsSearch(pTfs, 0, fname);
+  if (diskId >= 0) {
+    return diskId;
+  }
+  diskId = tfsSearch(pTfs, 0, fnameTmp);
+  if (diskId >= 0) {
+    return diskId;
+  }
+
+  // alloc
+  int32_t     disks[TFS_MAX_DISKS_PER_TIER] = {0};
+  int32_t     numOfVnodes = 0;
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  for (int32_t v = 0; v < numOfVnodes; v++) {
+    SVnodeObj *pVnode = ppVnodes[v];
+    disks[pVnode->diskPrimary] += 1;
+  }
+
+  int32_t minVal = INT_MAX;
+  int32_t ndisk = tfsGetDisksAtLevel(pTfs, 0);
+  diskId = 0;
+  for (int32_t id = 0; id < ndisk; id++) {
+    if (minVal > disks[id]) {
+      minVal = disks[id];
+      diskId = id;
+    }
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    if (ppVnodes == NULL || ppVnodes[i] == NULL) continue;
+    vmReleaseVnode(pMgmt, ppVnodes[i]);
+  }
+  if (ppVnodes != NULL) {
+    taosMemoryFree(ppVnodes);
+  }
+
+  dInfo("vgId:%d, alloc disk:%d of level 0. ndisk:%d, vnodes: %d", vgId, diskId, ndisk, numOfVnodes);
+  return diskId;
+}
+
+SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
+  SVnodeObj *pVnode = NULL;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  if (pVnode == NULL || strict && (pVnode->dropped || pVnode->failed)) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     pVnode = NULL;
   } else {
@@ -33,6 +104,8 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   return pVnode;
 }
 
+SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) { return vmAcquireVnodeImpl(pMgmt, vgId, true); }
+
 void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   if (pVnode == NULL) return;
 
@@ -40,6 +113,15 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
   // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
   taosThreadRwlockUnlock(&pMgmt->lock);
+}
+
+static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
+  if (!ppVnode || !(*ppVnode)) return;
+
+  SVnodeObj *pVnode = *ppVnode;
+  taosMemoryFree(pVnode->path);
+  taosMemoryFree(pVnode);
+  ppVnode[0] = NULL;
 }
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
@@ -51,8 +133,10 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
   pVnode->vgId = pCfg->vgId;
   pVnode->vgVersion = pCfg->vgVersion;
+  pVnode->diskPrimary = pCfg->diskPrimary;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
+  pVnode->failed = 0;
   pVnode->path = taosStrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
@@ -62,14 +146,24 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
-  if (vmAllocQueue(pMgmt, pVnode) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(pVnode->path);
-    taosMemoryFree(pVnode);
-    return -1;
+  if (pImpl) {
+    if (vmAllocQueue(pMgmt, pVnode) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(pVnode->path);
+      taosMemoryFree(pVnode);
+      return -1;
+    }
+  } else {
+    pVnode->failed = 1;
   }
 
   taosThreadRwlockWrlock(&pMgmt->lock);
+  SVnodeObj *pOld = NULL;
+  taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
+  if (pOld) {
+    ASSERT(pOld->failed);
+    vmFreeVnodeObj(&pOld);
+  }
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
   taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -78,12 +172,21 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
   char path[TSDB_FILENAME_LEN] = {0};
+  bool atExit = true;
+
+  if (pVnode->pImpl && vnodeIsLeader(pVnode->pImpl)) {
+    vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
+  }
 
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
 
+  if (pVnode->failed) {
+    ASSERT(pVnode->pImpl == NULL);
+    goto _closed;
+  }
   dInfo("vgId:%d, pre close", pVnode->vgId);
   vnodePreClose(pVnode->pImpl);
 
@@ -91,28 +194,29 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   while (pVnode->refCount > 0) taosMsleep(10);
 
   dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
-        pVnode->pWriteW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pWriteW.queue));
   tMultiWorkerCleanup(&pVnode->pWriteW);
 
   dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
-        pVnode->pSyncW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncW.queue));
   tMultiWorkerCleanup(&pVnode->pSyncW);
 
-  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId,
-        pVnode->pSyncCtrlW.queue, pVnode->pSyncCtrlW.queue->threadId);
-  tMultiWorkerCleanup(&pVnode->pSyncCtrlW);
+  dInfo("vgId:%d, wait for vnode sync rd queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
+        taosQueueGetThreadId(pVnode->pSyncRdW.queue));
+  tMultiWorkerCleanup(&pVnode->pSyncRdW);
 
   dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
-        pVnode->pApplyW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pApplyW.queue));
   tMultiWorkerCleanup(&pVnode->pApplyW);
 
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
-        pVnode->pFetchQ->threadId);
+        taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
+  tqNotifyClose(pVnode->pImpl->pTq);
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
 
@@ -132,10 +236,11 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
+
+_closed:
   dInfo("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (commitAndRemoveWal) {
-    char path[TSDB_FILENAME_LEN] = {0};
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
     dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
     tfsRmdir(pMgmt->pTfs, path);
@@ -145,11 +250,33 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
-    vnodeDestroy(path, pMgmt->pTfs);
+    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
   }
 
-  taosMemoryFree(pVnode->path);
-  taosMemoryFree(pVnode);
+  vmFreeVnodeObj(&pVnode);
+}
+
+static int32_t vmRestoreVgroupId(SWrapperCfg *pCfg, STfs *pTfs) {
+  int32_t srcVgId = pCfg->vgId;
+  int32_t dstVgId = pCfg->toVgId;
+  if (dstVgId == 0) return 0;
+
+  char srcPath[TSDB_FILENAME_LEN];
+  char dstPath[TSDB_FILENAME_LEN];
+
+  snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
+  snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
+
+  int32_t diskPrimary = pCfg->diskPrimary;
+  int32_t vgId = vnodeRestoreVgroupId(srcPath, dstPath, srcVgId, dstVgId, diskPrimary, pTfs);
+  if (vgId <= 0) {
+    dError("vgId:%d, failed to restore vgroup id. srcPath: %s", pCfg->vgId, srcPath);
+    return -1;
+  }
+
+  pCfg->vgId = vgId;
+  pCfg->toVgId = 0;
+  return 0;
 }
 
 static void *vmOpenVnodeInThread(void *param) {
@@ -168,17 +295,37 @@ static void *vmOpenVnodeInThread(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     tmsgReportStartup("vnode-open", stepDesc);
 
+    if (pCfg->toVgId) {
+      if (vmRestoreVgroupId(pCfg, pMgmt->pTfs) != 0) {
+        dError("vgId:%d, failed to restore vgroup id by thread:%d", pCfg->vgId, pThread->threadIndex);
+        pThread->failed++;
+        continue;
+      }
+      pThread->updateVnodesList = true;
+    }
+
+    int32_t diskPrimary = pCfg->diskPrimary;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
-    SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+
+    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
+
     if (pImpl == NULL) {
+      dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
+      if (terrno != TSDB_CODE_NEED_RETRY) {
+        pThread->failed++;
+        continue;
+      }
+    }
+
+    if (vmOpenVnode(pMgmt, pCfg, pImpl) != 0) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
-    } else {
-      vmOpenVnode(pMgmt, pCfg, pImpl);
-      dInfo("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
-      pThread->opened++;
-      atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
+      continue;
     }
+
+    dInfo("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
+    pThread->opened++;
+    atomic_add_fetch_32(&pMgmt->state.openVnodes, 1);
   }
 
   dInfo("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
@@ -236,6 +383,8 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     taosThreadAttrDestroy(&thAttr);
   }
 
+  bool updateVnodesList = false;
+
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
@@ -243,17 +392,24 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
       taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->pCfgs);
+    if (pThread->updateVnodesList) updateVnodesList = true;
   }
   taosMemoryFree(threads);
   taosMemoryFree(pCfgs);
 
   if (pMgmt->state.openVnodes != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
+    terrno = TSDB_CODE_VND_INIT_FAILED;
     return -1;
-  } else {
-    dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
-    return 0;
   }
+
+  if (updateVnodesList && vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("failed to write vnode list since %s", terrstr());
+    return -1;
+  }
+
+  dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
+  return 0;
 }
 
 static void *vmCloseVnodeInThread(void *param) {
@@ -348,7 +504,6 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
-  tfsClose(pMgmt->pTfs);
   taosThreadRwlockDestroy(&pMgmt->lock);
   taosMemoryFree(pMgmt);
 }
@@ -360,7 +515,9 @@ static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
       SVnodeObj *pVnode = ppVnodes[i];
-      vnodeSyncCheckTimeout(pVnode->pImpl);
+      if (!pVnode->failed) {
+        vnodeSyncCheckTimeout(pVnode->pImpl);
+      }
       vmReleaseVnode(pMgmt, pVnode);
     }
     taosMemoryFree(ppVnodes);
@@ -423,20 +580,9 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
 
-  SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
-  dCfg.level = 0;
-  dCfg.primary = 1;
-  SDiskCfg *pDisks = tsDiskCfg;
-  int32_t   numOfDisks = tsDiskCfgNum;
-  if (numOfDisks <= 0 || pDisks == NULL) {
-    pDisks = &dCfg;
-    numOfDisks = 1;
-  }
-
-  pMgmt->pTfs = tfsOpen(pDisks, numOfDisks);
+  pMgmt->pTfs = pInput->pTfs;
   if (pMgmt->pTfs == NULL) {
-    dError("failed to init tfs since %s", terrstr());
+    dError("tfs is null.");
     goto _OVER;
   }
   tmsgReportStartup("vnode-tfs", "initialized");
@@ -466,7 +612,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("vnode-worker", "initialized");
 
   if (vmOpenVnodes(pMgmt) != 0) {
-    dError("failed to open vnode since %s", terrstr());
+    dError("failed to open all vnodes since %s", terrstr());
     goto _OVER;
   }
   tmsgReportStartup("vnode-vnodes", "initialized");
@@ -503,6 +649,12 @@ static void *vmRestoreVnodeInThread(void *param) {
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
+    if (pVnode->failed) {
+      dError("vgId:%d, cannot restore a vnode in failed mode.", pVnode->vgId);
+      continue;
+    }
+
+    ASSERT(pVnode->pImpl);
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been restored", pVnode->vgId,

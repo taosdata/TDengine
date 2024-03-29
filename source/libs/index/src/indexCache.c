@@ -738,7 +738,7 @@ static MemTable* idxInternalCacheCreate(int8_t type) {
 
   MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
   idxMemRef(tbl);
-  // if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR) {
+  // if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR || ttype == TSDB_DATA_TYPE_GEOMETRY) {
   tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
   //}
   return tbl;

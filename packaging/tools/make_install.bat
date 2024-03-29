@@ -48,16 +48,20 @@ if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
 )
 copy %source_dir%\\include\\client\\taos.h %target_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %target_dir%\\include > nul
+copy %source_dir%\\include\\util\\tdef.h %target_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nul
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
+if exist %source_dir%\\tools\\taos_tool\\packaging\\win\\msvcp140d.dll (
+    copy %source_dir%\\tools\\taos_tool\\packaging\\win\\msvcp140d.dll %target_dir% > nul
+)
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %target_dir% > nul
 )
-if exist %binary_dir%\\build\\lib\\taosws.dll.lib (
-    copy %binary_dir%\\build\\lib\\taosws.dll.lib %target_dir%\\driver  > nul
+if exist %binary_dir%\\build\\lib\\taosws.lib (
+    copy %binary_dir%\\build\\lib\\taosws.lib %target_dir%\\driver  > nul
 )
 if exist %binary_dir%\\build\\lib\\taosws.dll (
     copy %binary_dir%\\build\\lib\\taosws.dll %target_dir%\\driver  > nul
@@ -94,6 +98,9 @@ if %Enterprise% == TRUE (
     if exist %binary_dir%\\build\\bin\\create_table.exe (
         copy %binary_dir%\\build\\bin\\create_table.exe %target_dir% > nul
     )
+    if exist %binary_dir%\\build\\bin\\*explorer.exe (
+        copy %binary_dir%\\build\\bin\\*explorer.exe %target_dir% > nul
+    )
 )
     
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
@@ -121,9 +128,18 @@ call :stop_delete
 call :check_svc taosd
 call :check_svc taosadapter
 
-copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
-if exist C:\\TDengine\\driver\\taosws.dll (
-    copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+if exist c:\\windows\\sysnative (
+    echo x86
+    copy /y C:\\TDengine\\driver\\taos.dll %windir%\\sysnative > nul
+    if exist C:\\TDengine\\driver\\taosws.dll (
+        copy /y C:\\TDengine\\driver\\taosws.dll %windir%\\sysnative > nul
+    )
+) else (
+    echo x64
+    copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
+    if exist C:\\TDengine\\driver\\taosws.dll (
+        copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+    )
 )
 
 rem // create services

@@ -41,7 +41,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->pMgmt = output.pMgmt;
   }
 
-  dmReportStartup(pWrapper->name, "openned");
+  dmReportStartup(pWrapper->name, "opened");
   return 0;
 }
 
@@ -132,11 +132,15 @@ int32_t dmRunDnode(SDnode *pDnode) {
   int32_t count = 0;
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
+    dmCloseNodes(pDnode);
     return -1;
   }
 
   if (dmStartNodes(pDnode) != 0) {
     dError("failed to start nodes since %s", terrstr());
+    dmSetStatus(pDnode, DND_STAT_STOPPED);
+    dmStopNodes(pDnode);
+    dmCloseNodes(pDnode);
     return -1;
   }
 
@@ -155,7 +159,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
     } else {
       count++;
     }
-    
+
     taosMsleep(100);
   }
 }

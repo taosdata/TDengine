@@ -40,6 +40,8 @@ int metaBegin(SMeta *pMeta, int8_t heap) {
     return -1;
   }
 
+  tdbCommit(pMeta->pEnv, pMeta->txn);
+
   return 0;
 }
 
@@ -50,13 +52,23 @@ int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv
 int  metaPrepareAsyncCommit(SMeta *pMeta) {
    // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
   int code = 0;
+  metaWLock(pMeta);
+  code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
+  metaULock(pMeta);
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
-
+  pMeta->changed = false;
   return code;
 }
 
 // abort the meta txn
 int metaAbort(SMeta *pMeta) {
   if (!pMeta->txn) return 0;
-  return tdbAbort(pMeta->pEnv, pMeta->txn);
+  int code = tdbAbort(pMeta->pEnv, pMeta->txn);
+  if (code) {
+    metaError("vgId:%d, failed to abort meta since %s", TD_VID(pMeta->pVnode), tstrerror(terrno));
+  } else {
+    pMeta->txn = NULL;
+  }
+
+  return code;
 }

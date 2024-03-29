@@ -29,7 +29,7 @@ class TDTestCase:
                 'rowsPerTbl': 10000,
                 'batchNum':   2000,
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                'pollDelay':  20,
+                'pollDelay':  50,
                 'showMsg':    1,
                 'showRow':    1}
 
@@ -45,7 +45,7 @@ class TDTestCase:
     autoCommitInterval = 'auto.commit.interval.ms:1000'
     autoOffset = 'auto.offset.reset:earliest'
 
-    pollDelay = 20
+    pollDelay = 50
     showMsg   = 1
     showRow   = 1
 
@@ -81,7 +81,7 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicName1 = 'UpperCasetopic_%s'%(self.paraDict['dbName'])
-        tdSql.execute("create topic %s as database %s" %(topicName1, self.paraDict['dbName']))
+        tdSql.execute("create topic `%s` as database %s" %(topicName1, self.paraDict['dbName']))
 
         topicList = topicName1 + ',' +topicName1
         keyList = '%s,%s,%s,%s'%(self.groupId,self.autoCommit,self.autoCommitInterval,self.autoOffset)
@@ -112,7 +112,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error!")
 
         time.sleep(10)
-        tdSql.query("drop topic %s"%topicName1)
+        tdSql.query("drop topic `%s`"%topicName1)
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 

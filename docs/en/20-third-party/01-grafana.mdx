@@ -23,7 +23,7 @@ Record these values:
 
 ## Installing Grafana
 
-TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
+TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: [https://grafana.com/grafana/download](https://grafana.com/grafana/download).
 
 ## Configuring Grafana
 
@@ -59,7 +59,7 @@ bash -c "$(curl -fsSL \
   -p taosdata
 ```
 
-Restart Grafana service and open Grafana in web-browser, usually <http://localhost:3000>.
+Restart Grafana service and open Grafana in web-browser, usually `http://localhost:3000`.
 
 Save the script and type `./install.sh --help` for the full usage of the script.
 
@@ -74,10 +74,10 @@ grafana-cli plugins install tdengine-datasource
 sudo -u grafana grafana-cli plugins install tdengine-datasource
 ```
 
-You can also download zip files from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and install manually. The commands are as follows:
+You can also download zip files from [GitHub](https://github.com/taosdata/grafanaplugin/releases/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and install manually. The commands are as follows:
 
 ```bash
-GF_VERSION=3.2.7
+GF_VERSION=3.3.1
 # from GitHub
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 # from Grafana
@@ -181,7 +181,7 @@ You can setup a zero-configuration stack for TDengine + Grafana by [docker-compo
 
 3. Start TDengine and Grafana services: `docker-compose up -d`.
 
-Open Grafana <http://localhost:3000>, and you can add dashboard with TDengine now.
+Open Grafana (http://localhost:3000), and you can add dashboard with TDengine now.
 
 </TabItem>
 </Tabs>
@@ -194,18 +194,23 @@ Go back to the main interface to create a dashboard and click Add Query to enter
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
-- INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
+- INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_free) from log.taosd_dnodes_info where _ts >= $from and _ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
 - ALIAS BY: This allows you to set the current query alias.
 - GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
-- Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
-- Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_system_{{dnode_ep}}`.
+- Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_free), dnode_ep from log.taosd_dnodes_info where _ts>=$from and _ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
+- Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_free), dnode_ep from log.taosd_dnodes_info where _ts>=$from and _ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_free_{{dnode_ep}}`.
 
-Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
+:::note
+
+Since the REST connection because is stateless. Grafana plugin can use &lt;db_name&gt;.&lt;table_name&gt; in the SQL command to specify the database name.
+
+:::
+
+Follow the default prompt to query the average system free memory for the specified interval on the server where the current TDengine deployment is located as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
 
-查询每台 TDengine 服务器指定间隔系统内存平均使用量如下.
-The example to query the average system memory usage for the specified interval on each server as follows.
+The example to query the average system free memory for the specified interval on each server as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard3.webp)
 
@@ -213,11 +218,11 @@ The example to query the average system memory usage for the specified interval 
 
 ### Importing the Dashboard
 
-You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. Ensure that you use TDinsight for 3.x.
+You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. Ensure that you use TDinsight for 3.x. Please note TDinsight for 3.x needs to configure and run taoskeeper correctly. 
 
 ![TDengine Database Grafana plugine import dashboard](./import_dashboard.webp)
 
-A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。 Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
+A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
 For more dashboards using TDengine data source, [search here in Grafana](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is a sub list:
 

@@ -26,8 +26,9 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
   int32_t vnum[4] = {0};
   int32_t len = strlen(vstr);
   char    tmp[16] = {0};
+  int32_t vpos = 0;
 
-  for (int32_t spos = 0, tpos = 0, vpos = 0; spos < len && vpos < 4; ++spos) {
+  for (int32_t spos = 0, tpos = 0; spos < len && vpos < 4; ++spos) {
     if (vstr[spos] != '.') {
       tmp[spos - tpos] = vstr[spos];
     } else {
@@ -36,6 +37,10 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
       vpos++;
       tpos = spos + 1;
     }
+  }
+
+  if ('\0' != tmp[0] && vpos < 4) {
+    vnum[vpos] = atoi(tmp);
   }
 
   if (vnum[0] <= 0) {
@@ -66,16 +71,16 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
     case 4:
       break;
     case 3:
-      clientVer %= 100;
-      serverVer %= 100;
+      clientVer /= 100;
+      serverVer /= 100;
       break;
     case 2:
-      clientVer %= 10000;
-      serverVer %= 10000;
+      clientVer /= 10000;
+      serverVer /= 10000;
       break;
     case 1:
-      clientVer %= 1000000;
-      serverVer %= 1000000;
+      clientVer /= 1000000;
+      serverVer /= 1000000;
       break;
     default:
       terrno = TSDB_CODE_INVALID_VERSION_NUMBER;

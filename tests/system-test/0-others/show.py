@@ -28,7 +28,7 @@ class TDTestCase:
         self.perf_param = ['apps','connections','consumers','queries','transactions']
         self.perf_param_list = ['apps','connections','consumers','queries','trans']
         self.dbname = "db"
-        self.vgroups = 10
+        self.vgroups = 4
         self.stbname = f'`{tdCom.getLongName(5)}`'
         self.tbname = f'`{tdCom.getLongName(3)}`'
         self.db_param = {
@@ -45,8 +45,6 @@ class TDTestCase:
             "replica":1,
             "wal_level":1,
             "wal_fsync_period":6000,
-            "wal_roll_period":0,
-            "wal_segment_size":1024,
             "vgroups":self.vgroups,
             "stt_trigger":1,
             "tsdb_pagesize":16
@@ -83,12 +81,37 @@ class TDTestCase:
             tag_sql += f"{k} {v}, "
         create_stb_sql = f'create stable {stbname} ({column_sql[:-2]}) tags ({tag_sql[:-2]})'
         return create_stb_sql
-    
+
     def set_create_database_sql(self,sql_dict):
         create_sql = 'create'
         for key,value in sql_dict.items():
             create_sql += f' {key} {value}'
         return create_sql
+
+    def show_create_sysdb_sql(self):
+        sysdb_list = {'information_schema', 'performance_schema'}
+        for db in sysdb_list:
+          tdSql.query(f'show create database {db}')
+          tdSql.checkEqual(f'{db}',tdSql.queryResult[0][0])
+          tdSql.checkEqual(f'CREATE DATABASE `{db}`',tdSql.queryResult[0][1])
+
+    def show_create_systb_sql(self):
+        for param in self.ins_param_list:
+          tdSql.query(f'show create table information_schema.ins_{param}')
+          tdSql.checkEqual(f'ins_{param}',tdSql.queryResult[0][0])
+
+          tdSql.execute(f'use information_schema')
+          tdSql.query(f'show create table ins_{param}')
+          tdSql.checkEqual(f'ins_{param}',tdSql.queryResult[0][0])
+
+        for param in self.perf_param_list:
+          tdSql.query(f'show create table performance_schema.perf_{param}')
+          tdSql.checkEqual(f'perf_{param}',tdSql.queryResult[0][0])
+
+          tdSql.execute(f'use performance_schema')
+          tdSql.query(f'show create table perf_{param}')
+          tdSql.checkEqual(f'perf_{param}',tdSql.queryResult[0][0])
+
     def show_create_sql(self):
         create_db_sql = self.set_create_database_sql(self.db_param)
         print(create_db_sql)
@@ -105,10 +128,10 @@ class TDTestCase:
                     continue
                 else:
                     tdLog.exit(f"show create database check failed with {key} {value}")
-        tdSql.query('show vnodes 1')
+        tdSql.query('show vnodes on dnode 1')
         tdSql.checkRows(self.vgroups)
         tdSql.execute(f'use {self.dbname}')
-        
+
         column_dict = {
             '`ts`': 'timestamp',
             '`col1`': 'tinyint',
@@ -124,7 +147,7 @@ class TDTestCase:
             '`col11`': 'bool',
             '`col12`': 'varchar(20)',
             '`col13`': 'nchar(20)'
-            
+
         }
         tag_dict = {
             '`t1`': 'tinyint',
@@ -141,7 +164,7 @@ class TDTestCase:
             '`t12`': 'varchar(20)',
             '`t13`': 'nchar(20)',
             '`t14`': 'timestamp'
-            
+
         }
         create_table_sql = self.set_stb_sql(self.stbname,column_dict,tag_dict)
         tdSql.execute(create_table_sql)
@@ -152,7 +175,7 @@ class TDTestCase:
         tag_sql = '('
         for tag_keys in tag_dict.keys():
             tag_sql += f'{tag_keys}, '
-        tags = f'{tag_sql[:-2]})' 
+        tags = f'{tag_sql[:-2]})'
         sql = f'create table {self.tbname} using {self.stbname} {tags} tags (1, 1, 1, 1, 1, 1, 1, 1, 1.000000e+00, 1.000000e+00, true, "abc", "abc123", 0)'
         tdSql.query(f'show create table {self.tbname}')
         query_result = tdSql.queryResult
@@ -175,7 +198,7 @@ class TDTestCase:
         taosd_info = os.popen('taosd -V').read()
         taosd_gitinfo = re.findall("^gitinfo.*",taosd_info,re.M)
         tdSql.checkEqual(taosd_gitinfo_sql,taosd_gitinfo[0])
-    
+
     def show_base(self):
         for sql in ['dnodes','mnodes','cluster']:
             tdSql.query(f'show {sql}')
@@ -187,12 +210,36 @@ class TDTestCase:
         licences_info = tdSql.queryResult
         tdSql.checkEqual(grants_info,licences_info)
 
+    def show_column_name(self):
+        tdSql.execute("create database db;")
+        tdSql.execute("use db;")
+        tdSql.execute("create table ta(ts timestamp, name nchar(16), age int , address int);")
+        tdSql.execute("insert into ta values(now, 'jack', 19, 23);")
+        
+        colName1 = ["ts","name","age","address"]
+        colName2 = tdSql.getColNameList("select last(*) from ta;")
+        for i in range(len(colName1)):
+            if colName2[i] != f"last({colName1[i]})":
+                tdLog.exit(f"column name is different.  {colName2} != last({colName1[i]} ")
+                return 
+
+        # alter option        
+        tdSql.execute("alter local 'keepColumnName' '1';")
+        colName3 = tdSql.getColNameList("select last(*) from ta;")
+        for col in colName3:
+            if colName1 != colName3:
+                tdLog.exit(f"column name is different. colName1= {colName1} colName2={colName3}")
+                return
+
     def run(self):
         self.check_gitinfo()
         self.show_base()
         self.ins_check()
         self.perf_check()
         self.show_create_sql()
+        self.show_create_sysdb_sql()
+        self.show_create_systb_sql()
+        self.show_column_name()
 
     def stop(self):
         tdSql.close()

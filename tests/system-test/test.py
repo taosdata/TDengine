@@ -13,6 +13,7 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
+import os
 import sys
 import getopt
 import subprocess
@@ -22,6 +23,7 @@ import json
 import platform
 import socket
 import threading
+import importlib
 
 import toml
 sys.path.append("../pytest")
@@ -33,6 +35,7 @@ from util.taosadapter import *
 
 import taos
 import taosrest
+import taosws
 
 def checkRunTimeError():
     import win32gui
@@ -53,8 +56,39 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+# 
+# run case on previous cluster
+#
+def runOnPreviousCluster(host, config, fileName):
+    print("enter run on previeous")
+    
+    # load case module
+    sep = "/"
+    if platform.system().lower() == 'windows':
+        sep = os.sep
+    moduleName = fileName.replace(".py", "").replace(sep, ".")
+    uModule = importlib.import_module(moduleName)
+    case = uModule.TDTestCase()
+
+    # create conn
+    conn = taos.connect(host, config)
+
+    # run case
+    case.init(conn, False)
+    try:
+        case.run()
+    except Exception as e:
+        tdLog.notice(repr(e))
+        tdLog.exit("%s failed" % (fileName))
+    # stop
+    case.stop()
+
+
 if __name__ == "__main__":
 
+    #
+    #  analysis paramaters
+    #
     fileName = "all"
     deployPath = ""
     masterIp = ""
@@ -72,11 +106,13 @@ if __name__ == "__main__":
     queryPolicy = 1
     createDnodeNums = 1
     restful = False
+    websocket = False
     replicaVar = 1
     asan = False
-    independentMnode = True
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:a', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode'])
+    independentMnode = False
+    previousCluster = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -97,10 +133,12 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-Q set queryPolicy in one dnode')
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
             tdLog.printNoPrefix('-R restful realization form')
+            tdLog.printNoPrefix('-W websocket connection')
             tdLog.printNoPrefix('-D taosadapter update cfg dict ')
             tdLog.printNoPrefix('-n the number of replicas')
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
+            tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
 
             sys.exit(0)
 
@@ -142,7 +180,7 @@ if __name__ == "__main__":
                 sys.exit(0)
 
         if key in ['-k', '--killValgrind']:
-            killValgrind = 0
+            killValgrind = 1
 
         if key in ['-e', '--execCmd']:
             try:
@@ -168,6 +206,9 @@ if __name__ == "__main__":
 
         if key in ['-R', '--restful']:
             restful = True
+        
+        if key in ['-W', '--websocket']:
+            websocket = True
 
         if key in ['-a', '--asan']:
             asan = True
@@ -182,8 +223,14 @@ if __name__ == "__main__":
         if key in ['-n', '--replicaVar']:
             replicaVar = value
 
+        if key in ['-P', '--previous']:
+            previousCluster = True
+
+    #
+    # do exeCmd command
+    #
     if not execCmd == "":
-        if restful:
+        if restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -191,6 +238,9 @@ if __name__ == "__main__":
         exec(execCmd)
         quit()
 
+    #
+    # do stop option
+    #
     if (stop != 0):
         if (valgrind == 0):
             toBeKilled = "taosd"
@@ -219,7 +269,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if restful:
+        if restful or websocket:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -248,6 +298,9 @@ if __name__ == "__main__":
 
         tdLog.info('stop All dnodes')
 
+    #
+    # get hostname
+    #
     if masterIp == "":
         host = socket.gethostname()
     else:
@@ -256,8 +309,20 @@ if __name__ == "__main__":
             host = config["host"]
         except Exception as r:
             host = masterIp
-
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
+
+    #
+    # do previousCluster option
+    #
+    if previousCluster:
+        tdDnodes.init(deployPath, masterIp)
+        runOnPreviousCluster(host, tdDnodes.getSimCfgPath(), fileName)
+        tdLog.info("run on previous cluster end.")
+        quit()
+
+    #
+    # windows run
+    #
     if platform.system().lower() == 'windows':
         fileName = fileName.replace("/", os.sep)
         if (masterIp == "" and not fileName == "0-others\\udf_create.py"):
@@ -291,22 +356,24 @@ if __name__ == "__main__":
                 print(r)
         else:
             pass
-        if restful:
-            tAdapter.init(deployPath, masterIp)
-            tAdapter.stop(force_kill=True)
+        # if restful:
+        tAdapter.init(deployPath, masterIp)
+        tAdapter.stop(force_kill=True)
 
         if dnodeNums == 1 :
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if restful:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                elif websocket:
+                    conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
 
@@ -331,19 +398,21 @@ if __name__ == "__main__":
             tdDnodes.setValgrind(valgrind)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,{})
+                tdDnodes.deploy(dnode.index, updateCfgDict)
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
                             
-            if restful:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
-            if not restful:
-                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            if restful:
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+            elif websocket:
+                conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             # tdLog.info(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
@@ -359,7 +428,9 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                elif websocket:
+                    conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
 
@@ -379,14 +450,53 @@ if __name__ == "__main__":
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
-            if not restful:
-                conn = taos.connect(host="%s"%(host), config=tdDnodes.sim.getCfgDir())
+            if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+            elif websocket:
+                conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
-        if is_test_framework:
-            tdCases.runOneWindows(conn, fileName)
+                conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
+
+        if testCluster:
+            tdLog.info("Procedures for testing cluster")
+            if fileName == "all":
+                tdCases.runAllCluster()
+            else:
+                tdCases.runOneCluster(fileName)
         else:
-            tdCases.runAllWindows(conn)
+            tdLog.info("Procedures for testing self-deployment")
+            if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+            elif websocket:
+                conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
+            else:
+                conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
+
+            if fileName == "all":
+                tdCases.runAllWindows(conn)
+            else:
+                tdCases.runOneWindows(conn, fileName, replicaVar)
+
+        if restart:
+            if fileName == "all":
+                tdLog.info("not need to query ")
+            else:
+                sp = fileName.rsplit(".", 1)
+                if len(sp) == 2 and sp[1] == "py":
+                    tdDnodes.stopAll()
+                    tdDnodes.start(1)
+                    time.sleep(1)
+                    if restful:
+                        conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                    elif websocket:
+                        conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
+                    else:
+                        conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
+                    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+                    tdLog.info("query test after taosd restart")
+                    tdCases.runOneWindows(conn, sp[0] + "_" + "restart.py", replicaVar)
+                else:
+                    tdLog.info("not need to query")
     else:
         tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
@@ -413,25 +523,28 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if restful:
+        if restful or websocket:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
         if dnodeNums == 1 :
+            # dnode is one
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if restful:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                if not restful:
-                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+                if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                elif websocket:
+                    conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
                 # tdSql.init(conn.cursor())
                 # tdSql.execute("create qnode on dnode 1")
                 # tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
@@ -458,7 +571,9 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
 
         else :
+            # dnode > 1 cluster
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
+            print(independentMnode,"independentMnode valuse")
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
@@ -467,19 +582,22 @@ if __name__ == "__main__":
             tdDnodes.setAsan(asan)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,{})
+                tdDnodes.deploy(dnode.index,updateCfgDict)
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
-            if not restful:
-                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            # create taos connect
+            if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+            elif websocket:
+                conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
             print(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
@@ -494,12 +612,15 @@ if __name__ == "__main__":
             except Exception as r:
                 print(r)
 
+            # do queryPolicy option
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                elif websocket:
+                    conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
-                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+                    conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
 
                 cursor = conn.cursor()
                 cursor.execute("create qnode on dnode 1")
@@ -515,6 +636,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
                             
 
+        # run case
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -523,16 +645,19 @@ if __name__ == "__main__":
                 tdCases.runOneCluster(fileName)
         else:
             tdLog.info("Procedures for testing self-deployment")
-            if not restful:
-                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+            elif websocket:
+                conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
 
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
                 tdCases.runOneLinux(conn, fileName, replicaVar)
 
+        # do restart option
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
@@ -542,19 +667,22 @@ if __name__ == "__main__":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
                     time.sleep(1)
-                    if not restful:
-                        conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
+                    if restful:
+                        conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                    elif websocket:
+                        conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                     else:
-                        conn = taosrest.connect(url=f"http://{host}:6041")
+                        conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
                     tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py", replicaVar)
                 else:
                     tdLog.info("not need to query")
 
+    # close for end
     if conn is not None:
         conn.close()
     if asan:
-        tdDnodes.StopAllSigint()
+        # tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
     sys.exit(0)

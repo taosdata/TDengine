@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tmsg.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
@@ -27,9 +28,10 @@ typedef struct {
   bool snapShot;
   bool dropTable;
   bool subTable;
+  int  meta;
   int  srcVgroups;
   int  dstVgroups;
-  char dir[64];
+  char dir[256];
 } Config;
 
 Config g_conf = {0};
@@ -408,6 +410,30 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
+#ifdef WINDOWS
+  pRes = taos_query(pConn,
+                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn,
+                    "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS (13135550082773579308)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into t_d2a450ee819dcf7576f0282d9ac22dbc values (now, 120, 1, 'San Francisco')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+#else
   pRes = taos_query(pConn,
                     "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select _wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
@@ -416,6 +442,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
     return -1;
   }
   taos_free_result(pRes);
+#endif
 
   pRes = taos_query(pConn, "insert into d0 (ts, current) values (now, 120)");
   if (taos_errno(pRes) != 0) {
@@ -441,7 +468,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
   char sql[128] = {0};
-  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d", g_conf.dstVgroups);
+  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d wal_retention_period 3600", g_conf.dstVgroups);
   pRes = taos_query(pConn, sql);
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
@@ -470,7 +497,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  snprintf(sql, 128, "create database if not exists abc1 vgroups %d", g_conf.srcVgroups);
+  snprintf(sql, 128, "create database if not exists abc1 vgroups %d wal_retention_period 3600", g_conf.srcVgroups);
   pRes = taos_query(pConn, sql);
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
@@ -511,14 +538,18 @@ int32_t create_topic() {
   taos_free_result(pRes);
 
   if (g_conf.subTable) {
-    pRes = taos_query(pConn, "create topic meters_summary_t1 with meta as stable meters_summary");
+    char topic[128] = {0};
+    sprintf(topic, "create topic meters_summary_t1 %s as stable meters_summary", g_conf.meta == 0 ? "with meta" : "only meta");
+    pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
       return -1;
     }
     taos_free_result(pRes);
   } else {
-    pRes = taos_query(pConn, "create topic topic_db with meta as database abc1");
+    char topic[128] = {0};
+    sprintf(topic, "create topic topic_db %s as database abc1", g_conf.meta == 0 ? "with meta" : "only meta");
+    pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
       return -1;
@@ -542,7 +573,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
-  tmq_conf_set(conf, "enable.heartbeat.background", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
@@ -593,8 +624,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 void initLogFile() {
-  char f1[256] = {0};
-  char f2[256] = {0};
+  char f1[1024] = {0};
+  char f2[1024] = {0};
 
   if (g_conf.snapShot) {
     sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", g_conf.dir);
@@ -693,95 +724,185 @@ void initLogFile() {
       }
     }
   } else {
-    if (g_conf.subTable) {
-      char* result[] = {
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-          "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
-          "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
-          "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
-          "19}],\"createList\":[]}"};
+    if (g_conf.meta) {
+      if (g_conf.subTable){
 
-      for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
-        taosFprintfFile(pFile2, result[i]);
-        taosFprintfFile(pFile2, "\n");
+      }else{
+        char* result[] = {
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
+            "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
+            "\"colType\":8,\"colLength\":64}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
+            "\"colType\":8,\"colLength\":64}",
+            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
+            "\"colValue\":\"5000\",\"colValueNull\":false}",
+            "{\"type\":\"drop\",\"tableNameList\":[\"ct3\",\"ct1\"]}",
+            "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
+            "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
+            "\"colType\":10,\"colLength\":8}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":10,\"colName\":\"c3\","
+            "\"colNewName\":\"cc3\"}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
+            "{\"type\":\"drop\",\"tableNameList\":[\"n1\"]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
+            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
+            "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
+            ",\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
+            "{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":1}]}",
+            "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt1\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb1\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt2\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":43},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb2\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt3\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb3\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt4\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":433},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb4\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":543},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}"};
+
+        for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
+          taosFprintfFile(pFile2, result[i]);
+          taosFprintfFile(pFile2, "\n");
+        }
       }
     } else {
-      char* result[] = {
-          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
-          "1}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
-          "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
-          "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
-          "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
-          "],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
-          "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
-          "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
-          "\"colType\":5}",
-          "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
-          "\"colType\":8,\"colLength\":64}",
-          "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
-          "\"colType\":8,\"colLength\":64}",
-          "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
-          "\"colValue\":\"5000\",\"colValueNull\":false}",
-          "{\"type\":\"delete\",\"sql\":\"delete from `ct3` where `ts` >= 1626006833600 and `ts` <= 1626006833605\"}",
-          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
-          "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
-          "\"colType\":5}",
-          "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
-          "\"colType\":10,\"colLength\":8}",
-          "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":10,\"colName\":\"c3\","
-          "\"colNewName\":\"cc3\"}",
-          "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
-          "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-          "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
-          "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
-          ",\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
-          "1}]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
-          "1}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
-          "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
-          "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt1\",\"using\":\"stt\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"stt1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb1\",\"using\":\"sttb\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"sttb1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt2\",\"using\":\"stt\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":43},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"stt2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb2\",\"using\":\"sttb\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
-          "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
-          "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt3\",\"using\":\"stt\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"stt3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb3\",\"using\":\"sttb\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"sttb3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt4\",\"using\":\"stt\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":433},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"stt4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb4\",\"using\":\"sttb\","
-          "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":543},{\"name\":\"t3\",\"type\":10,\"value\":"
-          "\"\\\"sttb4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}"};
+      if (g_conf.subTable) {
+        char* result[] = {
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
+            "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
+            "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
+            "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
+            "19}],\"createList\":[]}"};
 
-      for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
-        taosFprintfFile(pFile2, result[i]);
-        taosFprintfFile(pFile2, "\n");
+        for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
+          taosFprintfFile(pFile2, result[i]);
+          taosFprintfFile(pFile2, "\n");
+        }
+      }
+      else {
+        char* result[] = {
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
+            "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":7,\"colName\":\"c3\","
+            "\"colType\":8,\"colLength\":64}",
+            "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
+            "\"colType\":8,\"colLength\":64}",
+            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
+            "\"colValue\":\"5000\",\"colValueNull\":false}",
+            "{\"type\":\"delete\",\"sql\":\"delete from `ct3` where `ts` >= 1626006833600 and `ts` <= 1626006833605\"}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
+            "\"colType\":5}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
+            "\"colType\":10,\"colLength\":8}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":10,\"colName\":\"c3\","
+            "\"colNewName\":\"cc3\"}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
+            "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
+            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
+            "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
+            ",\"createList\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
+            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "1}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt1\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb1\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb1\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt2\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":43},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb2\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
+            "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt3\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"sttb3\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb3\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]},{\"tableName\":\"stt4\",\"using\":\"stt\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":433},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"stt4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb4\",\"using\":\"sttb\","
+            "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":543},{\"name\":\"t3\",\"type\":10,\"value\":"
+            "\"\\\"sttb4\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}"};
+
+        for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
+          taosFprintfFile(pFile2, result[i]);
+          taosFprintfFile(pFile2, "\n");
+        }
       }
     }
   }
@@ -789,6 +910,96 @@ void initLogFile() {
   taosCloseFile(&pFile2);
 }
 
+void testConsumeExcluded(int topic_type){
+  TAOS* pConn = use_db();
+  TAOS_RES *pRes = NULL;
+
+  if(topic_type == 1){
+    char *topic = "create topic topic_excluded with meta as database db_taosx";
+    pRes = taos_query(pConn, topic);
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
+      return;
+    }
+    taos_free_result(pRes);
+  }else if(topic_type == 2){
+    char *topic = "create topic topic_excluded as select * from stt";
+    pRes = taos_query(pConn, topic);
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
+      return;
+    }
+    taos_free_result(pRes);
+  }
+  taos_close(pConn);
+
+  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set(conf, "client.id", "my app 1");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "msg.consume.excluded", "1");
+
+
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  assert(tmq);
+  tmq_conf_destroy(conf);
+
+  tmq_list_t* topic_list = tmq_list_new();
+  tmq_list_append(topic_list, "topic_excluded");
+
+  int32_t code = 0;
+
+  if ((code = tmq_subscribe(tmq, topic_list))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
+    printf("subscribe err\n");
+    return;
+  }
+  while (running) {
+    TAOS_RES* msg = tmq_consumer_poll(tmq, 1000);
+    if (msg) {
+      tmq_raw_data raw = {0};
+      tmq_get_raw(msg, &raw);
+      if(topic_type == 1){
+        assert(raw.raw_type != 2 && raw.raw_type != 4 &&
+               raw.raw_type != TDMT_VND_CREATE_STB &&
+               raw.raw_type != TDMT_VND_ALTER_STB &&
+               raw.raw_type != TDMT_VND_CREATE_TABLE &&
+               raw.raw_type != TDMT_VND_ALTER_TABLE &&
+               raw.raw_type != TDMT_VND_DELETE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB ||
+               raw.raw_type == TDMT_VND_DROP_TABLE);
+      }else if(topic_type == 2){
+        assert(0);
+      }
+//      printf("write raw data type: %d\n", raw.raw_type);
+      tmq_free_raw(raw);
+
+      taos_free_result(msg);
+    } else {
+      break;
+    }
+  }
+
+  tmq_consumer_close(tmq);
+  tmq_list_destroy(topic_list);
+
+  pConn = use_db();
+  pRes = taos_query(pConn, "drop topic if exists topic_excluded");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
+    taos_close(pConn);
+    return;
+  }
+  taos_close(pConn);
+  taos_free_result(pRes);
+}
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -803,6 +1014,8 @@ int main(int argc, char* argv[]) {
       g_conf.dstVgroups = atol(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
       g_conf.subTable = true;
+    } else if (strcmp(argv[i], "-onlymeta") == 0) {
+      g_conf.meta = 1;
     }
   }
 
@@ -820,5 +1033,8 @@ int main(int argc, char* argv[]) {
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
+
+  testConsumeExcluded(1);
+  testConsumeExcluded(2);
   taosCloseFile(&g_fp);
 }

@@ -26,6 +26,7 @@ extern "C" {
 enum {
   SORT_MULTISOURCE_MERGE = 0x1,
   SORT_SINGLESOURCE_SORT = 0x2,
+  SORT_BLOCK_TS_MERGE = 0x3
 };
 
 typedef struct SMultiMergeSource {
@@ -44,7 +45,8 @@ typedef struct SSortSource {
     void* param;
     bool  onlyRef;
   };
-
+  int64_t fetchUs;
+  int64_t fetchNum;
 } SSortSource;
 
 typedef struct SMsortComparParam {
@@ -52,6 +54,12 @@ typedef struct SMsortComparParam {
   int32_t numOfSources;
   SArray* orderInfo;  // SArray<SBlockOrderInfo>
   bool    cmpGroupId;
+
+  int32_t sortType;
+  // the following field to speed up when sortType == SORT_BLOCK_TS_MERGE
+  int32_t tsSlotId;
+  int32_t order;
+  __compar_fn_t cmpFn;
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
@@ -63,10 +71,16 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
 /**
  *
  * @param type
+ * @param maxRows keep maxRows at most, if 0, pq sort will not be used
+ * @param maxTupleLength max len of one tuple, for check if pq sort is applicable
+ * @param sortBufSize sort memory buf size, for check if heap sort is applicable
  * @return
  */
 SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr);
+                                   SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
+                                   uint32_t pqSortBufSize);
+
+void tsortSetForceUsePQSort(SSortHandle* pHandle);
 
 /**
  *
@@ -103,6 +117,10 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
  */
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
 
+/**
+ * 
+*/
+void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit);
 /**
  *
  */
@@ -145,7 +163,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-
+void*    tsortGetBlockInfo(STupleHandle* pVHandle);
 /**
  *
  * @param pSortHandle
@@ -169,6 +187,27 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
  */
 int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
 
+
+bool tsortIsClosed(SSortHandle* pHandle);
+void tsortSetClosed(SSortHandle* pHandle);
+
+void tsortSetSingleTableMerge(SSortHandle* pHandle);
+void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
+
+/**
+ * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
+ * @param [in] pSortCols cols to comp and build
+ * @param [in, out] pass in the old keys, if comp not equal, new keys will be built in it.
+ * @param [in, out] keyLen the old keysLen, if comp not equal, new keysLen will be stored in it.
+ * @param [in] the tuple to comp with
+ * @retval 0 if comp equal, 1 if not
+ */
+int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple);
+
+/**
+ * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
+*/
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
 #ifdef __cplusplus
 }
 #endif

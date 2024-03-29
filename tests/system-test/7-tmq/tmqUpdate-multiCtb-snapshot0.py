@@ -25,7 +25,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -128,7 +128,7 @@ class TDTestCase:
         ifManualCommit = 1
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:200,\
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
@@ -213,7 +213,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2) * (1/2*3))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] *(2 + 1/2*1/2*2 + 1/2 + 1/4))
         elif self.snapshot == 1:
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/2))
 

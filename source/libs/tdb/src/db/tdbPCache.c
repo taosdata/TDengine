@@ -229,7 +229,15 @@ void tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno) {
   }
 
   if (pPage) {
+    bool moveToFreeList = false;
+    if (pPage->pLruNext) {
+      tdbPCachePinPage(pCache, pPage);
+      moveToFreeList = true;
+    }
     tdbPCacheRemovePageFromHash(pCache, pPage);
+    if (moveToFreeList) {
+      tdbPCacheFreePage(pCache, pPage);
+    }
   }
 }
 
@@ -295,7 +303,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 1. pPage == NULL
-  // 2. pPage && pPage->isLocal == 0 && !TDB_TXN_IS_WRITE(pTxn)
+  // 2. pPage && !pPage->isLocal == 0 && !TDB_TXN_IS_WRITE(pTxn)
   pPageH = pPage;
   pPage = NULL;
 

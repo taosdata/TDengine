@@ -26,6 +26,10 @@ void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
   int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
   if (code != 0) {
+    SRpcMsg rsp = {.code = code, .info = pMsg->info};
+    if (rsp.info.handle != NULL) {
+      tmsgSendRsp(&rsp);
+    }
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
   }
@@ -38,6 +42,14 @@ int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
 
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   int32_t code = (*defaultMsgCb.sendReqFp)(epSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
+int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  int32_t code = (*defaultMsgCb.sendSyncReqFp)(epSet, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;

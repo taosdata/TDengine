@@ -171,6 +171,8 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 }
 
 void syncRespCleanRsp(SSyncRespMgr *pObj) {
+  if (pObj == NULL) return;
+
   SSyncNode *pNode = pObj->data;
   sTrace("vgId:%d, clean all resp", pNode->vgId);
 

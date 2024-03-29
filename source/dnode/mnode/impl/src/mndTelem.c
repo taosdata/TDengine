@@ -94,7 +94,7 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   tjsonAddStringToObject(pJson, "instanceId", clusterName);
   tjsonAddDoubleToObject(pJson, "reportVersion", 1);
 
-  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
+  if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
     tjsonAddStringToObject(pJson, "os", tmp);
   }
 

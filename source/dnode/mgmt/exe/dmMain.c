@@ -18,7 +18,26 @@
 #include "mnode.h"
 #include "tconfig.h"
 #include "tglobal.h"
+#include "version.h"
+#ifdef TD_JEMALLOC_ENABLED
+#include "jemalloc/jemalloc.h"
+#endif
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#else
+#ifndef CUS_NAME
+    #define CUS_NAME      "TDengine"
+#endif
+
+#ifndef CUS_PROMPT
+    #define CUS_PROMPT    "taos"
+#endif
+
+#ifndef CUS_EMAIL
+    #define CUS_EMAIL     "<support@taosdata.com>"
+#endif
+#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -49,7 +68,7 @@ static struct {
   int64_t      startTime;
 } global = {0};
 
-static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143, true); }
+static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
@@ -71,33 +90,33 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
-  taosIgnSignal(SIGTERM);
-  taosIgnSignal(SIGHUP);
-  taosIgnSignal(SIGINT);
-  taosIgnSignal(SIGBREAK);
+  // taosIgnSignal(SIGTERM);
+  // taosIgnSignal(SIGHUP);
+  // taosIgnSignal(SIGINT);
+  // taosIgnSignal(SIGBREAK);
 
-#ifndef WINDOWS  
+#ifndef WINDOWS
   taosIgnSignal(SIGBUS);
 #endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
 
-  char *pMsg = NULL;
+  char       *pMsg = NULL;
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
   int32_t     dflag = 255;
-  int64_t     msgLen= -1;
-  
+  int64_t     msgLen = -1;
+
   if (tsEnableCrashReport) {
     if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
       taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
       goto _return;
     } else {
-      msgLen = strlen(pMsg);  
+      msgLen = strlen(pMsg);
     }
   }
-  
+
 _return:
 
   taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
@@ -123,7 +142,7 @@ static void dmSetSignalHandle() {
 
 #ifndef WINDOWS
   taosSetSignal(SIGBUS, dmLogCrash);
-#endif  
+#endif
   taosSetSignal(SIGABRT, dmLogCrash);
   taosSetSignal(SIGFPE, dmLogCrash);
   taosSetSignal(SIGSEGV, dmLogCrash);
@@ -134,7 +153,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
 
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
-  
+
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
@@ -150,11 +169,29 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
-      tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("apollo url overflow");
+          return -1;
+        }
+        tstrncpy(global.apolloUrl, argv[i], PATH_MAX);
+      } else {
+        printf("'-a' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
-      tstrncpy(global.envFile, argv[++i], PATH_MAX);
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("env file path overflow");
+          return -1;
+        }
+        tstrncpy(global.envFile, argv[i], PATH_MAX);
+      } else {
+        printf("'-E' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-C") == 0) {
@@ -203,6 +240,9 @@ static void dmPrintVersion() {
 #endif
   printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
   printf("gitinfo: %s\n", gitinfo);
+#ifdef TD_ENTERPRISE
+  printf("gitinfoOfInternal: %s\n", gitinfoOfInternal);
+#endif
   printf("buildInfo: %s\n", buildinfo);
 }
 
@@ -228,7 +268,7 @@ static void dmDumpCfg() {
 }
 
 static int32_t dmInitLog() {
-  return taosCreateLog("taosdlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
+  return taosCreateLog(CUS_PROMPT"dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void taosCleanupArgs() {
@@ -236,6 +276,10 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
+#ifdef TD_JEMALLOC_ENABLED
+  bool jeBackgroundThread = true;
+  mallctl("background_thread", NULL, NULL, &jeBackgroundThread, sizeof(bool));
+#endif
   if (!taosCheckSystemIsLittleEnd()) {
     printf("failed to start since on non-little-end machines\n");
     return -1;
@@ -284,7 +328,7 @@ int mainWindows(int argc, char **argv) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
       return code;
     }
-    tsAsyncLog = false;    
+    tsAsyncLog = false;
     printf("memory dbg enabled\n");
   }
 #endif
@@ -333,7 +377,11 @@ int mainWindows(int argc, char **argv) {
   taosCleanupArgs();
 
   if (dmInit() != 0) {
-    dError("failed to init dnode since %s", terrstr());
+    if (terrno == TSDB_CODE_NOT_FOUND) {
+      dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
+    } else {
+      dError("failed to init dnode since %s", terrstr());
+    }
 
     taosCleanupCfg();
     taosCloseLog();
@@ -343,6 +391,8 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
+  tsDndStart = taosGetTimestampMs();
+  tsDndStartOsUptime = taosGetOsUptime();
   int32_t code = dmRun();
   dInfo("shutting down the service");
 

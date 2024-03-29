@@ -18,7 +18,7 @@ def get_connection() -> taos.TaosConnection:
 
 
 def create_stable(conn: taos.TaosConnection):
-    conn.execute("CREATE DATABASE power")
+    conn.execute("CREATE DATABASE power keep 36500")
     conn.execute("USE power")
     conn.execute("CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
                  "TAGS (location BINARY(64), groupId INT)")

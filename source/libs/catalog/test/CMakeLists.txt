@@ -9,7 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(catalogTest ${SOURCE_LIST})
         TARGET_LINK_LIBRARIES(
                 catalogTest
-                PUBLIC os util common catalog transport gtest qcom taos_static
+                PUBLIC os util common nodes catalog transport gtest qcom taos_static
         )
 
         TARGET_INCLUDE_DIRECTORIES(

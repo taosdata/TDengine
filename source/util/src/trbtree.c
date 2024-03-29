@@ -105,7 +105,7 @@ static void tRBTreeTransplant(SRBTree *pTree, SRBTreeNode *u, SRBTreeNode *v) {
   v->parent = u->parent;
 }
 
-static SRBTreeNode *tRBTreeSuccessor(SRBTree *pTree, SRBTreeNode *pNode) {
+static SRBTreeNode *tRBTreeSuccessor(const SRBTree *pTree, SRBTreeNode *pNode) {
   if (pNode->right != pTree->NIL) {
     pNode = pNode->right;
     while (pNode->left != pTree->NIL) {
@@ -125,7 +125,7 @@ static SRBTreeNode *tRBTreeSuccessor(SRBTree *pTree, SRBTreeNode *pNode) {
   return pNode;
 }
 
-static SRBTreeNode *tRBTreePredecessor(SRBTree *pTree, SRBTreeNode *pNode) {
+static SRBTreeNode *tRBTreePredecessor(const SRBTree *pTree, SRBTreeNode *pNode) {
   if (pNode->left != pTree->NIL) {
     pNode = pNode->left;
     while (pNode->right != pTree->NIL) {
@@ -443,7 +443,7 @@ SRBTreeNode *tRBTreeDropMax(SRBTree *pTree) {
   return pNode;
 }
 
-SRBTreeNode *tRBTreeGet(SRBTree *pTree, const SRBTreeNode *pKeyNode) {
+SRBTreeNode *tRBTreeGet(const SRBTree *pTree, const SRBTreeNode *pKeyNode) {
   SRBTreeNode *pNode = pTree->root;
 
   while (pNode != pTree->NIL) {

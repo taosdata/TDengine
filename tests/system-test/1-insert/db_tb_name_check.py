@@ -44,7 +44,7 @@ class TDTestCase:
                 new_dbname = list(dbname)
                 new_dbname.insert(i,j)
                 dbname_1 = ''.join(new_dbname)
-                tdSql.execute(f'create database if not exists `{dbname_1}`')
+                tdSql.execute(f'create database if not exists `{dbname_1}`  vgroups 1 replica 1')
                 tdSql.query('select * from information_schema.ins_databases')
                 tdSql.checkEqual(tdSql.queryResult[2][0],str(dbname_1))
                 tdSql.execute(f'drop database `{dbname_1}`')
@@ -56,7 +56,7 @@ class TDTestCase:
 
     def tb_name_check(self):
         dbname = tdCom.getLongName(10)
-        tdSql.execute(f'create database if not exists `{dbname}`')
+        tdSql.execute(f'create database if not exists `{dbname}` vgroups 1 replica 1')
         tdSql.execute(f'use `{dbname}`')
         tbname = tdCom.getLongName(5)
         for i in self.special_name:
@@ -76,7 +76,8 @@ class TDTestCase:
             new_tbname = ''.join(tbname1)
             for sql in [f'`{dbname}`.`{new_tbname}`',f'`{new_tbname}`']:
                 tdSql.error(f'create table {sql} (ts timestamp,c0 int)')
-        tdSql.execute(f'drop database `{dbname}`')            
+        tdSql.execute(f'trim database `{dbname}`')
+        tdSql.execute(f'drop database `{dbname}`')
     def run(self):
         self.db_name_check()
         self.tb_name_check()

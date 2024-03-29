@@ -6,7 +6,7 @@ description: This document describes how to install TDengine in a Docker contain
 
 This document describes how to install TDengine in a Docker container and perform queries and inserts.
 
-- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com).
+- The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com).
 - To get started with TDengine in a non-containerized environment, see [Quick Install from Package](../../get-started/package).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
@@ -30,7 +30,21 @@ And then run the following command:
 docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 ```
 
-Note that TDengine Server 3.0 uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connectors. You can open these ports as needed.
+Note that TDengine Server 3.0 uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connections. You can open these ports as needed.
+
+If you need to persist data to a specific directory on your local machine, please run the following command:
+```shell
+docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
+  -v ~/data/taos/dnode/log:/var/log/taos \
+  -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+```
+:::note
+
+- /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. Also you can modify ~/data/taos/dnode/data to your any local empty data directory
+- /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. you can modify ~/data/taos/dnode/log to your any local empty log directory
+
+:::
+
 
 Run the following command to ensure that your container is running:
 
@@ -113,4 +127,4 @@ In the query above you are selecting the first timestamp (ts) in the interval, a
 
 ## Additional Information
 
-For more information about deploying TDengine in a Docker environment, see [Using TDengine in Docker](../../reference/docker).
+For more information about deploying TDengine in a Docker environment, see [Deploying TDengine with Docker](../../deployment/docker).

@@ -35,13 +35,13 @@ Please refer to the [official documentation](https://grafana.com/grafana/downloa
 
 ### TDengine
 
-Download the latest TDengine-server from the [Downloads](http://tdengine.com/en/all-downloads/) page on the TAOSData website and install it.
+Download and install the [latest version of TDengine](https://docs.tdengine.com/releases/tdengine/).
 
 ## Data Connection Setup
 
 ### Install Grafana Plugin and Configure Data Source
 
-Please refer to [Install Grafana Plugin and Configure Data Source](/third-party/grafana/#install-grafana-plugin-and-configure-data-source)
+Please refer to [Install Grafana Plugin and Configure Data Source](../../third-party/grafana/#install-grafana-plugin-and-configure-data-source)
 
 ### Modify /etc/telegraf/telegraf.conf
 
@@ -67,7 +67,7 @@ sudo systemctl start telegraf
 
 Log in to the Grafana interface using a web browser at `IP:3000`, with the system's initial username and password being `admin/admin`.
 Click on the gear icon on the left and select `Plugins`, you should find the TDengine data source plugin icon.
-Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json`, download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
+Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v3.json` (for TDengine 3.0. for TDengine 2.x, please use `telegraf-dashboard-v2.json`), download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
 
 ![TDengine Database IT-DevOps-Solutions-telegraf-dashboard](./IT-DevOps-Solutions-telegraf-dashboard.webp)
 

@@ -68,7 +68,7 @@ int32_t shellCheckIntSize() {
   return 0;
 }
 
-void shellPrintVersion() { printf("version: %s\r\n", version); }
+void shellPrintVersion() { printf("%s\r\n", shell.info.programVersion); }
 
 void shellGenerateAuth() {
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
@@ -130,11 +130,21 @@ void shellCheckConnectMode() {
 	}
 	if (shell.args.cloud) {
 		shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
-		if (shell.args.dsn) {
+		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
 			shell.args.cloud = true;
+      shell.args.local = false;
 			shell.args.restful = false;
 			return;
 		}
+
+    shell.args.dsn = getenv("TDENGINE_DSN");
+		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
+			shell.args.cloud = true;
+      shell.args.local = true;
+			shell.args.restful = false;
+			return;
+		}
+
 		if (shell.args.restful) {
 			if (!shell.args.host) {
 				shell.args.host = "localhost";

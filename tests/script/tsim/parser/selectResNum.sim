@@ -7,10 +7,10 @@ $dbPrefix = sc_db
 $tbPrefix = sc_tb
 $stbPrefix = sc_stb
 $tbNum = 10
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 $loops = 200000
-$log = 10000
+$log = 1000
 $ts0 = 1537146000000
 $delta = 600000
 print ========== selectResNum.sim

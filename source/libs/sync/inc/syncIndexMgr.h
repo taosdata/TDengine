@@ -24,12 +24,13 @@ extern "C" {
 
 // SIndexMgr -----------------------------
 typedef struct SSyncIndexMgr {
-  SRaftId (*replicas)[TSDB_MAX_REPLICA];
-  SyncIndex  index[TSDB_MAX_REPLICA];
-  SyncTerm   privateTerm[TSDB_MAX_REPLICA];  // for advanced function
-  int64_t    startTimeArr[TSDB_MAX_REPLICA];
-  int64_t    recvTimeArr[TSDB_MAX_REPLICA];
+  SRaftId (*replicas)[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncIndex  index[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  SyncTerm   privateTerm[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];  // for advanced function
+  int64_t    startTimeArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  int64_t    recvTimeArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   int32_t    replicaNum;
+  int32_t    totalReplicaNum;
   SSyncNode *pNode;
 } SSyncIndexMgr;
 
@@ -39,6 +40,7 @@ void           syncIndexMgrDestroy(SSyncIndexMgr *pIndexMgr);
 void           syncIndexMgrClear(SSyncIndexMgr *pIndexMgr);
 void           syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index);
 SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void           syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldIndex, SRaftId *oldReplicasId);
 
 void     syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime);
 int64_t  syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);

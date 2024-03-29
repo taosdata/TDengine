@@ -15,86 +15,142 @@ print $data00 $data01 $data02
 
 sql use test;
 sql create table t2(ts timestamp, a int, b int , c int, d double);
-sql create stream streams2 trigger window_close IGNORE EXPIRED 0 into streamt2 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t2 session(ts, 10s);
+sql create stream streams2 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t2 session(ts, 10s);
 
 sql insert into t2 values(1648791213000,1,2,3,1.0);
 sql insert into t2 values(1648791222999,1,2,3,1.0);
 sql insert into t2 values(1648791223000,1,2,3,1.0);
 sql insert into t2 values(1648791223001,1,2,3,1.0);
 sql insert into t2 values(1648791233001,1,2,3,1.0);
-sleep 300
-sql select * from streamt2;
-if $rows != 0 then
-  print ======$rows
+
+$loop_count = 0
+
+loop0:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
   return -1
 endi
 
-sql insert into t2 values(1648791243002,1,2,3,1.0);
-sleep 300
 sql select * from streamt2;
+if $rows != 0 then
+  print ======$rows
+  goto loop0
+endi
+
+sql insert into t2 values(1648791243002,1,2,3,1.0);
+
+loop1:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamt2;
+
 if $rows != 1 then
   print ======$rows
-  return -1
+  goto loop1
 endi
 
 if $data01 != 5 then
   print ======$data01
-  return -1
+  goto loop1
 endi
 
 sql insert into t2 values(1648791223001,1,2,3,1.0) (1648791223002,1,2,3,1.0) (1648791222999,1,2,3,1.0);
-sleep 300
+
+loop2:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
 sql select * from streamt2;
+
 if $rows != 1 then
   print ======$rows
-  return -1
+  goto loop2
 endi
 
 if $data01 != 6 then
   print ======$data01
-  return -1
+  goto loop2
 endi
 
 sql insert into t2 values(1648791233002,1,2,3,1.0);
-sleep 300
-sql select * from streamt2;
-if $rows != 0 then
-  print ======$rows
+
+loop3:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
   return -1
 endi
 
-sql insert into t2 values(1648791253003,1,2,3,1.0);
-sleep 300
 sql select * from streamt2;
+
+if $rows != 0 then
+  print ======$rows
+  goto loop3
+endi
+
+sql insert into t2 values(1648791253003,1,2,3,1.0);
+
+loop4:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+
+sql select * from streamt2;
+
 if $rows != 1 then
   print ======$rows
-  return -1
+  goto loop4
 endi
 
 if $data01 != 8 then
   print ======$data01
-  return -1
+  goto loop4
 endi
 
 sql insert into t2 values(1648791243003,1,2,3,1.0) (1648791243002,1,2,3,1.0) (1648791270004,1,2,3,1.0) (1648791280005,1,2,3,1.0)  (1648791290006,1,2,3,1.0);
-sleep 500
+
+loop5:
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
 sql select * from streamt2;
+
 if $rows != 3 then
   print =====rows=$rows
-  return -1
+  goto loop5
 endi
 
 if $data01 != 10 then
   print ======$data01
-  return -1
+  goto loop5
 endi
 if $data11 != 1 then
   print ======$data11
-  return -1
+  goto loop5
 endi
 if $data21 != 1 then
   print ======$data21
-  return -1
+  goto loop5
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

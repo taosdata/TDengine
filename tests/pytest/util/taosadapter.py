@@ -1,4 +1,4 @@
-import socket
+import requests
 from fabric2 import Connection
 from util.log import *
 from util.common import *
@@ -132,9 +132,9 @@ class TAdapter:
             tdLog.exit(cmd)
 
     def deploy(self, *update_cfg_dict):
-        self.log_dir = f"{self.path}/sim/dnode1/log"
-        self.cfg_dir = f"{self.path}/sim/dnode1/cfg"
-        self.cfg_path = f"{self.cfg_dir}/taosadapter.toml"
+        self.log_dir = os.path.join(self.path,"sim","dnode1","log")
+        self.cfg_dir = os.path.join(self.path,"sim","dnode1","cfg")
+        self.cfg_path = os.path.join(self.cfg_dir,"taosadapter.toml")
 
         cmd = f"touch {self.cfg_path}"
         if os.system(cmd) != 0:
@@ -162,7 +162,7 @@ class TAdapter:
             tdLog.info(f"taosadapter found: {bin_path}")
 
         if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
+            cmd = f"mintty -h never {bin_path} -c {self.cfg_path}"
         else:
             cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
@@ -170,7 +170,7 @@ class TAdapter:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
             self.running = 1
         else:
-            os.system(f"rm -rf {self.log_dir}/taosadapter*")
+            os.system(f"rm -rf {self.log_dir}{os.sep}taosadapter*")
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
@@ -179,22 +179,19 @@ class TAdapter:
             time.sleep(0.1)
 
             taosadapter_port = self.taosadapter_cfg_dict["port"]
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(3)
-            try:
-                res = s.connect_ex((self.remoteIP, taosadapter_port))
-                s.shutdown(2)
-                if res == 0:
-                    tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
-                else:
-                    tdLog.info(f"the taosadapter do not started!!!")
-            except socket.error as  e:
-                tdLog.notice("socket connect error!")
-            finally:
-                if s:
-                    s.close()
-            # tdLog.debug("the taosadapter has been started.")
-            time.sleep(1)
+            for i in range(5):
+                ip = 'localhost'
+                if self.remoteIP != "":
+                    ip = self.remoteIP
+                url = f'http://{ip}:{taosadapter_port}/-/ping'
+                try:
+                    r = requests.get(url)
+                    if r.status_code == 200:
+                        tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
+                        break
+                except Exception:
+                        tdLog.info(f"the taosadapter do not started!!!")
+                        time.sleep(1)
 
     def start_taosadapter(self):
         """
@@ -228,33 +225,36 @@ class TAdapter:
 
     def stop(self, force_kill=False):
         signal = "-9" if force_kill else "-15"
-
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, "tAdapter.running=1\ntAdapter.stop()")
             tdLog.info("stop taosadapter")
             return
-
         toBeKilled = "taosadapter"
-        
-        if self.running != 0:
+        if platform.system().lower() == 'windows':
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
-            # psCmd = f"pgrep {toBeKilled}"            
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):                
-                killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)                
+            while(processID):
+                killCmd = "kill %s %s > nul 2>&1" % (signal, processID)
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()                
-            if not platform.system().lower() == 'windows':
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            self.running = 0
+            tdLog.debug(f"taosadapter is stopped by kill {signal}")
+
+        else:
+            if self.running != 0:
+                psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                while(processID):
+                    killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)
+                    os.system(killCmd)
+                    time.sleep(1)
+                    processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 port = 6041
                 fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
                 os.system(fuserCmd)
-                # for port in range(6030, 6041):
-                    # fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
-                    # os.system(fuserCmd)
-
-            self.running = 0
-            tdLog.debug(f"taosadapter is stopped by kill {signal}")
+                self.running = 0
+                tdLog.debug(f"taosadapter is stopped by kill {signal}")
 
 
 

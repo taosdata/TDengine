@@ -33,6 +33,7 @@ extern "C" {
 #include "ttime.h"
 #include "ttypes.h"
 #include "cJSON.h"
+#include "geosWrapper.h"
 
 #if (defined(__GNUC__) && (__GNUC__ >= 3)) || (defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 800)) || defined(__clang__)
 #  define expect(expr,value)    (__builtin_expect ((expr),(value)) )
@@ -64,14 +65,32 @@ extern "C" {
 #define IS_INVALID_COL_LEN(len)   ((len) <= 0 || (len) >= TSDB_COL_NAME_LEN)
 #define IS_INVALID_TABLE_LEN(len) ((len) <= 0 || (len) >= TSDB_TABLE_NAME_LEN)
 
-#define TS        "_ts"
-#define TS_LEN    3
 #define VALUE     "_value"
-#define VALUE_LEN 6
+#define VALUE_LEN (sizeof(VALUE)-1)
 
 #define OTD_JSON_FIELDS_NUM     4
-#define MAX_RETRY_TIMES 5
-typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
+#define MAX_RETRY_TIMES 10
+
+#define IS_SAME_CHILD_TABLE (elements->measureTagsLen == info->preLine.measureTagsLen \
+&& memcmp(elements->measure, info->preLine.measure, elements->measureTagsLen) == 0)
+
+#define IS_SAME_SUPER_TABLE (elements->measureLen == info->preLine.measureLen \
+&& memcmp(elements->measure, info->preLine.measure, elements->measureLen) == 0)
+
+#define IS_SAME_KEY (maxKV->type == kv->type && maxKV->keyLen == kv->keyLen && memcmp(maxKV->key, kv->key, kv->keyLen) == 0)
+
+#define IS_SLASH_LETTER_IN_MEASUREMENT(sql)                                                           \
+  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE))
+
+#define MOVE_FORWARD_ONE(sql, len) (memmove((void *)((sql)-1), (sql), len))
+
+#define PROCESS_SLASH_IN_MEASUREMENT(key, keyLen)           \
+  for (int i = 1; i < keyLen; ++i) {         \
+    if (IS_SLASH_LETTER_IN_MEASUREMENT(key + i)) {          \
+      MOVE_FORWARD_ONE(key + i, keyLen - i); \
+      keyLen--;                              \
+    }                                        \
+  }
 
 typedef enum {
   SCHEMA_ACTION_NULL,
@@ -81,18 +100,6 @@ typedef enum {
   SCHEMA_ACTION_CHANGE_COLUMN_SIZE,
   SCHEMA_ACTION_CHANGE_TAG_SIZE,
 } ESchemaAction;
-
-typedef struct {
-  const void  *key;
-  int32_t      keyLen;
-  void        *value;
-  bool         used;
-}Node;
-
-typedef struct NodeList{
-  Node             data;
-  struct NodeList* next;
-}NodeList;
 
 typedef struct {
   char *measure;
@@ -107,6 +114,7 @@ typedef struct {
   int32_t colsLen;
   int32_t timestampLen;
 
+  bool    measureEscaped;
   SArray *colArray;
 } SSmlLineInfo;
 
@@ -115,7 +123,6 @@ typedef struct {
   int32_t     sTableNameLen;
   char        childTableName[TSDB_TABLE_NAME_LEN];
   uint64_t    uid;
-//  void       *key;        // for openTsdb
 
   SArray *tags;
 
@@ -159,15 +166,16 @@ typedef struct {
 typedef struct {
   int64_t id;
 
-  SMLProtocolType protocol;
+  TSDB_SML_PROTOCOL_TYPE protocol;
+
   int8_t          precision;
   bool            reRun;
   bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
-  bool            isRawLine;
   int32_t         ttl;
   int32_t         uid; // used for automatic create child table
 
   SHashObj *childTables;
+  SHashObj *tableUids;
   SHashObj *superTables;
   SHashObj *pVgHash;
 
@@ -190,7 +198,7 @@ typedef struct {
   //
   SArray      *preLineTagKV;
   SArray      *maxTagKVs;
-  SArray      *masColKVs;
+  SArray      *maxColKVs;
 
   SSmlLineInfo preLine;
   STableMeta  *currSTableMeta;
@@ -198,16 +206,8 @@ typedef struct {
   bool         needModifySchema;
 } SSmlHandle;
 
-#define IS_SAME_CHILD_TABLE (elements->measureTagsLen == info->preLine.measureTagsLen \
-&& memcmp(elements->measure, info->preLine.measure, elements->measureTagsLen) == 0)
-
-#define IS_SAME_SUPER_TABLE (elements->measureLen == info->preLine.measureLen \
-&& memcmp(elements->measure, info->preLine.measure, elements->measureLen) == 0)
-
-#define IS_SAME_KEY (maxKV->keyLen == kv.keyLen && memcmp(maxKV->key, kv.key, kv.keyLen) == 0)
-
-extern int64_t smlFactorNS[3];
-extern int64_t smlFactorS[3];
+extern int64_t smlFactorNS[];
+extern int64_t smlFactorS[];
 
 typedef int32_t (*_equal_fn_sml)(const void *, const void *);
 
@@ -215,31 +215,60 @@ SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
 void          smlDestroyInfo(SSmlHandle *info);
 int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
 int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-//SArray       *smlJsonParseTags(char *start, char *end);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
-void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
-int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
-int           nodeListSize(NodeList* list);
-bool          smlDoubleToInt64OverFlow(double num);
 int32_t       smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 bool          smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
-int8_t        smlGetTsTypeByLen(int32_t len);
 SSmlTableInfo*    smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen);
 SSmlSTableMeta*   smlBuildSTableMeta(bool isDataFormat);
 int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
+void              getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
 STableMeta*       smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen);
 int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
-void              clearColValArray(SArray* pCols);
-void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
+void              smlDestroyTableInfo(void *para);
 
+void    freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
+
+SSmlSTableMeta* smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement);
+bool            isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
+bool            isSmlColAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
+int32_t         smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements);
+int32_t         smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements);
+int32_t         smlJoinMeasureTag(SSmlLineInfo *elements);
+void            smlBuildTsKv(SSmlKv *kv, int64_t ts);
+int32_t         smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
+int32_t         smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs);
+
+static inline bool smlDoubleToInt64OverFlow(double num) {
+  if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
+  return false;
+}
+
+static inline void smlStrReplace(char* src, int32_t len){
+  if (!tsSmlDot2Underline) return;
+  for(int i = 0; i < len; i++){
+    if(src[i] == '.'){
+      src[i] = '_';
+    }
+  }
+}
+
+static inline int8_t smlGetTsTypeByLen(int32_t len) {
+  if (len == TSDB_TIME_PRECISION_SEC_DIGITS) {
+    return TSDB_TIME_PRECISION_SECONDS;
+  } else if (len == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+    return TSDB_TIME_PRECISION_MILLI;
+  } else {
+    return -1;
+  }
+}
 
 #ifdef __cplusplus
 }

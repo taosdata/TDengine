@@ -298,11 +298,11 @@ sql drop database db
 sql_error create database db MAXROWS -1
 sql_error create database db MAXROWS 0
 sql_error create database db MAXROWS 199
-sql_error create database db MAXROWS 10001
+sql_error create database db MAXROWS 10000001
 sql_error create database db MINROWS -1
 sql_error create database db MINROWS 0
 sql_error create database db MINROWS 9
-sql_error create database db MINROWS 1001
+sql_error create database db MINROWS 1000001
 sql_error create database db MAXROWS 500 MINROWS 1000
 
 print ====> PRECISION ['ms' | 'us' | 'ns', default: ms]

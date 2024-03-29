@@ -111,8 +111,8 @@ int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
 
-int32_t mmPutMsgToSyncCtrlQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutMsgToWorker(pMgmt, &pMgmt->syncCtrlWorker, pMsg);
+int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->syncRdWorker, pMsg);
 }
 
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -120,6 +120,11 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  if (NULL == pMgmt->pMnode) {
+    const STraceId *trace = &pMsg->info.traceId;
+    dGError("msg:%p, stop to pre-process in mnode since mnode is NULL, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+    return -1;
+  }
   pMsg->info.node = pMgmt->pMnode;
   if (mndPreProcessQueryMsg(pMsg) != 0) {
     const STraceId *trace = &pMsg->info.traceId;
@@ -151,8 +156,8 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     case SYNC_QUEUE:
       pWorker = &pMgmt->syncWorker;
       break;
-    case SYNC_CTRL_QUEUE:
-      pWorker = &pMgmt->syncCtrlWorker;
+    case SYNC_RD_QUEUE:
+      pWorker = &pMgmt->syncRdWorker;
       break;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
@@ -238,12 +243,12 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg scCfg = {
       .min = 1,
       .max = 1,
-      .name = "mnode-sync-ctrl",
+      .name = "mnode-sync-rd",
       .fp = (FItem)mmProcessSyncMsg,
       .param = pMgmt,
   };
-  if (tSingleWorkerInit(&pMgmt->syncCtrlWorker, &scCfg) != 0) {
-    dError("failed to start mnode mnode-sync-ctrl worker since %s", terrstr());
+  if (tSingleWorkerInit(&pMgmt->syncRdWorker, &scCfg) != 0) {
+    dError("failed to start mnode mnode-sync-rd worker since %s", terrstr());
     return -1;
   }
 
@@ -259,6 +264,6 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
-  tSingleWorkerCleanup(&pMgmt->syncCtrlWorker);
+  tSingleWorkerCleanup(&pMgmt->syncRdWorker);
   dDebug("mnode workers are closed");
 }

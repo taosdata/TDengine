@@ -19,6 +19,7 @@
 #include "transLog.h"
 #include "trpc.h"
 #include "tutil.h"
+#include "tversion.h"
 
 typedef struct {
   int      index;
@@ -155,7 +156,7 @@ int main(int argc, char *argv[]) {
   }
 
   initLogEnv();
-
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");

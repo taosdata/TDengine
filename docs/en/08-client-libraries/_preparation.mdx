@@ -1,0 +1,11 @@
+- Client driver installed (mandatory for native connections, not required for REST connections)
+
+:::info
+
+Since the TDengine client driver is written in C, using the native connection requires loading the client driver shared library file, which is usually included in the TDengine installer. You can install either standard TDengine server installation package or [TDengine client installation package](../get-started/). For Windows development, you need to install the corresponding Windows client, please refer to [Install TDengine](../../get-started/package).
+
+- libtaos.so: After successful installation of TDengine on a Linux system, the dependent Linux version of the client driver `libtaos.so` file will be automatically linked to `/usr/lib/libtaos.so`, which is included in the Linux scannable path and does not need to be specified separately.
+- taos.dll: After installing the client on Windows, the dependent Windows version of the client driver taos.dll file will be automatically copied to the system default search path C:/Windows/System32, again without the need to specify it separately.
+- libtaos.dylib: After successful installation of TDengine on a mac system, the dependent macOS version of the client driver `libtaos.dylib` file will be automatically linked to `/usr/local/lib/libtaos.dylib`, which is included in the macOS scannable path and does not need to be specified separately.
+
+:::

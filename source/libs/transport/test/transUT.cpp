@@ -18,10 +18,10 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tlog.h"
+#include "tmisce.h"
 #include "transLog.h"
 #include "trpc.h"
-#include "tmisce.h"
-
+#include "tversion.h"
 using namespace std;
 
 const char *label = "APP";
@@ -54,6 +54,8 @@ class Client {
     rpcInit_.user = (char *)user;
     rpcInit_.parent = this;
     rpcInit_.connType = TAOS_CONN_CLIENT;
+
+    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
     tsem_init(&this->sem, 0, 0);
   }
@@ -66,6 +68,7 @@ class Client {
   void Restart(CB cb) {
     rpcClose(this->transCli);
     rpcInit_.cfp = cb;
+    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
   }
   void Stop() {
@@ -117,6 +120,7 @@ class Server {
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
     rpcInit_.connType = TAOS_CONN_SERVER;
+    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
   }
   void Start() {
     this->transSrv = rpcOpen(&this->rpcInit_);

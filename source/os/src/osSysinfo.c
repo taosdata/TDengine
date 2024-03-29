@@ -17,6 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define PROCESS_ITEM 12
 #define UUIDLEN37 37
 
@@ -117,6 +121,8 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 static pid_t tsProcId;
 static char  tsSysNetFile[] = "/proc/net/dev";
 static char  tsSysCpuFile[] = "/proc/stat";
+static char  tsCpuPeriodFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
+static char  tsCpuQuotaFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
@@ -230,7 +236,7 @@ bool taosCheckSystemIsLittleEnd() {
 
 void taosGetSystemInfo() {
 #ifdef WINDOWS
-  taosGetCpuCores(&tsNumOfCores);
+  taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
 #elif defined(_TD_DARWIN_64)
@@ -241,10 +247,10 @@ void taosGetSystemInfo() {
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 #else
   taosGetProcIOnfos();
-  taosGetCpuCores(&tsNumOfCores);
+  taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
-  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable);
+  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable, &tsAVX512Enable);
 #endif
 }
 
@@ -252,7 +258,11 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
   // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
+#ifdef CUS_PROMPT
+  const char *filepath = "/usr/local/"CUS_PROMPT"/email";
+#else
   const char *filepath = "/usr/local/taos/email";
+#endif  // CUS_PROMPT
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) return false;
@@ -265,7 +275,11 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
   taosCloseFile(&pFile);
   return 0;
 #else
+#ifdef CUS_PROMPT
+  const char *filepath = "/usr/local/"CUS_PROMPT"/email";
+#else
   const char *filepath = "/usr/local/taos/email";
+#endif  // CUS_PROMPT
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) return false;
@@ -315,17 +329,19 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
 }
 #endif
 
-int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
+int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t maxLen) {
 #ifdef WINDOWS
   if (!getWinVersionReleaseName(releaseName, maxLen)) {
     snprintf(releaseName, maxLen, "Windows");
   }
+  if(sName) snprintf(sName, maxLen, "Windows");
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
   size_t osversion_len = sizeof(osversion) - 1;
   int osversion_name[] = { CTL_KERN, KERN_OSRELEASE };
 
+  if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
     return -1;
   }
@@ -345,24 +361,35 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
   return 0;
 #else
   char    line[1024];
+  char   *dest = NULL;
   size_t  size = 0;
   int32_t code = -1;
+  int32_t cnt = 0;
 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
+  if (pFile == NULL) return code;
 
   while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
     line[size - 1] = '\0';
-    if (strncmp(line, "PRETTY_NAME", 11) == 0) {
-      const char *p = strchr(line, '=') + 1;
-      if (*p == '"') {
-        p++;
-        line[size - 2] = 0;
-      }
-      tstrncpy(releaseName, p, maxLen);
+    if (strncmp(line, "NAME", 4) == 0) {
+      dest = sName;
+    } else if (strncmp(line, "PRETTY_NAME", 11) == 0) {
+      dest = releaseName;
       code = 0;
-      break;
+    } else if (strncmp(line, "VERSION_ID", 10) == 0) {
+      dest = ver;
+    } else {
+      continue;
     }
+    if (!dest) continue;
+    const char *p = strchr(line, '=') + 1;
+    if (*p == '"') {
+      p++;
+      line[size - 2] = 0;
+    }
+    tstrncpy(dest, p, maxLen);
+
+    if (++cnt >= 3) break;
   }
 
   taosCloseFile(&pFile);
@@ -468,7 +495,55 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #endif
 }
 
-int32_t taosGetCpuCores(float *numOfCores) {
+// Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
+static int32_t taosCntrGetCpuCores(float *numOfCores) {
+#ifdef WINDOWS
+  return -1;
+#elif defined(_TD_DARWIN_64)
+  return -1;
+#else
+  TdFilePtr pFile = NULL;
+  if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
+    goto _sys;
+  }
+  char qline[32] = {0};
+  if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
+    taosCloseFile(&pFile);
+    goto _sys;
+  }
+  taosCloseFile(&pFile);
+  float quota = taosStr2Float(qline, NULL);
+  if (quota < 0) {
+    goto _sys;
+  }
+
+  if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
+    goto _sys;
+  }
+  char pline[32] = {0};
+  if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
+    taosCloseFile(&pFile);
+    goto _sys;
+  }
+  taosCloseFile(&pFile);
+
+  float period = taosStr2Float(pline, NULL);
+  float quotaCores = quota / period;
+  float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
+  if (quotaCores < sysCores && quotaCores > 0) {
+    *numOfCores = quotaCores;
+  } else {
+    *numOfCores = sysCores;
+  }
+  goto _end;
+_sys:
+  *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+_end:
+  return 0;
+#endif
+}
+
+int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
@@ -478,15 +553,19 @@ int32_t taosGetCpuCores(float *numOfCores) {
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   return 0;
 #else
-  *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  if (physical) {
+    *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  } else {
+    taosCntrGetCpuCores(numOfCores);
+  }
   return 0;
 #endif
 }
 
 void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
-  static int64_t lastSysUsed = 0;
-  static int64_t lastSysTotal = 0;
-  static int64_t lastProcTotal = 0;
+  static int64_t lastSysUsed = -1;
+  static int64_t lastSysTotal = -1;
+  static int64_t lastProcTotal = -1;
   static int64_t curSysUsed = 0;
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
@@ -501,12 +580,14 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
-    if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
-      if (cpu_system != NULL) {
-        *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
-      }
-      if (cpu_engine != NULL) {
-        *cpu_engine = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+    if(lastSysUsed >= 0 && lastSysTotal >=0 && lastProcTotal >=0){
+      if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+        if (cpu_system != NULL) {
+          *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
+        }
+        if (cpu_engine != NULL) {
+          *cpu_engine = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+        }
       }
     }
 
@@ -523,7 +604,7 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
                       : "0"(level))
 
 // todo add for windows and mac
-int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
+int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512) {
 #ifdef WINDOWS
 #elif defined(_TD_DARWIN_64)
 #else
@@ -531,12 +612,6 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
 #ifdef _TD_X86_
   // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
   // set to be false
-//#if __AVX__ || __AVX2__
-//  tsSIMDBuiltins = true;
-//#else
-//  tsSIMDBuiltins = false;
-//#endif
-
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
   int32_t ret = __get_cpuid(1, &eax, &ebx, &ecx, &edx);
@@ -552,6 +627,7 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
   // Ref to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77756
   __cpuid_fix(7u, eax, ebx, ecx, edx);
   *avx2 = (char) ((ebx & bit_AVX2) == bit_AVX2);
+  *avx512 = (char)((ebx & bit_AVX512F) == bit_AVX512F);
 #endif   // _TD_X86_
 #endif
 
@@ -747,19 +823,27 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
 }
 
 void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
-  static int64_t last_rchars = 0;
-  static int64_t last_wchars = 0;
-  static int64_t last_read_bytes = 0;
-  static int64_t last_write_bytes = 0;
+  static int64_t last_rchars = -1;
+  static int64_t last_wchars = -1;
+  static int64_t last_read_bytes = -1;
+  static int64_t last_write_bytes = -1;
   static int64_t cur_rchars = 0;
   static int64_t cur_wchars = 0;
   static int64_t cur_read_bytes = 0;
   static int64_t cur_write_bytes = 0;
   if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) == 0) {
-    *rchars = cur_rchars - last_rchars;
-    *wchars = cur_wchars - last_wchars;
-    *read_bytes = cur_read_bytes - last_read_bytes;
-    *write_bytes = cur_write_bytes - last_write_bytes;
+    if(last_rchars >=0 && last_wchars >=0 && last_read_bytes >=0 && last_write_bytes >= 0){
+      *rchars = cur_rchars - last_rchars;
+      *wchars = cur_wchars - last_wchars;
+      *read_bytes = cur_read_bytes - last_read_bytes;
+      *write_bytes = cur_write_bytes - last_write_bytes;
+    }
+    else{
+      *rchars = 0;
+      *wchars = 0;
+      *read_bytes = 0;
+      *write_bytes = 0;
+    }
     last_rchars = cur_rchars;
     last_wchars = cur_wchars;
     last_read_bytes = cur_read_bytes;
@@ -773,13 +857,12 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
 }
 
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
-#ifdef WINDOWS
   *receive_bytes = 0;
   *transmit_bytes = 0;
+
+#ifdef WINDOWS
   return 0;
 #elif defined(_TD_DARWIN_64)
-  *receive_bytes = 0;
-  *transmit_bytes = 0;
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -816,8 +899,8 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
            nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
-    *receive_bytes = o_rbytes;
-    *transmit_bytes = o_tbytes;
+    *receive_bytes += o_rbytes;
+    *transmit_bytes += o_tbytes;
   }
 
   taosCloseFile(&pFile);
@@ -827,13 +910,20 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 }
 
 void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
-  static int64_t last_receive_bytes = 0;
-  static int64_t last_transmit_bytes = 0;
-  static int64_t cur_receive_bytes = 0;
-  static int64_t cur_transmit_bytes = 0;
+  static int64_t last_receive_bytes = -1;
+  static int64_t last_transmit_bytes = -1;
+  int64_t cur_receive_bytes = 0;
+  int64_t cur_transmit_bytes = 0;
   if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
-    *receive_bytes = cur_receive_bytes - last_receive_bytes;
-    *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    if(last_receive_bytes >= 0 && last_transmit_bytes >= 0){
+      *receive_bytes = cur_receive_bytes - last_receive_bytes;
+      *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    }
+    else{
+      *receive_bytes = 0;
+      *transmit_bytes = 0;
+    }
+
     last_receive_bytes = cur_receive_bytes;
     last_transmit_bytes = cur_transmit_bytes;
   } else {
@@ -934,6 +1024,18 @@ char *taosGetCmdlineByPID(int pid) {
 
   return cmdline;
 #endif
+}
+
+int64_t taosGetOsUptime() {
+#ifdef WINDOWS
+#elif defined(_TD_DARWIN_64)
+#else
+  struct sysinfo info;
+  if (0 == sysinfo(&info)) {
+    return (int64_t)info.uptime * 1000;
+  }
+#endif
+  return 0;
 }
 
 void taosSetCoreDump(bool enable) {

@@ -19,7 +19,10 @@ class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        self.simDeployed = False
+        if platform.system().lower() == 'windows':
+            self.simDeployed = True
+        else:
+            self.simDeployed = False
 
 class TDTestCase:
 
@@ -44,7 +47,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -111,6 +114,8 @@ class TDTestCase:
             dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
+            if platform.system().lower() == 'windows':
+                cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\""
             tdLog.debug(cmd)
             if os.system(cmd) != 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)

@@ -4,13 +4,13 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create db
-sql create database d1 vgroups 1;
+sql create database d1 vgroups 1 wal_retention_period 3600;
 sql use d1
 sql create table d1_stb (ts timestamp, i int) tags (j int)
 sql create topic d1_topic_1 as select ts, i from d1_stb
 
-sql create database d2 vgroups 1;
-sql create database d3 vgroups 1;
+sql create database d2 vgroups 1 wal_retention_period 3600;
+sql create database d3 vgroups 1 wal_retention_period 3600;
 sql select * from information_schema.ins_databases
 if $rows != 5 then 
   return -1

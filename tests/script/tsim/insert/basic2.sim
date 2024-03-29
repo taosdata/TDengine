@@ -319,4 +319,7 @@ if $data45 != 30.000000000 then
   return -1
 endi
 
+sql_error insert into ct1 using stb tags('a', 'b') values ('2022-06-26 13:00:00', 1) ct11 using sta tags('c', 'b#) values ('2022-06-26 13:00:01', 2);
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

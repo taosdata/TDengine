@@ -24,9 +24,8 @@
 
 static FORCE_INLINE bool setBit(uint64_t *buf, uint64_t index) {
   uint64_t unitIndex = index >> UNIT_ADDR_NUM_BITS;
-  uint64_t mask = 1ULL << (index % UNIT_NUM_BITS);
   uint64_t old = buf[unitIndex];
-  buf[unitIndex] |= mask;
+  buf[unitIndex] |= (1ULL << (index % UNIT_NUM_BITS));
   return buf[unitIndex] != old;
 }
 
@@ -57,10 +56,8 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
 
   // ln(2) = 0.693147180559945
   pBF->hashFunctions = (uint32_t)ceil(lnRate / 0.693147180559945);
-  /*pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);*/
-  /*pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);*/
-  pBF->hashFn1 = taosFastHash;
-  pBF->hashFn2 = taosDJB2Hash;
+  pBF->hashFn1 = HASH_FUNCTION_1;
+  pBF->hashFn2 = HASH_FUNCTION_2;
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   if (pBF->buffer == NULL) {
     tBloomFilterDestroy(pBF);
@@ -69,14 +66,29 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
   return pBF;
 }
 
-int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
+int32_t tBloomFilterPutHash(SBloomFilter *pBF, uint64_t hash1, uint64_t hash2) {
   ASSERT(!tBloomFilterIsFull(pBF));
+  bool                    hasChange = false;
+  const register uint64_t size = pBF->numBits;
+  uint64_t                cbHash = hash1;
+  for (uint32_t i = 0; i < pBF->hashFunctions; ++i) {
+    hasChange |= setBit(pBF->buffer, cbHash % size);
+    cbHash += hash2;
+  }
+  if (hasChange) {
+    pBF->size++;
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;
+}
+
+int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
   uint64_t                h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
   uint64_t                h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
   bool                    hasChange = false;
   const register uint64_t size = pBF->numBits;
   uint64_t                cbHash = h1;
-  for (uint64_t i = 0; i < pBF->hashFunctions; ++i) {
+  for (uint32_t i = 0; i < pBF->hashFunctions; ++i) {
     hasChange |= setBit(pBF->buffer, cbHash % size);
     cbHash += h2;
   }
@@ -87,16 +99,14 @@ int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
   return TSDB_CODE_FAILED;
 }
 
-int32_t tBloomFilterNoContain(const SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
-  uint64_t                h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
-  uint64_t                h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
+int32_t tBloomFilterNoContain(const SBloomFilter *pBF, uint64_t hash1, uint64_t hash2) {
   const register uint64_t size = pBF->numBits;
-  uint64_t                cbHash = h1;
-  for (uint64_t i = 0; i < pBF->hashFunctions; ++i) {
+  uint64_t                cbHash = hash1;
+  for (uint32_t i = 0; i < pBF->hashFunctions; ++i) {
     if (!getBit(pBF->buffer, cbHash % size)) {
       return TSDB_CODE_SUCCESS;
     }
-    cbHash += h2;
+    cbHash += hash2;
   }
   return TSDB_CODE_FAILED;
 }
@@ -137,10 +147,8 @@ SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder) {
     if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
   }
   if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
-  /*pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);*/
-  /*pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);*/
-  pBF->hashFn1 = taosFastHash;
-  pBF->hashFn2 = taosDJB2Hash;
+  pBF->hashFn1 = HASH_FUNCTION_1;
+  pBF->hashFn2 = HASH_FUNCTION_2;
   return pBF;
 
 _error:

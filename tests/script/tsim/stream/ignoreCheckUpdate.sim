@@ -22,7 +22,7 @@ sql insert into t1 values(1648791213000,2,2,2);
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 sql select * from streamt order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -46,7 +46,7 @@ sql insert into t1 values(1648791213000,3,3,3);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -84,7 +84,7 @@ sql insert into t1 values(1648791213000,2,2,2);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamt1 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -109,7 +109,7 @@ $loop_count = 0
 
 loop3:
 
-sleep 300
+sleep 1000
 sql select * from streamt1 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -146,8 +146,8 @@ sql insert into t1 values(1648791213000,2,2,1);
 
 $loop_count = 0
 
-loop2:
-sleep 300
+loop4:
+sleep 1000
 sql select * from streamt2 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -157,12 +157,12 @@ endi
 
 if $data01 != 2 then
   print =====data01=$data01
-  goto loop2
+  goto loop4
 endi
 
 if $data02 != 2 then
   print =====data02=$data02
-  goto loop2
+  goto loop4
 endi
 
 
@@ -170,9 +170,9 @@ sql insert into t1 values(1648791213000,3,3,1);
 
 $loop_count = 0
 
-loop3:
+loop5:
 
-sleep 300
+sleep 1000
 sql select * from streamt2 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -182,12 +182,12 @@ endi
 
 if $data01 != 3 then
   print =====data01=$data01
-  goto loop3
+  goto loop5
 endi
 
 if $data02 != 3 then
   print =====data02=$data02
-  goto loop3
+  goto loop5
 endi
 
 print step 3 end
@@ -206,6 +206,8 @@ print create stream streams3 trigger at_once ignore update 1 into streamt3 as se
 
 sql create stream streams3 trigger at_once ignore update 1 into streamt3 as select  _wstart c1, count(*) c2, max(b) c3 from st interval(10s);
 
+sleep 2000
+
 sql insert into t1 values(1648791213000,1,1,1);
 sql insert into t1 values(1648791213000,2,2,2);
 
@@ -214,8 +216,8 @@ sql insert into t2 values(1648791213000,2,2,2);
 
 $loop_count = 0
 
-loop0:
-sleep 300
+loop6:
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -225,12 +227,12 @@ endi
 
 if $data01 != 4 then
   print =====data01=$data01
-  goto loop0
+  goto loop6
 endi
 
 if $data02 != 2 then
   print =====data02=$data02
-  goto loop0
+  goto loop6
 endi
 
 
@@ -238,8 +240,8 @@ sql insert into t1 values(1648791213000,3,3,3);
 
 $loop_count = 0
 
-loop1:
-sleep 300
+loop7:
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -249,20 +251,20 @@ endi
 
 if $data01 != 5 then
   print =====data01=$data01
-  goto loop1
+  goto loop7
 endi
 
 if $data02 != 3 then
   print =====data02=$data02
-  goto loop1
+  goto loop7
 endi
 
 sql insert into t2 values(1648791213000,4,4,4);
 
 $loop_count = 0
 
-loop1:
-sleep 300
+loop8:
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -272,12 +274,12 @@ endi
 
 if $data01 != 6 then
   print =====data01=$data01
-  goto loop1
+  goto loop8
 endi
 
 if $data02 != 4 then
   print =====data02=$data02
-  goto loop1
+  goto loop8
 endi
 
 print step 4 end

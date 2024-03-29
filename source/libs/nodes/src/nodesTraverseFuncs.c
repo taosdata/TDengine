@@ -176,6 +176,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      break;
+    }
     default:
       break;
   }
@@ -214,6 +219,19 @@ void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContex
   (void)walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
+static void checkParamIsFunc(SFunctionNode* pFunc) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
+    if (numOfParams > 1 && nodeType(pPara) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pPara)->node.asParam = true;
+    }
+    if (nodeType(pPara) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pPara)->node.asParam = true;
+    }
+  }
+}
+
 static EDealRes rewriteExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeRewriter rewriter, void* pContext);
 
 static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewriter rewriter, void* pContext) {
@@ -248,9 +266,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_LOGIC_CONDITION:
       res = rewriteExprs(((SLogicConditionNode*)pNode)->pParameterList, order, rewriter, pContext);
       break;
-    case QUERY_NODE_FUNCTION:
-      res = rewriteExprs(((SFunctionNode*)pNode)->pParameterList, order, rewriter, pContext);
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      checkParamIsFunc(pFunc);
+      res = rewriteExprs(pFunc->pParameterList, order, rewriter, pContext);
       break;
+    }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
       break;  // todo
@@ -349,6 +370,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
       }
+      break;
+    }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
       break;
     }
     default:

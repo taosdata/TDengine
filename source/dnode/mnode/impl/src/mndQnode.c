@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "audit.h"
 
 #define QNODE_VER_NUMBER   1
 #define QNODE_RESERVE_SIZE 64
@@ -180,7 +181,7 @@ static int32_t mndSetCreateQnodeUndoLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
+int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   SSdbRaw *pCommitRaw = mndQnodeActionEncode(pObj);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
@@ -188,7 +189,11 @@ static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
+bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) { 
+  return pQnode->pDnode->id == dnodeId;
+}
+
+int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
   SDCreateQnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 
@@ -252,6 +257,7 @@ static int32_t mndCreateQnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-qnode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
   if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) goto _OVER;
@@ -302,6 +308,10 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[33] = {0};
+  sprintf(obj, "%d", createReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -309,6 +319,7 @@ _OVER:
 
   mndReleaseQnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSMCreateQnodeReq(&createReq);
   return code;
 }
 
@@ -370,6 +381,7 @@ static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-qnode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
   if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
@@ -411,12 +423,18 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   code = mndDropQnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[33] = {0};
+  sprintf(obj, "%d", dropReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
 
   mndReleaseQnode(pMnode, pObj);
+  tFreeSMCreateQnodeReq(&dropReq);
   return code;
 }
 
@@ -450,6 +468,7 @@ int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
     sdbRelease(pSdb, pObj);
 
     if (limit > 0 && numOfRows >= limit) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
   }

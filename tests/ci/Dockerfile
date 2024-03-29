@@ -2,7 +2,7 @@ FROM python:3.8
 RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro
 RUN apt-get update
-RUN apt-get install -y psmisc sudo tree  libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind \
+RUN apt-get install -y psmisc sudo tree libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind \
      vim  libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
 RUN add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'

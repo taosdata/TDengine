@@ -20,6 +20,7 @@
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // HandleRequestVoteRequest(i, j, m) ==
@@ -89,6 +90,7 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
 int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
+  bool             resetElect = false;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
@@ -115,7 +117,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, currentTerm);
 
     // forbid elect for this round
-    syncNodeResetElectTimer(ths);
+    resetElect = true;
   }
 
   // send msg
@@ -134,5 +136,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");
   syncLogSendRequestVoteReply(ths, pReply, "");
   syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+
+  if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 }

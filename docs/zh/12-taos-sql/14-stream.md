@@ -8,10 +8,14 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
- TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- WATERMARK   time
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ WATERMARK      time
+ IGNORE EXPIRED [0|1]
+ DELETE_MARK    time
+ FILL_HISTORY   [0|1]
+ IGNORE UPDATE  [0|1]
 }
 
 ```
@@ -28,6 +32,15 @@ subquery: SELECT select_list
 
 支持会话窗口、状态窗口与滑动窗口，其中，会话窗口与状态窗口搭配超级表时必须与partition by tbname一起使用
 
+stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表
+
+TAGS 子句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
+```sql
+create_definition:
+    col_name column_definition
+column_definition:
+    type_name [COMMENT 'string_value']
+```
 
 subtable 子句定义了流式计算中创建的子表的命名规则，详见 流式计算的 partition 部分。
 
@@ -36,10 +49,16 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
+
+EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+
+COUNT_WINDOW 是计数窗口,按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于2，小于2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
 
@@ -48,6 +67,12 @@ window_clause: {
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+
+CREATE STREAM streams0 INTO streamt0 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WINDOW START WITH voltage < 0 END WITH voltage > 9;
+
+CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
 ## 流式计算的 partition
@@ -64,7 +89,7 @@ SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 sutable 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _groupId)。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -114,7 +139,7 @@ SELECT * from information_schema.`ins_streams`;
 
 在创建流时，可以通过 TRIGGER 指令指定流式计算的触发模式。
 
-对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式，默认为 AT_ONCE：
+对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式，默认为 WINDOW_CLOSE：
 
 1. AT_ONCE：写入立即触发
 
@@ -157,15 +182,89 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 在 window_close 或 max_delay 模式下，窗口关闭直接影响推送结果。在 at_once 模式下，窗口关闭只与内存占用有关。
 
 
-## 流式计算的过期数据处理策略
+## 流式计算对于过期数据的处理策略
 
 对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据.
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
-1. 重新计算，即 IGNORE EXPIRED 0：默认配置，从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
+1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
 
-2. 直接丢弃, 即 IGNORE EXPIRED 1：忽略过期数据
+2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 
 
 无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）。
+
+## 流式计算对于修改数据的处理策略
+
+TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项指定：
+
+1. 检查数据是否被修改，即 IGNORE UPDATE 0：默认配置，如果被修改，则重新计算对应窗口。
+
+2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1。
+
+
+## 写入已存在的超级表
+```sql
+[field1_name,...]
+```
+用来指定stb_name的列与subquery输出结果的对应关系。如果stb_name的列与subquery输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果stb_name的列与subquery输出结果的数据类型不匹配，会把subquery输出结果的类型转换成对应的stb_name的列的类型。
+
+对于已经存在的超级表，检查列的schema信息
+1. 检查列的schema信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与subquery的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+
+## 自定义TAG
+
+用户可以为每个 partition 对应的子表生成自定义的TAG值。
+```sql
+CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select  _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s));
+```
+
+PARTITION 子句中，为 concat("tag-", tbname)定义了一个别名cc, 对应超级表st1的自定义TAG的名字。在上述示例中，流新创建的子表的TAG将以前缀 'new-' 连接原表名作为TAG的值。
+
+会对TAG信息进行如下检查
+1. 检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2. 检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+
+## 清理中间状态
+
+```
+DELETE_MARK    time
+```
+DELETE_MARK用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是10年
+T = 最新事件时间 - DELETE_MARK
+
+## 流式计算支持的函数
+
+1. 所有的 [单行函数](../function/#单行函数) 均可用于流计算。
+2. 以下 19 个聚合/选择函数 <b>不能</b> 应用在创建流计算的 SQL 语句。此外的其他类型的函数均可用于流计算。
+
+- [leastsquares](../function/#leastsquares)
+- [percentile](../function/#percentile)
+- [top](../function/#top)
+- [bottom](../function/#bottom)
+- [elapsed](../function/#elapsed)
+- [interp](../function/#interp)
+- [derivative](../function/#derivative)
+- [irate](../function/#irate)
+- [twa](../function/#twa)
+- [histogram](../function/#histogram)
+- [diff](../function/#diff)
+- [statecount](../function/#statecount)
+- [stateduration](../function/#stateduration)
+- [csum](../function/#csum)
+- [mavg](../function/#mavg)
+- [sample](../function/#sample)
+- [tail](../function/#tail)
+- [unique](../function/#unique)
+- [mode](../function/#mode)
+
+## 暂停、恢复流计算
+1.流计算暂停计算任务
+PAUSE STREAM [IF EXISTS] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错；如果存在，则暂停流计算。指定了IF EXISTS，如果该stream不存在，则返回成功；如果存在，则暂停流计算
+
+2.流计算恢复计算任务
+RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+没有指定IF EXISTS，如果该stream不存在，则报错，如果存在，则恢复流计算；指定了IF EXISTS，如果stream不存在，则返回成功；如果存在，则恢复流计算。如果指定IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。

@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 200
+sleep 1000
 sql connect
 
 sql drop stream if exists streams1;
@@ -16,18 +16,18 @@ sql drop database if exists test1;
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt2 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0  into streamt4 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
-sql create stream streams5 trigger at_once IGNORE EXPIRED 0  into streamt5 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
 sql insert into t1 values(1648791213000,1,1,1,1.0,'aaa');
-sleep 200
+sleep 1000
 
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -46,7 +46,7 @@ sql delete from t1;
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -96,7 +96,7 @@ sql insert into t1 values(1648791219000,5,5,5,5.0,'eee');
 $loop_count = 0
 
 loop2:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -119,7 +119,7 @@ sql delete from t1 where ts >= 1648791214000;
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -175,7 +175,7 @@ sql insert into t1 values(1648791219000,6,6,6,6.0,'fff');
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -195,7 +195,7 @@ sql delete from t1 where ts <= 1648791216000;
 $loop_count = 0
 
 loop5:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -256,23 +256,23 @@ sql use test6;
 sql create stable st(ts timestamp, a int, b int , c int, d double, s varchar(20)) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(1,1,1);
-sql create stream streams6 trigger at_once IGNORE EXPIRED 0  into streamt6 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
-sql create stream streams7 trigger at_once IGNORE EXPIRED 0  into streamt7 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
-sql create stream streams8 trigger at_once IGNORE EXPIRED 0  into streamt8 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
-sql create stream streams9 trigger at_once IGNORE EXPIRED 0  into streamt9 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
-sql create stream streams10 trigger at_once IGNORE EXPIRED 0  into streamt10 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
+sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt6 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
+sql create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt7 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
+sql create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt8 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams9 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt9 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams10 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt10 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
 
 sql insert into t1 values(1648791210000,1,1,1,1.0,'aaa');
 sql insert into t1 values(1648791217000,1,1,1,1.0,'aaa');
 
 sql insert into t2 values(1648791215000,1,1,1,1.0,'aaa');
 
-sleep 200
+sleep 1000
 
 $loop_count = 0
 
 loop7:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -291,7 +291,7 @@ sql delete from t1;
 $loop_count = 0
 
 loop8:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

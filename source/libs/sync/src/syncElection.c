@@ -41,6 +41,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 
   int32_t ret = 0;
   for (int i = 0; i < pNode->peersNum; ++i) {
+    if(pNode->peersNodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
+    
     SRpcMsg rpcMsg = {0};
     ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
     if (ret < 0) {
@@ -69,6 +71,11 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  if (pSyncNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+    sNError(pSyncNode, "skip leader election due to incomplete fsm state");
+    return -1;
+  }
+
   sNInfo(pSyncNode, "begin election");
   pSyncNode->electNum++;
 
@@ -115,6 +122,5 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   ASSERT(ret == 0);
 
   syncNodeResetElectTimer(pSyncNode);
-
   return ret;
 }

@@ -1,0 +1,28 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============= step1
+sql create user u_read pass 'taosdata1' host '127.0.0.1/24','192.168.1.0/24'
+sql create user u_write pass 'taosdata1' host '127.0.0.1','192.168.1.0'
+
+sql alter user u_read add host '3.3.3.4/24'
+sql_error alter user u_write drop host '4.4.4.5/25'
+
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+print ============= step2
+sql_error create user read1 pass 'taosdata1' host '127.0.0/24'
+sql_error create user write1 pass 'taosdata1' host '4.4.4.4/33' 
+
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

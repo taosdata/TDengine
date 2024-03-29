@@ -46,6 +46,24 @@ void *tdListFree(SList *list) {
   return NULL;
 }
 
+void tdListEmptyP(SList *list, FDelete fp) {
+  SListNode *node;
+  while ((node = TD_DLIST_HEAD(list)) != NULL) {
+    TD_DLIST_POP(list, node);
+    fp(node->data);
+    taosMemoryFree(node);
+  }
+}
+
+void *tdListFreeP(SList *list, FDelete fp) {
+  if (list) {
+    tdListEmptyP(list, fp);
+    taosMemoryFree(list);
+  }
+
+  return NULL;
+}
+
 void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, node); }
 
 void tdListAppendNode(SList *list, SListNode *node) { TD_DLIST_APPEND(list, node); }
@@ -68,6 +86,15 @@ int32_t tdListAppend(SList *list, const void *data) {
   TD_DLIST_APPEND(list, node);
 
   return 0;
+}
+// return the node pointer
+SListNode *tdListAdd(SList *list, const void *data) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return NULL;
+
+  memcpy((void *)(node->data), data, list->eleSize);
+  TD_DLIST_APPEND(list, node);
+  return node;
 }
 
 SListNode *tdListPopHead(SList *list) {
@@ -104,7 +131,6 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
 
 // Move all node elements from src to dst, the dst is assumed as an empty list
 void tdListMove(SList *src, SList *dst) {
-  // assert(dst->eleSize == src->eleSize);
   SListNode *node = NULL;
   while ((node = tdListPopHead(src)) != NULL) {
     tdListAppendNode(dst, node);

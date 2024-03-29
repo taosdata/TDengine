@@ -32,8 +32,13 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
 
   if (!option.deploy) {
     *required = mmDeployRequired(pInput);
+    if (*required) {
+      dInfo("deploy mnode required. dnodeId:%d<=0, clusterId:%" PRId64 "<=0, localEp:%s==firstEp",
+            pInput->pData->dnodeId, pInput->pData->clusterId, tsLocalEp);
+    }
   } else {
     *required = true;
+    dInfo("deploy mnode required. option deploy:%d", option.deploy);
   }
 
   return 0;
@@ -45,9 +50,11 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->dnodeId = pMgmt->pData->dnodeId;
   pOption->selfIndex = 0;
   pOption->numOfReplicas = 1;
+  pOption->numOfTotalReplicas = 1;
   pOption->replicas[0].id = 1;
   pOption->replicas[0].port = tsServerPort;
   tstrncpy(pOption->replicas[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  pOption->lastIndex = SYNC_INDEX_INVALID;
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
@@ -123,9 +130,10 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("mnode-worker", "initialized");
 
-  if (option.numOfReplicas > 0) {
+  if (option.numOfTotalReplicas > 0) {
     option.deploy = true;
     option.numOfReplicas = 0;
+    option.numOfTotalReplicas = 0;
     if (mmWriteFile(pMgmt->path, &option) != 0) {
       dError("failed to write mnode file since %s", terrstr());
       return -1;
@@ -152,6 +160,14 @@ static void mmStop(SMnodeMgmt *pMgmt) {
   mndStop(pMgmt->pMnode);
 }
 
+static int32_t mmSyncIsCatchUp(SMnodeMgmt *pMgmt) {
+  return mndIsCatchUp(pMgmt->pMnode);
+}
+
+static ESyncRole mmSyncGetRole(SMnodeMgmt *pMgmt) {
+  return mndGetRole(pMgmt->pMnode);
+}
+
 SMgmtFunc mmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
   mgmtFunc.openFp = mmOpen;
@@ -162,6 +178,8 @@ SMgmtFunc mmGetMgmtFunc() {
   mgmtFunc.dropFp = (NodeDropFp)mmProcessDropReq;
   mgmtFunc.requiredFp = mmRequire;
   mgmtFunc.getHandlesFp = mmGetMsgHandles;
+  mgmtFunc.isCatchUpFp = (NodeIsCatchUpFp)mmSyncIsCatchUp;
+  mgmtFunc.nodeRoleFp = (NodeRole)mmSyncGetRole;
 
   return mgmtFunc;
 }

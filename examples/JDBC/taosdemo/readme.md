@@ -8,4 +8,4 @@ java -jar target/taosdemo-2.0.1-jar-with-dependencies.jar -host <hostname> -data
 ```
 
 如果发生错误 Exception in thread "main" java.lang.UnsatisfiedLinkError: no taos in java.library.path
-请检查是否安装 TDengine 客户端安装包或编译 TDengine 安装。如果确定已经安装过还出现这个错误，可以在命令行 java 后加 -Djava.library.path=/usr/local/lib 来指定寻找共享库的路径。
+请检查是否安装 TDengine 客户端安装包或编译 TDengine 安装。如果确定已经安装过还出现这个错误，可以在命令行 java 后加 -Djava.library.path=/usr/lib 来指定寻找共享库的路径。
