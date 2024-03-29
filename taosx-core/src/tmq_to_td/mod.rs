@@ -873,8 +873,8 @@ pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<
 #[derive(Debug, Serialize)]
 pub struct TableProgress {
     pub table_name: String,
-    pub from_last_ts: u64,
-    pub to_last_ts: u64,
+    pub from_last_ts: Option<u64>,
+    pub to_last_ts: Option<u64>,
     pub from_count: u64,
     pub to_count: u64,
 }
@@ -932,11 +932,11 @@ pub async fn get_table_progress(
     };
     tracing::debug!("from_sql:\n {from_sql}, to_sql:\n {to_sql}");
     let from_result = from_taos
-        .query_one::<String, (u64, u64)>(from_sql)
+        .query_one::<String, (Option<u64>, u64)>(from_sql)
         .await?
         .ok_or(anyhow!("No data found in source database"))?;
     let to_result = to_taos
-        .query_one::<String, (u64, u64)>(to_sql)
+        .query_one::<String, (Option<u64>, u64)>(to_sql)
         .await?
         .ok_or(anyhow!("No data found in target database"))?;
     Ok(TableProgress {
@@ -955,10 +955,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_table_progress() {
         let from = "tmq+ws://192.168.0.31:6041/t1?with.meta.delete=true&with.meta.drop=true";
-        let to = "taos+ws://192.168.0.31:6041/t2";
-        let table = "t1.heart";
-        let start: Option<String> = None;
-        let end: Option<String> = None;
+        let to = "taos+ws://192.168.0.201:6041/td3";
+        let table = "test.meters";
+        let start: Option<String> = Some("2024-04-01 00:00:00".to_string());
+        let end: Option<String> = Some("2024-04-10 00:00:00".to_string());
         let result = get_table_progress(
             &from.to_string(),
             &to.to_string(),
@@ -968,5 +968,6 @@ mod tests {
         )
         .await;
         println!("{:?}", result);
+        println!("{:?}", serde_json::to_string(&result.unwrap()).unwrap());
     }
 }
