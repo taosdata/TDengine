@@ -642,27 +642,6 @@ void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
   }
 }
 
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
-  pDst->ts = pSrc->ts;
-  pDst->numOfPKs = pSrc->numOfPKs;
-
-  if (pSrc->numOfPKs > 0) {
-    for (int32_t i = 0; i < pSrc->numOfPKs; ++i) {
-      SValue *pVal = &pDst->pks[i];
-      pVal->type = pSrc->pks[i].type;
-
-      if (IS_NUMERIC_TYPE(pVal->type)) {
-        pVal->val = pSrc->pks[i].val;
-      } else {
-        memcpy(pVal->pData, pVal->pData, pVal->nData);
-        pVal->nData = pSrc->pks[i].nData;
-      }
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
   int32_t c = tRowKeyCompare(&key1->key, &key2->key);
 

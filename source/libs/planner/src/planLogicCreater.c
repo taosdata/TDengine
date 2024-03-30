@@ -1696,6 +1696,11 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
     }
   }
 
+  STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
+  if (TSDB_CODE_SUCCESS == code && hasPkInTable(pMeta)) {
+    code = addPkCol(pMeta->uid, pMeta->schema + 1, &pScan->pScanCols, pMeta);
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
     pScan->pTagCond = nodesCloneNode(pDelete->pTagCond);
     if (NULL == pScan->pTagCond) {

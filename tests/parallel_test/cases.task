@@ -46,6 +46,7 @@
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
