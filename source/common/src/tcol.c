@@ -356,7 +356,7 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) {
     return TSDB_COLVAL_ENCODE_DELTAD == l1 ? 1 : 0;
-  } else if ((type == TSDB_DATA_TYPE_VARCHAR && type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
+  } else if ((type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
              type == TSDB_DATA_TYPE_VARBINARY) {
     if (l1 >= TSDB_COLVAL_ENCODE_NOCHANGE || l1 <= TSDB_COLVAL_ENCODE_DELTAD) {
       return 1;
