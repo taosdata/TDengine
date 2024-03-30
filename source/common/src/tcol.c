@@ -325,6 +325,7 @@ int8_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTyp
 bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
+  if (level == TSDB_COLVAL_LEVEL_DISABLED) return 1;
   if (level < TSDB_COLVAL_LEVEL_NOCHANGE || level > TSDB_COLVAL_LEVEL_HIGH) {
     return 0;
   }
