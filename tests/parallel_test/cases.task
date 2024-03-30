@@ -1338,6 +1338,7 @@
 ,,y,script,./test.sh -f tsim/compress/commitlog.sim
 ,,y,script,./test.sh -f tsim/compress/compress2.sim
 ,,y,script,./test.sh -f tsim/compress/compress.sim
+,,y,script,./test.sh -f tsim/compress/compress_col.sim
 ,,y,script,./test.sh -f tsim/compress/uncompress.sim
 ,,y,script,./test.sh -f tsim/compute/avg.sim
 ,,y,script,./test.sh -f tsim/compute/block_dist.sim

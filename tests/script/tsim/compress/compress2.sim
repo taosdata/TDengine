@@ -27,6 +27,10 @@ sql desc $tb
 
 
 # normal table
+
+sql_err create table txx (ts timestamp compress 'xxx', f int)
+sql create table txx (ts timestamp compress 'disabled', f int)
+
 sql_error alter table $tb modify column b level 'i'
 sql alter table $tb modify column b level 'l'
 sql_error alter table $tb modify column b level 'l' # already exist 
@@ -164,6 +168,7 @@ sql alter table $stb modify column d compress 'disabled'
 sql desc $stb
 sql alter table $stb modify column d compress 'tsz'
 sql desc $stb
+
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
