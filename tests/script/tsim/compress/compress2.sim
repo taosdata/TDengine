@@ -33,13 +33,7 @@ sql_error alter table $tb modify column b level 'l' # already exist
 sql_error alter table $tb modify column b compress 'lz4'
 sql alter table $tb modify column b compress 'xz'
 sql alter table $tb modify column b compress 'zstd'
-sql_err alter table $tb modify column b compress 'tsz'
-
-
-
-
-
-
+sql_error alter table $tb modify column b compress 'tsz'
 
 $count = 0
 while $count < $N
