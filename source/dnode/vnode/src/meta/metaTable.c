@@ -1490,6 +1490,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   entry.version = version;
   int      tlen;
   SSchema *pNewSchema = NULL;
+  SSchema  tScheam;
   switch (pAlterTbReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (pColumn) {
@@ -1525,6 +1526,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       SSchema *pCol = &pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1];
       updataTableColCmpr(&entry.colCmpr, pCol, 1);
       freeColCmpr = true;
+      ASSERT(entry.colCmpr.nCols == pSchema->nCols);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -1539,6 +1541,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
         goto _err;
       }
+      memcpy(&tScheam, pColumn, sizeof(SSchema));
       pSchema->version++;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
       if (tlen) {
@@ -1555,7 +1558,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
       }
 
-      updataTableColCmpr(&entry.colCmpr, pColumn, 0);
+      updataTableColCmpr(&entry.colCmpr, &tScheam, 0);
+      ASSERT(entry.colCmpr.nCols == pSchema->nCols);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {
