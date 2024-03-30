@@ -18,6 +18,29 @@ sql create database $db
 sql use $db
 sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, str binary(256))
 
+sql alter table $tb add column f bool
+sql desc $tb
+sql alter table $tb drop column f
+sql desc $tb
+
+sql_error alter table $tb modify column b level 'i'
+sql alter table $tb modify column b level 'l'
+sql_error alter table $tb modify column b level 'l' # already exist 
+sql alter table $tb modify column b level 'm' 
+sql_error alter table $tb modify column b level 'l' # already exist 
+
+
+sql_error alter table $tb modify column b compress 'lz4'
+sql alter table $tb modify column b compress 'xz'
+sql alter table $tb modify column b compress 'zstd'
+sql_err alter table $tb modify column b compress 'tsz'
+
+
+
+
+
+
+
 $count = 0
 while $count < $N
    $ms = 1591200000000 + $count

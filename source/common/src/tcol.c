@@ -334,6 +334,13 @@ int8_t validColCompress(uint8_t type, uint8_t l2) {
   if (l2 > TSDB_COLVAL_COMPRESS_XZ && l2 < TSDB_COLVAL_COMPRESS_DISABLED) {
     return 0;
   }
+  if (l2 == TSDB_COLVAL_COMPRESS_TSZ) {
+    if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
   return 1;
 }
 
