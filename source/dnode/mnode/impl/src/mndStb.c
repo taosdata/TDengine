@@ -287,9 +287,10 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     // compatible with old data, setup default compress value
     // impl later
     for (int i = 0; i < pStb->numOfColumns; i++) {
+      SSchema  *pSchema = &pStb->pColumns[i];
       SColCmpr *pCmpr = &pStb->pCmpr[i];
-      pCmpr->id = 0;
-      pCmpr->alg = 0;
+      pCmpr->id = pSchema->colId;
+      pCmpr->alg = createDefaultColCmprByType(pSchema->type);
     }
   } else {
     for (int i = 0; i < pStb->numOfColumns; i++) {
@@ -345,7 +346,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   mTrace("stb:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
-
+  int32_t numOfColumns = pOld->numOfColumns;
   if (pOld->numOfColumns < pNew->numOfColumns) {
     void *pColumns = taosMemoryMalloc(pNew->numOfColumns * sizeof(SSchema));
     if (pColumns != NULL) {
@@ -433,7 +434,13 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     memcpy(pOld->pAst2, pNew->pAst2, pNew->ast2Len);
     pOld->ast2Len = pNew->ast2Len;
   }
-  memcpy(pOld->pCmpr, pNew->pCmpr, pOld->numOfColumns * sizeof(SColCmpr));
+  if (numOfColumns < pNew->numOfColumns) {
+    taosMemoryFree(pOld->pCmpr);
+    pOld->pCmpr = taosMemoryCalloc(pNew->numOfColumns, sizeof(SColCmpr));
+    memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
+  } else {
+    memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
+  }
 
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -1164,10 +1171,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
           code = 0;
           goto _OVER;
-        } else if ((tagDelta == 1 && colDelta == 0) ||
-                   (tagDelta == 0 && colDelta == 1) ||
-                   (pStb->colVer == 1 && createReq.colVer > 1) ||
-                   (pStb->tagVer == 1 && createReq.tagVer > 1)) {
+        } else if ((tagDelta == 1 && colDelta == 0) || (tagDelta == 0 && colDelta == 1) ||
+                   (pStb->colVer == 1 && createReq.colVer > 1) || (pStb->tagVer == 1 && createReq.tagVer > 1)) {
           isAlter = true;
           mInfo("stb:%s, schema version is only increased by 1 number, do alter operation", createReq.name);
         } else {
@@ -1673,12 +1678,17 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
     terrno = TSDB_CODE_MND_COLUMN_NOT_EXIST;
     return -1;
   }
-  col_id_t colId = pOld->pColumns[idx].colId;
+  SSchema *pTarget = &pOld->pColumns[idx];
+  col_id_t colId = pTarget->colId;
   if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+  if (!validColCmprByType(pTarget->type, p->bytes)) {
+    terrno = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
     return -1;
   }
 
@@ -1718,6 +1728,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   pNew->numOfColumns = pNew->numOfColumns + ncols;
+
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
@@ -1745,6 +1756,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = pNew->nextColId;
     pNew->nextColId++;
+
+    SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
+    pCmpr->id = pSchema->colId;
+    pCmpr->alg = createDefaultColCmprByType(pSchema->type);
 
     mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
   }
@@ -1779,7 +1794,9 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
     return -1;
   }
 
-  memmove(pNew->pColumns + col, pNew->pColumns + col + 1, sizeof(SSchema) * (pNew->numOfColumns - col - 1));
+  int32_t sz = pNew->numOfColumns - col - 1;
+  memmove(pNew->pColumns + col, pNew->pColumns + col + 1, sizeof(SSchema) * sz);
+  memmove(pNew->pCmpr + col, pNew->pCmpr + col + 1, sizeof(SColCmpr) * sz);
   pNew->numOfColumns--;
 
   pNew->colVer++;

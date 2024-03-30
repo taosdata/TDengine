@@ -1197,6 +1197,7 @@ _exit:
   tEncoderClear(&ec);
   if (vMetaRsp.pSchemas) {
     taosMemoryFree(vMetaRsp.pSchemas);
+    taosMemoryFree(vMetaRsp.pSchemaExt);
   }
   return 0;
 }

@@ -89,9 +89,13 @@ bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTI
 void   setColEncode(uint32_t* compress, uint8_t encode);
 void   setColCompress(uint32_t* compress, uint16_t compressType);
 void   setColLevel(uint32_t* compress, uint8_t level);
-int8_t setColCompressByOption(uint8_t type, uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level);
+int8_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
+                              uint32_t* compress);
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level);
 int8_t validColCompress(uint8_t type, uint8_t l2);
 int8_t validColEncode(uint8_t type, uint8_t l1);
+
+uint32_t createDefaultColCmprByType(uint8_t type);
+bool     validColCmprByType(uint8_t type, uint32_t cmpr);
 #endif /*_TD_TCOL_H_*/

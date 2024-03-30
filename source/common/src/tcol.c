@@ -14,6 +14,7 @@
  */
 
 #include "tcol.h"
+#include "tcompression.h"
 #include "tutil.h"
 
 const char* supportedEncode[5] = {TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR, TSDB_COLUMN_ENCODE_RLE,
@@ -303,18 +304,19 @@ void setColLevel(uint32_t* compress, uint8_t level) {
   return;
 }
 
-int8_t setColCompressByOption(uint8_t type, uint32_t* compress, uint8_t encode, uint16_t compressType, uint8_t level) {
-  if (!validColEncode(type, encode)) return 0;
+int8_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
+                              uint32_t* compress) {
+  if (check && !validColEncode(type, encode)) return 0;
   setColEncode(compress, encode);
 
   if (compressType == TSDB_COLVAL_COMPRESS_DISABLED) {
     setColCompress(compress, compressType);
     setColLevel(compress, TSDB_COLVAL_LEVEL_DISABLED);
   } else {
-    if (!validColCompress(type, compressType)) return 0;
+    if (check && !validColCompress(type, compressType)) return 0;
     setColCompress(compress, compressType);
 
-    if (!validColCompressLevel(type, level)) return 0;
+    if (check && !validColCompressLevel(type, level)) return 0;
     setColLevel(compress, level);
   }
   return 1;
@@ -323,21 +325,15 @@ int8_t setColCompressByOption(uint8_t type, uint32_t* compress, uint8_t encode, 
 bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
-  if (level < TSDB_COLVAL_LEVEL_LOW || level > TSDB_COLVAL_LEVEL_HIGH) {
+  if (level < TSDB_COLVAL_LEVEL_NOCHANGE || level > TSDB_COLVAL_LEVEL_HIGH) {
     return 0;
   }
   return 1;
 }
 int8_t validColCompress(uint8_t type, uint8_t l2) {
-  // if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
-  //   if (l2 != TSDB_COLVAL_COMPRESS_TSZ) {
-  //     return 0;
-  //   }
-  // }
-  if (l2 <= TSDB_COLVAL_COMPRESS_NOCHANGE || l2 >= TSDB_COLVAL_COMPRESS_DISABLED) {
-    return TSDB_COLVAL_COMPRESS_DISABLED == l2 ? 1 : 0;
+  if (l2 > TSDB_COLVAL_COMPRESS_XZ && l2 < TSDB_COLVAL_COMPRESS_DISABLED) {
+    return 0;
   }
-
   return 1;
 }
 
@@ -349,6 +345,9 @@ int8_t validColCompress(uint8_t type, uint8_t l2) {
 // | flout/double | delta-d |
 //
 int8_t validColEncode(uint8_t type, uint8_t l1) {
+  if (l1 == TSDB_COLVAL_ENCODE_NOCHANGE) {
+    return 1;
+  }
   if (type == TSDB_DATA_TYPE_BOOL) {
     return TSDB_COLVAL_ENCODE_RLE == l1 ? 1 : 0;
   } else if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_INT) {
@@ -368,11 +367,28 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     }
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
     return TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
-  } else if (type >= TSDB_DATA_TYPE_USMALLINT || type <= TSDB_DATA_TYPE_UINT) {
+  } else if (type >= TSDB_DATA_TYPE_USMALLINT && type <= TSDB_DATA_TYPE_UINT) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_UBIGINT) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_JSON || type == TSDB_DATA_TYPE_VARBINARY) {
   }
   return 0;
+}
+
+uint32_t createDefaultColCmprByType(uint8_t type) {
+  uint32_t ret = 0;
+  uint8_t  encode = getDefaultEncode(type);
+  uint8_t  compress = getDefaultCompress(type);
+  uint8_t  lvl = getDefaultLevel(type);
+
+  SET_COMPRESS(encode, compress, lvl, ret);
+  return ret;
+}
+bool validColCmprByType(uint8_t type, uint32_t cmpr) {
+  DEFINE_VAR(cmpr);
+  if (validColEncode(type, l1) && validColCompress(type, l2) && validColCompressLevel(type, lvl)) {
+    return true;
+  }
+  return false;
 }

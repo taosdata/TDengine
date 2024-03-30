@@ -54,7 +54,7 @@ static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SCo
     SColCmpr *pColCmpr = &pCmpr->pColCmpr[i];
     SSchema  *pColSchema = &pSchema->pSchema[i];
     pColCmpr->id = pColSchema->colId;
-    pColCmpr->alg = 0;
+    pColCmpr->alg = createDefaultColCmprByType(pColSchema->type);
   }
 }
 

@@ -931,7 +931,7 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
 }
 
 static bool hasPkInTable(const STableMeta* pTableMeta) {
-  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+  return pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
 }
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
@@ -1187,9 +1187,8 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   if (valNode != NULL) {
     nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
   }
-  snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias),
-                (tableAlias)? "%s.tbname" : "%stbname",
-                (tableAlias)? tableAlias : "");
+  snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), (tableAlias) ? "%s.tbname" : "%stbname",
+           (tableAlias) ? tableAlias : "");
   strncpy(tbNameFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
 
   if (funcName == NULL) {
@@ -1201,14 +1200,13 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
 
     if (tsKeepColumnName) {
       snprintf(multiResFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias),
-                (tableAlias)? "%s.tbname" : "%stbname",
-                (tableAlias)? tableAlias : "");
+               (tableAlias) ? "%s.tbname" : "%stbname", (tableAlias) ? tableAlias : "");
       strcpy(multiResFunc->node.aliasName, tbNameFunc->functionName);
     } else {
       snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias),
-              tableAlias? "%s(%s.tbname)" : "%s(%stbname)", funcName,
-              tableAlias? tableAlias: "");
-      biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias), multiResFunc->node.aliasName);
+               tableAlias ? "%s(%s.tbname)" : "%s(%stbname)", funcName, tableAlias ? tableAlias : "");
+      biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias),
+                           multiResFunc->node.aliasName);
     }
 
     return (SNode*)multiResFunc;
@@ -1220,8 +1218,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
   SNodeList* pTbnameNodeList = nodesMakeList();
 
   SFunctionNode* pFunc = (SFunctionNode*)pNode;
-  if (strcasecmp(pFunc->functionName, "last") == 0 ||
-      strcasecmp(pFunc->functionName, "last_row") == 0 ||
+  if (strcasecmp(pFunc->functionName, "last") == 0 || strcasecmp(pFunc->functionName, "last_row") == 0 ||
       strcasecmp(pFunc->functionName, "first") == 0) {
     SNodeList* pParams = pFunc->pParameterList;
     SNode*     pPara = NULL;
@@ -1270,8 +1267,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       size_t  n = taosArrayGetSize(pTables);
       for (int32_t i = 0; i < n; ++i) {
         STableNode* pTable = taosArrayGetP(pTables, i);
-        if (nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-            ((SRealTableNode*)pTable)->pMeta != NULL &&
+        if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta != NULL &&
             ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
           SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, NULL);
           nodesListAppend(pTbnameNodeList, pTbnameNode);
@@ -1284,10 +1280,8 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       char*       pTableAlias = ((SColumnNode*)pNode)->tableAlias;
       STableNode* pTable = NULL;
       int32_t     code = findTable(pCxt, pTableAlias, &pTable);
-      if (TSDB_CODE_SUCCESS == code &&
-          nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-          ((SRealTableNode*)pTable)->pMeta != NULL &&
-          ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+      if (TSDB_CODE_SUCCESS == code && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
+          ((SRealTableNode*)pTable)->pMeta != NULL && ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
         SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTableAlias);
         nodesListAppend(pTbnameNodeList, pTbnameNode);
       }
@@ -2300,16 +2294,16 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
 }
 
 static int32_t rewriteToColumnAndRetranslate(STranslateContext* pCxt, SNode** ppNode, int32_t errCode) {
-    int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    translateColumn(pCxt, (SColumnNode**)ppNode);
-    if (pCxt->errCode != TSDB_CODE_SUCCESS) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, errCode);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+  int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  translateColumn(pCxt, (SColumnNode**)ppNode);
+  if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, errCode);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
@@ -2844,8 +2838,8 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum) )
-    && !pSelect->hasOtherVectorFunc) {
+  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum)) &&
+      !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -4390,8 +4384,8 @@ static bool findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pWher
     } else {
       code = findTable(pCxt, pTableAlias, &pTable);
     }
-    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-      ((SRealTableNode*)pTable)->pMeta && ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta &&
+        ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
       pInfo->pRealTable = (SRealTableNode*)pTable;
       return true;
     }
@@ -4426,7 +4420,7 @@ static void findEqualCondTbnameInLogicCondAnd(STranslateContext* pCxt, SNode* pW
         }
       }
     }
-    //TODO: logic cond
+    // TODO: logic cond
   }
 }
 
@@ -4657,7 +4651,6 @@ static int32_t createPkColByTable(STranslateContext* pCxt, SRealTableNode* pTabl
   return TSDB_CODE_SUCCESS;
 }
 
-
 static EDealRes hasPkColImpl(SNode* pNode, void* pContext) {
   if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->tableHasPk) {
     *(bool*)pContext = true;
@@ -4674,12 +4667,12 @@ static bool hasPkCol(SNode* pNode) {
 
 static EDealRes appendPkForPkFuncImpl(SNode* pNode, void* pContext) {
   STranslateContext* pCxt = pContext;
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, NULL, &pTable);
+  STableNode*        pTable = NULL;
+  int32_t            code = findTable(pCxt, NULL, &pTable);
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable) && isPkFunc(pNode) && hasPkCol(pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SFunctionNode*  pFunc = (SFunctionNode*)pNode;
     SRealTableNode* pRealTable = (SRealTableNode*)pTable;
-    SNode*         pPk = NULL;
+    SNode*          pPk = NULL;
     pCxt->errCode = createPkColByTable(pCxt, pRealTable, &pPk);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPk);
@@ -4840,7 +4833,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = appendPkParamForPkFunc(pCxt, pSelect);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
@@ -5125,7 +5118,6 @@ static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table is not supported");
-
   }
   return code;
 }
@@ -6066,10 +6058,8 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->is_pk &&
-        !(TSDB_DATA_TYPE_INT == pCol->dataType.type || 
-          TSDB_DATA_TYPE_UINT == pCol->dataType.type ||
-          TSDB_DATA_TYPE_BIGINT == pCol->dataType.type ||
-          TSDB_DATA_TYPE_UBIGINT == pCol->dataType.type ||
+        !(TSDB_DATA_TYPE_INT == pCol->dataType.type || TSDB_DATA_TYPE_UINT == pCol->dataType.type ||
+          TSDB_DATA_TYPE_BIGINT == pCol->dataType.type || TSDB_DATA_TYPE_UBIGINT == pCol->dataType.type ||
           TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PK_TYPE);
     }
@@ -6722,9 +6712,10 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-      int8_t valid = setColCompressByOption(
-          pStmt->dataType.type, (uint32_t*)&field.bytes, columnEncodeVal(pStmt->pColOptions->encode),
-          columnCompressVal(pStmt->pColOptions->compress), columnLevelVal(pStmt->pColOptions->compressLevel));
+      int8_t valid =
+          setColCompressByOption(pStmt->dataType.type, columnEncodeVal(pStmt->pColOptions->encode),
+                                 columnCompressVal(pStmt->pColOptions->compress),
+                                 columnLevelVal(pStmt->pColOptions->compressLevel), false, (uint32_t*)&field.bytes);
       if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       taosArrayPush(pAlterReq->pFields, &field);
       break;
@@ -6806,9 +6797,9 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
       if (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
           TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
           TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP, pStmt->colName);
-          }
-    } 
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP, pStmt->colName);
+      }
+    }
     if ((TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
          TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) &&
         (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
@@ -8752,7 +8743,8 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 
   int32_t code = validateCreateView(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->dbName, pStmt->pQuerySql, false, NULL, &res);
+    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->dbName, pStmt->pQuerySql, false, NULL,
+                                          &res);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(&name, pCxt->pTargetTables);
@@ -10031,8 +10023,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
     if (pColDef->pOptions) {
       req.colCmpr.pColCmpr[index].id = index + 1;
       int8_t valid = setColCompressByOption(
-          pScheam->type, &req.colCmpr.pColCmpr[index].alg, columnEncodeVal(pColDef->pOptions->encode),
-          columnCompressVal(pColDef->pOptions->compress), columnLevelVal(pColDef->pOptions->compressLevel));
+          pScheam->type, columnEncodeVal(pColDef->pOptions->encode), columnCompressVal(pColDef->pOptions->compress),
+          columnLevelVal(pColDef->pOptions->compressLevel), true, &req.colCmpr.pColCmpr[index].alg);
       if (!valid) {
         tdDestroySVCreateTbReq(&req);
         return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
@@ -10627,9 +10619,9 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   int32_t code = 0;
 
-  STag*   pTag = NULL;
-  SToken  token;
-  char    tokenBuf[TSDB_MAX_TAGS_LEN];
+  STag*       pTag = NULL;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
   const char* tagStr = pStmt->pVal->literal;
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TSDB_CODE_SUCCESS == code) {
@@ -10818,9 +10810,9 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-  int8_t valid = setColCompressByOption(pSchema->type, &pReq->compress, columnEncodeVal(pStmt->pColOptions->encode),
+  int8_t valid = setColCompressByOption(pSchema->type, columnEncodeVal(pStmt->pColOptions->encode),
                                         columnCompressVal(pStmt->pColOptions->compress),
-                                        columnLevelVal(pStmt->pColOptions->compressLevel));
+                                        columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
   if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
 
   return TSDB_CODE_SUCCESS;
@@ -10936,7 +10928,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
     }
   }
   taosArrayDestroy(pReq->pTagArray);
-  if(pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
+  if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
@@ -10948,9 +10940,8 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   const SSchema* pSchema = getNormalColSchema(pTableMeta, pStmt->colName);
-  if (hasPkInTable(pTableMeta) && pSchema && (pSchema->flags & COL_IS_KEY) && 
-      (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
-       TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
+  if (hasPkInTable(pTableMeta) && pSchema && (pSchema->flags & COL_IS_KEY) &&
+      (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
        TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PK_OP);
   }

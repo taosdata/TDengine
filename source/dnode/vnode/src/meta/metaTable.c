@@ -36,6 +36,36 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
+int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
+  int32_t nCols = pWp->nCols;
+  int32_t ver = pWp->version;
+  if (add) {
+    SColCmpr *p = taosMemoryCalloc(1, sizeof(SColCmpr) * (nCols + 1));
+    memcpy(p, pWp->pColCmpr, sizeof(SColCmpr) * nCols);
+
+    SColCmpr *pCol = p + nCols;
+    pCol->id = pSchema->colId;
+    pCol->alg = createDefaultColCmprByType(pSchema->type);
+    pWp->nCols = nCols + 1;
+    pWp->version = ver;
+    pWp->pColCmpr = p;
+  } else {
+    for (int32_t i = 0; i < nCols; i++) {
+      SColCmpr *pOCmpr = &pWp->pColCmpr[i];
+      if (pOCmpr->id == pSchema->colId) {
+        int32_t left = (nCols - i - 1) * sizeof(SColCmpr);
+        if (left) {
+          memmove(pWp->pColCmpr + i, pWp->pColCmpr + i + 1, left);
+        }
+        nCols--;
+        break;
+      }
+    }
+    pWp->nCols = nCols;
+    pWp->version = ver;
+  }
+  return 1;
+}
 static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   pInfo->uid = pEntry->uid;
   pInfo->version = pEntry->version;
@@ -1363,7 +1393,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SMetaEntry      entry = {0};
   SSchemaWrapper *pSchema;
   int             c;
-
+  bool            freeColCmpr = false;
   if (pAlterTbReq->colName == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     metaError("meta/table: null pAlterTbReq->colName");
@@ -1492,6 +1522,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
         (void)tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
       }
+      SSchema *pCol = &pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1];
+      updataTableColCmpr(&entry.colCmpr, pCol, 1);
+      freeColCmpr = true;
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -1521,6 +1554,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
         (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
       }
+
+      updataTableColCmpr(&entry.colCmpr, pColumn, 0);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {
@@ -1582,6 +1617,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   if (pNewSchema) taosMemoryFree(pNewSchema);
+  if (freeColCmpr) taosMemoryFree(entry.colCmpr.pColCmpr);
+
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   tDecoderClear(&dc);
