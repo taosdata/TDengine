@@ -375,7 +375,7 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     }
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
     return TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
-  } else if (type >= TSDB_DATA_TYPE_USMALLINT && type <= TSDB_DATA_TYPE_UINT) {
+  } else if (type >= TSDB_DATA_TYPE_UTINYINT && type <= TSDB_DATA_TYPE_UINT) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_UBIGINT) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
