@@ -167,26 +167,42 @@ sql show tags from  st_timestamp_29
 if $data05 != 1 then
   return -1
 endi
-sql create table st_timestamp_30 using mt_timestamp tags (now +1b)
+sql create table st_timestamp_30 using mt_timestamp tags (-0b00 -0a)
 sql show tags from  st_timestamp_30
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
-sql create table st_timestamp_31 using mt_timestamp tags ("now()" +1b)
+sql create table st_timestamp_31 using mt_timestamp tags ("-0x00" +1u)
 sql show tags from  st_timestamp_31
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
-sql create table st_timestamp_32 using mt_timestamp tags (today() +1d)
+sql create table st_timestamp_32 using mt_timestamp tags (-0x00 +1b)
 sql show tags from  st_timestamp_32
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
-sql create table st_timestamp_33 using mt_timestamp tags ("today()" +1d)
+sql create table st_timestamp_33 using mt_timestamp tags (now +1b)
 sql show tags from  st_timestamp_33
 if $data05 < 1711883186000 then
   return -1
 endi
+sql create table st_timestamp_34 using mt_timestamp tags ("now()" +1b)
+sql show tags from  st_timestamp_34
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql create table st_timestamp_35 using mt_timestamp tags (today() +1d)
+sql show tags from  st_timestamp_35
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql create table st_timestamp_36 using mt_timestamp tags ("today()" +1d)
+sql show tags from  st_timestamp_36
+if $data05 < 1711883186000 then
+  return -1
+endi
+
 
 ## case 01: insert values  for test column values
 sql insert into st_timestamp_0 values(now,NULL)
@@ -324,12 +340,12 @@ sql select ts, cast(c as bigint) from st_timestamp_26
 if $data01 != 0 then 
   return -1
 endi
-sql insert into st_timestamp_27 values(now,0b01 -1s)
+sql insert into st_timestamp_27 values(now,+0b01 -1s)
 sql select ts, cast(c as bigint) from st_timestamp_27
 if $data01 != -999 then 
   return -1
 endi
-sql insert into st_timestamp_28 values(now,"0x01" +1u)
+sql insert into st_timestamp_28 values(now,"+0x01" +1u)
 sql select ts, cast(c as bigint) from st_timestamp_28
 if $data01 != 1 then 
   return -1
@@ -339,23 +355,38 @@ sql select ts, cast(c as bigint) from st_timestamp_29
 if $data01 != 1 then 
   return -1
 endi
-sql insert into st_timestamp_30 values(now,now +1b)
-sql select ts, cast(c as bigint) from st_timestamp_30
-if $data01 < 1711883186000 then 
+sql insert into  st_timestamp_30 values(now,-0b00 -0a)
+sql show tags from  st_timestamp_30
+if $data05 != 0 then
   return -1
 endi
-sql insert into st_timestamp_31 values(now,"now()" +1b)
-sql select ts, cast(c as bigint) from st_timestamp_31
-if $data01 < 1711883186000 then 
+sql insert into  st_timestamp_31 values(now,"-0x00" +1u)
+sql show tags from  st_timestamp_31
+if $data05 != 0 then
   return -1
 endi
-sql insert into st_timestamp_32 values(now,today() +1d)
-sql select ts, cast(c as bigint) from st_timestamp_32
-if $data01 < 1711883186000 then 
+sql insert into st_timestamp_32 values (now,-0x00 +1b)
+sql show tags from  st_timestamp_32
+if $data05 != 0 then
   return -1
 endi
-sql insert into st_timestamp_33 values(now,"today()" +1d)
+sql insert into st_timestamp_33 values(now,now +1b)
 sql select ts, cast(c as bigint) from st_timestamp_33
+if $data01 < 1711883186000 then 
+  return -1
+endi
+sql insert into st_timestamp_34 values(now,"now()" +1b)
+sql select ts, cast(c as bigint) from st_timestamp_34
+if $data01 < 1711883186000 then 
+  return -1
+endi
+sql insert into st_timestamp_35 values(now,today() +1d)
+sql select ts, cast(c as bigint) from st_timestamp_35
+if $data01 < 1711883186000 then 
+  return -1
+endi
+sql insert into st_timestamp_36 values(now,"today()" +1d)
+sql select ts, cast(c as bigint) from st_timestamp_36
 if $data01 < 1711883186000 then 
   return -1
 endi
@@ -560,7 +591,7 @@ sql select ts, cast(c as bigint) from st_timestamp_1022
 if $data01 != -1 then
   return -1
 endi
-sql insert into st_timestamp_1023 using mt_timestamp tags(1+1d) values(now,1+ 1d )
+sql insert into st_timestamp_1023 using mt_timestamp tags(+1+1d) values(now,+1+ 1d )
 sql show tags from  st_timestamp_1023
 if $data05 != 86400001 then
   return -1
@@ -587,7 +618,7 @@ sql select ts, cast(c as bigint) from st_timestamp_1025
 if $data01 != -1000 then 
   return -1
 endi
-sql insert into st_timestamp_1026 using mt_timestamp tags(0b01-1a) values(now,0b01 -1a)
+sql insert into st_timestamp_1026 using mt_timestamp tags(+0b01-1a) values(now,+0b01 -1a)
 sql show tags from  st_timestamp_1026
 if $data05 != 0 then
   return -1
@@ -614,7 +645,7 @@ sql select ts, cast(c as bigint) from st_timestamp_1028
 if $data01 != 1 then 
   return -1
 endi
-sql insert into st_timestamp_1029 using mt_timestamp tags(0x01 +1b) values(now,0x01 +1b)
+sql insert into st_timestamp_1029 using mt_timestamp tags(+0x01 +1b) values(now,+0x01 +1b)
 sql show tags from  st_timestamp_1029
 if $data05 != 1 then
   return -1
@@ -623,34 +654,34 @@ sql select ts, cast(c as bigint) from st_timestamp_1029
 if $data01 != 1 then 
   return -1
 endi
-sql insert into st_timestamp_1030 using mt_timestamp tags(now+1b) values(now,now +1b)
+sql insert into st_timestamp_1030 using mt_timestamp tags (-0b00 -0a) values(now,-0b00 -0a)
 sql show tags from  st_timestamp_1030
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
 sql select ts, cast(c as bigint) from st_timestamp_1030
-if $data01 < 1711883186000 then 
+if $data01 != 0 then 
   return -1
 endi
-sql insert into st_timestamp_1031 using mt_timestamp tags("now" +1b) values(now,"now()" +1b)
+sql insert into st_timestamp_1031 using mt_timestamp tags ("-0x00" +1u) values(now,"-0x00" +1u)
 sql show tags from  st_timestamp_1031
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
 sql select ts, cast(c as bigint) from st_timestamp_1031
-if $data01 < 1711883186000 then 
+if $data01 != 0 then 
   return -1
 endi
-sql insert into st_timestamp_1032 using mt_timestamp tags(today() + 1d) values(now,today() +1d)
+sql insert into st_timestamp_1032 using mt_timestamp tags (-0x00 +1b) values(now,-0x00 +1b)
 sql show tags from  st_timestamp_1032
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
 sql select ts, cast(c as bigint) from st_timestamp_1032
-if $data01 < 1711883186000 then 
+if $data01 != 0 then 
   return -1
 endi
-sql insert into st_timestamp_1033 using mt_timestamp tags("today" +1d) values(now,"today()" +1d)
+sql insert into st_timestamp_1033 using mt_timestamp tags(now+1b) values(now,now +1b)
 sql show tags from  st_timestamp_1033
 if $data05 < 1711883186000 then
   return -1
@@ -659,6 +690,35 @@ sql select ts, cast(c as bigint) from st_timestamp_1033
 if $data01 < 1711883186000 then 
   return -1
 endi
+sql insert into st_timestamp_1034 using mt_timestamp tags("now" +1b) values(now,"now()" +1b)
+sql show tags from  st_timestamp_1034
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1034
+if $data01 < 1711883186000 then 
+  return -1
+endi
+sql insert into st_timestamp_1035 using mt_timestamp tags(today() + 1d) values(now,today() +1d)
+sql show tags from  st_timestamp_1035
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1035
+if $data01 < 1711883186000 then 
+  return -1
+endi
+sql insert into st_timestamp_1036 using mt_timestamp tags("today" +1d) values(now,"today()" +1d)
+sql show tags from  st_timestamp_1036
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql select ts, cast(c as bigint) from st_timestamp_1036
+if $data01 < 1711883186000 then 
+  return -1
+endi
+
+
 
 
 
@@ -793,7 +853,7 @@ sql show tags from  st_timestamp_25
 if $data05 != -1000 then
   return -1
 endi
-sql alter table st_timestamp_26 set tag tagname=0b01 -1a
+sql alter table st_timestamp_26 set tag tagname=+0b01 -1a
 sql show tags from  st_timestamp_26
 if $data05 != 0 then
   return -1
@@ -813,23 +873,38 @@ sql show tags from  st_timestamp_29
 if $data05 != 1 then
   return -1
 endi
-sql alter table st_timestamp_30 set tag tagname=now +1b
+sql alter table st_timestamp_30 set tag tagname==-0b00 -0a
 sql show tags from  st_timestamp_30
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
-sql alter table st_timestamp_31 set tag tagname="now()" +1b
+sql alter table st_timestamp_31 set tag tagname="-0x00" +1u
 sql show tags from  st_timestamp_31
-if $data05 < 1711883186000 then
+if $data05 != 0 then
   return -1
 endi
-sql alter table st_timestamp_32 set tag tagname=today( ) +1d
+sql alter table st_timestamp_32 set tag tagname=-0x00 +1b
 sql show tags from  st_timestamp_32
+if $data05 != 0 then
+  return -1
+endi
+sql alter table st_timestamp_33 set tag tagname=now +1b
+sql show tags from  st_timestamp_33
 if $data05 < 1711883186000 then
   return -1
 endi
-sql alter table st_timestamp_33 set tag tagname="today()" +1d
-sql show tags from  st_timestamp_33
+sql alter table st_timestamp_34 set tag tagname="now()" +1b
+sql show tags from  st_timestamp_34
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql alter table st_timestamp_35 set tag tagname=today( ) +1d
+sql show tags from  st_timestamp_35
+if $data05 < 1711883186000 then
+  return -1
+endi
+sql alter table st_timestamp_36 set tag tagname="today()" +1d
+sql show tags from  st_timestamp_36
 if $data05 < 1711883186000 then
   return -1
 endi
