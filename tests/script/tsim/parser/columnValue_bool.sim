@@ -936,6 +936,9 @@ sql_error alter table st_bool_i1 set tag tagname="123abc"
 sql        alter table st_bool_i2 set tag tagname="123"
 sql_error alter table st_bool_i3 set tag tagname=abc
 sql_error alter table st_bool_i4 set tag tagname="abc"
+sql_error alter table st_bool_i4 set tag tagname=now
+sql_error alter table st_bool_i4 set tag tagname=now()+1d
+sql_error alter table st_bool_i4 set tag tagname=1+1d
 sql_error alter table st_bool_i5 set tag tagname=" "
 sql_error alter table st_bool_i6 set tag tagname=''
 
