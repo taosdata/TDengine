@@ -1618,6 +1618,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   metaULock(pMeta);
 
   metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp);
+  for (int32_t i = 0; i < entry.colCmpr.nCols; i++) {
+    SColCmpr *p = &entry.colCmpr.pColCmpr[i];
+    pMetaRsp->pSchemaExt[i].colId = p->id;
+    pMetaRsp->pSchemaExt[i].compress = p->alg;
+  }
 
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   if (pNewSchema) taosMemoryFree(pNewSchema);
