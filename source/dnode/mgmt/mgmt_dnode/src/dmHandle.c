@@ -224,6 +224,26 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#ifdef TD_ENTERPRISE
+  int32_t       code = 0;
+  SDCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = updateEncryptKey(cfgReq.value);
+
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+_exit:
+  return code;
+#endif
+  return 0;
+}
+
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;

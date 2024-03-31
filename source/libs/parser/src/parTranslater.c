@@ -5574,7 +5574,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                              TSDB_MAX_DB_WITH_ARBITRATOR);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "encryptionAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
+    code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
                              TSDB_MAX_ENCRYPT_ALGO);
   }
   if (TSDB_CODE_SUCCESS == code) {

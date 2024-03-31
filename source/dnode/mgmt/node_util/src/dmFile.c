@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tchecksum.h"
 #include "tjson.h"
 #include "tgrant.h"
 #include "crypt.h"
@@ -304,15 +305,17 @@ _OVER:
 }
 
 int32_t updateEncryptKey(char *key) {
-  int32_t   code = -1;
+  int32_t code = -1;
+  char   *machineId = NULL;
+  char   *encryptCode = NULL;
 
-  char      folder[PATH_MAX] = {0};
+  char folder[PATH_MAX] = {0};
 
-  char      encryptFile[PATH_MAX] = {0};
-  char      realEncryptFile[PATH_MAX] = {0};
+  char encryptFile[PATH_MAX] = {0};
+  char realEncryptFile[PATH_MAX] = {0};
 
-  char      checkFile[PATH_MAX] = {0};
-  char      realCheckFile[PATH_MAX] = {0};
+  char checkFile[PATH_MAX] = {0};
+  char realCheckFile[PATH_MAX] = {0};
 
   snprintf(folder, sizeof(folder), "%s%sdnode", tsDataDir, TD_DIRSEP);
   snprintf(encryptFile, sizeof(realEncryptFile), "%s%s%s.bak", folder, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
@@ -335,8 +338,14 @@ int32_t updateEncryptKey(char *key) {
   }
   
   //TODO: dmchen parse key from code
-  char* encryptCode = NULL;
-  //generateEncryptCode(key, tGetMachineId(), &encryptCode);
+  if (!(machineId = tGetMachineId())) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (generateEncryptCode(key, machineId, &encryptCode) != 0) {
+    goto _OVER;
+  }
 
   if(writeEncryptCode(encryptFile, realEncryptFile, encryptCode) != 0){
     goto _OVER;
@@ -344,11 +353,15 @@ int32_t updateEncryptKey(char *key) {
 
   if(writeCheckCode(checkFile, realCheckFile, key) != 0){
     goto _OVER;
-  } 
+  }
+
+  tsEncryptionKeyChksum = taosCalcChecksum(0, key, strlen(key));
+  tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
   code = 0;
 _OVER:
-
+  taosMemoryFree(encryptCode);
+  taosMemoryFree(machineId);
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to update encrypt key since %s", terrstr());
