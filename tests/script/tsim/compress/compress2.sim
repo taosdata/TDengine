@@ -28,7 +28,7 @@ sql desc $tb
 
 # normal table
 
-sql_err create table txx (ts timestamp compress 'xxx', f int)
+sql_error create table txx (ts timestamp compress 'xxx', f int)
 sql create table txx (ts timestamp compress 'disabled', f int)
 
 sql_error alter table $tb modify column b level 'i'
