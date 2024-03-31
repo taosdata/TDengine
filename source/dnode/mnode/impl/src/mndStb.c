@@ -1089,7 +1089,9 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   pDst->numOfTags = createReq->numOfTags;
   pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
   pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
-  if (pDst->pColumns == NULL || pDst->pTags == NULL) {
+  pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SColCmpr));
+
+  if (pDst->pColumns == NULL || pDst->pTags == NULL || pDst->pCmpr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -1100,8 +1102,8 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
 
   for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
-    SField  *pField = taosArrayGet(createReq->pColumns, i);
-    SSchema *pSchema = &pDst->pColumns[i];
+    SFieldWithOptions *pField = taosArrayGet(createReq->pColumns, i);
+    SSchema           *pSchema = &pDst->pColumns[i];
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
     pSchema->flags = pField->flags;
@@ -1125,6 +1127,17 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
       pSchema->colId = pStb->pTags[cIndex].colId;
     } else {
       pSchema->colId = pDst->nextColId++;
+    }
+  }
+  for (int32_t i = 0; i < pDst->numOfColumns; i++) {
+    SColCmpr          *p = pDst->pCmpr + i;
+    SFieldWithOptions *pField = taosArrayGet(createReq->pColumns, i);
+    SSchema           *pSchema = &pDst->pColumns[i];
+    p->id = pSchema->colId;
+    if (pField->compress == 0) {
+      p->alg = createDefaultColCmprByType(pSchema->type);
+    } else {
+      p->alg = pField->compress;
     }
   }
   pDst->tagVer = createReq->tagVer;
@@ -1230,12 +1243,14 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     if (mndBuildStbFromAlter(pStb, &pDst, &createReq) != 0) {
       taosMemoryFreeClear(pDst.pTags);
       taosMemoryFreeClear(pDst.pColumns);
+      taosMemoryFreeClear(pDst.pCmpr);
       goto _OVER;
     }
 
     code = mndAlterStbImp(pMnode, pReq, pDb, &pDst, needRsp, NULL, 0);
     taosMemoryFreeClear(pDst.pTags);
     taosMemoryFreeClear(pDst.pColumns);
+    taosMemoryFreeClear(pDst.pCmpr);
   } else {
     code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   }
