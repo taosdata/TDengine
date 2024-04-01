@@ -596,6 +596,7 @@ export default {
     columns: "Columns",
     subTable: "Sub Table",
     columnNameTip: "Column Name",
+    clickColumnTip: "Click Switch to TAG",
     tagNameTip: "Tag Name",
     sub_table: "SubTable",
     subTables: "SubTables",

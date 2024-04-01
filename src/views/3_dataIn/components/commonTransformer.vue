@@ -507,7 +507,7 @@
         @close="closeDialog"
         :close-on-click-modal="false"
       >
-        <CreateSTB ref="createstb"></CreateSTB>
+        <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
         <div class="buttons">
           <el-button type="primary" size="small" @click="createST">
             {{ $t("create") }}
@@ -1007,6 +1007,7 @@ export default {
             name: val.name,
             show: true,
             type: "string",
+            localType: val.type,
             value:
               this.$t("datasource.transformer.sampleval") +
               ":" +

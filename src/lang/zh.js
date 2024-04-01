@@ -617,6 +617,7 @@ export default {
     stableName: "超级表名称",
     columns: "列",
     columnNameTip: "列名",
+    clickColumnTip: "点击切换为标签",
     tagNameTip: "标签名",
     subTable: "子表",
     sub_table: "子表",
