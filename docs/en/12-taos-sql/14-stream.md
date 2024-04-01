@@ -1,5 +1,5 @@
 ---
-title: Stream Processing
+title: Stream Processing SQL Reference
 sidebar_label: Stream Processing
 description: This document describes the SQL statements related to the stream processing component of TDengine.
 ---
