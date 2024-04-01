@@ -1,0 +1,8 @@
+[
+    {
+      "host": "172.17.0.2",
+      "username": "root",
+      "workdir": "/root",
+      "thread": 20
+    }
+]
