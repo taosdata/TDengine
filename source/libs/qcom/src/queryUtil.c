@@ -472,7 +472,8 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt ) {
+  if (useCompress(pSrc->tableType) /* && pSrc->schemaExt*/) {
+    ASSERT(pSrc->schemaExt == NULL);
     (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
     memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
   } else {

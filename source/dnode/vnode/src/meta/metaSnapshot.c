@@ -512,6 +512,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.schemaTag = me.stbEntry.schemaTag;
     req.schemaRow.version = 1;
     req.schemaTag.version = 1;
+    req.colCmpr = me.colCmpr;
 
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
@@ -587,6 +588,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.uid = me.uid;
     req.commentLen = -1;
     req.ntb.schemaRow = me.ntbEntry.schemaRow;
+    req.colCmpr = me.colCmpr;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {
