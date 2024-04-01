@@ -162,8 +162,9 @@ function runSimCases() {
 function runTestNGCases() {
     echo "=== Run TestNG cases ==="
     . /root/.taostest/.env
-    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_insert_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-insert_001  -d debug  -o 12000 -f True
-    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_query.json -t $TEST_ROOT/scripts/coverage/cases_query_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-query_001  -d debug  -o 12000 -f True
+    runtime=`date +"%Y%m%d_%H_%M_%S"`
+    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_insert_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-insert_$runtime  -d debug  -o 12000 -f False
+    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_query.json -t $TEST_ROOT/scripts/coverage/cases_query_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-query_$runtime  -d debug  -o 12000 -f False
     stopTaosd
 }
 
