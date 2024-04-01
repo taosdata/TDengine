@@ -8,7 +8,7 @@ OpenTSDB data source is the process of writing data from the OpenTSDB server to 
 
 ## Prerequisites
 
-- Create an empty database to store your Kafka data. For more information, see [Database](../../../programming/model/#create-database).
+- Create an empty database to store your OpenTSDB data. For more information, see [Database](../../../programming/model/#create-database).
 - Ensure that the connection agent is running on a machine located on the same network as your OPC Server. For more information, see [Install Connection Agent](../install-agent/).
 
 ## Procedure
@@ -34,4 +34,4 @@ OpenTSDB data source is the process of writing data from the OpenTSDB server to 
    - **Read Concurrency** is used to configure the maximum concurrency when reading data from the source OpenTSDB database, the default value is 50.
    - **Write Concurrency** is used to configure the maximum concurrency when writing data to the target TDengine database, the default value is 50.
    - **Batch Size** is used to configure the maximum batch size when writing data to the target TDengine database, the default value is 5000.
-7. After filling in the above information, click the **Submit** button to start the data synchronization from Kafka to TDengine.
+7. After filling in the above information, click the **Submit** button to start the data synchronization from OpenTSDB to TDengine.
