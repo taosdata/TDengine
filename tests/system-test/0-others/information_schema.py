@@ -338,13 +338,13 @@ class TDTestCase:
 
     def run(self):
         self.prepare_data()
-        # self.count_check()
-        # self.ins_columns_check()
+        self.count_check()
+        self.ins_columns_check()
         # self.ins_col_check_4096()
-        # self.ins_stable_check()
-        # self.ins_stable_check2()
-        # self.ins_dnodes_check()
-        # self.ins_grants_check()
+        self.ins_stable_check()
+        self.ins_stable_check2()
+        self.ins_dnodes_check()
+        self.ins_grants_check()
         self.ins_encryptions_check()
 
 
