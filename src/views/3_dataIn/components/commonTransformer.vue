@@ -351,7 +351,13 @@
                 label="Expression"
               >
               <template slot="header">
-                <el-tooltip :content="$t('datasource.transformer.expressiondesc')" placement="top-start">
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template slot="content">
+                    <DocsContent
+                      :style="docsStyle"
+                      :content="$t('datasource.transformer.expressiondesc')"
+                    />
+                  </template>
                   <span>Expression <i class="el-icon-info" style="color: #4259ce"></i></span>
                 </el-tooltip>
               </template>
