@@ -33,7 +33,7 @@
 #include "mndVgroup.h"
 #include "tname.h"
 
-#define STB_VER_NUMBER   1
+#define STB_VER_NUMBER   2
 #define STB_RESERVE_SIZE 64
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -199,7 +199,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != STB_VER_NUMBER) {
+  if (sver > STB_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }

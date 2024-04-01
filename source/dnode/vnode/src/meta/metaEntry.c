@@ -50,7 +50,6 @@ END:
 static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
                                                          SSchemaWrapper *pSchema) {
   pCmpr->nCols = pSchema->nCols;
-  assert(!pCmpr->pColCmpr);
   pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
   for (int32_t i = 0; i < pCmpr->nCols; i++) {
     SColCmpr *pColCmpr = &pCmpr->pColCmpr[i];
