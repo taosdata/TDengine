@@ -821,6 +821,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
     
     taosArrayDestroy(pParam->pChildren);
     pParam->pChildren = NULL;
+    pCtx->fetchDone = false;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -910,6 +911,7 @@ static int32_t handleDownstreamFetchDone(struct SOperatorInfo* pOperator, SGcSes
     while (NULL != (pGroup = taosHashIterate(pGrpHash, pGroup))) {
       handleGroupFetchDone(pGroup);
     }
+    pCtx->fetchDone = true;
   } else {
     int32_t uidNum = 0;
     SGcVgroupCtx* pVgCtx = NULL;
@@ -979,33 +981,41 @@ static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
   *got = true;
 
-  if (pSession->pGroupData->needCache) {
-    SGcBlkList* pBlkList = &pSession->pGroupData->blkList;
-    taosRLockLatch(&pBlkList->lock);
-    int64_t blkNum = taosArrayGetSize(pBlkList->pList);
-    if (pSession->lastBlkId < 0) {
-      if (blkNum > 0) {
-        SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, 0);
+  if (NULL != pSession->pGroupData) {
+    if (pSession->pGroupData->needCache) {
+      SGcBlkList* pBlkList = &pSession->pGroupData->blkList;
+      taosRLockLatch(&pBlkList->lock);
+      int64_t blkNum = taosArrayGetSize(pBlkList->pList);
+      if (pSession->lastBlkId < 0) {
+        if (blkNum > 0) {
+          SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, 0);
+          taosRUnLockLatch(&pBlkList->lock);
+          code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pBasic, ppRes);
+          pSession->lastBlkId = 0;
+          return code;
+        }
+      } else if ((pSession->lastBlkId + 1) < blkNum) {
+        SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, pSession->lastBlkId + 1);
         taosRUnLockLatch(&pBlkList->lock);
         code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pBasic, ppRes);
-        pSession->lastBlkId = 0;
+        pSession->lastBlkId++;
         return code;
       }
-    } else if ((pSession->lastBlkId + 1) < blkNum) {
-      SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, pSession->lastBlkId + 1);
       taosRUnLockLatch(&pBlkList->lock);
-      code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pBasic, ppRes);
-      pSession->lastBlkId++;
+    } else if (pSession->pGroupData->pBlock) {
+      *ppRes = pSession->pGroupData->pBlock;
+      pSession->pGroupData->pBlock = NULL;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (atomic_load_8((int8_t*)&pSession->pGroupData->fetchDone)) {
+      *ppRes = NULL;
+      qDebug("sessionId: %" PRIu64 " fetch done", sessionId);
       return code;
     }
-    taosRUnLockLatch(&pBlkList->lock);
-  } else if (pSession->pGroupData->pBlock) {
-    *ppRes = pSession->pGroupData->pBlock;
-    pSession->pGroupData->pBlock = NULL;
-  }
-
-  if (atomic_load_8((int8_t*)&pSession->pGroupData->fetchDone)) {
+  } else {
     *ppRes = NULL;
+    qDebug("sessionId: %" PRIu64 " fetch done since downstream fetch done", sessionId);
     return code;
   }
 
@@ -1136,11 +1146,15 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
   SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
 
   SGroupCacheData* pGroup = taosHashGet(pGrpHash, &pGcParam->tbUid, sizeof(pGcParam->tbUid));
-  if (NULL == pGroup) {
+  if (NULL == pGroup && NULL != pParam->pChildren && !pCtx->fetchDone) {
     code = addNewGroupData(pOperator, pParam, &pGroup, pGCache->batchFetch ? GROUP_CACHE_DEFAULT_VGID : pGcParam->vgId, pGcParam->tbUid);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+  }
+
+  if (NULL == pGroup) {
+    return TSDB_CODE_SUCCESS;
   }
 
   initGroupCacheSessionCtx(&ctx, pGcParam, pGroup);
@@ -1165,6 +1179,10 @@ static int32_t getBlkFromGroupCache(struct SOperatorInfo* pOperator, SSDataBlock
     int32_t code = initGroupCacheSession(pOperator, pParam, &pSession);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
+    }
+    if (NULL == pSession) {
+      qDebug("session %" PRId64 " in downstream %d total got 0 rows since downtream fetch done", pGcParam->sessionId, pCtx->id);
+      return TSDB_CODE_SUCCESS;
     }
   } else if (pSession->pGroupData->needCache) {
     SSDataBlock** ppBlock = taosHashGet(pGCache->blkCache.pReadBlk, &pGcParam->sessionId, sizeof(pGcParam->sessionId));

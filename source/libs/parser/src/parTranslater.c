@@ -1036,6 +1036,11 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   pCol->isPrimTs = isPrimaryKeyImpl((SNode*)pExpr);
   pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    pCol->colType = ((SColumnNode*)pExpr)->colType;
+    strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
+  }
   strcpy(pCol->colName, pExpr->aliasName);
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pCol->colName);
