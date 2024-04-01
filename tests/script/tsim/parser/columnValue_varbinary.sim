@@ -299,6 +299,8 @@ sql_error create table st_varbinary_1012  using mt_varbinary tags(tRue)
 sql_error create table st_varbinary_1013  using mt_varbinary tags(FalsE)
 sql_error create table st_varbinary_1014  using mt_varbinary tags(noW)
 sql_error create table st_varbinary_1015  using mt_varbinary tags(toDay)
+sql_error create table st_varbinary_1016  using mt_varbinary tags(now()+1s)
+sql_error create table st_varbinary_1017  using mt_varbinary tags(1+1s)
 sql_error insert into st_varbinary_106  using mt_varbinary tags(+0123) values(now, NULL);
 sql_error insert into st_varbinary_107  using mt_varbinary tags(-01.23) values(now, NULL);
 sql_error insert into st_varbinary_108  using mt_varbinary tags(+0x01) values(now, NULL);
@@ -309,6 +311,8 @@ sql_error insert into st_varbinary_1012  using mt_varbinary tags(tRue) values(no
 sql_error insert into st_varbinary_1013  using mt_varbinary tags(FalsE) values(now, NULL);
 sql_error insert into st_varbinary_1014  using mt_varbinary tags(noW) values(now, NULL);
 sql_error insert into st_varbinary_1015  using mt_varbinary tags(toDay) values(now, NULL);
+sql_error insert into st_varbinary_1016  using mt_varbinary tags(now()+1s) values(now, NULL);
+sql_error insert into st_varbinary_1017  using mt_varbinary tags(1+1s) values(now, NULL);
 sql_error insert into st_varbinary_106  using mt_varbinary tags(NULL) values(now(), +0123)
 sql_error insert into st_varbinary_107  using mt_varbinary tags(NULL) values(now(), -01.23)
 sql_error insert into st_varbinary_108  using mt_varbinary tags(NULL) values(now(), +0x01)
@@ -319,5 +323,7 @@ sql_error insert into st_varbinary_1012  using mt_varbinary tags(NULL) values(no
 sql_error insert into st_varbinary_1013  using mt_varbinary tags(NULL) values(now(), FalsE)
 sql_error insert into st_varbinary_1014  using mt_varbinary tags(NULL) values(now(), noW)
 sql_error insert into st_varbinary_1015  using mt_varbinary tags(NULL) values(now(), toDay)
+sql_error insert into st_varbinary_1016  using mt_varbinary tags(NULL) values(now(), now()+1s)
+sql_error insert into st_varbinary_1017  using mt_varbinary tags(NULL) values(now(), 1+1s)
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
