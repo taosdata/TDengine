@@ -1109,6 +1109,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     pColInfo->type = pMtInfo->schema->pSchema[i].type;
     pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
     pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
+    pColInfo->pk = pMtInfo->schema->pSchema[i].flags & COL_IS_KEY;
 
     pCond->pSlotList[i] = i;
   }
