@@ -617,6 +617,7 @@ export default {
     stableName: "超级表名称",
     columns: "列",
     columnNameTip: "列名",
+    clickColumnTip: "点击切换为标签",
     tagNameTip: "标签名",
     subTable: "子表",
     sub_table: "子表",
@@ -1199,6 +1200,7 @@ export default {
       defaultValuePlaceholder: "默认值",
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
       defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
+      jsonExtractTip: 'JSON 提取表达式编辑器'
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",

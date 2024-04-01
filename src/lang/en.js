@@ -596,6 +596,7 @@ export default {
     columns: "Columns",
     subTable: "Sub Table",
     columnNameTip: "Column Name",
+    clickColumnTip: "Click Switch to TAG",
     tagNameTip: "Tag Name",
     sub_table: "SubTable",
     subTables: "SubTables",
@@ -1415,6 +1416,7 @@ export default {
       defaultValuePlaceholder: "default value",
       dataRangeInputTip: "Please input integer value between {min} and {max}",
       defaultValueErrorTip: "default value for column[{}] input error",
+      jsonExtractTip: 'JSON extract expression editor'
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
