@@ -1286,7 +1286,7 @@ int32_t tRowKeyCompare(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
   pDst->ts = pSrc->ts;
   pDst->numOfPKs = pSrc->numOfPKs;
 
@@ -4254,9 +4254,7 @@ int32_t tCompressData(void          *input,       // input
   extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= extraSizeNeeded);
 
-  // DEFINE_VAR(info->cmprAlg)
-  if (info->cmprAlg == NO_COMPRESSION/* || (l1 == L1_UNKNOWN && l2 == L2_UNKNOWN) ||
-      (l1 == L1_DISABLED && l2 == L2_DISABLED)*/) {
+  if (info->cmprAlg == NO_COMPRESSION) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
   } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {

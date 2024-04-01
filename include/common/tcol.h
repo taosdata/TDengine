@@ -16,14 +16,14 @@
 #ifndef _TD_TCOL_H_
 #define _TD_TCOL_H_
 
-#define TSDB_COLUMN_ENCODE_UNKNOWN  "Unknown"
+#define TSDB_COLUMN_ENCODE_UNKNOWN  "unknown"
 #define TSDB_COLUMN_ENCODE_SIMPLE8B "simple8b"
 #define TSDB_COLUMN_ENCODE_XOR      "delta-i"
 #define TSDB_COLUMN_ENCODE_RLE      "bit-packing"
 #define TSDB_COLUMN_ENCODE_DELTAD   "delta-d"
 #define TSDB_COLUMN_ENCODE_DISABLED "disabled"
 
-#define TSDB_COLUMN_COMPRESS_UNKNOWN  "Unknown"
+#define TSDB_COLUMN_COMPRESS_UNKNOWN  "unknown"
 #define TSDB_COLUMN_COMPRESS_LZ4      "lz4"
 #define TSDB_COLUMN_COMPRESS_ZLIB     "zlib"
 #define TSDB_COLUMN_COMPRESS_ZSTD     "zstd"
@@ -31,7 +31,7 @@
 #define TSDB_COLUMN_COMPRESS_XZ       "xz"
 #define TSDB_COLUMN_COMPRESS_DISABLED "disabled"
 
-#define TSDB_COLUMN_LEVEL_UNKNOWN "Unknown"
+#define TSDB_COLUMN_LEVEL_UNKNOWN "unknown"
 #define TSDB_COLUMN_LEVEL_HIGH    "high"
 #define TSDB_COLUMN_LEVEL_MEDIUM  "medium"
 #define TSDB_COLUMN_LEVEL_LOW     "low"
