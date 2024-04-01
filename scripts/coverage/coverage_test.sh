@@ -11,6 +11,10 @@ fi
 
 # work main path
 TDENGINE_DIR=/root/TDinternal/community
+TAOSTEST_ROOT=/root/taostest
+TESTNG_ROOT=/root/TestNG
+TAOSTEST_BRANCH=master
+TESTNG_BRANCH=master
 if [ x$2 != x ];then
   TDENGINE_DIR=$2
 fi
@@ -75,6 +79,27 @@ function buildTDengine() {
     $makecmd
 
     make -j 32 install > /root/build.txt
+}
+
+function buildTaostest() {
+    echo "building taostest"
+    cd ${TAOSTEST_ROOT}
+    git branch
+    git reset --hard
+    git fetch
+    git checkout ${TAOSTEST_BRANCH} -f
+    git pull
+    git log -2
+    echo y|bash reinstall.sh
+}
+function updateTestNG() {
+    echo "update TestNG"
+    cd ${TESTNG_ROOT}
+    git branch
+    git reset --hard
+    git fetch
+    git checkout ${TESTNG_BRANCH} -f
+    git pull
 }
 
 function runCasesOneByOne () {
@@ -305,6 +330,9 @@ echo "Run Coverage Test" | tee -a $WORK_DIR/cron.log
 stopTaosd
 
 buildTDengine
+buildTaostest
+updateTestNG
+
 runTest
 stopTaosd
 #cd /root/TDinternal/community/tests/system-test
