@@ -278,6 +278,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.numOfNotReady = 0;
   pTask->chkInfo.transId = 0;
   pTask->chkInfo.dispatchCheckpointTrigger = false;
+  pTask->chkInfo.downstreamAlignNum = 0;
 
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
   if (clearChkpReadyMsg) {
