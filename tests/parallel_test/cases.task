@@ -1262,6 +1262,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
 ,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
 ,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
