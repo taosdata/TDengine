@@ -102,9 +102,10 @@ class StreamRedistribute(TDCase):
         self.restart_dnode()
 
     def clean_wal(self):
-        killCmd = "ps -ef|grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % (self.taosd_setting["spec"]["dnodes"][0]["config_dir"])
+        # killCmd = "ps -ef|grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -15 > /dev/null 2>&1" % (self.taosd_setting["spec"]["dnodes"][0]["config_dir"])
         vgid_list = self.tdCom.get_vgid_list(self.dbname)
-        self._remote.cmd(self.host, [killCmd])
+        self.taosd.kill_by_config_dir(self.taosd_setting["spec"]["dnodes"][0])
+        # self._remote.cmd(self.host, [killCmd])
         data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
         for vgid in vgid_list:
             self._remote.cmd(self.host, f'rm -rf {data_dir}/vnode/vnode{vgid}/wal/*')
