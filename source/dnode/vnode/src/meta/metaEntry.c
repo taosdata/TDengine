@@ -18,6 +18,7 @@
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   if (tEncodeI32v(pCoder, pw->nCols) < 0) return -1;
+  uInfo("encode cols:%d");
   if (tEncodeI32v(pCoder, pw->version) < 0) return -1;
 
   for (int32_t i = 0; i < pw->nCols; i++) {
@@ -31,6 +32,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColCmprWrapper *pWrapper = &pME->colCmpr;
   if (tDecodeI32v(pDecoder, &pWrapper->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pWrapper->version) < 0) return -1;
+  uInfo("dencode cols:%d", pWrapper->nCols);
 
   pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
   if (pWrapper->pColCmpr == NULL) return -1;
@@ -42,7 +44,7 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   }
   return 0;
 END:
-  taosMemoryFree(pWrapper->pColCmpr);
+  // taosMemoryFree(pWrapper->pColCmpr);
   return -1;
 }
 static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
@@ -98,10 +100,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
     return -1;
   }
-
-  if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
-    if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
-  }
+  if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -152,9 +151,11 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     return -1;
   }
   if (!tDecodeIsEnd(pCoder)) {
+    uInfo("set default, type: %d", pME->type, pME->name);
     if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
     TABLE_SET_COL_COMPRESSED(pME->flags);
   } else {
+    uInfo("set default, type: %d", pME->type, pME->name);
     if (pME->type == TSDB_SUPER_TABLE) {
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
     } else if (pME->type == TSDB_NORMAL_TABLE) {
