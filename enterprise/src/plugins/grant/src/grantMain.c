@@ -2565,14 +2565,6 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
-// 未知      因为 encryptionKeyStat 未执久化，mnode 中初始状态为未知。如果 dnode
-// 一直处在离线状态，则该状态不会发生变化，除非 dnode 上线并上报状态。 此时，显示 unknown* 未设置    dnode
-// 上线，并上报状态。
-//          1） 如果 mnode 未设置，则 dnode 会保持在线，则状态显示为 none.
-//          2） 如果 mnode 已设置，dnode 在一段时间后会离线。dnode 离线前，展示为 none, dnode 离线后，展示为 none*;
-// 已设置
-// loaded - 不一致
-// loaded - 一致
 
 static void mndCancelGetNextEncryptions(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
