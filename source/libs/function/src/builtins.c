@@ -1632,13 +1632,14 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   if (isPartial) {
-    if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    if (3 != LIST_LENGTH(pFunc->pParameterList) && 4 != LIST_LENGTH(pFunc->pParameterList)) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (!IS_NUMERIC_TYPE(colType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
-    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
+    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize(pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != LIST_LENGTH(pFunc->pParameterList)) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);

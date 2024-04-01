@@ -658,11 +658,12 @@ static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* 
  */
 static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STimeWindow* win, uint64_t groupId) {
   if (!pOperatorInfo->limited  // if no limit info, no filter will be applied
-      || pOperatorInfo->binfo.inputTsOrder !=
-             pOperatorInfo->binfo.outputTsOrder  // if input/output ts order mismatch, no filter
+      || pOperatorInfo->binfo.inputTsOrder != pOperatorInfo->binfo.outputTsOrder
+      // if input/output ts order mismatch, no filter
   ) {
     return false;
   }
+
   if (pOperatorInfo->limit == 0) return true;
 
   if (pOperatorInfo->pBQ == NULL) {

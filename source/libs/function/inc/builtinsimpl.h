@@ -144,7 +144,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx);
 int32_t irateFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t getIrateInfoSize();
+int32_t getIrateInfoSize(int32_t pkBytes);
 
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx);
 
@@ -158,8 +158,8 @@ int32_t           firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pB
 int32_t           firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes);
-EFuncDataRequired firstDynDataReq(void* pRes, STimeWindow* pTimeWindow);
-EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow);
+EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 
 int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 

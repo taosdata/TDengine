@@ -557,13 +557,10 @@ void tRowDestroy(SRow *pRow) {
 }
 
 static int32_t tRowPCmprFn(const void *p1, const void *p2) {
-  if ((*(SRow **)p1)->ts < (*(SRow **)p2)->ts) {
-    return -1;
-  } else if ((*(SRow **)p1)->ts > (*(SRow **)p2)->ts) {
-    return 1;
-  }
-
-  return 0;
+  SRowKey key1, key2;
+  tRowGetKey(*(SRow **)p1, &key1);
+  tRowGetKey(*(SRow **)p2, &key2);
+  return tRowKeyCompare(&key1, &key2);
 }
 static void    tRowPDestroy(SRow **ppRow) { tRowDestroy(*ppRow); }
 static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, int32_t iEnd, int8_t flag) {
@@ -645,13 +642,18 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
 
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
-    SRow *pRow = (SRow *)taosArrayGetP(aRowP, iStart);
+    SRowKey key1;
+    SRow   *row1 = (SRow *)taosArrayGetP(aRowP, iStart);
+
+    tRowGetKey(row1, &key1);
 
     int32_t iEnd = iStart + 1;
     while (iEnd < aRowP->size) {
-      SRow *pRowT = (SRow *)taosArrayGetP(aRowP, iEnd);
+      SRowKey key2;
+      SRow   *row2 = (SRow *)taosArrayGetP(aRowP, iEnd);
+      tRowGetKey(row2, &key2);
 
-      if (pRow->ts != pRowT->ts) break;
+      if (tRowKeyCompare(&key1, &key2) != 0) break;
 
       iEnd++;
     }
@@ -1282,6 +1284,27 @@ int32_t tRowKeyCompare(const void *p1, const void *p2) {
   }
 
   return 0;
+}
+
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+  pDst->ts = pSrc->ts;
+  pDst->numOfPKs = pSrc->numOfPKs;
+
+  if (pSrc->numOfPKs > 0) {
+    for (int32_t i = 0; i < pSrc->numOfPKs; ++i) {
+      SValue *pVal = &pDst->pks[i];
+      pVal->type = pSrc->pks[i].type;
+
+      if (IS_NUMERIC_TYPE(pVal->type)) {
+        pVal->val = pSrc->pks[i].val;
+      } else {
+        memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
+        pVal->nData = pSrc->pks[i].nData;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 // STag ========================================

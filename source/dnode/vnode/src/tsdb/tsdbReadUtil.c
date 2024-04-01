@@ -130,25 +130,62 @@ STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, c
   return *p;
 }
 
-static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
-  SRowKey* pRowKey = &pScanInfo->lastProcKey;
-  if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    int64_t skey = pReader->info.window.skey;
-    pRowKey->ts = (skey > INT64_MIN) ? (skey - 1) : skey;
-    pScanInfo->sttKeyInfo.nextProcKey = skey;
-  } else {
-    int64_t ekey = pReader->info.window.ekey;
-    pRowKey->ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-    pScanInfo->sttKeyInfo.nextProcKey = ekey;
+static int32_t initSRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc) {
+  pKey->numOfPKs = numOfPks;
+  pKey->ts = ts;
+
+  if (numOfPks > 0) {
+    pKey->pks[0].type = type;
+    if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+      char* p = (char*)&pKey->pks[0].val;
+      if (asc) {
+        switch(pKey->pks[0].type) {
+          case TSDB_DATA_TYPE_BIGINT:*(int64_t*)p = INT64_MIN;break;
+          case TSDB_DATA_TYPE_INT:*(int32_t*)p = INT32_MIN;break;
+          case TSDB_DATA_TYPE_SMALLINT:*(int16_t*)p = INT16_MIN;break;
+          case TSDB_DATA_TYPE_TINYINT:*(int8_t*)p = INT8_MIN;break;
+        }
+      } else {
+        switch(pKey->pks[0].type) {
+          case TSDB_DATA_TYPE_BIGINT:*(int64_t*)p = INT64_MAX;break;
+          case TSDB_DATA_TYPE_INT:*(int32_t*)p = INT32_MAX;break;
+          case TSDB_DATA_TYPE_SMALLINT:*(int16_t*)p = INT16_MAX;break;
+          case TSDB_DATA_TYPE_TINYINT:*(int8_t*)p = INT8_MAX;break;
+        }
+      }
+    } else {
+      pKey->pks[0].pData = taosMemoryCalloc(1, len);
+      pKey->pks[0].nData = 0;
+
+      if (pKey->pks[0].pData == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
+    }
   }
 
-  // only handle the first primary key.
-  pRowKey->numOfPKs = pReader->suppInfo.numOfPks;
-  if (pReader->suppInfo.numOfPks > 0) {
-    if (IS_VAR_DATA_TYPE(pReader->suppInfo.pk.type)) {
-      pRowKey->pks[0].pData = taosMemoryCalloc(1, pReader->suppInfo.pk.bytes);
-    }
-    pRowKey->pks[0].type = pReader->suppInfo.pk.type;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
+  int32_t numOfPks = pReader->suppInfo.numOfPks;
+  bool asc = ASCENDING_TRAVERSE(pReader->info.order);
+
+  SRowKey* pRowKey = &pScanInfo->lastProcKey;
+  if (asc) {
+    int64_t skey = pReader->info.window.skey;
+    int64_t ts = (skey > INT64_MIN) ? (skey - 1) : skey;
+
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes, asc);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes, asc);
+  } else {
+    int64_t ekey = pReader->info.window.ekey;
+    int64_t ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+
+    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes, asc);
+    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, pReader->suppInfo.pk.type,
+                pReader->suppInfo.pk.bytes, asc);
   }
 }
 
@@ -229,9 +266,8 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
     pInfo->lastProcKey.ts = ts;
-    ASSERT(0);
-
-    pInfo->sttKeyInfo.nextProcKey = ts + step;
+    // todo check the nextProcKey info
+    pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
   }
 }
 

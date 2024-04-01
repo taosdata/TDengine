@@ -115,7 +115,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
 }
 
-EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow) {
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
@@ -128,7 +128,7 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
-    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pBlockInfo);
   }
 }
 
@@ -415,6 +415,8 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
   taosCreateMD5Hash(name, len);
   strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
+  (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -453,7 +455,8 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
   } else {
     nodesDestroyList(pParameterList);
   }
-
+  (*pMidFunc)->hasPk = pPartialFunc->hasPk;
+  (*pMidFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 
@@ -482,7 +485,8 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   } else {
     nodesDestroyList(pParameterList);
   }
-
+  (*pMergeFunc)->hasPk = pPartialFunc->hasPk;
+  (*pMergeFunc)->pkBytes = pPartialFunc->pkBytes;
   return code;
 }
 
