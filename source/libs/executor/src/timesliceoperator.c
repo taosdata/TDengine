@@ -39,7 +39,7 @@ typedef struct STimeSliceOperatorInfo {
   SColumn              tsCol;         // primary timestamp column
   SExprSupp            scalarSup;     // scalar calculation
   struct SFillColInfo* pFillColInfo;  // fill column info
-  int64_t              prevTs;
+  SRowKey              prevKey;
   bool                 prevTsSet;
   uint64_t             groupId;
   SGroupKeys*          pPrevGroupKey;
@@ -178,22 +178,49 @@ static bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
   return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_isfilled") == 0);
 }
 
+static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t rowIndex, SRowKey* pKey) {
+  pKey->ts = ts;
+  pKey->numOfPKs = 1;
+
+  int8_t t = pPkCol->info.type;
+
+  pKey->pks[0].type = t;
+  if (IS_NUMERIC_TYPE(t)) {
+    GET_TYPED_DATA(pKey->pks[0].val, int64_t, t, colDataGetNumData(pPkCol, rowIndex));
+  } else {
+    char* p = colDataGetVarData(pPkCol, rowIndex);
+    pKey->pks[0].pData = (uint8_t*)varDataVal(p);
+    pKey->pks[0].nData = varDataLen(p);
+  }
+}
+
 static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumnInfoData* pTsCol,
-                                     int32_t curIndex, int32_t rows) {
-
-
+                                     SColumnInfoData* pPkCol, int32_t curIndex, int32_t rows) {
   int64_t currentTs = *(int64_t*)colDataGetData(pTsCol, curIndex);
   if (currentTs > pSliceInfo->win.ekey) {
     return false;
   }
 
-  if ((pSliceInfo->prevTsSet == true) && (currentTs == pSliceInfo->prevTs)) {
-    return true;
+  SRowKey cur = {.ts = currentTs, .numOfPKs = (pPkCol != NULL)? 1:0};
+  if (pPkCol != NULL) {
+    cur.pks[0].type = pPkCol->info.type;
+  }
+
+  if ((pSliceInfo->prevTsSet == true) && (currentTs == pSliceInfo->prevKey.ts)) {
+//    if (pPkCol == NULL) {
+      return true;
+    /* } else {
+       tRowGetKeyFromColData(currentTs, pPkCol, curIndex, &cur);
+       if (tRowKeyCompare(&cur, &pSliceInfo->prevKey) == 0) {
+         return true;
+       }
+     }*/
   }
 
   pSliceInfo->prevTsSet = true;
-  pSliceInfo->prevTs = currentTs;
+  tRowKeyAssign(&pSliceInfo->prevKey, &cur);
 
+  // todo handle next
   if (currentTs == pSliceInfo->win.ekey && curIndex < rows - 1) {
     int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, curIndex + 1);
     if (currentTs == nextTs) {
@@ -695,14 +722,20 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
   SInterval*   pInterval = &pSliceInfo->interval;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
+  SColumnInfoData* pPkCol = NULL;
+
+  if (pSliceInfo->hasPk) {
+    pPkCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->pkCol.slotId);
+  }
 
   int32_t i = (pSliceInfo->pRemainRes == NULL) ? 0 : pSliceInfo->remainIndex;
   for (; i < pBlock->info.rows; ++i) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
     // check for duplicate timestamps
-    if (checkDuplicateTimestamps(pSliceInfo, pTsCol, i, pBlock->info.rows)) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
+    if (checkDuplicateTimestamps(pSliceInfo, pTsCol, pPkCol, i, pBlock->info.rows)) {
+      continue;
+//      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
     }
 
     if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
@@ -875,11 +908,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
 
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
   blockDataCleanup(pResBlock);
 
   while (1) {
@@ -1017,12 +1048,22 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
   pInfo->prevTsSet = false;
-  pInfo->prevTs = 0;
+  pInfo->prevKey.ts = INT64_MIN;
   pInfo->groupId = 0;
   pInfo->pPrevGroupKey = NULL;
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
+
+  if (pInfo->hasPk) {
+    pInfo->prevKey.numOfPKs = 1;
+    pInfo->prevKey.ts = INT64_MIN;
+    pInfo->prevKey.pks[0].type = pInfo->pkCol.type;
+
+    if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+      pInfo->prevKey.pks[0].pData = taosMemoryCalloc(1, pInfo->pkCol.bytes);
+    }
+  }
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;

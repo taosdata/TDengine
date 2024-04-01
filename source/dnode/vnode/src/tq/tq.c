@@ -1183,7 +1183,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
       return TSDB_CODE_SUCCESS;
     }
   } else {
-//    ASSERT(status == TASK_STATUS__HALT);
     if (status != TASK_STATUS__HALT) {
       tqError("s-task:%s should in halt status, let's halt it directly", pTask->id.idStr);
 //      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);

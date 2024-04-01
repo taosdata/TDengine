@@ -212,11 +212,8 @@ typedef struct SFuncInputRowIter {
   char* pPrevPk;
   SSDataBlock* pPrevRowBlock; // pre one row block
 
-  //TODO:
-  // int32_t prevStartOffset; // for diff, derivative.
-  // SPoint1 prevStartPoint; // for twa.   
-  // int32_t startOffset; // for diff, derivative.
-  // SPoint1 startPoint; // for twa. 
+  uint64_t groupId;
+  bool hasGroupId;
 
   bool finalRow;
 } SFuncInputRowIter;
