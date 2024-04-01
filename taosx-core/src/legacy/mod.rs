@@ -2276,6 +2276,10 @@ pub async fn update_todo_list(
             tables,
         })
     } else if let Some(tables) = opts.tables.as_ref() {
+        // 有 tables 选项情况下，只需初始化一次
+        if !todo.tables.is_empty() {
+            return Ok(LegacyTodo::new());
+        }
         let stables = scc::HashSet::new();
 
         let mut tables: Vec<_> = tables
