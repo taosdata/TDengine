@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "systable.h"
+#include "tchecksum.h"
 
 extern SConfig *tsCfg;
 
@@ -234,6 +235,11 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   code = updateEncryptKey(cfgReq.value);
+  if(code == 0) {
+    tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
+    tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
+    strncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
+  }
 
   pMsg->code = code;
   pMsg->info.rsp = NULL;

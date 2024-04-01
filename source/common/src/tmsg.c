@@ -5103,6 +5103,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
   if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->encryptAlgorithm) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5195,6 +5196,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->encryptAlgorithm) < 0) return -1;
   }
 
   tEndDecode(&decoder);

@@ -367,10 +367,10 @@ int mainWindows(int argc, char **argv) {
   }
 
   if(global.generateCode) {
-    updateEncryptKey(global.encryptKey);
+    int ret = updateEncryptKey(global.encryptKey);
     taosCloseLog();
     taosCleanupArgs();
-    return 0;
+    return ret;
   }
 
   if(getEncryptKey() != 0){

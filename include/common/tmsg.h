@@ -1709,6 +1709,7 @@ typedef struct {
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int32_t  changeVersion;
+  int8_t   encryptAlgorithm;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

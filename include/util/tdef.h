@@ -395,10 +395,7 @@ typedef enum ELogicConditionType {
 #define TSDB_ENCRYPT_ALGO_NONE_STR      "none"
 #define TSDB_ENCRYPT_ALGO_SM4_STR       "sm4"
 #define TSDB_ENCRYPT_ALGO_NONE          0
-#define TSDB_ENCRYPT_ALGO_SM1           1
-#define TSDB_ENCRYPT_ALGO_SM2           2
-#define TSDB_ENCRYPT_ALGO_SM3           3
-#define TSDB_ENCRYPT_ALGO_SM4           4
+#define TSDB_ENCRYPT_ALGO_SM4           1
 #define TSDB_DEFAULT_ENCRYPT_ALGO       TSDB_ENCRYPT_ALGO_NONE
 #define TSDB_MIN_ENCRYPT_ALGO           TSDB_ENCRYPT_ALGO_NONE
 #define TSDB_MAX_ENCRYPT_ALGO           TSDB_ENCRYPT_ALGO_SM4

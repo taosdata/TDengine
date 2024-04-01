@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
-#include "tchecksum.h"
 #include "tjson.h"
 #include "tgrant.h"
 #include "crypt.h"
+#include "tchecksum.h"
 
 #define MAXLEN 1024
 #define DM_KEY_INDICATOR "this indicator!"
@@ -355,9 +355,6 @@ int32_t updateEncryptKey(char *key) {
     goto _OVER;
   }
 
-  tsEncryptionKeyChksum = taosCalcChecksum(0, key, strlen(key));
-  tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
-
   code = 0;
 _OVER:
   taosMemoryFree(encryptCode);
@@ -418,6 +415,7 @@ int32_t getEncryptKey(){
   int32_t   code = -1;
   char      encryptFile[PATH_MAX] = {0};
   char      checkFile[PATH_MAX] = {0};
+  char     *machineId = NULL;
 
   snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
   snprintf(checkFile, sizeof(checkFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_CHECK_CODE_FILE);
@@ -432,11 +430,22 @@ int32_t getEncryptKey(){
     goto _OVER;
   }
 
+  if (!(machineId = tGetMachineId())) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  char *encryptKey = NULL;
   //TODO: dmchen parse key from code
-  //checkAndGetCryptKey(content, tGetMachineId(), (char**)&tsEncryptKey);
+  if(checkAndGetCryptKey(content, machineId, &encryptKey) != 0){
+    goto _OVER;
+  }
+  strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN);
+
+  taosMemoryFreeClear(encryptKey);
 
   //TODO: dmchen checksum
-  strncpy(tsEncryptKey, content, ENCRYPT_KEY_LEN);
+  tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, ENCRYPT_KEY_LEN);
   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
   taosMemoryFreeClear(content);
