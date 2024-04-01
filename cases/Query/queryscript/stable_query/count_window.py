@@ -61,9 +61,9 @@ class TestCountWindow(TDCase):
             for tbname in self.tbname_check_list:
                 if "stb" in tbname:
                     if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"', additional_ts=True)
+                        self.tdCom.insert_rows(dbname=self.dbname, tbname=self.tbname_check_list[1], ts_value=f'"{self.get_random_ts(self.tbname_check_list[1])}"', additional_ts=True)
                     if self.delete:
-                        self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
+                        self.tdCom.delete_rows(dbname=self.dbname, tbname=self.tbname_check_list[1], start_ts=f'"{self.get_random_ts(self.tbname_check_list[1])}"')
                     # # No partition
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str)
@@ -188,9 +188,9 @@ class TestCountWindow(TDCase):
             for tbname in self.tbname_check_list:
                 if "stb" in tbname:
                     if self.disorder:
-                        self.tdCom.insert_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', ts_value=f'"{self.get_random_ts(tbname)}"', additional_ts=True)
+                        self.tdCom.insert_rows(dbname=self.dbname, tbname=self.tbname_check_list[1], ts_value=f'"{self.get_random_ts(self.tbname_check_list[1])}"', additional_ts=True)
                     if self.delete:
-                        self.tdCom.delete_rows(dbname=self.dbname, tbname=f'ctb{random.randint(1, ctable_count-1)}', start_ts=f'"{self.get_random_ts(tbname)}"')
+                        self.tdCom.delete_rows(dbname=self.dbname, tbname=self.tbname_check_list[1], start_ts=f'"{self.get_random_ts(self.tbname_check_list[1])}"')
                     # # No partition
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from (select * from {tbname} order by ts,c{custom_col_index+1}) count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, insert_mode=insert_mode)
@@ -254,3 +254,5 @@ class TestCountWindow(TDCase):
         self.dup_ts_col_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", insert_mode="interlace")
         self.dup_ts_test(stable_count=1, ctable_count=5, table_count=1, row_count=10, custom_col_index=2, col_value_type="Incremental", where_condition="c1 > 0", having_elm="min(c1)", having_condition="< 0", alias_name=self.alias_name, sliding=1, insert_mode="interlace")
         self.error_sql_test(stable_count=1, ctable_count=1, table_count=1, row_count=10)
+
+
