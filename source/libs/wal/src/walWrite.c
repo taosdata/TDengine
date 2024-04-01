@@ -528,8 +528,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   char* newBody = NULL;
   char* newBodyEncrypted = NULL;
 
-  //TODO: dmchen enum
-  if(pWal->cfg.encryptAlgorithm == 1){
+  if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
     char* newBody = taosMemoryMalloc(cyptedBodyLen);
     if(newBody == NULL){
@@ -571,16 +570,14 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
     code = -1;
-    //TODO: dmchen enum
-    if(pWal->cfg.encryptAlgorithm == 1){
+    if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
       taosMemoryFree(newBody);
       taosMemoryFree(newBodyEncrypted);
     }
     goto END;
   }
 
-  //TODO: dmchen enum
-  if(pWal->cfg.encryptAlgorithm == 1){
+  if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
     taosMemoryFree(newBody);
     taosMemoryFree(newBodyEncrypted); 
     wInfo("vgId:%d, free newBody newBodyEncrypted %s", 

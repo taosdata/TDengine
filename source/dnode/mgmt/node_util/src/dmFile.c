@@ -337,7 +337,6 @@ int32_t updateEncryptKey(char *key) {
     }
   }
   
-  //TODO: dmchen parse key from code
   if (!(machineId = tGetMachineId())) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -436,33 +435,31 @@ int32_t getEncryptKey(){
   }
 
   char *encryptKey = NULL;
-  //TODO: dmchen parse key from code
   if(checkAndGetCryptKey(content, machineId, &encryptKey) != 0){
     goto _OVER;
   }
-  strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN);
-
-  taosMemoryFreeClear(encryptKey);
-
-  //TODO: dmchen checksum
-  tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, ENCRYPT_KEY_LEN);
-  tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
   taosMemoryFreeClear(content);
 
-  if(tsEncryptKey[0] == '\0'){
+  if(encryptKey[0] == '\0'){
     terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     dError("failed to read key since %s", terrstr());
     goto _OVER;
   }
 
-  if(compareCheckCode(checkFile, tsEncryptKey) != 0){
+  if(compareCheckCode(checkFile, encryptKey) != 0){
     goto _OVER;
   }
+
+  strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN);
+  taosMemoryFreeClear(encryptKey);
+  tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, ENCRYPT_KEY_LEN);
+  tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
   code = 0;
 _OVER:
   if (content != NULL) taosMemoryFree(content);
+  if (encryptKey != NULL) taosMemoryFree(encryptKey);
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to get encrypt key since %s", terrstr());
