@@ -415,6 +415,8 @@ int32_t getEncryptKey(){
   char      encryptFile[PATH_MAX] = {0};
   char      checkFile[PATH_MAX] = {0};
   char     *machineId = NULL;
+  char     *encryptKey = NULL;
+  char     *content = NULL;
 
   snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_ENCRYPT_CODE_FILE);
   snprintf(checkFile, sizeof(checkFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP, DM_CHECK_CODE_FILE);
@@ -424,7 +426,6 @@ int32_t getEncryptKey(){
     return 0;
   }
 
-  char     *content = NULL;
   if(readEncryptCode(encryptFile, &content) != 0){
     goto _OVER;
   }
@@ -434,11 +435,11 @@ int32_t getEncryptKey(){
     goto _OVER;
   }
 
-  char *encryptKey = NULL;
   if(checkAndGetCryptKey(content, machineId, &encryptKey) != 0){
     goto _OVER;
   }
 
+  taosMemoryFreeClear(machineId);
   taosMemoryFreeClear(content);
 
   if(encryptKey[0] == '\0'){
@@ -453,13 +454,14 @@ int32_t getEncryptKey(){
 
   strncpy(tsEncryptKey, encryptKey, ENCRYPT_KEY_LEN);
   taosMemoryFreeClear(encryptKey);
-  tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, ENCRYPT_KEY_LEN);
+  tsEncryptionKeyChksum = taosCalcChecksum(0, tsEncryptKey, strlen(tsEncryptKey));
   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
   code = 0;
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (encryptKey != NULL) taosMemoryFree(encryptKey);
+  if (machineId != NULL) taosMemoryFree(machineId);
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to get encrypt key since %s", terrstr());
