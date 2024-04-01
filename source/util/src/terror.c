@@ -243,7 +243,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_OPTION_UNCHANGED,      "Database options not 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_INDEX_NOT_EXIST,       "Index not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating status")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "encryption is not allowed to be changed after database is created.")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INCONSIST_ENCRYPT_KEY,    "Inconsistent encryption key")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_KEY,      "The cluster has not been set properly for database encryption")
 

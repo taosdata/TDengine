@@ -5799,6 +5799,11 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
     return code;
   }
 
+  if (pStmt->pOptions->encryptAlgorithm != -1) {
+    code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+    return code;
+  }
+
   SAlterDbReq alterReq = {0};
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 

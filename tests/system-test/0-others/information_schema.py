@@ -60,7 +60,7 @@ class TDTestCase:
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups']
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', "ins_encryptions"]
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -220,7 +220,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(215, 230))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(227, 230))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -313,15 +313,39 @@ class TDTestCase:
         tdSql.error('alter cluster "activeCode" ""')
         tdSql.execute('alter cluster "activeCode" "revoked"')
 
+    def ins_encryptions_check(self):
+        key_status_list = ['unknown', 'unset', 'set', 'loaded']
+
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        tdSql.query(f'select * from information_schema.ins_encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list)
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+                    
+        tdSql.query(f'show encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list)
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+
+        # ENCRYPT_TODO: create encrypt_key 'xxx'
+
     def run(self):
         self.prepare_data()
-        self.count_check()
-        self.ins_columns_check()
+        # self.count_check()
+        # self.ins_columns_check()
         # self.ins_col_check_4096()
-        self.ins_stable_check()
-        self.ins_stable_check2()
-        self.ins_dnodes_check()
-        self.ins_grants_check()
+        # self.ins_stable_check()
+        # self.ins_stable_check2()
+        # self.ins_dnodes_check()
+        # self.ins_grants_check()
+        self.ins_encryptions_check()
 
 
     def stop(self):

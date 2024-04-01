@@ -1301,6 +1301,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
   pOptions->withArbitrator = -1;
+  pOptions->encryptAlgorithm = -1;
   return (SNode*)pOptions;
 }
 
@@ -1421,6 +1422,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
+      pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
       break;
     }
     default:
