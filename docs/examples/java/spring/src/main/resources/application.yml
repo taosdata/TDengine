@@ -15,8 +15,6 @@ spring:
       max-wait: 60000
       time-between-eviction-runs-millis: 60000
       min-evictable-idle-time-millis: 300000
-      validation-query: SELECT 1
-      pool-prepared-statements: true
       max-pool-prepared-statement-per-connection-size: 20
 # mybatis
 mybatis:
