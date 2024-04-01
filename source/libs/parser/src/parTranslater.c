@@ -931,7 +931,13 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
 }
 
 static bool hasPkInTable(const STableMeta* pTableMeta) {
-  return pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+  bool hasPK = pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+  if (hasPK) {
+    uInfo("has primary key, %s", pTableMeta->schema[1].name);
+  } else {
+    uInfo("no primary key, %s", pTableMeta->schema[1].name);
+  }
+  return hasPK;
 }
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
