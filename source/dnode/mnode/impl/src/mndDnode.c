@@ -80,6 +80,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -117,6 +118,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
@@ -1409,59 +1411,6 @@ _err:
   return -1;
 }
 
-static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
-  int32_t code = 0;
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  int8_t  encrypting = 0;
-
-  const STraceId *trace = &pReq->info.traceId;
-  if (0 != (encrypting = atomic_val_compare_exchange_8(&pMnode->encryptMgmt.encrypting, 0, 1))) {
-    mGWarn("msg:%p, failed to create encrypt key since %s, encrypting:%" PRIi8, pReq, tstrerror(code), encrypting);
-    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
-    goto _exit;
-  }
-
-  if (tsEncryptionKeyStat == ENCRYPT_KEY_STAT_SET || tsEncryptionKeyStat == ENCRYPT_KEY_STAT_LOADED) {
-    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
-    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
-    mGWarn("msg:%p, failed to create encrypt key since %s, stat:%" PRIi8 ", checksum:%u", pReq, tstrerror(code),
-           tsEncryptionKeyStat, tsEncryptionKeyChksum);
-    goto _exit;
-  }
-
-  atomic_store_16(&pMnode->encryptMgmt.nEncrypt, 0);
-  atomic_store_16(&pMnode->encryptMgmt.nSuccess, 0);
-  atomic_store_16(&pMnode->encryptMgmt.nFailed, 0);
-
-  while (1) {
-    SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
-    if (pIter == NULL) break;
-    if (pDnode->offlineReason != DND_REASON_ONLINE) continue;
-
-    if (dnodeId == -1 || pDnode->id == dnodeId || dnodeId == 0) {
-      SEpSet  epSet = mndGetDnodeEpset(pDnode);
-      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
-      void   *pBuf = rpcMallocCont(bufLen);
-
-      if (pBuf != NULL) {
-        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
-        if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
-          atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
-        }
-      }
-    }
-
-    sdbRelease(pSdb, pDnode);
-  }
-
-_exit:
-  return code;
-}
-
 static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1528,18 +1477,6 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "s3blocksize");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
-    int32_t vlen = strlen(cfgReq.value);
-    if (vlen > ENCRYPT_KEY_LEN || vlen < 8) {
-      mError("dnode:%d, failed to create encrypt_key since invalid vlen:%d, valid range:[%d, %d]", cfgReq.dnodeId, vlen,
-             8, ENCRYPT_KEY_LEN); // ENCRYPT_TODO: range[min, max]
-      terrno = TSDB_CODE_INVALID_CFG;
-      goto _err_out;
-    }
-    strcpy(dcfgReq.config, cfgReq.config);
-    strcpy(dcfgReq.value, cfgReq.value);
-    tFreeSMCfgDnodeReq(&cfgReq);
-    return mndProcessCreateEncryptKeyReq(pReq, cfgReq.dnodeId, &dcfgReq);
 #endif
   } else {
     if (mndMCfg2DCfg(&cfgReq, &dcfgReq)) goto _err_out;
@@ -1573,6 +1510,110 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
+static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int8_t  encrypting = 0;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  int32_t klen = strlen(pDcfgReq->value);
+  if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+    code = TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN;
+    mGError("msg:%p, failed to create encrypt_key since invalid key length:%d, valid range:[%d, %d]", pReq, klen,
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);  // ENCRYPT_TODO: range[min, max]
+    goto _exit;
+  }
+
+  if (0 != (encrypting = atomic_val_compare_exchange_8(&pMnode->encryptMgmt.encrypting, 0, 1))) {
+    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    mGWarn("msg:%p, failed to create encrypt key since %s, encrypting:%" PRIi8, pReq, tstrerror(code), encrypting);
+    goto _exit;
+  }
+
+  if (tsEncryptionKeyStat == ENCRYPT_KEY_STAT_SET || tsEncryptionKeyStat == ENCRYPT_KEY_STAT_LOADED) {
+    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    mGWarn("msg:%p, failed to create encrypt key since %s, stat:%" PRIi8 ", checksum:%u", pReq, tstrerror(code),
+           tsEncryptionKeyStat, tsEncryptionKeyChksum);
+    goto _exit;
+  }
+
+  atomic_store_16(&pMnode->encryptMgmt.nEncrypt, 0);
+  atomic_store_16(&pMnode->encryptMgmt.nSuccess, 0);
+  atomic_store_16(&pMnode->encryptMgmt.nFailed, 0);
+
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      continue;
+    }
+
+    if (dnodeId == -1 || pDnode->id == dnodeId || dnodeId == 0) {
+      SEpSet  epSet = mndGetDnodeEpset(pDnode);
+      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
+      void   *pBuf = rpcMallocCont(bufLen);
+
+      if (pBuf != NULL) {
+        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+        if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
+          atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
+        }
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (atomic_load_16(&pMnode->encryptMgmt.nEncrypt) <= 0) {
+    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+  }
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
+#ifdef TD_ENTERPRISE
+  SMnode       *pMnode = pReq->info.node;
+  SMCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return -1;
+  }
+  const STraceId *trace = &pReq->info.traceId;
+  SDCfgDnodeReq   dcfgReq = {0};
+  if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
+    strcpy(dcfgReq.config, cfgReq.config);
+    strcpy(dcfgReq.value, cfgReq.value);
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
+  } else {
+    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return -1;
+  }
+
+#else
+  return 0;
+#endif
+}
+
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
   SMnode *pMnode = pRsp->info.node;
   int16_t nSuccess = 0;
@@ -1591,8 +1632,9 @@ static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
     atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
   }
 
-  mInfo("create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", nReq, nSuccess,
-        nFailed, finished ? "encrypt done" : "in encrypting") return 0;
+  const STraceId *trace = &pRsp->info.traceId;
+  mGInfo("msg:%p, create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", pRsp, nReq,
+         nSuccess, nFailed, finished ? "encrypt done" : "in encrypting") return 0;
 
   return 0;
 }

@@ -189,6 +189,7 @@ typedef enum ELogicConditionType {
 
 #define ENCRYPTED_LEN(len) (len/16) * 16 + (len%16?1:0) * 16
 #define ENCRYPT_KEY_LEN 16
+#define ENCRYPT_KEY_LEN_MIN 8
 
 #define TSDB_INT32_ID_LEN 11
 

@@ -5713,6 +5713,11 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgClusterReq, pReq);
       break;
     }
+    case TDMT_MND_CREATE_ENCRYPT_KEY: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
+      break;
+    }
+
     default: {
       break;
     }
@@ -6908,7 +6913,20 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   strcpy(cfgReq.config, pStmt->config);
   strcpy(cfgReq.value, pStmt->value);
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  int32_t code = 0;
+  if (0 == strncasecmp(cfgReq.config, "encrypt_key", 12)) {
+    int32_t klen = strlen(cfgReq.value);
+    if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN,
+                                     "Invalid encryption key length: %d, valid range [%d,%d]", klen,
+                                     ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    }
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  } else {
+    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  }
+
   tFreeSMCfgDnodeReq(&cfgReq);
   return code;
 }
