@@ -4259,7 +4259,7 @@ int32_t tCompressData(void          *input,       // input
       (l1 == L1_DISABLED && l2 == L2_DISABLED)*/) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
-  } else if (info->cmprAlg == TWO_STAGE_COMP) {
+  } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
 
     tBufferInit(&local);
