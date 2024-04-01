@@ -144,8 +144,13 @@
                     : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
                 "
                 size="small"
-              ></el-input>
+                :disabled="true"
+              >
+                <!-- <template slot="append" v-if="parseruleForm.type == 'json'">
+                </template> -->
+              </el-input>
             </el-form-item>
+            <el-button v-if="parseruleForm.type == 'json'" @click="selectJson" icon="el-icon-plus"></el-button>
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -345,6 +350,11 @@
                 prop="Expression"
                 label="Expression"
               >
+              <template slot="header">
+                <el-tooltip :content="$t('datasource.transformer.expressiondesc')" placement="top-start">
+                  <span>Expression <i class="el-icon-info" style="color: #4259ce"></i></span>
+                </el-tooltip>
+              </template>
                 <div class="box-expression" slot-scope="scope">
                   <template v-if="scope.row['Name'] == 'SubTableName'">
                     <el-input
@@ -517,6 +527,22 @@
           </el-button>
         </div>
       </el-dialog>
+      <el-dialog
+        :title="$t('datasource.transformer.jsonExtractTip')"
+        :visible.sync="dialogVisible"
+        width="30%"
+        >
+        <div>
+          <el-checkbox class="my-checkbox" v-for="proper in allProperties" :key="proper.defaultValue" v-model="proper.checked">
+            <span style="width: 200px;display: inline-block">{{ proper.defaultValue }}</span>
+            <el-input style="margin-left: 4px; width: 100px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
+          </el-checkbox>
+        </div>
+        <span slot="footer" class="dialog-footer">
+          <el-button size="mini" @click="dialogVisible = false">{{ $t('cancel') }}</el-button>
+          <el-button size="mini" type="primary" @click="handleCheckedProperties">{{ $t('confirm') }}</el-button>
+        </span>
+      </el-dialog>
     </template>
   </div>
 </template>
@@ -530,7 +556,8 @@ import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
-import DocsContent from "@/views/support/components/editorContentDisplay.vue"
+import DocsContent from "@/views/support/components/editorContentDisplay.vue";
+import { extractAllProperties, deepClone } from "@/utils"
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -669,6 +696,9 @@ export default {
       visiblePop1: false,
       visiblePop2: false,
       visiblePop3: false,
+      allProperties: [],
+      dialogVisible: false,
+      checkedProperties: []
     };
   },
   computed: {
@@ -1998,6 +2028,59 @@ export default {
     },
     handleLimit(val) {
       this.$store.commit("app/SET_LIMIT_OFFSET", val);
+    },
+    selectJson() {
+      this.dialogVisible = true;
+      if (this.parseruleForm.expression) {
+        // 回显逻辑
+        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        let firstSplitArr = this.parseruleForm.expression.split(',')
+        let checkedKey = []
+        let checkedObj = {}
+        firstSplitArr.map(item => {
+          let splitArr = item.split('=')
+          checkedKey.push(splitArr[0])
+          checkedObj[splitArr[0]]= splitArr[1] 
+        })
+
+        this.allProperties = this.allProperties.map((item,index) => {
+          return  {
+            defaultValue: item,
+            rename: checkedObj[item] ? checkedObj[item] : checkedKey.includes(item) ? '':  this.handleRename(item),
+            checked: checkedKey.includes(item)
+          }
+        })
+      } else {
+        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        this.allProperties = this.allProperties.map((item,index) => {
+          return  {
+            defaultValue: item,
+            rename: this.handleRename(item),
+            checked: false
+          }
+        })
+      }
+    },
+    handleCheckedProperties() {
+      let result = []
+      this.allProperties.map(item => {
+        if (item.checked) {
+          item.rename ? result.push(`${item.defaultValue}=${item.rename}`) : result.push(item.defaultValue)
+        }
+      })
+      this.parseruleForm.expression = result?.join(',')
+      this.dialogVisible = false
+      console.log('this.checkedProperties',this.allProperties);
+    },
+    handleRename(value) {
+      let inputString = value
+      inputString = inputString.replace(/\$./g, '');
+      inputString = inputString.replace(/\./g, '_');
+      // 替换所有的中括号为下划线
+      inputString = inputString.replace(/\[/g, '_');
+      inputString = inputString.replace(/\]/g, '');
+
+      return inputString;
     }
   },
   watch: {
@@ -2358,5 +2441,9 @@ export default {
       width: 86px;
     }
   }
+}
+.my-checkbox {
+  display: block;
+  margin-bottom: 5px;
 }
 </style>

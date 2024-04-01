@@ -1416,6 +1416,7 @@ export default {
       defaultValuePlaceholder: "default value",
       dataRangeInputTip: "Please input integer value between {min} and {max}",
       defaultValueErrorTip: "default value for column[{}] input error",
+      jsonExtractTip: 'JSON extract expression editor'
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
