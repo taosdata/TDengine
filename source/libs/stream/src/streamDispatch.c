@@ -315,12 +315,30 @@ int32_t getNumOfDispatchBranch(SStreamTask* pTask) {
              : taosArrayGetSize(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
 }
 
+void clearBufferedDispatchMsg(SStreamTask* pTask) {
+  SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+  if (pMsgInfo->pData != NULL) {
+    destroyDispatchMsg(pMsgInfo->pData, getNumOfDispatchBranch(pTask));
+  }
+
+  pMsgInfo->checkpointId = -1;
+  pMsgInfo->transId = -1;
+  pMsgInfo->pData = NULL;
+  pMsgInfo->dispatchMsgType = 0;
+}
+
 static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pData) {
   int32_t code = 0;
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
   ASSERT(numOfBlocks != 0 && pTask->msgInfo.pData == NULL);
 
   pTask->msgInfo.dispatchMsgType = pData->type;
+
+  if (pData->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    SSDataBlock* p = taosArrayGet(pData->blocks, 0);
+    pTask->msgInfo.checkpointId = p->info.version;
+    pTask->msgInfo.transId = p->info.window.ekey;
+  }
 
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq* pReq = taosMemoryCalloc(1, sizeof(SStreamDispatchReq));
@@ -940,7 +958,9 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
   if (delayDispatch) {
     taosThreadMutexLock(&pTask->lock);
-    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+    // we only set the dispatch msg info for current checkpoint trans
+    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK && pTask->chkInfo.checkpointingId == pTask->msgInfo.checkpointId) {
+      ASSERT(pTask->chkInfo.transId == pTask->msgInfo.transId);
       pTask->chkInfo.dispatchCheckpointTrigger = true;
     }
     taosThreadMutexUnlock(&pTask->lock);
