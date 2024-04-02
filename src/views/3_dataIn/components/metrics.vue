@@ -68,7 +68,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ row.from_last_ts ? parsinginZone(row.from_last_ts) : row.from_last_ts }}</span>
+              <span>{{ row.from_last_ts ? parsinginZone(row.from_last_ts) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -78,7 +78,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ row.to_last_ts ? parsinginZone(row.to_last_ts) : row.to_last_ts }}</span>
+              <span>{{ row.to_last_ts ? parsinginZone(row.to_last_ts) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
