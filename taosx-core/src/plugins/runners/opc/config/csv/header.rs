@@ -99,6 +99,7 @@ impl CsvHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use taosx_ipc::prelude::IpcDataType;
 
     #[tokio::test]
     async fn test_try_new() {
