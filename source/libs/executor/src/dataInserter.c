@@ -217,6 +217,11 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           ASSERT(pColInfoData->info.type == pCol->type);
           if (colDataIsNull_s(pColInfoData, j)) {
+            if ((pCol->flags & COL_IS_KEY)) {
+              qError("NULL value for primary key, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+              terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+              goto _end;
+            }
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             taosArrayPush(pVals, &cv);
           } else {
@@ -240,8 +245,13 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-                qError("NULL value for primary key");
+                qError("NULL value for primary timestamp key");
                 terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
+                goto _end;
+              }
+              if ((pCol->flags & COL_IS_KEY)) {
+                qError("NULL value for primary key, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+                terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
                 goto _end;
               }
 
