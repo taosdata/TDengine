@@ -2821,11 +2821,13 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
   pOutput->isNull = pInput->isNull;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
+  pOutput->pkType = pInput->pkType;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   if (pInput->pkData) {
     pOutput->pkBytes = pInput->pkBytes;
     memcpy(pOutput->buf+pOutput->bytes, pInput->pkData, pOutput->pkBytes);
+    pOutput->pkData = pOutput->buf + pOutput->bytes;
   }
   return TSDB_CODE_SUCCESS;
 }

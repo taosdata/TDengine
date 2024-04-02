@@ -1,7 +1,7 @@
 ---
 title: Insert
 sidebar_label: Insert
-description: This document describes how to insert data into TDengine.
+description: This document describes the SQL commands and syntax for inserting data into TDengine.
 ---
 
 ## Syntax

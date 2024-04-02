@@ -292,16 +292,16 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
 static int32_t buildMqHbRsp(SRpcMsg *pMsg, SMqHbRsp *rsp){
   int32_t tlen = tSerializeSMqHbRsp(NULL, 0, rsp);
   if (tlen <= 0){
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if(tSerializeSMqHbRsp(buf, tlen, rsp) != 0){
+  if(tSerializeSMqHbRsp(buf, tlen, rsp) <= 0){
     rpcFreeCont(buf);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
   pMsg->info.rsp = buf;
   pMsg->info.rspLen = tlen;
@@ -316,7 +316,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer = NULL;
 
   if (tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_TMQ_INVALID_MSG;
     goto end;
   }
 
