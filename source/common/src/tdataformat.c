@@ -1238,7 +1238,8 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
       T_COMPARE_SCALAR_VALUE(uint64_t, &tv1->val, &tv2->val);
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_BINARY: {
-      return strcmp((const char *)tv1->pData, (const char *)tv2->pData);
+      int32_t ret = strncmp((const char *)tv1->pData, (const char *)tv2->pData, TMIN(tv1->nData, tv2->nData));
+      return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
@@ -1286,7 +1287,7 @@ int32_t tRowKeyCompare(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey* pSrc) {
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
   pDst->ts = pSrc->ts;
   pDst->numOfPKs = pSrc->numOfPKs;
 
