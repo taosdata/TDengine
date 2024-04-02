@@ -152,8 +152,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts4)     
         tdSql.checkData(0, 1, 5 * maxRange - 1)  
-        tdSql.checkData(0, 2, last_ts4)    
-        tdSql.checkData(0, 3, 4 * maxRange + 1)
+        tdSql.checkData(0, 3, last_ts4)    
+        tdSql.checkData(0, 4, 4 * maxRange + 1)
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_no_row("Last Row Scan", explain_res, sql)

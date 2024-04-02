@@ -298,7 +298,7 @@ if $data01 != 112 then
   return -1
 endi
 
-if $data02 != @tm0@ then
+if $data03 != @tm0@ then
   return -1
 endi
 
@@ -310,7 +310,7 @@ if $data11 != 421 then
   return -1
 endi
 
-if $data12 != @tm1@ then
+if $data13 != @tm1@ then
   return -1
 endi
 

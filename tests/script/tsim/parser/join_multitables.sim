@@ -805,16 +805,16 @@ endi
 if $data04 != 01 then
   return -1
 endi
-if $data05 != @21-03-01 01:00:00.000@ then
+if $data[0][10] != @21-03-01 01:00:00.000@ then
   return -1
 endi
-if $data06 != 9911 then
+if $data[0][11] != 9911 then
   return -1
 endi
-if $data07 != 9911.000000000 then
+if $data[0][12] != 9911.000000000 then
   return -1
 endi
-if $data08 != 11 then
+if $data[0][13] != 11 then
   return -1
 endi
 
@@ -837,16 +837,16 @@ endi
 if $data04 != 05 then
   return -1
 endi
-if $data05 != @21-03-01 05:00:00.000@ then
+if $data[0][10] != @21-03-01 05:00:00.000@ then
   return -1
 endi
-if $data06 != 9915 then
+if $data[0][11] != 9915 then
   return -1
 endi
-if $data07 != 9915.000000000 then
+if $data[0][12] != 9915.000000000 then
   return -1
 endi
-if $data08 != 15 then
+if $data[0][13] != 15 then
   return -1
 endi
 
