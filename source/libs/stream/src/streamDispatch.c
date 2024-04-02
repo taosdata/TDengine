@@ -966,6 +966,11 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
     if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK && pTask->chkInfo.checkpointingId == pTask->msgInfo.checkpointId) {
       ASSERT(pTask->chkInfo.transId == pTask->msgInfo.transId);
       pTask->chkInfo.dispatchCheckpointTrigger = true;
+      stDebug("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d confirmed",
+             pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
+    } else {
+      stWarn("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d discard, since expired",
+             pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
     }
     taosThreadMutexUnlock(&pTask->lock);
   }
