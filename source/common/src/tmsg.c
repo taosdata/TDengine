@@ -51,8 +51,8 @@
 
 #define ENCODESQL()                                                        \
   do {                                                                     \
+    if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;                 \
     if (pReq->sqlLen > 0 && pReq->sql != NULL) {                           \
-      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;               \
       if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1; \
     }                                                                      \
   } while (0)
@@ -3025,7 +3025,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
 
   ENCODESQL();
 
-  if (tEncodeI32(&encoder, pReq->withArbitrator) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withArbitrator) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3140,7 +3140,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
   ENCODESQL();
-  if (tEncodeI32(&encoder, pReq->withArbitrator) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withArbitrator) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
