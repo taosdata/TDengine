@@ -227,10 +227,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
 
   if (TSDB_CODE_SUCCESS == code && (BOUND_TAGS != boundColsType)) {
     if (!pUseCols[0]) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column should not be null");
+      code = buildInvalidOperationMsg(&pCxt->msg, "Primary timestamp column should not be null");
     }
     if (numOfBoundPKs != pTableMeta->tableInfo.numOfPKs) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "primary key column should not be none");
+      code = buildInvalidOperationMsg(&pCxt->msg, "Primary key column should not be none");
     }
   }
   if (TSDB_CODE_SUCCESS == code && (BOUND_ALL_AND_TBNAME == boundColsType) && !pUseCols[tbnameSchemaIndex]) {
@@ -480,7 +480,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 #if 0
   if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      return buildSyntaxErrMsg(pMsgBuf, "primary timestamp column can not be null", pToken->z);
+      return buildSyntaxErrMsg(pMsgBuf, "Primary timestamp column can not be null", pToken->z);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -1653,10 +1653,10 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pSchema->type);
   if (TSDB_CODE_SUCCESS == code && isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      return buildSyntaxErrMsg(&pCxt->msg, "primary timestamp column should not be null", pToken->z);
+      return buildSyntaxErrMsg(&pCxt->msg, "Primary timestamp column should not be null", pToken->z);
     }
     if (pSchema->flags & COL_IS_KEY) {
-      return buildSyntaxErrMsg(&pCxt->msg, "primary key column should not be null", pToken->z);
+      return buildSyntaxErrMsg(&pCxt->msg, "Primary key column should not be null", pToken->z);
     }
 
     pVal->flag = CV_FLAG_NULL;

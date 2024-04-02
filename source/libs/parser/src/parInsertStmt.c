@@ -268,7 +268,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     }
 
     if(pBind->is_null && (pColSchema->flags & COL_IS_KEY)){
-      code = buildInvalidOperationMsg(&pBuf, "primary key column should not be null");
+      code = buildInvalidOperationMsg(&pBuf, "Primary key column should not be null");
       goto _return;
     }
 
@@ -319,7 +319,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   }
 
   if (pBind->is_null && (pColSchema->flags & COL_IS_KEY)) {
-    code = buildInvalidOperationMsg(&pBuf, "primary key column should not be null");
+    code = buildInvalidOperationMsg(&pBuf, "Primary key column should not be null");
     goto _return;
   }
 
