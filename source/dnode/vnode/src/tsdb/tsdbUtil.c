@@ -247,7 +247,7 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
 
 int32_t tCmprBlockL(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
-  SSttBlk   *rBlockL = (SSttBlk *)rhs;
+  SSttBlk *  rBlockL = (SSttBlk *)rhs;
 
   if (lBlockIdx->suid < rBlockL->suid) {
     return -1;
@@ -388,9 +388,9 @@ int32_t tGetSttBlk(uint8_t *p, void *ph) {
 
 // SBlockCol ======================================================
 
-static const int32_t BLOCK_WITH_ALG_VER = 1;
+static const int32_t BLOCK_WITH_ALG_VER = 2;
 
-int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver) {
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver, uint32_t defaultCmprAlg) {
   int32_t code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
@@ -418,11 +418,13 @@ int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol, int32_t ver) {
   }
   if (ver >= BLOCK_WITH_ALG_VER) {
     if ((code = tBufferPutU32(buffer, pBlockCol->alg))) return code;
+  } else {
+    if ((code = tBufferPutU32(buffer, defaultCmprAlg))) return code;
   }
   return 0;
 }
 
-int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver) {
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint32_t defaultCmprAlg) {
   int32_t code;
 
   if ((code = tBufferGetI16v(br, &pBlockCol->cid))) return code;
@@ -456,6 +458,8 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver) {
 
   if (ver >= BLOCK_WITH_ALG_VER) {
     if ((code = tBufferGetU32(br, &pBlockCol->alg))) return code;
+  } else {
+    pBlockCol->alg = defaultCmprAlg;
   }
 
   return 0;
@@ -624,7 +628,7 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   }
 }
 
-void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
+void tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
   key->ts = pBlock->aTSKEY[irow];
   key->numOfPKs = 0;
 
@@ -726,7 +730,7 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
 int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
   TSDBKEY   key = TSDBROW_KEY(pRow);
-  SColVal  *pColVal = &(SColVal){0};
+  SColVal * pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
@@ -1058,8 +1062,8 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   SDelData *pDelData;
   int32_t   code = 0;
   int32_t   dataNum = eidx - sidx + 1;
-  SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
-  SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+  SArray *  aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
+  SArray *  pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
 
   taosArrayClear(aSkyline);
   for (int32_t i = sidx; i <= eidx; ++i) {
@@ -1421,7 +1425,7 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
 
   SDiskDataHdr hdr = {
       .delimiter = TSDB_FILE_DLMT,
-      .fmtVer = 1,
+      .fmtVer = 2,
       .suid = bData->suid,
       .uid = bData->uid,
       .szUid = 0,     // filled by compress key
@@ -1474,7 +1478,7 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
                                      .offset = offset,
                                      .alg = cinfo.cmprAlg};
 
-    code = tPutBlockCol(&buffers[2], &blockCol, hdr.fmtVer);
+    code = tPutBlockCol(&buffers[2], &blockCol, hdr.fmtVer, hdr.cmprAlg);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   hdr.szBlkCol = buffers[2].size;
@@ -1513,7 +1517,8 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
   for (uint32_t startOffset = br2.offset; br2.offset - startOffset < hdr.szBlkCol;) {
     SBlockCol blockCol;
 
-    code = tGetBlockCol(&br2, &blockCol, hdr.fmtVer);
+    code = tGetBlockCol(&br2, &blockCol, hdr.fmtVer, hdr.cmprAlg);
+    if (blockCol.alg == 0) blockCol.alg = hdr.cmprAlg;
     TSDB_CHECK_CODE(code, lino, _exit);
     code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1536,17 +1541,17 @@ int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr) {
   if ((code = tBufferPutI32v(buffer, pHdr->szKey))) return code;
   if ((code = tBufferPutI32v(buffer, pHdr->szBlkCol))) return code;
   if ((code = tBufferPutI32v(buffer, pHdr->nRow))) return code;
-  if (pHdr->fmtVer < 1) {
+  if (pHdr->fmtVer < 2) {
     if ((code = tBufferPutI8(buffer, pHdr->cmprAlg))) return code;
-  } else if (pHdr->fmtVer == 1) {
+  } else if (pHdr->fmtVer == 2) {
     if ((code = tBufferPutU32(buffer, pHdr->cmprAlg))) return code;
   } else {
     // more data fmt ver
   }
-  if (pHdr->fmtVer == 1) {
+  if (pHdr->fmtVer >= 1) {
     if ((code = tBufferPutI8(buffer, pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
-      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i], pHdr->fmtVer))) return code;
+      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i], pHdr->fmtVer, pHdr->cmprAlg))) return code;
     }
   }
 
@@ -1565,19 +1570,21 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   if ((code = tBufferGetI32v(br, &pHdr->szKey))) return code;
   if ((code = tBufferGetI32v(br, &pHdr->szBlkCol))) return code;
   if ((code = tBufferGetI32v(br, &pHdr->nRow))) return code;
-  if (pHdr->fmtVer < 1) {
+  if (pHdr->fmtVer < 2) {
     int8_t cmprAlg = 0;
     if ((code = tBufferGetI8(br, &cmprAlg))) return code;
     pHdr->cmprAlg = cmprAlg;
-  } else if (pHdr->fmtVer == 1) {
+  } else if (pHdr->fmtVer == 2) {
     if ((code = tBufferGetU32(br, &pHdr->cmprAlg))) return code;
   } else {
     // more data fmt ver
   }
-  if (pHdr->fmtVer == 1) {
+  if (pHdr->fmtVer >= 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
     for (int i = 0; i < pHdr->numOfPKs; i++) {
-      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i], pHdr->fmtVer))) return code;
+      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i], pHdr->fmtVer, pHdr->cmprAlg))) {
+        return code;
+      }
     }
   } else {
     pHdr->numOfPKs = 0;
@@ -1655,7 +1662,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
     ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
 
     SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
-    SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
+    SColData * colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
 
     if ((colData->cflag & COL_IS_KEY) == 0) {
       break;
