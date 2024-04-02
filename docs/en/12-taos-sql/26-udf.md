@@ -1,5 +1,5 @@
 ---
-title: User-Defined Functions (UDF)
+title: User-Defined Functions (UDF) SQL Reference
 sidebar_label: User-Defined Functions
 description: This document describes the SQL statements related to user-defined functions (UDF) in TDengine.
 ---

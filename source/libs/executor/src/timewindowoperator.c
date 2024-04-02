@@ -496,7 +496,6 @@ static void doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDataB
 
   ASSERT(pBlock != NULL);
   if (pBlock->pDataBlock == NULL) {
-    //    tscError("pBlock->pDataBlock == NULL");
     return;
   }
 
@@ -514,10 +513,6 @@ static void doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDataB
   }
 
   // point interpolation does not require the end key time window interpolation.
-  //  if (pointInterpQuery) {
-  //    return;
-  //  }
-
   // interpolation query does not generate the time window end interpolation
   done = isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP);
   if (!done) {
