@@ -243,11 +243,11 @@ endi
 if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
-if $data05 != @21-05-12 10:10:12.000@ then
+if $data06 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data06 != @70-01-01 07:59:57.000@ then
+if $data07 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
