@@ -5088,7 +5088,8 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
   SNode*  pPrimaryKeyExpr = NULL;
   SNode*  pBoundCol = NULL;
   SNode*  pProj = NULL;
-  int16_t numOfPKs = 0;
+  int16_t numOfSourcePKs = 0;
+  int16_t numOfTargetPKs = 0;
   int16_t numOfBoundPKs = 0;
   FORBOTH(pBoundCol, pInsert->pCols, pProj, pProjects) {
     SColumnNode* pCol = (SColumnNode*)pBoundCol;
@@ -5105,7 +5106,8 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
       pPrimaryKeyExpr = (SNode*)pExpr;
-      numOfPKs = pCol->numOfPKs;
+      numOfTargetPKs = pCol->numOfPKs;
+      numOfSourcePKs = ((SColumnNode*)pProj)->numOfPKs;
     }
     if (pCol->isPk) ++numOfBoundPKs;
   }
@@ -5115,8 +5117,14 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
                                    "Primary timestamp column should not be null");
   }
 
-  if (numOfBoundPKs != numOfPKs) {
+  if (numOfBoundPKs != numOfTargetPKs) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Primary key column should not be none");
+  }
+
+  if (numOfTargetPKs < numOfSourcePKs) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Target table has less primary keys:%" PRIi16 " than source:%" PRIi16,
+                                   numOfTargetPKs, numOfSourcePKs);
   }
 
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
