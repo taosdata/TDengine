@@ -301,9 +301,9 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   int32_t lino = 0;
 
   SDiskDataHdr hdr;
-  SBuffer *    buffer0 = reader->buffers + 0;
-  SBuffer *    buffer1 = reader->buffers + 1;
-  SBuffer *    assist = reader->buffers + 2;
+  SBuffer     *buffer0 = reader->buffers + 0;
+  SBuffer     *buffer1 = reader->buffers + 1;
+  SBuffer     *assist = reader->buffers + 2;
 
   // load key part
   tBufferClear(buffer0);

@@ -20,7 +20,7 @@
 // SSttFReader ============================================================
 struct SSttFileReader {
   SSttFileReaderConfig config[1];
-  STsdbFD *            fd;
+  STsdbFD             *fd;
   SSttFooter           footer[1];
   struct {
     bool sttBlkLoaded;
@@ -31,7 +31,7 @@ struct SSttFileReader {
   TStatisBlkArray statisBlkArray[1];
   TTombBlkArray   tombBlkArray[1];
   SBuffer         local[10];
-  SBuffer *       buffers;
+  SBuffer        *buffers;
 };
 
 // SSttFileReader
@@ -96,7 +96,7 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
       ASSERT(reader->footer->statisBlkPtr->size % sizeof(SStatisBlk) == 0);
 
       int32_t size = reader->footer->statisBlkPtr->size / sizeof(SStatisBlk);
-      void *  data = taosMemoryMalloc(reader->footer->statisBlkPtr->size);
+      void   *data = taosMemoryMalloc(reader->footer->statisBlkPtr->size);
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t code =
@@ -124,7 +124,7 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
       ASSERT(reader->footer->tombBlkPtr->size % sizeof(STombBlk) == 0);
 
       int32_t size = reader->footer->tombBlkPtr->size / sizeof(STombBlk);
-      void *  data = taosMemoryMalloc(reader->footer->tombBlkPtr->size);
+      void   *data = taosMemoryMalloc(reader->footer->tombBlkPtr->size);
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t code =
@@ -152,7 +152,7 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
       ASSERT(reader->footer->sttBlkPtr->size % sizeof(SSttBlk) == 0);
 
       int32_t size = reader->footer->sttBlkPtr->size / sizeof(SSttBlk);
-      void *  data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
+      void   *data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t code =
@@ -203,9 +203,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   int32_t lino = 0;
 
   SDiskDataHdr hdr;
-  SBuffer *    buffer0 = reader->buffers + 0;
-  SBuffer *    buffer1 = reader->buffers + 1;
-  SBuffer *    assist = reader->buffers + 2;
+  SBuffer     *buffer0 = reader->buffers + 0;
+  SBuffer     *buffer1 = reader->buffers + 1;
+  SBuffer     *assist = reader->buffers + 2;
 
   // load key part
   tBufferClear(buffer0);

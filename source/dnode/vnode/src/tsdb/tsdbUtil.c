@@ -247,7 +247,7 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
 
 int32_t tCmprBlockL(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
-  SSttBlk *  rBlockL = (SSttBlk *)rhs;
+  SSttBlk   *rBlockL = (SSttBlk *)rhs;
 
   if (lBlockIdx->suid < rBlockL->suid) {
     return -1;
@@ -730,7 +730,7 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
 int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
   TSDBKEY   key = TSDBROW_KEY(pRow);
-  SColVal * pColVal = &(SColVal){0};
+  SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
@@ -1062,8 +1062,8 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   SDelData *pDelData;
   int32_t   code = 0;
   int32_t   dataNum = eidx - sidx + 1;
-  SArray *  aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
-  SArray *  pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+  SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
+  SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
 
   taosArrayClear(aSkyline);
   for (int32_t i = sidx; i <= eidx; ++i) {
@@ -1662,7 +1662,7 @@ static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, S
     ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
 
     SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
-    SColData * colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
+    SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
 
     if ((colData->cflag & COL_IS_KEY) == 0) {
       break;
