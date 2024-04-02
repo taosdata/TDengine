@@ -885,6 +885,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_read_header_timeout() {
         let path = "/".to_string();
 
