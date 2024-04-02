@@ -144,13 +144,16 @@
                     : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
                 "
                 size="small"
-                :disabled="true"
+                :disabled="parseruleForm.type == 'json'"
               >
-                <!-- <template slot="append" v-if="parseruleForm.type == 'json'">
-                </template> -->
               </el-input>
             </el-form-item>
-            <el-button v-if="parseruleForm.type == 'json'" @click="selectJson" icon="el-icon-plus"></el-button>
+            <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
+              <Icon
+                :name="'json'"
+                class="transform-json-icon"
+              ></Icon>
+            </el-button>
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -2451,5 +2454,11 @@ export default {
 .my-checkbox {
   display: block;
   margin-bottom: 5px;
+}
+.transform-json-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 </style>

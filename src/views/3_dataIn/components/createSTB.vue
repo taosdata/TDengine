@@ -242,12 +242,12 @@ export default {
       }
     },
     minusColumn(index) {
-      if (index > 0) {
+      if (this.stable_form.columns.length > 1) {
         this.stable_form.columns.splice(index, 1);
       }
     },
     minusTags(index) {
-      if (index > 0) {
+      if (this.stable_form.tags.length > 1) {
         this.stable_form.tags.splice(index, 1);
       }
     },
@@ -259,7 +259,7 @@ export default {
       this.stable_form.columns.push(deepClone(this.column_item));
     },
     removeToTag(index) {
-      if (index > 0) {
+      if (this.stable_form.columns.length > 1) {
         let column = this.stable_form.columns.splice(index, 1)[0];
         this.stable_form.tags.push(deepClone(column));
       }
