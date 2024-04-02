@@ -117,3 +117,4 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_interval.py --keep --disable_collection
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/count_window.py --keep --disable_collection
 
+
