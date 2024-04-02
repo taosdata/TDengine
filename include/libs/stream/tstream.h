@@ -355,6 +355,8 @@ typedef struct SMetaHbInfo        SMetaHbInfo;
 typedef struct SDispatchMsgInfo {
   SStreamDispatchReq* pData;  // current dispatch data
   int8_t              dispatchMsgType;
+  int64_t             checkpointId;// checkpoint id msg
+  int32_t             transId;     // transId for current checkpoint
   int16_t             msgType;     // dispatch msg type
   int32_t             retryCount;  // retry send data count
   int64_t             startTs;     // dispatch start time, record total elapsed time for dispatch
