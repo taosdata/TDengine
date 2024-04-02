@@ -498,6 +498,18 @@ class TSMATestSQLGenerator:
             ret = ret + f' LIMIT {random.randint(0, self.opts_.limit_max)}'
         return ret
 
+    ## if offset is True, offset cannot be the same as interval
+    def generate_random_offset_sliding(self, interval: str, offset: bool = False) -> str:
+        unit = interval[-1]
+        hasUnit = unit.isalpha()
+        if not hasUnit:
+            start = 1
+            if offset:
+                start = 2
+            ret: int = int(int(interval) / random.randint(start, 5))
+            return str(ret)
+        return ''
+
     # add sliding offset
     def generate_interval(self, intervals: List[str]) -> str:
         if not self.opts_.interval:
@@ -506,7 +518,17 @@ class TSMATestSQLGenerator:
             return ''
         value = random.choice(intervals)
         self.res_.has_interval = True
-        return f'INTERVAL({value})'
+        has_offset = False
+        offset = ''
+        has_sliding = False
+        sliding = ''
+        num: int = int(value[:-1])
+        unit = value[-1]
+        if has_offset and num > 1:
+            offset = f', {self.generate_random_offset_sliding(value, True)}'
+        if has_sliding:
+            sliding = f'sliding({self.generate_random_offset_sliding(value)})'
+        return f'INTERVAL({value} {offset}) {sliding}'
 
     def generate_tag_list(self):
         used_tag_num = random.randrange(1, self.opts_.tag_num + 1)
@@ -714,8 +736,12 @@ class TDTestCase:
             if ctx.has_tsma():
                 if ctx.used_tsmas[0].name == tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX:
                     break
-                elif len(ctx.used_tsmas[0].name) == 32 and 1: ## select md5
-                    break
+                elif len(ctx.used_tsmas[0].name) == 32:
+                    name = f'1.{db}.{tsma_name}_{tb}'
+                    if ctx.used_tsmas[0].name == TSMAQCBuilder().md5(name):
+                        break
+                    else:
+                        time.sleep(1)
                 else:
                     time.sleep(1)
             else:
@@ -757,16 +783,14 @@ class TDTestCase:
             self.tsma_tester.check_sql(ctx.sql, ctx)
 
     def test_query_with_tsma(self):
-        self.create_tsma('tsma1', 'test', 'meters', [
-                         'avg(c1)', 'avg(c2)'], '5m')
-        self.create_tsma('tsma2', 'test', 'meters', [
-                         'avg(c1)', 'avg(c2)'], '30m')
-        self.create_tsma('tsma5', 'test', 'norm_tb', [
-                         'avg(c1)', 'avg(c2)'], '10m')
+        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
+        self.create_tsma('tsma5', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '10m')
 
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
         self.test_recursive_tsma()
+        self.test_query_interval_sliding()
         self.test_union()
         self.test_query_child_table()
         self.test_skip_tsma_hint()
@@ -774,6 +798,43 @@ class TDTestCase:
         self.test_long_ctb_name()
         self.test_add_tag_col()
         self.test_modify_col_name_value()
+        self.test_alter_tag_val()
+        self.test_ins_tsma()
+
+    def test_ins_tsma(self):
+        tdSql.execute('use performance_schema')
+        tdSql.query('show tsmas')
+        tdSql.checkRows(0)
+        tdSql.execute('use test')
+        tdSql.query('show tsmas')
+        tdSql.checkRows(3)
+        tdSql.query('select * from information_schema.ins_tsmas')
+        tdSql.checkRows(3)
+        tdSql.execute('create database dd')
+        tdSql.execute('use dd')
+        tdSql.execute('create table norm_tb (ts timestamp, c1 int)')
+        tdSql.execute('insert into norm_tb values(now, 1)')
+        self.create_tsma('tsma_norm_tb_dd', 'dd', 'norm_tb', ['avg(c1)', 'sum(c1)', 'min(c1)'], '10m')
+        tdSql.query('show tsmas')
+        tdSql.checkRows(1)
+        tdSql.query('select * from information_schema.ins_tsmas')
+        tdSql.checkRows(4)
+        tdSql.query('show test.tsmas')
+        tdSql.checkRows(3)
+        tdSql.execute('use test')
+        tdSql.query('show dd.tsmas')
+        tdSql.checkRows(1)
+        tdSql.execute('drop database dd')
+        tdSql.query('select * from information_schema.ins_tsmas')
+        tdSql.checkRows(3)
+        tdSql.execute('use test')
+
+    def test_alter_tag_val(self):
+        sql = 'alter table t1 set tag t1 = 999'
+        tdSql.error(sql, -2147471088)
+
+    def test_query_interval_sliding(self):
+        pass
 
     def test_union(self):
         ctxs = []
@@ -914,14 +975,21 @@ class TDTestCase:
             'tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.check([ctx])
 
+        # test recrusive tsma on norm_tb
+        tsma_name = 'tsma_recursive_on_norm_tb'
+        self.create_recursive_tsma('tsma5', tsma_name, 'test', '20m', 'norm_tb', ['avg(c1)', 'avg(c2)'])
+        sql = 'select avg(c1), avg(c2), tbname from norm_tb partition by tbname interval(20m)'
+        self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', tsma_name, 'norm_tb').get_qc()])
+        tdSql.execute(f'drop tsma {tsma_name}')
+
     def test_query_with_tsma_interval(self):
         self.check(self.test_query_with_tsma_interval_possibly_partition())
         self.check(self.test_query_with_tsma_interval_partition_by_col())
 
     def test_query_tsma_all(self, func_list: List = ['avg(c1)', 'avg(c2)']) -> List:
         ctxs = []
-        interval_list = ['1s', '5s', '60s', '1m', '10m', '20m',
-                         '30m', '59s', '1h', '120s', '1200', '2h', '90m', '1d']
+        interval_list = ['1s', '5s', '59s', '60s', '1m', '120s', '10m', '20m',
+                         '30m', '1h', '90m', '2h', '8h', '1d']
         opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
         opts.interval = True
         opts.where_ts_range = True
@@ -962,12 +1030,24 @@ class TDTestCase:
         sql = 'select avg(c1), avg(c2) from meters interval(60m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = 'select avg(c1), avg(c2) from meters interval(60m, 30m) SLIDING(30m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = 'select avg(c1), avg(c2) from meters interval(60m, 25m) SLIDING(25m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 
         sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:29:59.999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.664').get_qc())
+
+        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m, 25m) SLIDING(10m)"
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:04:59.999')
+                    .should_query_with_tsma('tsma1', '2018-09-17 09:05:00', '2018-09-17 09:54:59.999')
+                    .should_query_with_table('meters', '2018-09-17 09:55:00.000', '2018-09-17 10:23:19.664').get_qc())
 
         sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
@@ -1115,9 +1195,6 @@ class TDTestCase:
         self.init_data()
         self.test_ddl()
         self.test_query_with_tsma()
-
-    def test_ins_tsma(self):
-        pass
 
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name

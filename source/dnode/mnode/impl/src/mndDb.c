@@ -36,7 +36,7 @@
 #include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 41
+#define DB_RESERVE_SIZE 37
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -141,6 +141,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -233,6 +234,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -324,6 +326,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
   pOld->cfg.withArbitrator = pNew->cfg.withArbitrator;
   pOld->compactStartTime = pNew->compactStartTime;
+  pOld->tsmaVersion = pNew->tsmaVersion;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -648,6 +651,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
+  dbObj.tsmaVersion = 1;
   memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
   dbObj.cfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
@@ -1631,6 +1635,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     pDbCacheInfo->cfgVersion = htonl(pDbCacheInfo->cfgVersion);
     pDbCacheInfo->numOfTable = htonl(pDbCacheInfo->numOfTable);
     pDbCacheInfo->stateTs = be64toh(pDbCacheInfo->stateTs);
+    pDbCacheInfo->tsmaVersion = htonl(pDbCacheInfo->tsmaVersion);
 
     SDbHbRsp rsp = {0};
 
@@ -1669,7 +1674,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
     if (pDbCacheInfo->vgVersion >= pDb->vgVersion && pDbCacheInfo->cfgVersion >= pDb->cfgVersion &&
-        numOfTable == pDbCacheInfo->numOfTable && pDbCacheInfo->stateTs == pDb->stateTs) {
+        numOfTable == pDbCacheInfo->numOfTable && pDbCacheInfo->stateTs == pDb->stateTs &&
+        pDbCacheInfo->tsmaVersion >= pDb->tsmaVersion) {
       mTrace("db:%s, valid dbinfo, vgVersion:%d cfgVersion:%d stateTs:%" PRId64
              " numOfTables:%d, not changed vgVersion:%d cfgVersion:%d stateTs:%" PRId64 " numOfTables:%d",
              pDbCacheInfo->dbFName, pDbCacheInfo->vgVersion, pDbCacheInfo->cfgVersion, pDbCacheInfo->stateTs,
@@ -1686,6 +1692,16 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     if (pDbCacheInfo->cfgVersion < pDb->cfgVersion) {
       rsp.cfgRsp = taosMemoryCalloc(1, sizeof(SDbCfgRsp));
       mndDumpDbCfgInfo(rsp.cfgRsp, pDb);
+    }
+
+    if (pDbCacheInfo->tsmaVersion != pDb->tsmaVersion) {
+      rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+      if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
+      if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
+        rsp.dbTsmaVersion = pDb->tsmaVersion;
+        bool exist = false;
+        mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+      }
     }
 
     if (pDbCacheInfo->vgVersion < pDb->vgVersion || numOfTable != pDbCacheInfo->numOfTable ||

@@ -2894,7 +2894,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         for (int32_t i = 0; i < taosArrayGetSize(pTsmas); ++i) {
           STableTSMAInfo* pInfo = taosArrayGetP(pTsmas, i);
           CTG_ERR_JRET(tCloneTbTSMAInfo(pInfo, &pTsma));
-          CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, &pTsma, false));
+          CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, &pTsma, 0, false));
         }
 
         if (atomic_sub_fetch_32(&pCtx->fetchNum, 1) == 0) {

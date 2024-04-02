@@ -9131,13 +9131,13 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #endif
 }
 
-SNode* createColumnNodeWithName(const char* name) {
+static SColumnNode* createColumnNodeWithName(const char* name) {
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (!pCol) return NULL;
   tstrncpy(pCol->colName, name, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->node.aliasName, name, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->node.userAlias, name, TSDB_COL_NAME_LEN);
-  return (SNode*)pCol;
+  return pCol;
 }
 
 static bool sortFuncWithFuncId(SNode* pNode1, SNode* pNode2) {
@@ -9217,10 +9217,11 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    int32_t partitionTagNum = pStmt->pOptions->recursiveTsma ? numOfTags - 1 : numOfTags;
     // append partition by tags
     SNode* pTagCol = NULL;
-    for (int32_t idx = 0; idx < numOfTags; ++idx) {
-      pTagCol = createColumnNodeWithName(pTags[idx].name);
+    for (int32_t idx = 0; idx < partitionTagNum; ++idx) {
+      pTagCol = (SNode*)createColumnNodeWithName(pTags[idx].name);
       if (!pTagCol) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
@@ -9232,11 +9233,17 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     // sub table
     if (code == TSDB_CODE_SUCCESS) {
       SFunctionNode* pSubTable = NULL;
-      code = buildTSMAAstStreamSubTable(pStmt, pReq, pStmt->pOptions->recursiveTsma ? pTagCol : (SNode*)pTbnameFunc, (SNode**)&pSubTable);
+      pTagCol = NULL;
+      if (pTags && numOfTags > 0) {
+        pTagCol = (SNode*)createColumnNodeWithName(pTags[numOfTags - 1].name);
+        if (!pTagCol) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
       if (code == TSDB_CODE_SUCCESS) {
+        code = buildTSMAAstStreamSubTable(pStmt, pReq, pStmt->pOptions->recursiveTsma ? pTagCol : (SNode*)pTbnameFunc, (SNode**)&pSubTable);
         info.pSubTable = (SNode*)pSubTable;
       }
-      code = nodesListMakeStrictAppend(&info.pTags, nodesCloneNode((SNode*)pTbnameFunc));
+      if (code == TSDB_CODE_SUCCESS)
+        code = nodesListMakeStrictAppend(&info.pTags, pStmt->pOptions->recursiveTsma ? pTagCol : nodesCloneNode((SNode*)pTbnameFunc));
     }
   }
 
@@ -9377,9 +9384,9 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
       tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
       numOfCols = pRecursiveTsma->pUsedCols->size;
-      numOfTags = pRecursiveTsma->pTags->size;
+      numOfTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->size: 0;
       pCols = pRecursiveTsma->pUsedCols->pData;
-      pTags = pRecursiveTsma->pTags->pData;
+      pTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->pData : NULL;
       code = getTableMeta(pCxt, pStmt->dbName, pRecursiveTsma->targetTb, &pTableMeta);
     }
   } else {
@@ -11031,10 +11038,13 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
                                     SVAlterTbReq* pReq) {
   SName    tbName = {0};
   SArray*  pTsmas = NULL;
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
-  int32_t code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
-  if (code != TSDB_CODE_SUCCESS) return code;
-  if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pMetaCache) {
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
+  }
 
   SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {

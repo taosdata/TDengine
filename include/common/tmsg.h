@@ -1378,8 +1378,14 @@ int32_t tDeserializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp
 void    tFreeSDnodeListRsp(SDnodeListRsp* pRsp);
 
 typedef struct {
-  SUseDbRsp* useDbRsp;
-  SDbCfgRsp* cfgRsp;
+  SArray* pTsmas;  // SArray<STableTSMAInfo*>
+} STableTSMAInfoRsp;
+
+typedef struct {
+  SUseDbRsp*         useDbRsp;
+  SDbCfgRsp*         cfgRsp;
+  STableTSMAInfoRsp* pTsmaRsp;
+  int32_t            dbTsmaVersion;
 } SDbHbRsp;
 
 typedef struct {
@@ -4187,10 +4193,6 @@ typedef struct {
   int64_t delayDuration; // ms
   bool    fillHistoryFinished;
 } STableTSMAInfo;
-
-typedef struct {
-  SArray* pTsmas;  // SArray<STableTSMAInfo*>
-} STableTSMAInfoRsp;
 
 int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);
 int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pRsp);

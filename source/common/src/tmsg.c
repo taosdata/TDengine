@@ -67,6 +67,8 @@
 
 static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq);
 static int32_t tDecodeSBatchDeleteReqCommon(SDecoder *pDecoder, SBatchDeleteReq *pReq);
+static int32_t tEncodeTableTSMAInfoRsp(SEncoder *pEncoder, const STableTSMAInfoRsp *pRsp);
+static int32_t tDecodeTableTSMAInfoRsp(SDecoder* pDecoder, STableTSMAInfoRsp* pRsp);
 
 int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
@@ -3645,6 +3647,14 @@ int32_t tSerializeSDbHbRspImp(SEncoder *pEncoder, const SDbHbRsp *pRsp) {
     if (tEncodeI8(pEncoder, 0) < 0) return -1;
   }
 
+  if (pRsp->pTsmaRsp) {
+    if (tEncodeI8(pEncoder, 1) < 0) return -1;
+    if (tEncodeTableTSMAInfoRsp(pEncoder, pRsp->pTsmaRsp) < 0) return -1;
+  } else {
+    if (tEncodeI8(pEncoder, 0) < 0) return -1;
+  }
+  if (tEncodeI32(pEncoder, pRsp->dbTsmaVersion) < 0) return -1;
+
   return 0;
 }
 
@@ -3725,6 +3735,17 @@ int32_t tDeserializeSDbHbRspImp(SDecoder *decoder, SDbHbRsp *pRsp) {
     if (NULL == pRsp->cfgRsp) return -1;
     if (tDeserializeSDbCfgRspImpl(decoder, pRsp->cfgRsp) < 0) return -1;
   }
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeI8(decoder, &flag) < 0) return -1;
+    if (flag) {
+      pRsp->pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+      if (!pRsp->pTsmaRsp) return -1;
+      if (tDecodeTableTSMAInfoRsp(decoder, pRsp->pTsmaRsp) < 0) return -1;
+    }
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeI32(decoder, &pRsp->dbTsmaVersion) < 0) return -1;
+  }
 
   return 0;
 }
@@ -3773,6 +3794,10 @@ void tFreeSDbHbRsp(SDbHbRsp *pDbRsp) {
   if (pDbRsp->cfgRsp) {
     tFreeSDbCfgRsp(pDbRsp->cfgRsp);
     taosMemoryFree(pDbRsp->cfgRsp);
+  }
+  if (pDbRsp->pTsmaRsp) {
+    tFreeTableTSMAInfoRsp(pDbRsp->pTsmaRsp);
+    taosMemoryFree(pDbRsp->pTsmaRsp);
   }
 }
 

@@ -3812,6 +3812,7 @@ static int32_t mndSetDropTbsRedoActions(SMnode* pMnode, STrans* pTrans, const SV
 static int32_t mndCreateDropTbsTxnPrepare(SRpcMsg* pRsp, SMndDropTbsWithTsmaCtx* pCtx) {
   SMnode *pMnode = pRsp->info.node;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pRsp, "drop-tbs");
+  mndTransSetChangeless(pTrans);
   if (pTrans == NULL) goto _OVER;
 
   if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
