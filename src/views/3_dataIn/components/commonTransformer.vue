@@ -1455,12 +1455,12 @@ export default {
           mutate: this.$store.state.app.transformerFilterParseData
             ? this.$store.state.app.transformExtractParseData
               ? []
+                  .concat(this.$store.state.app.transformExtractParseData)
                   .concat({
                     filter: Object.values(
                       this.$store.state.app.transformerFilterParseData
                     ).toString(),
                   })
-                  .concat(this.$store.state.app.transformExtractParseData)
                   .concat({
                     map: mutateMap,
                   })
