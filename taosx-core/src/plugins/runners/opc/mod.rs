@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use tempfile::NamedTempFile;
@@ -114,9 +114,9 @@ pub async fn opc_to_taos(
     let auth_private_key = get_temp_file(&mut from, "auth_private_key");
 
     let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
-    if config.opc_table_config.is_none() {
-        anyhow::bail!("should config opc table config");
-    }
+    // if config.opc_table_config.is_none() {
+    //     anyhow::bail!("should config opc table config");
+    // }
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -157,10 +157,10 @@ pub async fn opc_to_taos(
         }
         Err(err) => {
             tracing::warn!(
-                "parse csv config error: {}, use HashMap::new() instead",
+                "parse csv config error: {}, use LinkedHashMap::new() instead",
                 err.to_string()
             );
-            HashMap::new()
+            LinkedHashMap::new()
         }
     };
 
@@ -609,11 +609,15 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let auth_certificate = get_temp_file(&mut dsn, "auth_certificate");
     let auth_private_key = get_temp_file(&mut dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_for_validate(&dsn);
+    let config = OPCConfig::from_dsn_for_validate(&dsn).await;
     let r = match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
-            format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
+            format!(
+                "invalid opc dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
         ),
         Ok(c) => validate_opc(c).await.unwrap_or_else(|err| {
             DataSourceValidation::invalid(
