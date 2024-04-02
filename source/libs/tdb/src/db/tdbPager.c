@@ -897,7 +897,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
           memcpy(pPage->pData + count, PacketData, NewLen);
           count += NewLen;
         }
-        tdbInfo("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+        tdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
       }
     } else {
       init = 0;
@@ -1011,7 +1011,7 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
       memcpy(buf + count, PacketData, NewLen);
       count += NewLen; 
     }
-    tdbInfo("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+    tdbDebug("CBC_Encrypt count:%d %s", count, __FUNCTION__);
   }
 
   ret = tdbOsPWrite(pPager->fd, buf, pPage->pageSize, offset);

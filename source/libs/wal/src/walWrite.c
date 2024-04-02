@@ -545,7 +545,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
       code = -1;
-      if(newBodyEncrypted != NULL) taosMemoryFreeClear(newBodyEncrypted);
       if(newBody != NULL) taosMemoryFreeClear(newBody);
       goto END;
     }
@@ -555,11 +554,11 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
-    strncpy(opts.key, pWal->cfg.encryptKey, 16);
+    strncpy(opts.key, pWal->cfg.encryptKey, ENCRYPT_KEY_LEN);
 
     int32_t count = CBC_Encrypt(&opts);
 
-    wInfo("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", 
+    wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", 
           pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
@@ -580,8 +579,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
     taosMemoryFree(newBody);
     taosMemoryFree(newBodyEncrypted); 
-    wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
-          pWal->cfg.vgId, __FUNCTION__);   
+    //wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
+    //      pWal->cfg.vgId, __FUNCTION__);   
   }
 
   // set status

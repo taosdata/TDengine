@@ -174,7 +174,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char* e
         memcpy(pFD->pBuf + count, PacketData, NewLen);
         count += NewLen; 
       }
-      tsdbInfo("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+      tsdbDebug("CBC_Encrypt count:%d %s", count, __FUNCTION__);
     }
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
@@ -264,7 +264,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
         memcpy(pFD->pBuf + count, PacketData, NewLen);
         count += NewLen;
       }
-      tsdbInfo("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+      tsdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
     }
   }
 
