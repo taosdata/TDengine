@@ -1061,7 +1061,6 @@ _exit:
 static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag) {
   int32_t code = 0;
 
-  SKVIdx   *pKVIdx = (SKVIdx *)pRow->data;
   uint8_t  *pv = NULL;
   int32_t   iColData = 0;
   SColData *pColData = &aColData[iColData];
@@ -1069,6 +1068,14 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
   STColumn *pTColumn = &pTSchema->columns[iTColumn];
   int32_t   iCol = 0;
 
+  // primary keys
+  uint8_t         *data = pRow->data;
+  SPrimaryKeyIndex index;
+  for (int32_t i = 0; i < pRow->numOfPKs; i++) {
+    data += tGetPrimaryKeyIndex(data, &index);
+  }
+
+  SKVIdx *pKVIdx = (SKVIdx *)data;
   if (pRow->flag & KV_FLG_LIT) {
     pv = pKVIdx->idx + pKVIdx->nCol;
   } else if (pRow->flag & KV_FLG_MID) {
