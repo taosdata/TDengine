@@ -530,13 +530,19 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
+                            let write_meta_result = write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await;
+                            if let Err(err) = write_meta_result {
+                                tracing::warn!("Ignore error: {}", err);
+                            }
                         }
                         MessageSet::Data(data) => {
                             write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
+                            let write_meta_result = write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await;
+                            if let Err(err) = write_meta_result {
+                                tracing::warn!("Ignore error: {}", err);
+                            }
                             if !actions.is_empty() {
                                 write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
