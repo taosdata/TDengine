@@ -1354,6 +1354,13 @@ static int32_t pdcJoinGetOpTableCondTypes(SNode* pCond, SSHashObj* pLeftTables, 
 
   if (cxt.havaLeftCol) {
     if (cxt.haveRightCol) {
+      if (cxt.condIsNull) {
+        tableCondTypes[1] = true;
+        tableCondTypes[3] = true;
+      } else {
+        tableCondTypes[0] = true;
+        tableCondTypes[2] = true;
+      }      
       return TSDB_CODE_SUCCESS;
     }
 
@@ -4587,8 +4594,10 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
     bool found = false;
     WHERE_EACH(pTarget, pScan->node.pTargets) {
       found = false;
+      SColumnNode* pTargetCol = (SColumnNode*)pTarget;
       FOREACH(pTag, pTags) {
-        if (nodesEqualNode(pTarget, pTag)) {
+        SColumnNode* pTagCol = (SColumnNode*)pTag;
+        if (0 == strcasecmp(pTargetCol->node.aliasName, pTagCol->colName) && 0 == strcasecmp(pTargetCol->tableAlias, pTagCol->tableAlias)) {
           found = true;
           break;
         }

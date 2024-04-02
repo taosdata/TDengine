@@ -1038,8 +1038,8 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
   pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     pCol->colType = ((SColumnNode*)pExpr)->colType;
-    strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
-    strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
+    //strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    //strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
   }
   strcpy(pCol->colName, pExpr->aliasName);
   if ('\0' == pCol->node.aliasName[0]) {

@@ -1146,7 +1146,7 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
   SHashObj* pGrpHash = pGCache->globalGrp ? pGCache->pGrpHash : pCtx->pGrpHash;
 
   SGroupCacheData* pGroup = taosHashGet(pGrpHash, &pGcParam->tbUid, sizeof(pGcParam->tbUid));
-  if (NULL == pGroup && NULL != pParam->pChildren && !pCtx->fetchDone) {
+  if (NULL == pGroup && (NULL != pParam->pChildren || !pCtx->fetchDone)) {
     code = addNewGroupData(pOperator, pParam, &pGroup, pGCache->batchFetch ? GROUP_CACHE_DEFAULT_VGID : pGcParam->vgId, pGcParam->tbUid);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
