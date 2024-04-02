@@ -1056,10 +1056,18 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
+        // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
+        this.handelExtractArr(this.columnsArr,this.extractArr)
         this.showIndentifyResulttb();
       } catch (error) {
         console.log(error);
       }
+    },
+    handelExtractArr(columnsArr,extractArr) {
+      let names = columnsArr.map(obj => obj.name);
+      // 过滤 extractArr，移除不在 names 中的对象
+      let arr = extractArr.filter(obj => names.includes(obj.columnname));
+      this.extractArr = arr;
     },
     setPageTableData() {
       this.$set(
@@ -1447,12 +1455,12 @@ export default {
           mutate: this.$store.state.app.transformerFilterParseData
             ? this.$store.state.app.transformExtractParseData
               ? []
+                  .concat(this.$store.state.app.transformExtractParseData)
                   .concat({
                     filter: Object.values(
                       this.$store.state.app.transformerFilterParseData
                     ).toString(),
                   })
-                  .concat(this.$store.state.app.transformExtractParseData)
                   .concat({
                     map: mutateMap,
                   })

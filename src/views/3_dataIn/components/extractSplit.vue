@@ -311,7 +311,7 @@ export default {
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index] ? data[index].toString() : null];
+              return [item.name, this.filterEmpty(data[index]) ? data[index].toString() : null];
             })
           );
         });
@@ -343,6 +343,7 @@ export default {
             let newItem = {...addObj, ...item};
             resultData.push(newItem)
           });
+          console.log('resulet',resultData);
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
@@ -588,6 +589,18 @@ export default {
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
+    },
+    filterEmpty(val) {
+      if (
+        Object.is(val, undefined) | Object.is(val, "") ||
+        Object.is(val, null)
+        ) {
+        return "";
+      }
+      if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
+        return val.toString();
+      }
+      return val;
     },
   },
   mounted() {
