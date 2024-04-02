@@ -158,6 +158,7 @@ typedef struct SDbCacheInfo {
   int32_t cfgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
   int64_t stateTs;
+  int32_t tsmaVersion;
 } SDbCacheInfo;
 
 typedef struct SDynViewVersion {
@@ -404,7 +405,7 @@ int32_t ctgdEnableDebug(char* option, bool enable);
 
 int32_t ctgdHandleDbgCommand(char* command);
 
-int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** pTsma);
+int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** pTsma, int32_t tsmaVersion);
 
 int32_t catalogUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma);
 

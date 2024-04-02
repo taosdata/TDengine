@@ -67,7 +67,7 @@ typedef struct SCreateTSMACxt {
     const SMCreateSmaReq *pCreateSmaReq;
     const SMDropSmaReq *  pDropSmaReq;
   };
-  const SDbObj *      pDb;
+  SDbObj             *pDb;
   SStbObj *           pSrcStb;
   SSmaObj *           pSma;
   const SSmaObj *     pBaseSma;
@@ -1463,7 +1463,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
   SField f = {0};
   if (pCxt->pSrcStb) {
-    for (int32_t idx = 0; idx < pCxt->pSrcStb->numOfTags; ++idx) {
+    for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
       f.bytes = pSchema->bytes;
       f.type = pSchema->type;
@@ -1486,12 +1486,28 @@ static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
 
-static int32_t mndCreateTSMASetCreateStreamRedoAction(SMnode* pMnode) {
-  return TSDB_CODE_SUCCESS;
+static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) {
+    sdbFreeRaw(pRedoRaw);
+    return -1;
+  }
+
+  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  return 0;
 }
 
-static int32_t mndCreateTSMASetCreateStreamUndoAction(SMnode* pMnode) {
-  return TSDB_CODE_SUCCESS;
+static int32_t mndSetUpdateDbTsmaVersionCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    return -1;
+  }
+
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  return 0;
 }
 
 static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
@@ -1541,6 +1557,11 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
     goto _OVER;
   }
 
+  SDbObj newDb = {0};
+  memcpy(&newDb, pCxt->pDb, sizeof(SDbObj));
+  newDb.tsmaVersion++;
+  if (mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb) != 0) goto _OVER;
+  if (mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb) != 0) goto _OVER;
   if (mndSetCreateSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndSetCreateSmaUndoLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
@@ -1630,7 +1651,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
 
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
-    if (!pStb) {
+    if (!pStb && !createReq.recursiveTsma) {
       mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
       goto _OVER;
@@ -1683,6 +1704,9 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
       mError("base tsma: %s not found when creating recursive tsma", createReq.baseTsmaName);
       terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
       goto _OVER;
+    }
+    if (!pStb) {
+      createReq.normSourceTbUid = pBaseTsma->stbUid;
     }
   }
 
@@ -1770,6 +1794,11 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
     goto _OVER;
   }
 
+  SDbObj newDb = {0};
+  memcpy(&newDb, pCxt->pDb, sizeof(SDbObj));
+  newDb.tsmaVersion++;
+  if (mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb) != 0) goto _OVER;
+  if (mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb) != 0) goto _OVER;
   if (mndSetDropSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndSetDropSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndTransAppendRedoAction(pTrans, &dropStreamRedoAction) != 0) goto _OVER;
@@ -1880,6 +1909,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     if ((pDb && pSma->dbUid != pDb->uid) || !pSrcDb) {
       sdbRelease(pMnode->pSdb, pSma);
+      if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);
       continue;
     }
 
@@ -2115,7 +2145,9 @@ static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rs
   return 0;
 }
 
-static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp *rsp, bool *exist) {
+typedef bool (*tsmaFilter)(const SSmaObj* pSma, void* param);
+
+static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilter filtered, void* param, bool* exist) {
   int32_t        code = -1;
   SSmaObj *      pSma = NULL;
   SSmaObj *      pBaseTsma = NULL;
@@ -2123,20 +2155,12 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
   void *         pIter = NULL;
   SStreamObj *   pStreamObj = NULL;
   SStbObj *      pStb = NULL;
-  /*
-  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
-  if (NULL == pStb) {
-    *exist = false;
-    return TSDB_CODE_SUCCESS;
-  }
-  mndReleaseStb(pMnode, pStb);
-  */
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
+    if (filtered(pSma, param)) {
       sdbRelease(pSdb, pSma);
       continue;
     }
@@ -2182,7 +2206,7 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
       sdbCancelFetch(pSdb, pIter);
       return code;
     }
-    if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
+    if (NULL == taosArrayPush(pRsp->pTsmas, &pTsma)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tFreeTableTSMAInfo(pTsma);
       sdbCancelFetch(pSdb, pIter);
@@ -2191,6 +2215,24 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
     *exist = true;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static bool tsmaTbFilter(const SSmaObj* pSma, void* param) {
+  const char* tbFName = param;
+  return pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName) != 0;
+}
+
+static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp *pRsp, bool *exist) {
+  return mndGetSomeTsmas(pMnode, pRsp, tsmaTbFilter, tbFName, exist);
+}
+
+static bool tsmaDbFilter(const SSmaObj* pSma, void* param) {
+  uint64_t *dbUid = param;
+  return pSma->dbUid != *dbUid;
+}
+
+int32_t mndGetDbTsmas(SMnode *pMnode, const char *dbFName, uint64_t dbUid, STableTSMAInfoRsp *pRsp, bool *exist) {
+  return mndGetSomeTsmas(pMnode, pRsp, tsmaDbFilter, &dbUid, exist);
 }
 
 static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
@@ -2312,7 +2354,10 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     SStbObj* pDestStb = mndAcquireStb(pMnode, pSma->dstTbName);
     if (!pDestStb) {
       mInfo("tsma: %s.%" PRIx64 " dest stb: %s not found, maybe dropped", tsmaFName, pTsmaVer->tsmaId, pSma->dstTbName);
+      terrno = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
       mndReleaseSma(pMnode, pSma);
+      if (terrno) goto _OVER;
+      taosArrayPush(hbRsp.pTsmas, &pTsmaInfo);
       continue;
     }
 

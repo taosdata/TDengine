@@ -1790,13 +1790,13 @@ int32_t catalogGetViewMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
   CTG_API_LEAVE(TSDB_CODE_OPS_NOT_SUPPORT);
 }
 
-int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma) {
+int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma, int32_t tsmaVersion) {
   CTG_API_ENTER();
   if (!pCtg || !ppTsma) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   int32_t code = 0;
-  CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, ppTsma, false));
+  CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, ppTsma, tsmaVersion, false));
 
 _return:
   CTG_API_LEAVE(code);
@@ -1808,7 +1808,7 @@ int32_t catalogUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** pTsma) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   int32_t code = 0;
-  CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, pTsma, true));
+  CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, pTsma, 0, true));
 
 _return:
   CTG_API_LEAVE(code);
@@ -1844,7 +1844,7 @@ int32_t ctgGetTbTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName
   tsmasRsp.pTsmas = NULL;
 
   for (int32_t i = 0; i < (*ppRes)->size; ++i) {
-    CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, taosArrayGet((*ppRes), i), false));
+    CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, taosArrayGet((*ppRes), i), 0, false));
   }
   return TSDB_CODE_SUCCESS;
 

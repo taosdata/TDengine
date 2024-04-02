@@ -398,6 +398,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
+  int32_t  tsmaVersion;
 } SDbObj;
 
 typedef struct {

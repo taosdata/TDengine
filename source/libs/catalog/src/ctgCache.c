@@ -1415,7 +1415,7 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
 
   CTG_CACHE_NUM_INC(CTG_CI_DB, 1);
 
-  SDbCacheInfo dbCacheInfo = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0, .cfgVersion = -1};
+  SDbCacheInfo dbCacheInfo = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0, .cfgVersion = -1, .tsmaVersion = -1};
   tstrncpy(dbCacheInfo.dbFName, dbFName, sizeof(dbCacheInfo.dbFName));
 
   ctgDebug("db added to cache, dbFName:%s, dbId:0x%" PRIx64, dbFName, dbId);
@@ -1802,7 +1802,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   bool         newAdded = false;
   SDbCacheInfo dbCacheInfo = {
-      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .cfgVersion = -1, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs};
+      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .cfgVersion = -1, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs, .tsmaVersion = -1};
 
   SCtgDBCache *dbCache = NULL;
   CTG_ERR_JRET(ctgGetAddDBCache(msg->pCtg, dbFName, msg->dbId, &dbCache));
@@ -1846,6 +1846,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   if (dbCache->cfgCache.cfgInfo) {
     dbCacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
+    dbCacheInfo.tsmaVersion = dbCache->tsmaVersion;
   }
 
   vgCache->vgInfo = dbInfo;
@@ -1913,6 +1914,7 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   } else {
     cacheInfo.vgVersion = -1;
   }
+  cacheInfo.tsmaVersion = dbCache->tsmaVersion;
 
   ctgWLockDbCfgInfo(dbCache);
 
@@ -3230,16 +3232,13 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
 
     // get tsma cache
     pCache = taosHashAcquire(dbCache->tsmaCache, tsmaSourceTbName.tname, strlen(tsmaSourceTbName.tname));
-    if (!pCache) {
-      ctgDebug("tsma for tb: %s.%s not in cache", dbFName, tsmaSourceTbName.tname);
-      ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TB_TSMA, &tsmaSourceTbName);
+    if (!pCache || !pCache->pTsmas || pCache->pTsmas->size == 0) {
       taosArrayPush(pCtx->pResList, &(SMetaRes){0});
-      CTG_CACHE_NHIT_INC(CTG_CI_TBL_SMA, 1);
       continue;
     }
 
     CTG_LOCK(CTG_READ, &pCache->tsmaLock);
-    if (!pCache->pTsmas || pCache->pTsmas->size == 0 || hasOutOfDateTSMACache(pCache->pTsmas)) {
+    if (hasOutOfDateTSMACache(pCache->pTsmas)) {
       CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
       taosHashRelease(dbCache->tsmaCache, pCache);
       ctgDebug("tsma for tb: %s.%s not in cache", tsmaSourceTbName.tname, dbFName);
@@ -3340,7 +3339,7 @@ int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaNam
   CTG_RET(code);
 }
 
-int32_t ctgUpdateTbTSMAEnqueue(SCatalog *pCtg, STSMACache **pTsma, bool syncOp) {
+int32_t ctgUpdateTbTSMAEnqueue(SCatalog *pCtg, STSMACache **pTsma, int32_t tsmaVersion, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
   op->opId = CTG_OP_UPDATE_TB_TSMA;
@@ -3355,6 +3354,8 @@ int32_t ctgUpdateTbTSMAEnqueue(SCatalog *pCtg, STSMACache **pTsma, bool syncOp) 
 
   msg->pCtg = pCtg;
   msg->pTsma = *pTsma;
+  msg->dbTsmaVersion = tsmaVersion;
+  msg->dbId = (*pTsma)->dbId;
 
   op->data = msg;
 
@@ -3601,8 +3602,24 @@ int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation *operation) {
   }
 
   CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pTsmaInfo->dbFName, pTsmaInfo->dbId, &dbCache));
-
   CTG_ERR_JRET(ctgWriteTbTSMAToCache(pCtg, dbCache, pTsmaInfo->dbFName, pTsmaInfo->tb, &pTsmaInfo));
+  if (dbCache && msg->dbTsmaVersion > 0) {
+    dbCache->tsmaVersion = msg->dbTsmaVersion;
+    SDbCacheInfo cacheInfo = {0};
+    cacheInfo.dbId = dbCache->dbId;
+    if (dbCache->cfgCache.cfgInfo) {
+      cacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
+      tstrncpy(cacheInfo.dbFName, dbCache->cfgCache.cfgInfo->db, TSDB_DB_FNAME_LEN);
+    }
+    if (dbCache->vgCache.vgInfo) {
+      cacheInfo.vgVersion = dbCache->vgCache.vgInfo->vgVersion;
+      cacheInfo.numOfTable = dbCache->vgCache.vgInfo->numOfTable;
+      cacheInfo.stateTs = dbCache->vgCache.vgInfo->stateTs;
+    }
+    cacheInfo.tsmaVersion = dbCache->tsmaVersion;
+    CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
+                                   ctgDbCacheInfoSortCompare, ctgDbCacheInfoSearchCompare));
+  }
 
 _return:
 

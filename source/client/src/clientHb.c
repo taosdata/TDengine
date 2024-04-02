@@ -234,6 +234,15 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       catalogUpdateDbCfg(pCatalog, rsp->cfgRsp->db, rsp->cfgRsp->dbId, rsp->cfgRsp);
       rsp->cfgRsp = NULL;
     }
+    if (rsp->pTsmaRsp) {
+      if (rsp->pTsmaRsp->pTsmas) {
+        for (int32_t i = 0; i < rsp->pTsmaRsp->pTsmas->size; ++i) {
+          STableTSMAInfo* pTsma = taosArrayGetP(rsp->pTsmaRsp->pTsmas, i);
+          catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion);
+        }
+        taosArrayClear(rsp->pTsmaRsp->pTsmas);
+      }
+    }
   }
 
 _return:
@@ -797,6 +806,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     db->cfgVersion = htonl(db->cfgVersion);
     db->numOfTable = htonl(db->numOfTable);
     db->stateTs = htobe64(db->stateTs);
+    db->tsmaVersion = htonl(db->tsmaVersion);
   }
 
   SKv kv = {

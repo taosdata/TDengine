@@ -335,6 +335,7 @@ typedef struct SCtgDBCache {
   SHashObj*    tbCache;   // key:tbname, value:SCtgTbCache
   SHashObj*    stbCache;  // key:suid, value:char*
   SHashObj*    tsmaCache;  // key:tbname, value: SCtgTSMACache
+  int32_t      tsmaVersion;
   uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
   uint64_t     dbCacheSize;
 } SCtgDBCache;
@@ -599,6 +600,8 @@ typedef struct SCtgDropViewMetaMsg {
 typedef struct SCtgUpdateTbTSMAMsg {
   SCatalog*       pCtg;
   STableTSMAInfo* pTsma;
+  int32_t         dbTsmaVersion;
+  uint64_t        dbId;
 } SCtgUpdateTbTSMAMsg;
 
 typedef struct SCtgDropTbTSMAMsg {
@@ -1148,7 +1151,7 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
 int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaName);
 int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* name, STableTSMAInfoRsp* out,
                               SCtgTaskReq* tReq, int32_t reqType);
-int32_t ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, bool syncOp);
+int32_t ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, int32_t tsmaVersion, bool syncOp);
 int32_t ctgDropTSMAForTbEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
 int32_t ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp);
 int32_t ctgOpDropTbTSMA(SCtgCacheOperation* operation);
