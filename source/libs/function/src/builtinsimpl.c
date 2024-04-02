@@ -533,6 +533,24 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
   }
 }
 
+static void forwardToNextDiffTsRow(SFuncInputRowIter* pIter, int32_t rowIndex) {
+  int32_t idx = rowIndex + 1;
+  while (idx <= pIter->inputEndIndex && pIter->tsList[idx] == pIter->tsList[rowIndex]) {
+    ++idx;
+  }
+  pIter->rowIndex = idx;
+}
+
+static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32_t rowIndex, bool setPk) {
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, rowIndex);
+  pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
+  pRow->pPk = setPk? colDataGetData(pIter->pPkCol, rowIndex):NULL;
+  pRow->block = pIter->pSrcBlock;
+  pRow->rowIndex = rowIndex;
+}
+
 bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->hasPrev) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
@@ -543,33 +561,19 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
       while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
         ++idx;
       }
-      pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pDataCol, idx);
-      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
-      pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = idx;
 
       pIter->hasPrev = false;
-      pIter->rowIndex = idx + 1;
+      setInputRowInfo(pRow, pIter, idx, true);
+      forwardToNextDiffTsRow(pIter, idx);
       return true;
     }
   } else {
     if (pIter->rowIndex <= pIter->inputEndIndex) { 
-      pRow->ts = pIter->tsList[pIter->rowIndex];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
-      pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
-      pRow->pPk = colDataGetData(pIter->pPkCol, pIter->rowIndex);
-      pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = pIter->rowIndex;
+      setInputRowInfo(pRow, pIter, pIter->rowIndex, true);
 
       TSKEY tsEnd = pIter->tsList[pIter->inputEndIndex];
       if (pIter->tsList[pIter->rowIndex] != tsEnd) {
-        int32_t idx = pIter->rowIndex + 1;
-        while (idx <= pIter->inputEndIndex && pIter->tsList[idx] == pIter->tsList[pIter->rowIndex]) {
-          ++idx;
-        }
-        pIter->rowIndex = idx;
+        forwardToNextDiffTsRow(pIter, pIter->rowIndex);
       } else {
         pIter->rowIndex = pIter->inputEndIndex + 1;
       }
@@ -585,13 +589,7 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
 
 bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->rowIndex <= pIter->inputEndIndex) {
-    pRow->ts = pIter->tsList[pIter->rowIndex];
-    pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
-    pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
-    pRow->pPk = NULL;
-    pRow->block = pIter->pSrcBlock;
-    pRow->rowIndex = pIter->rowIndex;
-
+    setInputRowInfo(pRow, pIter, pIter->rowIndex, false);
     ++pIter->rowIndex;
     return true;    
   } else {
@@ -5579,8 +5577,6 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
 int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
