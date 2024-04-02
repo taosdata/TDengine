@@ -27,6 +27,11 @@ pub struct CsvParser {
 }
 
 impl CsvParser {
+    pub async fn is_csv_valid(dsn: &Dsn) -> anyhow::Result<()> {
+        Self::from_dsn(dsn).await?;
+        Ok(())
+    }
+
     pub async fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let files = Self::open_csv_files(dsn).await?;

@@ -1617,6 +1617,9 @@ async fn consume_point_record(
         for (stable_name, sql_vec) in stable_insert_map {
             for sql_insertion in sql_vec {
                 debug!("point message insert sql len: {}", sql_insertion.sql.len());
+
+                tracing::trace!("sql>>>{}", sql_insertion.sql);
+
                 let mut retry = 0;
                 let mut break_err = Ok(());
                 'outer: loop {
