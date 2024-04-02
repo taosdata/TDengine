@@ -936,11 +936,14 @@ void streamClearChkptReadyMsg(SStreamTask* pTask) {
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
   stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
-  destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
 
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
   if (delayDispatch) {
-    pTask->chkInfo.dispatchCheckpointTrigger = true;
+    taosThreadMutexLock(&pTask->lock);
+    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+      pTask->chkInfo.dispatchCheckpointTrigger = true;
+    }
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
   pTask->msgInfo.pData = NULL;
