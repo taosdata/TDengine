@@ -217,8 +217,6 @@ typedef struct {
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
-  char       active[TSDB_ACTIVE_KEY_LEN];
-  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
   char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
 

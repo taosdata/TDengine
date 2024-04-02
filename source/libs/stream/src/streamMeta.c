@@ -542,7 +542,6 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   buf = NULL;
   int32_t len;
   int32_t code;
-  pTask->ver = SSTREAM_TASK_VER;
   tEncodeSize(tEncodeStreamTask, pTask, len, code);
   if (code < 0) {
     return -1;
@@ -552,6 +551,9 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
     return -1;
   }
 
+  if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+    pTask->ver = SSTREAM_TASK_VER;
+  }
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   tEncodeStreamTask(&encoder, pTask);

@@ -91,6 +91,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
           taosThreadMutexLock(&ths->arbTokenMutex);
           syncUtilGenerateArbToken(ths->myNodeInfo.nodeId, ths->vgId, ths->arbToken);
+          sInfo("vgId:%d, assigned leader to leader, arbToken:%s", ths->vgId, ths->arbToken);
           taosThreadMutexUnlock(&ths->arbTokenMutex);
         }
       } else {

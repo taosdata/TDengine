@@ -302,8 +302,16 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
         goto _OVER;
       }
       syncNodeBecomeAssignedLeader(ths);
+
+      if (syncNodeAppendNoop(ths) < 0) {
+        sError("vgId:%d, assigned leader failed to append noop entry since %s", ths->vgId, terrstr());
+      }
     }
     errcode = TSDB_CODE_SUCCESS;
+  } else {
+    sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+          req.memberToken);
+    goto _OVER;
   }
 
   SVArbSetAssignedLeaderRsp rsp = {0};
@@ -1056,6 +1064,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->arbTerm = -1;
   taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
   syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
+  sInfo("vgId:%d, arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
 
   // init peersNum, peers, peersId
   pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;

@@ -260,6 +260,14 @@ int32_t mndSetCreateArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup) {
   return 0;
 }
 
+int32_t mndSetDropArbGroupPrepareLogs(STrans *pTrans, SArbGroup *pGroup) {
+  SSdbRaw *pRedoRaw = mndArbGroupActionEncode(pGroup);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetDropArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup) {
   SSdbRaw *pRedoRaw = mndArbGroupActionEncode(pGroup);
   if (pRedoRaw == NULL) return -1;
@@ -535,17 +543,27 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     int32_t vgId = arbGroupDup.vgId;
     int64_t nowMs = taosGetTimestampMs();
 
-    bool    member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
-    bool    member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
-    int32_t currentAssignedDnodeId = arbGroupDup.assignedLeader.dnodeId;
+    bool                member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
+    bool                member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
+    SArbAssignedLeader *pAssignedLeader = &arbGroupDup.assignedLeader;
+    int32_t             currentAssignedDnodeId = pAssignedLeader->dnodeId;
 
-    // 1. both of the two members are timeout => skip
+    // 1. has assigned && is sync => send req
+    if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true) {
+      (void)mndSendArbSetAssignedLeaderReq(pMnode, currentAssignedDnodeId, vgId, arbToken, term,
+                                           pAssignedLeader->token);
+      mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, currentAssignedDnodeId);
+      sdbRelease(pSdb, pArbGroup);
+      continue;
+    }
+
+    // 2. both of the two members are timeout => skip
     if (member0IsTimeout && member1IsTimeout) {
       sdbRelease(pSdb, pArbGroup);
       continue;
     }
 
-    // 2. no member is timeout => check sync
+    // 3. no member is timeout => check sync
     if (member0IsTimeout == false && member1IsTimeout == false) {
       // no assigned leader and not sync
       if (currentAssignedDnodeId == 0 && !arbGroupDup.isSync) {
@@ -556,7 +574,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
       continue;
     }
 
-    // 3. one of the members is timeout => set assigned leader
+    // 4. one of the members is timeout => set assigned leader
     int32_t          candidateIndex = member0IsTimeout ? 1 : 0;
     SArbGroupMember *pMember = &arbGroupDup.members[candidateIndex];
 
@@ -581,26 +599,18 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
       continue;
     }
 
-    // no assigned leader => write to sdb
-    if (currentAssignedDnodeId == 0) {
-      SArbGroup newGroup = {0};
-      mndArbGroupDupObj(&arbGroupDup, &newGroup);
-      mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
-      if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
-        mError("vgId:%d, arb failed to pullup set assigned leader to dnodeId:%d, since %s", vgId, pMember->info.dnodeId,
-               terrstr());
-        sdbRelease(pSdb, pArbGroup);
-        return -1;
-      }
-
-      mInfo("vgId:%d, arb pull up set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
+    // is sync && no assigned leader => write to sdb
+    SArbGroup newGroup = {0};
+    mndArbGroupDupObj(&arbGroupDup, &newGroup);
+    mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
+    if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
+      mError("vgId:%d, arb failed to pullup set assigned leader to dnodeId:%d, since %s", vgId, pMember->info.dnodeId,
+             terrstr());
       sdbRelease(pSdb, pArbGroup);
-      continue;
+      return -1;
     }
 
-    // isSync == true && dnodeId match => send request to dnode
-    (void)mndSendArbSetAssignedLeaderReq(pMnode, pMember->info.dnodeId, vgId, arbToken, term, pMember->state.token);
-    mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
+    mInfo("vgId:%d, arb pull up set assigned leader to dnodeId:%d", vgId, pMember->info.dnodeId);
 
     sdbRelease(pSdb, pArbGroup);
   }
@@ -665,9 +675,16 @@ static int32_t mndProcessArbUpdateGroupReq(SRpcMsg *pReq) {
   memcpy(newGroup.assignedLeader.token, req.assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
   newGroup.version = req.version;
 
-  SMnode *pMnode = pReq->info.node;
+  SMnode    *pMnode = pReq->info.node;
+  SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
+  if (!pOldGroup) {
+    mInfo("vgId:%d, arb skip to update arbgroup, since no obj found", newGroup.vgId);
+    return 0;
+  }
+  sdbRelease(pMnode->pSdb, pOldGroup);
+
   if (mndArbGroupUpdateTrans(pMnode, &newGroup) != 0) {
-    mError("vgId:%d, arb failed to update arbgroup, since %s", req.vgId, terrstr());
+    mError("vgId:%d, arb failed to update arbgroup, since %s", newGroup.vgId, terrstr());
     ret = -1;
   }
 
@@ -1055,13 +1072,21 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->isSync, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.dnodeId, false);
+    if (pGroup->assignedLeader.dnodeId != 0) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.dnodeId, false);
 
-    char token[TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(token, pGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)token, false);
+      char token[TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(token, pGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)token, false);
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+    }
 
     taosThreadMutexUnlock(&pGroup->mutex);
 

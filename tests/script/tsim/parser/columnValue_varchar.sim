@@ -410,6 +410,17 @@ endi
 
 
 # case 04: illegal input
+sql_error create table st_varchar_100  using mt_varchar tags(now+1d)
+sql_error create table st_varchar_101  using mt_varchar tags(toDay+1d)
+sql_error create table st_varchar_102  using mt_varchar tags(1+1b)
+sql_error create table st_varchar_103  using mt_varchar tags(0x01+1d)
+sql_error create table st_varchar_104  using mt_varchar tags(0b01+1s)
+sql_error insert into st_varchar_1100  using mt_varchar tags('now') values(now(),now+1d)
+sql_error insert into st_varchar_1101  using mt_varchar tags('now') values(now(),toDay+1d)
+sql_error insert into st_varchar_1102  using mt_varchar tags('now') values(now(),1+1b)
+sql_error insert into st_varchar_1103  using mt_varchar tags('now') values(now(),0x01+1d)
+sql_error insert into st_varchar_1104  using mt_varchar tags('now') values(now(),0b01+1s)
+sql_error alter table st_varchar_15  set tag tagname=now()+1d
 
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
