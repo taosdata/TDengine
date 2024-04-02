@@ -294,6 +294,7 @@ static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema, const STa
   pCol->colType = COLUMN_TYPE_COLUMN;
   pCol->isPk = pSchema->flags & COL_IS_KEY;
   pCol->tableHasPk = hasPkInTable(pMeta);
+  pCol->numOfPKs = pMeta->tableInfo.numOfPKs;
   strcpy(pCol->colName, pSchema->name);
   return (SNode*)pCol;
 }

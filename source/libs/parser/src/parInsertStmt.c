@@ -267,6 +267,11 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
       pBind = bind + c;
     }
 
+    if(pBind->is_null && (pColSchema->flags & COL_IS_KEY)){
+      code = buildInvalidOperationMsg(&pBuf, "Primary key column should not be null");
+      goto _return;
+    }
+
     code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
     if (code) {
       goto _return;
@@ -313,7 +318,12 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
     pBind = bind;
   }
 
-  tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
+  if (pBind->is_null && (pColSchema->flags & COL_IS_KEY)) {
+    code = buildInvalidOperationMsg(&pBuf, "Primary key column should not be null");
+    goto _return;
+  }
+
+  tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
