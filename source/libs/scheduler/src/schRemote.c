@@ -528,6 +528,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
+    rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
     SCH_ERR_JRET(code);
   }
 
