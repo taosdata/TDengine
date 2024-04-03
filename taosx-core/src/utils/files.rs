@@ -1,6 +1,11 @@
-use anyhow::anyhow;
 use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
+
+use anyhow::anyhow;
+use chardetng::EncodingDetector;
+use encoding_rs::Encoding;
 
 pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Error> {
     let path = Path::new(dir);
@@ -29,4 +34,58 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
     }
 
     Ok(files)
+}
+
+pub fn get_encode(file_path: &str) -> anyhow::Result<&'static Encoding> {
+    let mut file = File::open(file_path).map_err(|e| {
+        anyhow::anyhow!(
+            "failed to open file: {}, cause: {}",
+            file_path,
+            e.to_string()
+        )
+    })?;
+
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).map_err(|e| {
+        anyhow::anyhow!(
+            "failed to read file: {}, cause: {}",
+            file_path,
+            e.to_string()
+        )
+    })?;
+
+    get_encode_from_buffer(buffer.as_slice())
+}
+
+pub fn get_encode_from_buffer(buffer: &[u8]) -> anyhow::Result<&'static Encoding> {
+    let mut detector = EncodingDetector::new();
+    detector.feed(buffer, true);
+
+    let encoding = detector.guess(None, true);
+
+    Ok(encoding)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_file_encode() {
+        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-utf8.csv";
+        let encode = get_encode(file_path).unwrap();
+        assert_eq!(encode.name(), "UTF-8");
+
+        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-utf8_BOM.csv";
+        let encode = get_encode(file_path).unwrap();
+        assert_eq!(encode.name(), "UTF-8");
+
+        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-gbk.csv";
+        let encode = get_encode(file_path);
+        assert!(encode.is_err());
+        assert!(encode
+            .unwrap_err()
+            .to_string()
+            .starts_with("failed to open file: "));
+    }
 }

@@ -1128,8 +1128,7 @@ mod handle_transform_tests {
             .unwrap(),
         );
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
-            .unwrap();
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-utf8bom.csv").unwrap();
         let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
 
         let transformed_msg = handle_transform(&message, &model_config).unwrap();
@@ -1335,7 +1334,8 @@ async fn consume_point_record(
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
         let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();
         // child_table_name: create_sql
-        let mut child_table_create_sql_map = HashMap::new();
+        let mut child_table_create_sql_map: HashMap<String, HashMap<String, String>> =
+            HashMap::new();
 
         for i in 0..id_column_view.len() {
             let point_id = id_column_view
@@ -1348,11 +1348,7 @@ async fn consume_point_record(
             // point_config
             let code = point_config_map.get(&point_id);
             if code.is_none() {
-                tracing::warn!(
-                    "cannot get point_config with point_id: {}, opc_config: {:?}",
-                    point_id,
-                    &config
-                );
+                tracing::warn!("cannot get point_config with point_id: {}", point_id);
                 continue;
             }
             let point_config = code.unwrap();
@@ -1360,11 +1356,7 @@ async fn consume_point_record(
             // table_config
             let table_config = table_config_map.get(&point_id);
             if table_config.is_none() {
-                tracing::warn!(
-                    "cannot get table_config with point_id: {}, opc_config: {:?}",
-                    point_id,
-                    &config
-                );
+                tracing::trace!("cannot get table_config with point_id: {}", point_id);
                 continue;
             }
             let table_config = table_config.unwrap();
@@ -1487,18 +1479,53 @@ async fn consume_point_record(
             }
 
             if tag_names.is_empty() {
-                child_table_create_sql_map.insert(
-                    child_table_name.clone(),
-                    format!(
-                        "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
-                        &point_name
-                    ),
-                );
+                if child_table_create_sql_map.contains_key(&stable_name) {
+                    let mut map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
+                    map.insert(
+                        child_table_name.clone(),
+                        format!(
+                            "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
+                            &point_name
+                        ),
+                    );
+                } else {
+                    let mut map = HashMap::new();
+                    map.insert(
+                        child_table_name.clone(),
+                        format!(
+                            "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
+                            &point_name
+                        ),
+                    );
+                    child_table_create_sql_map.insert(stable_name.clone(), map);
+                }
+                // child_table_create_sql_map.insert(
+                //     child_table_name.clone(),
+                //     format!(
+                //         "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
+                //         &point_name
+                //     ),
+                // );
             } else {
-                child_table_create_sql_map.insert(
-                    child_table_name.clone(),
-                    format!("({}) TAGS ({})", tag_names, tag_values),
-                );
+                if child_table_create_sql_map.contains_key(&stable_name) {
+                    let mut map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
+                    map.insert(
+                        child_table_name.clone(),
+                        format!("({}) TAGS ({})", tag_names, tag_values),
+                    );
+                } else {
+                    let mut map = HashMap::new();
+                    map.insert(
+                        child_table_name.clone(),
+                        format!("({}) TAGS ({})", tag_names, tag_values),
+                    );
+                    child_table_create_sql_map.insert(stable_name.clone(), map);
+                }
+
+                // child_table_create_sql_map.insert(
+                //     child_table_name.clone(),
+                //     format!("({}) TAGS ({})", tag_names, tag_values),
+                // );
             }
 
             let sql_vec = stable_insert_map.get_mut(&stable_name);
@@ -1590,6 +1617,9 @@ async fn consume_point_record(
         for (stable_name, sql_vec) in stable_insert_map {
             for sql_insertion in sql_vec {
                 debug!("point message insert sql len: {}", sql_insertion.sql.len());
+
+                tracing::trace!("sql>>>{}", sql_insertion.sql);
+
                 let mut retry = 0;
                 let mut break_err = Ok(());
                 'outer: loop {
@@ -1692,8 +1722,10 @@ async fn consume_point_record(
                                 let mut child_table_counts_vec = Vec::<u32>::new();
                                 let mut sql_prefix = "CREATE TABLE".to_string();
                                 let mut child_table_count = 0u32;
+                                let child_table_create_sql_map =
+                                    child_table_create_sql_map.get(&stable_name).unwrap();
                                 for (child_table_name, child_table_create_sql) in
-                                    &child_table_create_sql_map
+                                    child_table_create_sql_map
                                 {
                                     let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {

@@ -249,6 +249,12 @@ namespace TDPIConnector.TDEngine
             initPointModeTables();
             return Task.CompletedTask;
         }
+
+        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string elementName, string startTime, string endTime)
+        {
+            return taosxCommonClient.DeleteByTimeRange(database, elementName, startTime, endTime);
+        }
+
         private void initPointModeTables()
         {
             lock (taosxClientsLock)

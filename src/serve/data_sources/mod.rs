@@ -19,9 +19,7 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::runners::historian;
-use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
-use taosx_core::{list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{is_csv_valid, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
 mod definition;
 
@@ -564,4 +562,43 @@ pub(super) async fn download_point_template_file(
             message: format!("{:#}", err),
         }),
     }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "check opc csv file ready", body = String),
+        (status = 500, description = "check opc csv file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/is_valid")]
+pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl Responder {
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        is_csv_valid_impl(query.dsn),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(())) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "valid": true,
+            "message": "csv file is valid"
+        }))),
+        Ok(Err(err)) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("check csv file failed, cause: {:#}", err),
+        }),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("check csv file timeout, cause: {:#}", err),
+        }),
+    }
+}
+
+async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
+    let dsn = dsn.into_dsn()?;
+    plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }

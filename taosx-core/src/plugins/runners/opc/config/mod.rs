@@ -1,28 +1,18 @@
-use std::collections::HashMap;
-use std::io::{BufRead, Write};
-use std::str::FromStr;
+use std::io::BufRead;
 
-use anyhow::{bail, Context};
-use base64::engine::general_purpose;
-use base64::Engine;
+use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncQueryable, Dsn, Taos, Ty};
-use tokio_stream::StreamExt;
-
-use taosx_ipc::prelude::IpcDataType;
+use taos::{AsyncQueryable, Dsn, Taos};
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{
-    ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
-};
+use crate::runners::opc::config::model::{OpcModelConfig, PointConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::generate_tbname_from_pattern;
 use crate::runners::opc::OpcType;
 
 mod collect;
@@ -43,7 +33,7 @@ pub struct OPCConfig {
     collect: CollectConfig,
 
     #[serde(skip)]
-    pub param_mapping: HashMap<String, PointConfig>,
+    pub param_mapping: LinkedHashMap<String, PointConfig>,
     #[serde(skip)]
     pub opc_table_config: Option<TableConfig>,
 }
@@ -87,7 +77,8 @@ impl OPCConfig {
             points: None,
             collect: CollectConfig::from_dsn(dsn, id).await?,
             param_mapping: Self::build_param_mapping(dsn).await?,
-            opc_table_config: TableConfig::from_dsn(dsn).await?,
+            // opc_table_config: TableConfig::from_dsn(dsn).await?,
+            opc_table_config: None,
         })
     }
 
@@ -107,12 +98,22 @@ impl OPCConfig {
                 CollectConfig::new_empty()
             },
             report: ReportConfig::from_dsn(dsn, 0)?,
-            param_mapping: HashMap::new(),
+            param_mapping: LinkedHashMap::new(),
             opc_table_config: None,
         })
     }
 
-    pub fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
+    pub async fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
+        let csv_config_file = Self::parse_csv_config_file(dsn);
+        if csv_config_file.is_some() {
+            CsvParser::from_dsn(dsn).await.map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to validate csv config file, cause: {}",
+                    err.to_string()
+                )
+            })?;
+        }
+
         Ok(OPCConfig {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,
@@ -120,7 +121,7 @@ impl OPCConfig {
             points: None,
             collect: CollectConfig::new_empty(),
             report: ReportConfig::from_dsn(dsn, 0)?,
-            param_mapping: HashMap::new(),
+            param_mapping: LinkedHashMap::new(),
             opc_table_config: None,
         })
     }
@@ -147,7 +148,7 @@ impl OPCConfig {
         dsn.params.get("csv_config_file").map(|v| v.to_string())
     }
 
-    async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
+    async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<LinkedHashMap<String, PointConfig>> {
         let csv_config_file = Self::parse_csv_config_file(dsn);
 
         if csv_config_file.is_some() {
@@ -160,7 +161,7 @@ impl OPCConfig {
 
         let param_mapping = match opc_type {
             OpcType::OPCUA => {
-                let mut param_mapping = HashMap::new();
+                let mut param_mapping = LinkedHashMap::new();
 
                 let ua_nodes =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
@@ -180,6 +181,7 @@ impl OPCConfig {
                     param_mapping.insert(
                         tag,
                         PointConfig {
+                            row_index: i + 1,
                             code,
                             stable: None,
                             tag_values: None,
@@ -190,7 +192,7 @@ impl OPCConfig {
                 param_mapping
             }
             OpcType::OPCDA => {
-                let mut param_mapping = HashMap::new();
+                let mut param_mapping = LinkedHashMap::new();
 
                 let node_vec =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
@@ -209,6 +211,7 @@ impl OPCConfig {
                     param_mapping.insert(
                         tag,
                         PointConfig {
+                            row_index: i + 1,
                             code,
                             stable: None,
                             tag_values: None,
@@ -233,17 +236,22 @@ impl OPCConfig {
 
     pub async fn with_table_config_map(
         &self,
-        table_config_map: HashMap<String, TableConfig>,
+        table_config_map: LinkedHashMap<String, TableConfig>,
     ) -> anyhow::Result<OpcModelConfig> {
         let id_code_map = self
             .param_mapping
             .iter()
             .map(|(id, code)| (id.clone(), code.clone()))
             .collect();
+        let table_config = if self.opc_table_config.clone().is_some() {
+            self.opc_table_config.clone().unwrap()
+        } else {
+            TableConfig::empty()
+        };
 
         let c = OpcModelConfig {
             point_config_map: id_code_map,
-            table_config: self.opc_table_config.clone().unwrap(),
+            table_config,
             table_config_map,
         };
         Ok(c)
@@ -258,6 +266,7 @@ pub enum AuthMethod {
     Certificate,
 }
 
+/*
 /// return opc table config, node_config, tables_to_drop
 // #[async_backtrace::framed]
 pub async fn generate_config_from_csv(
@@ -270,7 +279,7 @@ pub async fn generate_config_from_csv(
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
-    let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
+    let mut id_code_map = LinkedHashMap::new(); // id, (code for sub-table name, stable)
     let mut tag_config = Vec::new();
     let mut column_config = Vec::new();
     let mut node_config_old = Vec::new();
@@ -564,13 +573,15 @@ pub async fn generate_config_from_csv(
                 column_configs: column_config,
                 tag_configs,
             },
-            table_config_map: HashMap::new(),
+            table_config_map: LinkedHashMap::new(),
         },
         node_config_old,
         tables_to_drop,
     ));
 }
+*/
 
+/*
 fn check_duplicated(
     current_tags: &Vec<String>,
     current_columns: Option<&Vec<String>>,
@@ -584,6 +595,7 @@ fn check_duplicated(
     }
     Ok(())
 }
+*/
 
 pub fn get_string_vec_from_param_or_file_for_opc(
     dsn: &mut Dsn,
@@ -668,19 +680,19 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_csv_empty() {
-        tracing_subscriber::fmt::init();
-        let f = generate_config_from_csv("opcua", "@./tests/opc_table_empty.csv").await;
-        assert!(dbg!(f).is_err());
-    }
-
-    #[tokio::test]
-    async fn test_csv_template() {
-        tracing_subscriber::fmt::init();
-        let f = generate_config_from_csv("opcua", "@./tests/template-en.csv").await;
-        assert!(dbg!(f).is_ok());
-    }
+    // #[tokio::test]
+    // async fn test_csv_empty() {
+    //     tracing_subscriber::fmt::init();
+    //     let f = generate_config_from_csv("opcua", "@./tests/opc_table_empty.csv").await;
+    //     assert!(dbg!(f).is_err());
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_csv_template() {
+    //     tracing_subscriber::fmt::init();
+    //     let f = generate_config_from_csv("opcua", "@./tests/template-en.csv").await;
+    //     assert!(dbg!(f).is_ok());
+    // }
 
     #[tokio::test]
     #[ignore]
@@ -696,144 +708,155 @@ mod tests {
         dbg!(&config);
     }
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_generate_config_from_csv() {
-        let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@tests/opc/opcua_rts_ts.csv")
-                .await
-                .unwrap();
-        let cols = opc_table_config
-            .table_config
-            .column_configs
-            .iter()
-            .map(|col| col.name.as_str())
-            .collect_vec();
-        assert_eq!(cols, vec!["value", "quality", "received_ts", "original_ts"]);
-        assert_eq!(
-            true,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(2)
-                .unwrap()
-                .is_primary_key
-        );
-        assert_eq!(
-            false,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(3)
-                .unwrap()
-                .is_primary_key
-        );
-
-        let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@tests/opc/opcua_ts_rts.csv")
-                .await
-                .unwrap();
-        let cols = opc_table_config
-            .table_config
-            .column_configs
-            .iter()
-            .map(|col| col.name.as_str())
-            .collect_vec();
-        assert_eq!(cols, vec!["value", "quality", "original_ts", "received_ts"]);
-        assert_eq!(
-            true,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(2)
-                .unwrap()
-                .is_primary_key
-        );
-        assert_eq!(
-            false,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(3)
-                .unwrap()
-                .is_primary_key
-        );
-
-        let (opc_table_config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_ts.csv")
-            .await
-            .unwrap();
-        let cols = opc_table_config
-            .table_config
-            .column_configs
-            .iter()
-            .map(|col| col.name.as_str())
-            .collect_vec();
-        assert_eq!(cols, vec!["value", "quality", "original_ts"]);
-        assert_eq!(
-            true,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(2)
-                .unwrap()
-                .is_primary_key
-        );
-
-        let (opc_table_config, _, _) =
-            generate_config_from_csv("opcua", "@tests/opc/opcua_rts.csv")
-                .await
-                .unwrap();
-        let cols = opc_table_config
-            .table_config
-            .column_configs
-            .iter()
-            .map(|col| col.name.as_str())
-            .collect_vec();
-        assert_eq!(cols, vec!["value", "quality", "received_ts"]);
-        assert_eq!(
-            true,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(2)
-                .unwrap()
-                .is_primary_key
-        );
-
-        let (config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_without_ts.csv")
-            .await
-            .unwrap();
-        let cols = config
-            .table_config
-            .column_configs
-            .iter()
-            .map(|col| col.name.as_str())
-            .collect_vec();
-        assert_eq!(cols, vec!["value", "quality", "original_ts"]);
-        assert_eq!(
-            true,
-            opc_table_config
-                .table_config
-                .column_configs
-                .get(2)
-                .unwrap()
-                .is_primary_key
-        );
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_new_template() {
-        let (opc_table_config, opc_node_config, tables_to_drop) =
-            generate_config_from_csv("opcua", "@tests/opc/opcua-template-utf8-bom.csv")
-                .await
-                .unwrap();
-        dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
-
-        let (opc_table_config, opc_node_config, tables_to_drop) =
-            generate_config_from_csv("opcda", "@tests/opc/opcda-template-zh-utf8bom.csv")
-                .await
-                .unwrap();
-        dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
-    }
+    // #[tokio::test]
+    // #[ignore]
+    // async fn test_generate_config_from_csv() {
+    //     let (opc_table_config, _, _) =
+    //         generate_config_from_csv("opcua", "@tests/opc/opcua_rts_ts.csv")
+    //             .await
+    //             .unwrap();
+    //     let cols = opc_table_config
+    //         .table_config
+    //         .column_configs
+    //         .iter()
+    //         .map(|col| col.name.as_str())
+    //         .collect_vec();
+    //     assert_eq!(cols, vec!["value", "quality", "received_ts", "original_ts"]);
+    //     assert_eq!(
+    //         true,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(2)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //     assert_eq!(
+    //         false,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(3)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //
+    //     let (opc_table_config, _, _) =
+    //         generate_config_from_csv("opcua", "@tests/opc/opcua_ts_rts.csv")
+    //             .await
+    //             .unwrap();
+    //     let cols = opc_table_config
+    //         .table_config
+    //         .column_configs
+    //         .iter()
+    //         .map(|col| col.name.as_str())
+    //         .collect_vec();
+    //     assert_eq!(cols, vec!["value", "quality", "original_ts", "received_ts"]);
+    //     assert_eq!(
+    //         true,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(2)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //     assert_eq!(
+    //         false,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(3)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //
+    //     let (opc_table_config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_ts.csv")
+    //         .await
+    //         .unwrap();
+    //     let cols = opc_table_config
+    //         .table_config
+    //         .column_configs
+    //         .iter()
+    //         .map(|col| col.name.as_str())
+    //         .collect_vec();
+    //     assert_eq!(cols, vec!["value", "quality", "original_ts"]);
+    //     assert_eq!(
+    //         true,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(2)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //
+    //     let (opc_table_config, _, _) =
+    //         generate_config_from_csv("opcua", "@tests/opc/opcua_rts.csv")
+    //             .await
+    //             .unwrap();
+    //     let cols = opc_table_config
+    //         .table_config
+    //         .column_configs
+    //         .iter()
+    //         .map(|col| col.name.as_str())
+    //         .collect_vec();
+    //     assert_eq!(cols, vec!["value", "quality", "received_ts"]);
+    //     assert_eq!(
+    //         true,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(2)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    //
+    //     let (config, _, _) = generate_config_from_csv("opcua", "@tests/opc/opcua_without_ts.csv")
+    //         .await
+    //         .unwrap();
+    //     let cols = config
+    //         .table_config
+    //         .column_configs
+    //         .iter()
+    //         .map(|col| col.name.as_str())
+    //         .collect_vec();
+    //     assert_eq!(cols, vec!["value", "quality", "original_ts"]);
+    //     assert_eq!(
+    //         true,
+    //         opc_table_config
+    //             .table_config
+    //             .column_configs
+    //             .get(2)
+    //             .unwrap()
+    //             .is_primary_key
+    //     );
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_new_template() {
+    //     // tests/opc/opcua-utf8bom.csv
+    //     let mut csv_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    //     csv_path.pop();
+    //     csv_path = csv_path.join("tests").join("opc").join("opcua-utf8bom.csv");
+    //     let csv_path = format!("@{}", csv_path.to_str().unwrap());
+    //
+    //     let (opc_table_config, opc_node_config, tables_to_drop) =
+    //         generate_config_from_csv("opcua", csv_path.as_str())
+    //             .await
+    //             .unwrap();
+    //     dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
+    //
+    //     // tests/opc/opcda-utf8bom.csv
+    //     let mut csv_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    //     csv_path.pop();
+    //     csv_path = csv_path.join("tests").join("opc").join("opcua-utf8bom.csv");
+    //     let csv_path = format!("@{}", csv_path.to_str().unwrap());
+    //
+    //     let (opc_table_config, opc_node_config, tables_to_drop) =
+    //         generate_config_from_csv("opcda", csv_path.as_str())
+    //             .await
+    //             .unwrap();
+    //     dbg!(&opc_table_config, &opc_node_config, &tables_to_drop);
+    // }
 }

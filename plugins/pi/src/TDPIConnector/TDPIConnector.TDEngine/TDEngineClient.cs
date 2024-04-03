@@ -1,6 +1,6 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
-#define NONLY_PI_TEST
+#define NLY_PI_TEST
 
 using Newtonsoft.Json;
 using System;
@@ -681,6 +681,24 @@ namespace TDPIConnector.TDEngine
             catch (Exception e)
             {
                 log.Error($"ChangeTagValueForAFElements failed. {e}");
+                return null;
+            }
+        }
+
+        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string elementName, string startTime, string endTime)
+        {
+#if ONLY_PI_TEST
+            return null;
+#endif
+            try
+            {
+                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                    $"WHERE ts >= \'{startTime}\' AND ts <= \'{endTime}\';";
+                return await MakeHttpRequest(sqlCommand);
+            }
+            catch (Exception e)
+            {
+                log.Error($"DeleteByTimeRange failed. {e}");
                 return null;
             }
         }

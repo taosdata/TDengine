@@ -9,7 +9,6 @@ using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
 using System.Threading.Tasks;
 using TDPIConnector.TDEngine.Models;
-using Newtonsoft.Json;
 
 namespace TDPIConnector.Core
 {
@@ -33,6 +32,7 @@ namespace TDPIConnector.Core
         private EventsSenderTask eventsSenderTask;
         private Task backfillPIPointsTask;
         private Task backfillAFElementsTask;
+        BackfillManager backfillManager;
 
         public AppService()
         {
@@ -198,6 +198,8 @@ namespace TDPIConnector.Core
                 }
             }
 
+            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
+            eventsSender.SetBackfill(backfillManager);
             if ((this.piPoints != null && this.piPoints.Count > 0) || (this.elements != null && this.elements.Count > 0))
             {
                 StartDataPipe();
@@ -272,7 +274,6 @@ namespace TDPIConnector.Core
             var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
             this.backfillPIPointsTask = null;
             this.backfillAFElementsTask = null;
-            BackfillManager backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
             if (this.piPoints != null && this.piPoints.Count > 0)
                 this.backfillPIPointsTask = backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
             if (this.elements != null && this.elements.Count > 0)
