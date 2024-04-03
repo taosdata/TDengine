@@ -107,7 +107,21 @@ int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2) {
   if (p1->numOfPKs == 0) {
     return 0;
   } else {
-    return comparFn(&p1->pks[0].val, &p2->pks[0].val);
+    if (IS_VAR_DATA_TYPE(p1->pks[0].type)) {
+      int32_t len = TMIN(p1->pks[0].nData, p2->pks[0].nData);
+      int32_t ret = strncmp((char*)p1->pks[0].pData, (char*)p2->pks[0].pData, len);
+      if (ret == 0) {
+        if (p1->pks[0].nData == p2->pks[0].nData) {
+          return 0;
+        } else {
+          return p1->pks[0].nData > p2->pks[0].nData?1:-1;
+        }
+      } else {
+        return ret > 0? 1:-1;
+      }
+    } else {
+      return comparFn(&p1->pks[0].val, &p2->pks[0].val);
+    }
   }
 }
 

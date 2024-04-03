@@ -85,6 +85,7 @@ typedef struct SColumnNode {
   char        colName[TSDB_COL_NAME_LEN];
   int16_t     dataBlockId;
   int16_t     slotId;
+  int16_t     numOfPKs;
   bool        tableHasPk;
   bool        isPk;
 } SColumnNode;

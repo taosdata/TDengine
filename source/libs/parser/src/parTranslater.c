@@ -955,6 +955,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   }
   pCol->tableHasPk = hasPkInTable(pTable->pMeta);
   pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
+  pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
 }
 
 static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
@@ -5089,9 +5090,11 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of columns");
   }
 
-  SNode* pPrimaryKeyExpr = NULL;
-  SNode* pBoundCol = NULL;
-  SNode* pProj = NULL;
+  SNode*  pPrimaryKeyExpr = NULL;
+  SNode*  pBoundCol = NULL;
+  SNode*  pProj = NULL;
+  int16_t numOfTargetPKs = 0;
+  int16_t numOfBoundPKs = 0;
   FORBOTH(pBoundCol, pInsert->pCols, pProj, pProjects) {
     SColumnNode* pCol = (SColumnNode*)pBoundCol;
     SExprNode*   pExpr = (SExprNode*)pProj;
@@ -5107,12 +5110,18 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
       pPrimaryKeyExpr = (SNode*)pExpr;
+      numOfTargetPKs = pCol->numOfPKs;
     }
+    if (pCol->isPk) ++numOfBoundPKs;
   }
 
   if (NULL == pPrimaryKeyExpr) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
-                                   "Primary timestamp column can not be null");
+                                   "Primary timestamp column should not be null");
+  }
+
+  if (numOfBoundPKs != numOfTargetPKs) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Primary key column should not be none");
   }
 
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
