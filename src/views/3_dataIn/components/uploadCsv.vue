@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div style="display: flex">
     <el-button
       v-if="isOpcDataset && !isOpcDsn"
       slot="trigger"
@@ -9,7 +9,6 @@
       >{{ $t('support.selectFile') }}</el-button
     >
     <el-upload
-      v-else
       class="upload-csv"
       ref="upload"
       :data="uploadData"
@@ -24,6 +23,7 @@
       :auto-upload="true"
     >
       <el-button
+        v-if="!isOpcDataset || isOpcDsn"
         slot="trigger"
         size="mini"
         type="primary"
@@ -95,7 +95,7 @@ export default {
       this.files = fileList;
       this.update();
     },
-    handleChange() {console.log('handleChange');},
+    handleChange() {},
     handlePreview(file) {
       handleDownload(file.path, file.name);
     },
@@ -105,7 +105,10 @@ export default {
       this.update();
       if (this.isOpcDataset) {
         // csv 文件合法性检查
-        this.handleBeforeUpload();
+        const type = this.sourceParent.sourceForm.type
+        const agent = this.sourceParent.sourceForm.agent
+        const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+        this.paramDsn = type === "tmq" ? dsn : type + dsn
         let result = await validOpcFile(this.paramDsn)
         if (result && result.hasOwnProperty('code')) {
           this.$message.error(result.message)
@@ -119,6 +122,7 @@ export default {
           this.$store.commit('app/SET_VALDIT_OPC_FILE_RES',result)
           this.$message.success(result.message)
         }
+        this.isOpcDsn = false;
       }
     },
     handleBeforeUpload(event) {
@@ -128,14 +132,10 @@ export default {
       this.sourceParent.$refs.form.validateField(validFieldList, valid => {
         errorMsg.push(valid);
         if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
-          this.activeCollapse = '';
-          const type = this.sourceParent.sourceForm.type
-          const agent = this.sourceParent.sourceForm.agent
-          const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-          this.paramDsn = type === "tmq" ? dsn : type + dsn
           this.isOpcDsn = true;
           this.$nextTick(() => {
             this.$refs.uploadButton.$el.click();
+            this.isOpcDsn = false;
           })
         } else {
           this.isOpcDsn = false;
