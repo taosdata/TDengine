@@ -895,10 +895,16 @@ typedef enum {
 } EExecMode;
 
 typedef struct {
-  TSKEY   ts;
+  SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
 } SLastCol;
+
+typedef struct {
+  TSKEY   ts;
+  int8_t  dirty;
+  SColVal colVal;
+} SLastColV1;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
