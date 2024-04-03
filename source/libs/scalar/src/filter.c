@@ -4261,7 +4261,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     }
 
     if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL ||
-        node->opType == OP_TYPE_NOT_EQUAL) {
+        node->opType == OP_TYPE_NOT_EQUAL || node->opType == OP_TYPE_MATCH || node->opType == OP_TYPE_NMATCH) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }

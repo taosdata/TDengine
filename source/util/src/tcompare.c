@@ -1203,7 +1203,80 @@ int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
   return comparestrRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
+static TdThreadOnce patternInitOnce = PTHREAD_ONCE_INIT;
+static TdThreadKey regexKey;
+
+#define MAX_REGEX_PATTERN_LEN 129
+
+typedef struct SPatternRegEx {
+  char pattern[MAX_REGEX_PATTERN_LEN];
+  regex_t regEx;
+} SPatternRegEx;
+
+void destroyRegExComp(void* patternRegEx) {
+  SPatternRegEx* p = (SPatternRegEx*)patternRegEx;
+  if (p) {
+    if (p->pattern[0] != '\0') {
+      regfree(&p->regEx);
+      p->pattern[0] = '\0';
+    }
+    taosMemoryFree(p);
+  }
+}
+
+void regexKeyInit() {
+  taosThreadKeyCreate(&regexKey, destroyRegExComp);
+}
+
+static int getRegExFromTls(const char* pattern, regex_t** ppRegEx) {
+  char    msgbuf[256] = {0};
+  SPatternRegEx* p = taosThreadGetSpecific(regexKey);
+  if (p == NULL) {
+    p = taosMemoryCalloc(1, sizeof(SPatternRegEx));
+    strncpy(p->pattern, pattern, MAX_REGEX_PATTERN_LEN);
+    int ret = regcomp(&p->regEx, p->pattern, REG_EXTENDED);
+    if (ret != 0) {
+      regerror(ret, &p->regEx, msgbuf, tListLen(msgbuf));
+      uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
+      taosMemoryFree(p);
+      return ret;
+    }
+    taosThreadSetSpecific(regexKey, p);
+  } else if (strcmp(p->pattern, pattern) != 0) {
+    if (p->pattern[0] != '\0') {
+      regfree(&p->regEx);
+    }
+    strncpy(p->pattern, pattern, MAX_REGEX_PATTERN_LEN);
+    int ret = regcomp(&p->regEx, p->pattern, REG_EXTENDED);
+    if (ret != 0) {
+      regerror(ret, &p->regEx, msgbuf, tListLen(msgbuf));
+      uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
+      return ret;
+    }
+  }
+  *ppRegEx = &p->regEx;
+  return 0;
+}
+
 static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
+  int32_t ret = 0;
+  char    msgbuf[256] = {0};
+  taosThreadOnce(&patternInitOnce, regexKeyInit);
+  
+  regex_t* pRegEx = NULL;
+  getRegExFromTls(pPattern, &pRegEx);
+  regmatch_t pmatch[1];
+  ret = regexec(pRegEx, pString, 1, pmatch, 0);
+  if (ret != 0 && ret != REG_NOMATCH) {
+    regerror(ret, pRegEx, msgbuf, sizeof(msgbuf));
+    uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
+  }
+
+  return (ret == 0) ? 0 : 1;
+}
+
+#if 0
+static int32_t doExecRegexMatchNoTls(const char *pString, const char *pPattern) {
   int32_t ret = 0;
   regex_t regex;
   char    msgbuf[256] = {0};
@@ -1227,6 +1300,7 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   regfree(&regex);
   return (ret == 0) ? 0 : 1;
 }
+#endif
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   size_t sz = varDataLen(pRight);
