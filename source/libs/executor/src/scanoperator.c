@@ -3785,6 +3785,8 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
+  int64_t st = taosGetTimestampUs();
+
   size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
@@ -3813,7 +3815,7 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       pInfo->bGroupProcessed = true;
-      return pBlock;
+      break;
     } else {
       // Data of this group are all dumped, let's try the next group
       stopSubTablesTableMergeScan(pInfo);
@@ -3828,6 +3830,8 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
   }
+
+  pOperator->cost.totalCost += (taosGetTimestampUs() - st) / 1000.0;;
 
   return pBlock;
 }
@@ -4179,6 +4183,8 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
+  int64_t st = taosGetTimestampUs();
+
   size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
@@ -4208,7 +4214,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       pInfo->bGroupProcessed = true;
-      return pBlock;
+      break;
     } else {
       if (pInfo->bNewFilesetEvent) {
         stopDurationForGroupTableMergeScan(pOperator);
@@ -4231,6 +4237,8 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  pOperator->cost.totalCost += (taosGetTimestampUs() - st) / 1000.0;;
 
   return pBlock;
 }

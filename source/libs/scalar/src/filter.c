@@ -3911,6 +3911,7 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
   int32_t          optr = 0;
   int32_t          code = 0;
   bool             empty = false, all = false;
+  uint32_t         emptyGroups = 0;
 
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup *group = &info->groups[i];
@@ -3922,6 +3923,7 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       optr = LOGIC_COND_TYPE_OR;
     }
 
+    empty = false;
     for (uint32_t u = 0; u < group->unitNum; ++u) {
       uint32_t     uidx = group->unitIdxs[u];
       SFilterUnit *unit = &info->units[uidx];
@@ -3929,13 +3931,19 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       uint8_t raOptr = FILTER_UNIT_OPTR(unit);
 
       filterAddRangeOptr(cur, raOptr, LOGIC_COND_TYPE_AND, &empty, NULL);
-      FLT_CHK_JMP(empty);
+      if (empty) {
+        emptyGroups++;
+      }
 
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
         continue;
       }
 
       filterAddUnitRange(info, unit, cur, optr);
+    }
+
+    if (empty) {
+      continue;
     }
 
     if (cur->notnull) {
@@ -3951,6 +3959,8 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       }
     }
   }
+
+  FLT_CHK_JMP(emptyGroups == info->groupNum);
 
   if (prev->notnull) {
     *win = TSWINDOW_INITIALIZER;

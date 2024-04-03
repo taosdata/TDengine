@@ -2876,6 +2876,11 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
       if (pDiffInfo->includeNull) {
         colDataSetNull_f_s(pOutput, pos);
 
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
+
         numOfElems += 1;
       }
       continue;

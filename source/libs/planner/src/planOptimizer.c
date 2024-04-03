@@ -26,6 +26,7 @@
 #define OPTIMIZE_FLAG_SCAN_PATH       OPTIMIZE_FLAG_MASK(0)
 #define OPTIMIZE_FLAG_PUSH_DOWN_CONDE OPTIMIZE_FLAG_MASK(1)
 #define OPTIMIZE_FLAG_STB_JOIN        OPTIMIZE_FLAG_MASK(2)
+#define OPTIMIZE_FLAG_ELIMINATE_PROJ  OPTIMIZE_FLAG_MASK(3)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)  (val) |= (mask)
 #define OPTIMIZE_FLAG_CLEAR_MASK(val, mask)  (val) &= (~(mask))
@@ -2760,6 +2761,10 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
+  if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_PROJ)) {
+    return false;
+  }
+
   if (NULL != pNode->pParent && (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) || QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode->pParent))) {
     return false;
@@ -2786,6 +2791,10 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pProjection, pProjectNode->pProjections) {
     SExprNode* pExprNode = (SExprNode*)pProjection;
     if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
+      return false;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExprNode;
+    if (NULL != pNode->pParent && 0 != strcmp(pCol->colName, pCol->node.aliasName)) {
       return false;
     }
   }
@@ -2855,13 +2864,20 @@ static void alignProjectionWithTarget(SLogicNode* pNode) {
   }
 }
 
+typedef struct RewriteTableAliasCxt {
+  char* newTableAlias;
+  bool  rewriteColName;
+} RewriteTableAliasCxt;
+
 static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    strcpy(pCol->tableAlias, (char*)pContext);
+    RewriteTableAliasCxt* pCtx = (RewriteTableAliasCxt*)pContext;
+    strcpy(pCol->tableAlias, pCtx->newTableAlias);
   }
   return DEAL_RES_CONTINUE;
 }
+
 
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
@@ -2885,14 +2901,17 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       pChild->pTargets = pNewChildTargets;
     } else {
       nodesDestroyList(pNewChildTargets);
+      OPTIMIZE_FLAG_SET_MASK(pProjectNode->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_PROJ);
+      pCxt->optimized = true;
       return TSDB_CODE_SUCCESS;
     }
   } else {
+    RewriteTableAliasCxt cxt = {.newTableAlias = pProjectNode->stmtName, .rewriteColName = false};
     SScanLogicNode* pScan = (SScanLogicNode*)pChild;
-    nodesWalkExprs(pScan->pScanCols, eliminateProjOptRewriteScanTableAlias, pProjectNode->stmtName);
-    nodesWalkExprs(pScan->pScanPseudoCols, eliminateProjOptRewriteScanTableAlias, pProjectNode->stmtName);    
-    nodesWalkExpr(pScan->node.pConditions, eliminateProjOptRewriteScanTableAlias, pProjectNode->stmtName);
-    nodesWalkExprs(pChild->pTargets, eliminateProjOptRewriteScanTableAlias, pProjectNode->stmtName);
+    nodesWalkExprs(pScan->pScanCols, eliminateProjOptRewriteScanTableAlias, &cxt);
+    nodesWalkExprs(pScan->pScanPseudoCols, eliminateProjOptRewriteScanTableAlias, &cxt);    
+    nodesWalkExpr(pScan->node.pConditions, eliminateProjOptRewriteScanTableAlias, &cxt);
+    nodesWalkExprs(pChild->pTargets, eliminateProjOptRewriteScanTableAlias, &cxt);
   }
   
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
