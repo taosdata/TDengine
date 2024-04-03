@@ -240,6 +240,7 @@ void taosCloseLog() {
     taosMemoryFreeClear(tsLogObj.logHandle->buffer);
     taosThreadMutexDestroy(&tsLogObj.logMutex);
     taosMemoryFreeClear(tsLogObj.logHandle);
+    tsLogObj.logHandle = NULL;
   }
 }
 
@@ -342,17 +343,15 @@ static int32_t taosOpenNewLogFile() {
 }
 
 void taosResetLog() {
-  char lastName[LOG_FILE_NAME_LEN + 20];
-  sprintf(lastName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-
   // force create a new log file
   tsLogObj.lines = tsLogObj.maxLines + 10;
 
-  taosOpenNewLogFile();
-  (void)taosRemoveFile(lastName);
-
-  uInfo("==================================");
-  uInfo("   reset log file ");
+  if (tsLogObj.logHandle) {
+    taosOpenNewLogFile();
+    (void)taosRemoveFile(lastName);
+    uInfo("==================================");
+    uInfo("   reset log file ");
+  }
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
