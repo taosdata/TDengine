@@ -246,7 +246,8 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-static bool checkTsmaName(SAstCreateContext* pCxt, const SToken* pTsmaToken) {
+static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
+  trimEscape(pTsmaToken);
   if (NULL == pTsmaToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else if (pTsmaToken->n >= TSDB_TABLE_NAME_LEN - strlen(TSMA_RES_STB_POSTFIX)) {
