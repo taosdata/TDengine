@@ -461,6 +461,11 @@ export default {
     async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
+          if (!this.$store.state.app.validOpcFileRes?.valid) {
+            this.$message.error(this.$store.state.app.validOpcFileRes.message)
+            this.loading = false;
+            return
+          }
           if (this.sourceForm.type == "csv") {
             let flag=this.$refs.configform.$refs.csvdata[0].submitUpload()
             if(!flag){
