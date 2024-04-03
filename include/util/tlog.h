@@ -108,6 +108,12 @@ bool taosAssertRelease(bool condition);
 #endif
 #endif
 
+#ifdef __GNUC__
+#define STATIC_ASSERT(condition, msg) _Static_assert(condition, msg)
+#else
+#define STATIC_ASSERT(condition, msg)
+#endif
+
 void    taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
 void    taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
 void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
