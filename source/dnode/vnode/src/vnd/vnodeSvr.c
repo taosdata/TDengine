@@ -871,7 +871,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
-  if (metaCreateSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaCreateSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }

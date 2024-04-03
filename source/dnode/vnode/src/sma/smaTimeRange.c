@@ -130,7 +130,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
 
-    if (metaCreateSTable(SMA_META(pSma), version, &pReq) < 0) {
+    if (metaCreateSuperTable(SMA_META(pSma), version, &pReq) < 0) {
       code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -173,7 +173,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
 
-  if(!tagArray || !createTbArray || !pReq || !pReq->aSubmitTbData) {
+  if (!tagArray || !createTbArray || !pReq || !pReq->aSubmitTbData) {
     code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
