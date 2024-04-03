@@ -19,7 +19,9 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::{is_csv_valid, list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{
+    get_data_dir, is_csv_valid, list_datasets_from, plugins, validate_dsn, DataSetsReq,
+};
 
 mod definition;
 
@@ -600,5 +602,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 
 async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
+    let path = get_data_dir();
+    let _ = std::env::set_current_dir(&path);
     plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }

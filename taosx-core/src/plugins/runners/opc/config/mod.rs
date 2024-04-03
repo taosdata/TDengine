@@ -104,16 +104,6 @@ impl OPCConfig {
     }
 
     pub async fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
-        let csv_config_file = Self::parse_csv_config_file(dsn);
-        if csv_config_file.is_some() {
-            CsvParser::from_dsn(dsn).await.map_err(|err| {
-                anyhow::anyhow!(
-                    "failed to validate csv config file, cause: {}",
-                    err.to_string()
-                )
-            })?;
-        }
-
         Ok(OPCConfig {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,

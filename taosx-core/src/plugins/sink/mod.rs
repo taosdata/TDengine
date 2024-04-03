@@ -1480,7 +1480,7 @@ async fn consume_point_record(
 
             if tag_names.is_empty() {
                 if child_table_create_sql_map.contains_key(&stable_name) {
-                    let mut map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
+                    let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
                     map.insert(
                         child_table_name.clone(),
                         format!(
@@ -1508,7 +1508,7 @@ async fn consume_point_record(
                 // );
             } else {
                 if child_table_create_sql_map.contains_key(&stable_name) {
-                    let mut map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
+                    let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
                     map.insert(
                         child_table_name.clone(),
                         format!("({}) TAGS ({})", tag_names, tag_values),
