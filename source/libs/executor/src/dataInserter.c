@@ -218,7 +218,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           ASSERT(pColInfoData->info.type == pCol->type);
           if (colDataIsNull_s(pColInfoData, j)) {
             if ((pCol->flags & COL_IS_KEY)) {
-              qError("NULL value for primary key, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+              qError("Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
               terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
               goto _end;
             }
@@ -245,12 +245,12 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-                qError("NULL value for primary timestamp key");
+                qError("Primary timestamp column should not be null");
                 terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
                 goto _end;
               }
               if ((pCol->flags & COL_IS_KEY)) {
-                qError("NULL value for primary key, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+                qError("Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
                 terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
                 goto _end;
               }
