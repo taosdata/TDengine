@@ -46,7 +46,8 @@
               v-model="formInline.timeRange"
               value-format="timestamp"
               type="datetimerange"
-              :start-placeholder="$t('total')">
+              :start-placeholder="$t('start')"
+              :end-placeholder="$t('end')">
             </el-date-picker>
           </el-form-item>
           <el-form-item>
@@ -67,7 +68,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ parsinginZone(row.from_last_ts) }}</span>
+              <span>{{ row.from_last_ts ? parsinginZone(row.from_last_ts) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -77,7 +78,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ parsinginZone(row.to_last_ts) }}</span>
+              <span>{{ row.to_last_ts ? parsinginZone(row.to_last_ts) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
