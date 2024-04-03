@@ -242,6 +242,7 @@ void taosCloseLog() {
     taosMemoryFreeClear(tsLogObj.logHandle->buffer);
     taosThreadMutexDestroy(&tsLogObj.logMutex);
     taosMemoryFreeClear(tsLogObj.logHandle);
+    tsLogObj.logHandle = NULL;
   }
 }
 
@@ -347,10 +348,11 @@ void taosResetLog() {
   // force create a new log file
   tsLogObj.lines = tsNumOfLogLines + 10;
 
-  taosOpenNewLogFile();
-
-  uInfo("==================================");
-  uInfo("   reset log file ");
+  if (tsLogObj.logHandle) {
+    taosOpenNewLogFile();
+    uInfo("==================================");
+    uInfo("   reset log file ");
+  }
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
