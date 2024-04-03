@@ -48,10 +48,11 @@ class TDTestCase:
         self.tbnum = 20
         self.rowNum = 10
         self.tag_dict = {
-            't0':'int'
+            't0':'int',
+            't1':f'nchar({self.nchar_length})'
         }
         self.tag_values = [
-            f'1'
+            f'1', '""'
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
@@ -69,7 +70,7 @@ class TDTestCase:
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
-            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
     def count_check(self):
         tdSql.query('select count(*) from information_schema.ins_tables')
@@ -278,7 +279,12 @@ class TDTestCase:
         self.ins_stable_check()
         self.ins_stable_check2()
         self.ins_dnodes_check()
+        self.test_query_ins_tags()
 
+    def test_query_ins_tags(self):
+        sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
+        tdSql.query(sql)
+        tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()
