@@ -28,13 +28,34 @@ pub struct CsvParser {
 
 impl CsvParser {
     pub async fn is_csv_valid(dsn: &Dsn) -> anyhow::Result<()> {
+        let csv_config_files = OPCConfig::parse_csv_config_file(dsn).ok_or(anyhow::anyhow!(
+            "csv_config_file not found in the dsn: {}",
+            dsn.to_string()
+        ))?;
+        if csv_config_files.is_empty() {
+            bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
+        }
+
         Self::from_dsn(dsn).await?;
         Ok(())
     }
 
     pub async fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
-        let files = Self::open_csv_files(dsn).await?;
+
+        let csv_config_files = OPCConfig::parse_csv_config_file(dsn).ok_or(anyhow::anyhow!(
+            "csv_config_file not found in the dsn: {}",
+            dsn.to_string()
+        ))?;
+
+        let csv_files = csv_config_files
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
+
+        let files = Self::open_csv_files(csv_files).await?;
 
         let mut model_config = OpcModelConfig::new();
         let mut csv_files = Vec::new();
@@ -85,25 +106,11 @@ impl CsvParser {
         })
     }
 
-    async fn open_csv_files(dsn: &Dsn) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
-        let csv_config_files = OPCConfig::parse_csv_config_file(dsn).ok_or(anyhow::anyhow!(
-            "csv_config_file not found in the dsn: {}",
-            dsn.to_string()
-        ))?;
-
-        if csv_config_files.is_empty() {
-            bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
-        }
-
-        let csv_files = csv_config_files
-            .split(",")
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-
+    async fn open_csv_files(
+        csv_files: Vec<String>,
+    ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
         let mut readers = Vec::new();
-        for file in csv_files.clone() {
+        for file in csv_files {
             // open the file
             let rdr = if file.starts_with("@") {
                 let file_path = &file[1..];
@@ -179,27 +186,23 @@ impl CsvParser {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use taos::Dsn;
-
     use super::*;
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_open_csv_files() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
-        let res = CsvParser::open_csv_files(&dsn).await.unwrap();
+        let files = vec!["@../tests/opc/opcua-utf8bom.csv".to_string()];
+        let res = CsvParser::open_csv_files(files).await.unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8bom.csv");
 
-        let dsn = Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcua-utf8.csv").unwrap();
-        let res = CsvParser::open_csv_files(&dsn).await.unwrap();
+        let files = vec!["@../tests/opc/opcua-utf8.csv".to_string()];
+        let res = CsvParser::open_csv_files(files).await.unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res.get(0).unwrap().0, "@../tests/opc/opcua-utf8.csv");
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-gbk.csv").unwrap();
-        let res = CsvParser::open_csv_files(&dsn).await;
+        let files = vec!["@../tests/opc/opcua-gbk.csv".to_string()];
+        let res = CsvParser::open_csv_files(files).await;
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap().to_string(),
