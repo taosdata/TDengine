@@ -2761,7 +2761,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   if (NULL != pNode->pParent && (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)))) {
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) || QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode->pParent))) {
     return false;
   }  
 
@@ -4210,6 +4210,10 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
         }
         return true;
       }
+    case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT);
+      break;      
+    }
     default:
       break;
   }

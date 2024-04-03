@@ -30,6 +30,7 @@ extern "C" {
 #define MJOIN_BLK_SIZE_LIMIT 10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #endif
+#define MJOIN_BLK_THRESHOLD_RATIO 0.9
 
 struct SMJoinOperatorInfo;
 
@@ -180,6 +181,7 @@ typedef struct SMJoinGrpRows {
   bool                   seqWinGrp; \
   bool                   groupJoin; \
   int32_t             blkThreshold; \
+  int64_t                    limit; \
   int64_t                   jLimit
 
 typedef struct SMJoinCommonCtx {
@@ -199,6 +201,7 @@ typedef struct SMJoinMergeCtx {
   bool                   seqWinGrp;
   bool                   groupJoin;
   int32_t             blkThreshold;
+  int64_t                    limit;
   int64_t                   jLimit;
   // KEEP IT FIRST
   
@@ -244,6 +247,7 @@ typedef struct SMJoinWindowCtx {
   bool                   seqWinGrp;
   bool                   groupJoin;
   int32_t             blkThreshold;
+  int64_t                    limit;
   int64_t                   jLimit;
   // KEEP IT FIRST
   

@@ -28,7 +28,6 @@
 #include "functionMgt.h"
 #include "mergejoin.h"
 
-
 int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp) {
   SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
 
@@ -426,8 +425,10 @@ _err:
 
 
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin) {
-  SSDataBlock* pLess = NULL;
-  SSDataBlock* pMore = NULL;
+  SSDataBlock* pLess = *ppMid;
+  SSDataBlock* pMore = *ppFin;
+
+/*
   if ((*ppMid)->info.rows < (*ppFin)->info.rows) {
     pLess = (*ppMid);
     pMore = (*ppFin);
@@ -435,6 +436,7 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
     pLess = (*ppFin);
     pMore = (*ppMid);
   }
+*/
 
   int32_t totalRows = pMore->info.rows + pLess->info.rows;
   if (totalRows <= pMore->info.capacity) {
@@ -448,9 +450,11 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
     pCtx->midRemains = true;
   }
 
+/*
   if (pMore != (*ppFin)) {
     TSWAP(*ppMid, *ppFin);
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1046,6 +1050,7 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   pJoin->ctx.mergeCtx.groupJoin = pJoinNode->grpJoin;
+  pJoin->ctx.mergeCtx.limit = pJoinNode->node.pLimit ? ((SLimitNode*)pJoinNode->node.pLimit)->limit : INT64_MAX;
   pJoin->retrieveFp = pJoinNode->grpJoin ? mJoinGrpRetrieveImpl : mJoinRetrieveImpl;
   pJoin->outBlkId = pJoinNode->node.pOutputDataBlockDesc->dataBlockId;
   
@@ -1568,7 +1573,8 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-  
+
+  pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
   return (pBlock && pBlock->info.rows > 0) ? pBlock : NULL;
 }
 
