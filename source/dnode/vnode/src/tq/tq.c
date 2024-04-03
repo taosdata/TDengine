@@ -1031,7 +1031,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
             pTask->streamTaskId.taskId, pTask->id.idStr);
 
     tqDebug("s-task:%s fill-history task set status to be dropping", id);
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
     streamMetaReleaseTask(pMeta, pTask);
