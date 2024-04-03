@@ -9,7 +9,7 @@ from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
 
-ROUND = 2000
+ROUND = 1000
 
 class TSMA:
     def __init__(self):
