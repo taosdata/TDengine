@@ -90,6 +90,9 @@ impl CsvParser {
             "csv_config_file not found in the dsn: {}",
             dsn.to_string()
         ))?;
+        if csv_config_files.is_empty() {
+            bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
+        }
 
         let csv_files = csv_config_files
             .split(",")

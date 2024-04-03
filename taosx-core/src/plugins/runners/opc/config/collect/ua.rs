@@ -31,7 +31,7 @@ impl UaCollectConfig {
             .get("collect_mode")
             .map(|v| {
                 v.parse::<CollectMode>()
-                    .map_err(|err| anyhow::anyhow!("invalid collect_mode: {}", v))
+                    .map_err(|_err| anyhow::anyhow!("invalid collect_mode: {}", v))
             })
             .transpose()?
             .unwrap_or(CollectMode::OBSERVE))
