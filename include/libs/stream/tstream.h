@@ -56,7 +56,6 @@ extern "C" {
 #define STREAM_EXEC_T_RESTART_ALL_TASKS (-4)
 #define STREAM_EXEC_T_STOP_ALL_TASKS    (-5)
 #define STREAM_EXEC_T_RESUME_TASK       (-6)
-#define STREAM_EXEC_T_UPDATE_TASK_EPSET (-7)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -356,6 +355,8 @@ typedef struct SMetaHbInfo        SMetaHbInfo;
 typedef struct SDispatchMsgInfo {
   SStreamDispatchReq* pData;  // current dispatch data
   int8_t              dispatchMsgType;
+  int64_t             checkpointId;// checkpoint id msg
+  int32_t             transId;     // transId for current checkpoint
   int16_t             msgType;     // dispatch msg type
   int32_t             retryCount;  // retry send data count
   int64_t             startTs;     // dispatch start time, record total elapsed time for dispatch
@@ -783,11 +784,14 @@ bool    streamTaskIsAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt, bool metaLock);
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
-int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event);
-void    streamTaskRestoreStatus(SStreamTask* pTask);
+
+typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
+int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
+int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
+int32_t streamTaskRestoreStatus(SStreamTask* pTask);
 
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
                            SRpcHandleInfo* pRpcInfo, int32_t taskId);

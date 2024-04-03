@@ -119,7 +119,11 @@ int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) 
 
   // add ref for task
   SStreamTask* p = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
-  ASSERT(p != NULL);
+  if (p == NULL) {
+    stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
+            streamTaskGetStatus(pTask)->name);
+    return TSDB_CODE_SUCCESS;
+  }
 
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
 
@@ -385,7 +389,7 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-  streamTaskOnHandleEventSuccess(pTask->status.pSM, event);
+  streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
 
   int64_t initTs = pTask->execInfo.init;
   int64_t startTs = pTask->execInfo.start;

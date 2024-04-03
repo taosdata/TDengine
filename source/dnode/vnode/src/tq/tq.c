@@ -857,6 +857,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
         pTask->info.selfChildId, pTask->info.taskLevel, p, pNext, pTask->info.fillHistory,
         (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam, nextProcessVer);
+
+    ASSERT(pChkInfo->checkpointVer <= pChkInfo->nextProcessVer);
   }
 
   return 0;
@@ -912,6 +914,22 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
       tqScanWalAsync(pTq, false);
     }
   }
+}
+
+int32_t handleStep2Async(SStreamTask* pStreamTask, void* param) {
+  STQ* pTq = param;
+
+  SStreamMeta* pMeta = pStreamTask->pMeta;
+  STaskId      hId = pStreamTask->hTaskInfo.id;
+  SStreamTask* pTask = streamMetaAcquireTask(pStreamTask->pMeta, hId.streamId, hId.taskId);
+  if (pTask == NULL) {
+    // todo handle error
+  }
+
+  doStartFillhistoryStep2(pTask, pStreamTask, pTq);
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return 0;
 }
 
 // this function should be executed by only one thread, so we set an sentinel to protect this function
@@ -1004,36 +1022,26 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // the following procedure should be executed, no matter status is stop/pause or not
   tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
 
-  if (pTask->info.fillHistory) {
-    SStreamTask* pStreamTask = NULL;
+  ASSERT(pTask->info.fillHistory == 1);
 
-    // 1. get the related stream task
-    pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
-    if (pStreamTask == NULL) {
-      tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
-              pTask->streamTaskId.taskId, pTask->id.idStr);
+  // 1. get the related stream task
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+  if (pStreamTask == NULL) {
+    tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
+            pTask->streamTaskId.taskId, pTask->id.idStr);
 
-      tqDebug("s-task:%s fill-history task set status to be dropping and drop it", id);
-      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    tqDebug("s-task:%s fill-history task set status to be dropping", id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
-      atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
-      streamMetaReleaseTask(pMeta, pTask);
-      return -1;
-    }
-
-    ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-    code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-    if (code == TSDB_CODE_SUCCESS) {
-      doStartFillhistoryStep2(pTask, pStreamTask, pTq);
-    } else {
-      tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
-    }
-
-    streamMetaReleaseTask(pMeta, pStreamTask);
-  } else {
-    ASSERT(0);
+    atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
+    streamMetaReleaseTask(pMeta, pTask);
+    return -1;
   }
+
+  ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
+  code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, handleStep2Async, pTq);
+
+  streamMetaReleaseTask(pMeta, pStreamTask);
 
   atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
   streamMetaReleaseTask(pMeta, pTask);
@@ -1194,8 +1202,15 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
-  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d", pTask->id.idStr,
-        vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
+  if (req.mndTrigger) {
+    qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d, ", pTask->id.idStr,
+          vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
+  } else {
+    const char* pPrevStatus = streamTaskGetStatusStr(streamTaskGetPrevStatus(pTask));
+    qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64
+          ", transId:%d after transfer-state, prev status:%s",
+          pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, req.transId, pPrevStatus);
+  }
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {

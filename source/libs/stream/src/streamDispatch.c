@@ -315,12 +315,30 @@ int32_t getNumOfDispatchBranch(SStreamTask* pTask) {
              : taosArrayGetSize(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
 }
 
+void clearBufferedDispatchMsg(SStreamTask* pTask) {
+  SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+  if (pMsgInfo->pData != NULL) {
+    destroyDispatchMsg(pMsgInfo->pData, getNumOfDispatchBranch(pTask));
+  }
+
+  pMsgInfo->checkpointId = -1;
+  pMsgInfo->transId = -1;
+  pMsgInfo->pData = NULL;
+  pMsgInfo->dispatchMsgType = 0;
+}
+
 static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pData) {
   int32_t code = 0;
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
   ASSERT(numOfBlocks != 0 && pTask->msgInfo.pData == NULL);
 
   pTask->msgInfo.dispatchMsgType = pData->type;
+
+  if (pData->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    SSDataBlock* p = taosArrayGet(pData->blocks, 0);
+    pTask->msgInfo.checkpointId = p->info.version;
+    pTask->msgInfo.transId = p->info.window.ekey;
+  }
 
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq* pReq = taosMemoryCalloc(1, sizeof(SStreamDispatchReq));
@@ -681,8 +699,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     // todo deal with only partially success dispatch case
     atomic_store_32(&pTask->outputInfo.shuffleDispatcher.waitingRspCnt, 0);
     if (terrno == TSDB_CODE_APP_IS_STOPPING) {  // in case of this error, do not retry anymore
-      destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-      pTask->msgInfo.pData = NULL;
+      clearBufferedDispatchMsg(pTask);
       return code;
     }
 
@@ -743,6 +760,8 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
 
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  ASSERT(dataStrLen > 0);
+
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
 
@@ -939,15 +958,24 @@ void streamClearChkptReadyMsg(SStreamTask* pTask) {
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
   stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
-  destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
+
   if (delayDispatch) {
-    pTask->chkInfo.dispatchCheckpointTrigger = true;
+    taosThreadMutexLock(&pTask->lock);
+    // we only set the dispatch msg info for current checkpoint trans
+    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK && pTask->chkInfo.checkpointingId == pTask->msgInfo.checkpointId) {
+      ASSERT(pTask->chkInfo.transId == pTask->msgInfo.transId);
+      pTask->chkInfo.dispatchCheckpointTrigger = true;
+      stDebug("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d confirmed",
+             pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
+    } else {
+      stWarn("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d discard, since expired",
+             pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
-  pTask->msgInfo.pData = NULL;
-  pTask->msgInfo.dispatchMsgType = 0;
+  clearBufferedDispatchMsg(pTask);
 
   int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
 
@@ -1087,14 +1115,16 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     } else {  // this message has been sent successfully, let's try next one.
       pTask->msgInfo.retryCount = 0;
 
-      // transtate msg has been sent to downstream successfully. let's transfer the fill-history task state
+      // trans-state msg has been sent to downstream successfully. let's transfer the fill-history task state
       if (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__TRANS_STATE) {
-        stDebug("s-task:%s dispatch transtate msgId:%d to downstream successfully, start to transfer state", id, msgId);
+        stDebug("s-task:%s dispatch transtate msgId:%d to downstream successfully, start to prepare transfer state", id, msgId);
         ASSERT(pTask->info.fillHistory == 1);
 
-        code = streamTransferStateToStreamTask(pTask);
+        code = streamTransferStatePrepare(pTask);
         if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
         }
+
+        clearBufferedDispatchMsg(pTask);
 
         // now ready for next data output
         atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
