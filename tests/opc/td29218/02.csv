@@ -1,0 +1,5 @@
+tag_name,stable,tbname,enabled,value_col,value_transform,type,quality_col,received_ts_col,ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name
+Bucket Brigade.Real8,opc_{type},t_{tag_name},1,val,,double,quality,rts,ts,,,双精度
+Bucket Brigade.String,opc_{type},t_{tag_name},1,val,,string,quality,rts,ts,,,字符串
+Bucket Brigade.Int4,opc_{type},t_{tag_name},1,val,,int,quality,rts,ts,,,整型
+Bucket Brigade.Boolean,opc_{type},t_{tag_name},1,val,,bool,quality,rts,ts,,,布尔

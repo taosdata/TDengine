@@ -396,13 +396,29 @@ async fn get_all_points(
 }
 
 fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
-    let header = match lang {
-        "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    };
+    // let header = match lang {
+    //     "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+    //     _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
+    // };
 
-    let mut header = header.to_string();
-    header.push_str("0,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
+    let columns = vec![
+        "No.",
+        "point_id",
+        "enabled",
+        "stable",
+        "tbname",
+        "value_col",
+        "value_transform",
+        "type",
+        "quality_col",
+        "ts_col",
+        "received_ts_col",
+        "ts_transform",
+        "received_ts_transform",
+        "tag::VARCHAR(200)::name",
+    ];
+    let mut header = columns.iter().join(",");
+    header.push_str("\n");
 
     if demo {
         header.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,double,quality,ts,rts,,,temperature\n");
@@ -414,13 +430,29 @@ fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
 }
 
 fn get_opcda_csv_header(lang: &str, demo: bool) -> String {
-    let header = match lang {
-        "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    };
+    // let header = match lang {
+    //     "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+    //     _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
+    // };
 
-    let mut header = header.to_string();
-    header.push_str("0,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
+    let columns = vec![
+        "No.",
+        "tag_name",
+        "enabled",
+        "stable",
+        "tbname",
+        "value_col",
+        "value_transform",
+        "type",
+        "quality_col",
+        "ts_col",
+        "received_ts_col",
+        "ts_transform",
+        "received_ts_transform",
+        "tag::VARCHAR(200)::name",
+    ];
+    let mut header = columns.iter().join(",");
+    header.push_str("\n");
 
     if demo {
         header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");

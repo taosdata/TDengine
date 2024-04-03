@@ -1,0 +1,6 @@
+point_id,stable,tbname,ts_col
+ns=3;i=1005,opc_{type},t_{ns}_{id},ts
+ns=3;i=1006,opc_{type},t_{ns}_{id},ts
+ns=3;i=1007,opc_{type},t_{ns}_{id},ts
+ns=3;i=1005,opc_{type},t_{ns}_{id},ts
+

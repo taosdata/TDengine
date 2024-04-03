@@ -1,0 +1,4 @@
+tag_name,stable,tbname,ts_col,ts_col,tag::VARCHAR(200)::name
+root.parent.temperature,opc_{type},t_{tag_name},ts,ts,入库温度
+root.parent.pressure,opc_{type},t_{tag_name},ts,ts,减压阀压力
+root.parent.current,opc_{type},t_{tag_name},ts,ts,总线电流
