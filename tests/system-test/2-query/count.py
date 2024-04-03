@@ -105,6 +105,8 @@ class TDTestCase:
             tdSql.checkRows(row)
             tdSql.query(f'select t0, {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
             tdSql.checkRows(row)
+            tdSql.query(f'select cast(t0 as binary(12)), {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by c1')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by t0')

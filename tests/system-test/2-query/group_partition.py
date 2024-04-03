@@ -100,11 +100,19 @@ class TDTestCase:
             tdSql.checkData(0, 1, i)
             tdSql.checkData(0, 2, i*10)
 
+            tdSql.query(f"select cast(t2 as binary(12)),count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i)
+
+            tdSql.query(f"select t2 + 1, count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i + 1)
+
             tdSql.query(f"select t1, t2, t3, count(*) from {tbname} group by tbname")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, i)
             tdSql.checkData(0, 2, i*10)
-            
+
             tdSql.query(f"select t1, t2, t3, count(*) from {tbname} partition by tbname")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, i)
@@ -114,6 +122,9 @@ class TDTestCase:
     def test_multi_group_key(self, check_num, nonempty_tb_num):
         # multi tag/tbname
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select cast(t2 as binary(12)), count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by t2, t3, tbname")
