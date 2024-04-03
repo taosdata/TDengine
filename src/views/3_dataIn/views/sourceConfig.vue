@@ -372,6 +372,7 @@ export default {
       handler(val) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+        this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", {});
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
@@ -461,7 +462,7 @@ export default {
     async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          if (!this.$store.state.app.validOpcFileRes?.valid) {
+          if (this.sourceForm.type.startsWith('opc') && !this.$store.state.app.validOpcFileRes?.valid) {
             this.$message.error(this.$store.state.app.validOpcFileRes.message)
             this.loading = false;
             return
