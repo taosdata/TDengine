@@ -106,7 +106,7 @@ export default {
       if (this.isOpcDataset) {
         // csv 文件合法性检查
         this.handleBeforeUpload();
-        let result = await validOpcFile(this.paramDsn,response[0])
+        let result = await validOpcFile(this.paramDsn)
         if (result && result.hasOwnProperty('code')) {
           this.$message.error(result.message)
           let res = {

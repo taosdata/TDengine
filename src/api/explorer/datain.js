@@ -258,10 +258,10 @@ export function getVgroupProgress(id) {
     })
 }
 // 校验 opc 点位合法性
-export function validOpcFile(dsn,csv_config_file) {
+export function validOpcFile(dsn) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/ds/in/point/file/is_valid?dsn=${encodeURIComponent(dsn)}&csv_config_file=${encodeURIComponent(csv_config_file)}`,
+        url: `/ds/in/point/file/is_valid?dsn=${encodeURIComponent(dsn)}`,
         methods: 'get'
     })
 }
