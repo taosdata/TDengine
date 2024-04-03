@@ -1362,7 +1362,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
   SIdxKey *idxKey = taosArrayGet(remainCols, 0);
   if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
-    SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
+    SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
 
     taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
   }
@@ -1385,7 +1385,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
     slotIds[i] = pr->pSlotIds[idxKey->idx];
-    if (idxKey->key.ltype == CACHESCAN_RETRIEVE_LAST >> 3) {
+    if (idxKey->key.lflag == CACHESCAN_RETRIEVE_LAST >> 3) {
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
       }
@@ -1431,7 +1431,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     }
 
     // still null, then make up a none col value
-    SLastCol noneCol = {.ts = TSKEY_MIN,
+    SLastCol noneCol = {.rowKey.ts = TSKEY_MIN,
                         .colVal = COL_VAL_NONE(idxKey->key.cid, pr->pSchema->columns[slotIds[i]].type)};
     if (!pLastCol) {
       pLastCol = &noneCol;
@@ -1578,7 +1578,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   for (int i = 0; i < num_keys; ++i) {
     int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
 
-    SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = cid};
+    SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = cid};
     // for select last_row, last case
     int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
     if (pr->pFuncTypeList != NULL && taosArrayGetSize(pr->pFuncTypeList) > i) {
@@ -1586,7 +1586,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     }
     if (((pr->type & CACHESCAN_RETRIEVE_LAST) == CACHESCAN_RETRIEVE_LAST) && FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
       int8_t tempType = CACHESCAN_RETRIEVE_LAST_ROW | (pr->type ^ CACHESCAN_RETRIEVE_LAST);
-      key->ltype = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
+      key->lflag = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
     }
 
     LRUHandle *h = taosLRUCacheLookup(pCache, key, ROCKS_KEY_LEN);
@@ -1599,7 +1599,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
       taosLRUCacheRelease(pCache, h, false);
     } else {
-      SLastCol noneCol = {.ts = TSKEY_MIN, .colVal = COL_VAL_NONE(cid, pr->pSchema->columns[pr->pSlotIds[i]].type)};
+      SLastCol noneCol = {.rowKey.ts = TSKEY_MIN, .colVal = COL_VAL_NONE(cid, pr->pSchema->columns[pr->pSlotIds[i]].type)};
 
       taosArrayPush(pLastArray, &noneCol);
 
@@ -3232,7 +3232,7 @@ static int32_t initLastColArrayPartial(STSchema *pTSchema, SArray **ppColArray, 
 
   for (int32_t i = 0; i < nCols; ++i) {
     int16_t  slotId = slotIds[i];
-    SLastCol col = {.ts = 0, .colVal = COL_VAL_NULL(pTSchema->columns[slotId].colId, pTSchema->columns[slotId].type)};
+    SLastCol col = {.rowKey.ts = 0, .colVal = COL_VAL_NULL(pTSchema->columns[slotId].colId, pTSchema->columns[slotId].type)};
     taosArrayPush(pColArray, &col);
   }
   *ppColArray = pColArray;
@@ -3337,12 +3337,12 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
           STColumn *pTColumn = &pTSchema->columns[0];
 
           *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowTs}));
-          taosArraySet(pColArray, 0, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
+          taosArraySet(pColArray, 0, &(SLastCol){.rowKey.ts = rowTs, .colVal = *pColVal});
           continue;
         }
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
-        *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
+        *pCol = (SLastCol){.rowKey.ts = rowTs, .colVal = *pColVal};
         if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
           if (pColVal->value.nData > 0) {
             pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
@@ -3392,7 +3392,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
       if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
-        SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
+        SLastCol lastCol = {.rowKey.ts = rowTs, .colVal = *pColVal};
         if (IS_VAR_DATA_TYPE(pColVal->value.type) /* && pColVal->value.nData > 0 */) {
           SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
           taosMemoryFree(pLastCol->colVal.value.pData);
@@ -3516,12 +3516,12 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
         STColumn *pTColumn = &pTSchema->columns[0];
 
         *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowTs}));
-        taosArraySet(pColArray, 0, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
+        taosArraySet(pColArray, 0, &(SLastCol){.rowKey.ts = rowTs, .colVal = *pColVal});
         continue;
       }
       tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
-      *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
+      *pCol = (SLastCol){.rowKey.ts = rowTs, .colVal = *pColVal};
       if (IS_VAR_DATA_TYPE(pColVal->value.type) /*&& pColVal->value.nData > 0*/) {
         if (pColVal->value.nData > 0) {
           pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
