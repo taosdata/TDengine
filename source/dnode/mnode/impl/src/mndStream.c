@@ -1513,8 +1513,6 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    pBlock->info.rows = numOfRows;
-
     destroyStreamTaskIter(pIter);
     pBlock->info.rows = numOfRows;
 
