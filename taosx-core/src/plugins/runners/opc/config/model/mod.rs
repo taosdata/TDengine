@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Index;
 use std::str::FromStr;
 
 use anyhow::bail;
