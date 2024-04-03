@@ -42,6 +42,7 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.2.9          |  Fixed websocket prepareStatement closing bug.                                                                                                         |        -         |
 |          3.2.8          |  Improved autocommit, fixed commit offset on websocket connection bug, websocket prepareStatement uses one connection and meta data supports view. |        -         |
 |          3.2.7          |  Support VARBINARY and GEOMETRY types, and add time zone support for native connections. Support websocket auto reconnection                       | 3.2.0.0 or later |
 |          3.2.5          |                                                Subscription add committed() and assignment() method                                                | 3.1.0.3 or later |
@@ -51,7 +52,7 @@ REST connection supports all platforms that can run Java.
 |          3.2.1          |                                      JDBC REST connection supports schemaless/prepareStatement over WebSocket                                      | 3.0.3.0 or later |
 |          3.2.0          |                                                          This version has been deprecated                                                          |        -         |
 |          3.1.0          |                                             JDBC REST connection supports subscription over WebSocket                                              |        -         |
-|      3.0.1 - 3.0.4      | fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |        -         |
+|      3.0.1 - 3.0.4      | Fixed the issue of result set data sometimes parsing incorrectly. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |        -         |
 |          3.0.0          |                                                              Support for TDengine 3.0                                                              | 3.0.0.0 or later |
 |         2.0.42          |                                             Fix wasNull interface return value in WebSocket connection                                             |        -         |
 |         2.0.41          |                                           Fix decode method of username and password in REST connection                                            |        -         |
@@ -175,7 +176,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.2.8</version>
+ <version>3.2.9</version>
 </dependency>
 ```
 
