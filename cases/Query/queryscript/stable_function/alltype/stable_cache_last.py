@@ -73,6 +73,24 @@ class TDTestQuery(TDCase):
         sql = "use %s" %db
         self.query_ignore_error(db,sql)
         
+    def db_create_replica2(self,db): 
+        self.logger.info("\n\n\n=============test=============\n\n\n" )
+        sql = " drop database if exists %s "  % db
+        self.tdSql.execute(sql,queryTimes=600)
+        sql = "create database if not exists %s keep 36500  replica 2 " % db
+        self.tdSql.execute(sql,queryTimes=60)
+        sql = "use %s" %db
+        self.query_ignore_error(db,sql)
+        
+    def db_create_replica3(self,db): 
+        self.logger.info("\n\n\n=============test=============\n\n\n" )
+        sql = " drop database if exists %s "  % db
+        self.tdSql.execute(sql,queryTimes=600)
+        sql = "create database if not exists %s keep 36500  replica 3 " % db
+        self.tdSql.execute(sql,queryTimes=60)
+        sql = "use %s" %db
+        self.query_ignore_error(db,sql)
+        
     def db_delete(self,db): 
         sql = " drop database if exists %s "  % db
         self.query_ignore_error(db,sql)
@@ -118,6 +136,26 @@ class TDTestQuery(TDCase):
         self.query_ignore_error(db,sql)
         time.sleep(10)       
         
+    def alter_replica1_2(self,db): 
+        sql = " ALTER DATABASE %s replica 2"  % db
+        self.query_ignore_error(db,sql)
+        time.sleep(60)
+                
+    def alter_replica2_1(self,db): 
+        sql = " ALTER DATABASE %s replica 1"  % db
+        self.query_ignore_error(db,sql)
+        time.sleep(10)     
+        
+    def alter_replica2_3(self,db): 
+        sql = " ALTER DATABASE %s replica 3"  % db
+        self.query_ignore_error(db,sql)
+        time.sleep(60)
+                
+    def alter_replica3_2(self,db): 
+        sql = " ALTER DATABASE %s replica 2"  % db
+        self.query_ignore_error(db,sql)
+        time.sleep(10)     
+        
     def data_insert(self,db): 
         sql = " insert into %s.t1(ts,c1,c2) values(now, 1, 'abc');"  % db
         self.query_ignore_error(db,sql)
@@ -157,6 +195,8 @@ class TDTestQuery(TDCase):
         self.query_ignore_error(db,sql)
         sql = " select * from %s.t1 group by tbname; "  % db
         self.query_ignore_error(db,sql)
+        sql = " select * from %s.t1 partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
         
         
         sql = " select last_row(*) from %s.stb group by tbname; "  % db
@@ -174,6 +214,22 @@ class TDTestQuery(TDCase):
         sql = " select last(c2) from %s.stb group by tbname; "  % db
         self.query_ignore_error(db,sql)
         sql = " select last_row(c2) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last_row(*) from %s.stb partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(*) from %s.stb partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select * from %s.stb; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select * from %s.stb order by ts; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(c1) from %s.stb partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last_row(c1) from %s.stb partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(c2) from %s.stb partition by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last_row(c2) from %s.stb partition by tbname; "  % db
         self.query_ignore_error(db,sql)
         
     def db_compact(self,db): 
@@ -236,7 +292,7 @@ class TDTestQuery(TDCase):
         try:
             rows = self.tdSql.query(sql,queryTimes=1).row_count  
             if rows>=0:
-                self.tdCreateData.explain_sql(sql2)
+                self.tdCreateData.explain_sql(sql)
         except:
             self.logger.info("test sql pass!")
         
@@ -294,7 +350,72 @@ class TDTestQuery(TDCase):
         self.db_query(self.db)
         self.alter_column(self.db)
         self.db_query(self.db)
-            
+         
+    def td_25880(self):
+        self.db_create(self.db)
+        self.alter_cachemodel_both(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.alter_replica1_2(self.db)
+        self.alter_cachemodel_last_row(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.taosc_data_insert(self.db) 
+        self.data_insert_into_select_null(self.db) 
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.db_create_replica2(self.db)
+        self.alter_cachemodel_both(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.alter_replica2_1(self.db)
+        self.alter_cachemodel_last_row(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.taosc_data_insert(self.db) 
+        self.data_insert_into_select_null(self.db) 
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.db_create_replica3(self.db)
+        self.alter_cachemodel_both(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.alter_replica3_1(self.db)
+        self.alter_cachemodel_last_row(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.taosc_data_insert(self.db) 
+        self.data_insert_into_select_null(self.db) 
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+        
+        self.alter_replica1_2(self.db)
+        self.alter_cachemodel_last_row(self.db)
+        self.table_create(self.db)
+        self.data_insert(self.db)  
+        self.taosc_data_insert(self.db) 
+        self.data_insert_into_select_null(self.db) 
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.db_query(self.db)
+           
     def bug_23024_1(self):
         self.db_create(self.db)
         self.alter_cachemodel_both(self.db)
@@ -424,18 +545,19 @@ class TDTestQuery(TDCase):
         self.case_test()
         for i in range(50):
             self.logger.info("\n\n\n=========num:%d====start=============\n\n\n" %i) 
-            self.bug_11()
-            self.bug_23024()
-            self.bug_23024_1()
+            self.td_25880()
+            # self.bug_11()
+            # self.bug_23024()
+            # self.bug_23024_1()
             
-            self.bug_23005()
-            self.bug_23029()
-            self.bug_23032()
-            self.bug_2832()
-            self.bug_22909()
-            self.bug_3010()
-            self.bug_3875()
-            self.bug_3875_2()
+            # self.bug_23005()
+            # self.bug_23029()
+            # self.bug_23032()
+            # self.bug_2832()
+            # self.bug_22909()
+            # self.bug_3010()
+            # self.bug_3875()
+            # self.bug_3875_2()
             self.logger.info("\n\n\n=========num:%d====end=============\n\n\n" %i ) 
         self.data_create(self.db)
          
