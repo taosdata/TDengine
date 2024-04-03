@@ -15,6 +15,14 @@ namespace TDPIConnector.Core.Conversions
             };
             return sTable;
         }
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(element.Name)
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
     }
     
     internal class ElemenetTableConverter

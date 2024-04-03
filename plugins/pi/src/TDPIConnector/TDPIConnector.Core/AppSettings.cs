@@ -29,6 +29,7 @@ namespace TDPIConnector.Core
             public List<string> TemplateForPIPoint { get; set; } = new List<string>();
             public List<string> TemplateForAFElement { get; set; } = new List<string>();
             public List<string> PointList { get; set; }
+            public List<string> ElementList { get; set; } = new List<string>();
 
             // not support
             public string PIServerUser { get; set; }

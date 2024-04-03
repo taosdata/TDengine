@@ -101,9 +101,10 @@ namespace TDPIConnector.Core
 
         public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTables(string tdDatabaseName, string afDatabaseName)
         {
-            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            if (0 == AppSettings.tomlConfig.TemplateForAFElement.Count &&
+                0 == AppSettings.tomlConfig.ElementList.Count)
             {
-                log.Info("No TemplateForAFElement found.");
+                log.Info("No TemplateForAFElement or Element found.");
                 return null;
             }
             if (AppSettings.TaosXEnabled)
@@ -147,9 +148,10 @@ namespace TDPIConnector.Core
         }
         public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
         {
-            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            if (AppSettings.tomlConfig.TemplateForAFElement.Count == 0
+                && AppSettings.tomlConfig.ElementList.Count == 0)
             {
-                log.Info("No TemplateForAFElement found.");
+                log.Info("No TemplateForAFElement or Element found.");
                 return null;
             }
 
@@ -165,6 +167,16 @@ namespace TDPIConnector.Core
                 var elements = await CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
                 if (null == elements) continue;
                 elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
+            }
+            foreach (string elementName in AppSettings.tomlConfig.ElementList) {
+                var wrappers = piSystemManager.GetElementByName(afDatabaseName, elementName);
+                foreach (AFElementWrapper element in wrappers)
+                {
+                    var elements = await CreateTaosxClientForSingleElement(tdDatabaseName, element);
+                    if (null == elements) continue;
+                    elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
+                }
+
             }
             return elementsCollection;
         }
@@ -279,6 +291,29 @@ namespace TDPIConnector.Core
             diff.NewColumns = newColumns;
             diff.NewTags = newTags;
             return diff;
+        }
+        public async Task<Dictionary<string, AFElementWrapper>> CreateTaosxClientForSingleElement(string tdDatabaseName, AFElementWrapper element)
+        {
+            //check for associated supertable, create if needed
+            var superTable = TemplateSTableConverter.Convert(element);
+            if (!superTable.HasValidColumn()) return null;
+            await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+
+            var attributeColumns = AttributeColumnConverter.Convert(element.Attributes);
+
+            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+            List<TDTable> tables = new List<TDTable>();
+
+            TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, attributeColumns);
+            log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
+            if (!elementsCollection.ContainsKey(table.Name))
+            {
+                tables.Add(table);
+                elementsCollection.Add(table.Name, element);
+            }
+
+            await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            return elementsCollection;
         }
     }
     public class TableDiff
