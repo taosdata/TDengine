@@ -26,7 +26,7 @@ TDengine's JDBC driver implementation is as consistent as possible with the rela
 - **REST connection**, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported. 
 - **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.   
 
-For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
 ## Compatibility with JDBC and JRE Versions
 
@@ -157,7 +157,7 @@ For Java connector, the jts library can be used to easily create GEOMETRY type o
 Before using Java client library to connect to the database, the following conditions are required.
 
 - Java 1.8 or above runtime environment and Maven 3.6 or above installed
-- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](../#Install-Client-Driver)
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Install Client Driver](../#install-client-driver)
 
 ### Install the client library
 
@@ -368,7 +368,7 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection. It only takes effect when using JDBC REST connection.
 - TSDBDriver.HTTP_POOL_SIZE: size of REST concurrent requests. The default value is 20.
 
-For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#Client-Only).
+For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#configuration-file-on-client-side).
 
 ### Priority of configuration parameters
 
