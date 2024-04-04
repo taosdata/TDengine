@@ -138,13 +138,13 @@ class TestTimestamp(TDCase):
                 self.tdRest.error(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags ("{timestamp}“+1000{ts_unit}, 1)')
                 self.tdRest.error(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags ("{timestamp}”-1{ts_unit}, 1)')
                 self.tdRest.error(f'insert into {dbname}.ctb values ("{timestamp}+1{ts_unit}", 1)')
-                self.tdRest.error(f'insert into {dbname}.ctb values ("{timestamp}"+1{ts_unit}, 1)')
+                self.tdRest.request(f'insert into {dbname}.ctb values ("{timestamp}"+1{ts_unit}, 1)')
                 self.tdRest.error(f'insert into {dbname}.tb values ("{timestamp}+1{ts_unit}", 1)')
-                self.tdRest.error(f'insert into {dbname}.tb values ("{timestamp}"+1{ts_unit}, 1)')
+                self.tdRest.request(f'insert into {dbname}.tb values ("{timestamp}"+1{ts_unit}, 1)')
                 self.tdRest.error(f'insert into {dbname}.ctb values ("{timestamp}-1{ts_unit}", 1)')
-                self.tdRest.error(f'insert into {dbname}.ctb values ("{timestamp}"-1{ts_unit}, 1)')
+                self.tdRest.request(f'insert into {dbname}.ctb values ("{timestamp}"-1{ts_unit}, 1)')
                 self.tdRest.error(f'insert into {dbname}.tb values ("{timestamp}-1{ts_unit}", 1)')
-                self.tdRest.error(f'insert into {dbname}.tb values ("{timestamp}"-1{ts_unit}, 1)')
+                self.tdRest.request(f'insert into {dbname}.tb values ("{timestamp}"-1{ts_unit}, 1)')
             self.tdRest.request(f'drop database if exists {dbname}')
     def now_check(self):
         """
