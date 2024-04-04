@@ -24,7 +24,18 @@ namespace TDPIConnector.Core.Conversions
             return sTable;
         }
     }
-    
+
+    internal class ElemenetSTableConverter
+    {
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(TableNameConvert.GetSingleElementSuperTableName(element))
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
+    }
     internal class ElemenetTableConverter
     {
         internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)

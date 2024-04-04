@@ -295,7 +295,7 @@ namespace TDPIConnector.Core
         public async Task<Dictionary<string, AFElementWrapper>> CreateTaosxClientForSingleElement(string tdDatabaseName, AFElementWrapper element)
         {
             //check for associated supertable, create if needed
-            var superTable = TemplateSTableConverter.Convert(element);
+            var superTable = ElemenetSTableConverter.Convert(element);
             if (!superTable.HasValidColumn()) return null;
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 

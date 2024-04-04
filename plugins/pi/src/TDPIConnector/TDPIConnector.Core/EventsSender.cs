@@ -71,8 +71,15 @@ namespace TDPIConnector.Core
 
             foreach (var dpEvent in allEvents)
             {
+                string stableName;
+                if (!dpEvent.Value.Attribute.Element.hasTemplate())
+                {
+                    stableName = TableNameConvert.GetSingleElementSuperTableName(dpEvent.Value.Attribute.Element);
+                }
+                else {
+                    stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
+                }
                 var elementName = dpEvent.Value.Attribute.Element.Name;
-                var stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
                 var tdValue = dpEvent.Value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;

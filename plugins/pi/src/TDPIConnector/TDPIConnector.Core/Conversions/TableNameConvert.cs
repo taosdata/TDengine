@@ -6,6 +6,7 @@ namespace TDPIConnector.Core.Conversions
     class TableNameConvert
     {
         private static string prefix = "pitag_";
+        private static string sigle_element_prefix = "sigle_";
         public static string GetPIPointSuperTableName(PI.PIPointWrapper point) {
             string tdColumnType = PointTypeConverter.Convert(point.PointType);
             string superTableName = $"{prefix}{tdColumnType.Split('(')[0]}";
@@ -37,6 +38,10 @@ namespace TDPIConnector.Core.Conversions
                     return "TIMESTAMP";
             }
             throw new Exception("PointType not found.");
+        }
+        public static string GetSingleElementSuperTableName(AFElementWrapper element)
+        {
+            return $"{sigle_element_prefix}{element.Name}";
         }
     }
 }

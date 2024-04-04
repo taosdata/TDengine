@@ -203,6 +203,14 @@ namespace TDBackfill
                 {
                     if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
                     {
+                        backfillManager.BackfillAFElementFromTool(AppSettings.tomlConfig.TDDataBase,
+                                AppSettings.tomlConfig.AFDatabaseName,
+                                AppSettings.tomlConfig.ElementList,
+                                AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                                AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
+                                AppSettings.tomlConfig.ToTDengineFirstTime,
+                                AppSettings.tomlConfig.FromTDengineLastTime,
+                                options.DropTables).Wait();
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,

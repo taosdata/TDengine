@@ -13,6 +13,7 @@ namespace TDPIConnector.Core
         class PIInfo {
             public List<string> pointsName;
             public List<string> templateName;
+            public List<string> elementNoTemplate;
         }
 
         public PIInfoScanner(PIServerManager piServerManager, PISystemManager pISystemManager)
@@ -31,6 +32,8 @@ namespace TDPIConnector.Core
             if (pISystemManager != null) {
                 var templates = pISystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName);
                 piInfo.templateName = templates.Select(t => t.Name).ToList();
+                var elements = pISystemManager.GetElementsNoTemplate(AppSettings.tomlConfig.AFDatabaseName);
+                piInfo.elementNoTemplate = elements.Select(t => t.Name).ToList();
             }
             var json = JsonConvert.SerializeObject(piInfo);
             return json;

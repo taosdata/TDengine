@@ -125,6 +125,23 @@ namespace TDPIConnector.Core
             }
             return firstValueTimestamps;
         }
+        public async Task<Dictionary<string, DateTime>> GetTDPointsLastRecordedValue(string tdDatabaseName, List<string> elements)
+        {
+            Dictionary<string, DateTime> lastValueTimestamps = new Dictionary<string, DateTime>();
+            foreach (var element in elements)
+            {
+                var lastTDValue = await tdEngineProxy.GetLastPIValue(tdDatabaseName, element);
+                if (lastTDValue == null)
+                {
+                    lastValueTimestamps.Add(element, DateTime.MaxValue);
+                }
+                else
+                {
+                    lastValueTimestamps.Add(element, lastTDValue.Timestamp);
+                }
+            }
+            return lastValueTimestamps;
+        }
 
         public async Task<Dictionary<string, DateTime>> GetTDPointsFirstRecordedValueFromPIPoints(string tdDatabaseName, List<TDTable> points)
         {
@@ -182,8 +199,12 @@ namespace TDPIConnector.Core
                             log.Info($"element tag {element.Name}: {attribute.Name}:{valuestring}");
                             continue;
                         }
-
-                        var superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
+                        string superTableName;
+                        if (!attribute.Element.hasTemplate()) {
+                            superTableName = TableNameConvert.GetSingleElementSuperTableName(element);
+                        } else {
+                            superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
+                        }
                         ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
                         var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
                         stables.Add(superTableName, tables);
