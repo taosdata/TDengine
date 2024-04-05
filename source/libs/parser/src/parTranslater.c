@@ -5088,7 +5088,7 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
   SNode*  pPrimaryKeyExpr = NULL;
   SNode*  pBoundCol = NULL;
   SNode*  pProj = NULL;
-  int16_t numOfPKs = 0;
+  int16_t numOfTargetPKs = 0;
   int16_t numOfBoundPKs = 0;
   FORBOTH(pBoundCol, pInsert->pCols, pProj, pProjects) {
     SColumnNode* pCol = (SColumnNode*)pBoundCol;
@@ -5105,7 +5105,7 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
       pPrimaryKeyExpr = (SNode*)pExpr;
-      numOfPKs = pCol->numOfPKs;
+      numOfTargetPKs = pCol->numOfPKs;
     }
     if (pCol->isPk) ++numOfBoundPKs;
   }
@@ -5115,7 +5115,7 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
                                    "Primary timestamp column should not be null");
   }
 
-  if (numOfBoundPKs != numOfPKs) {
+  if (numOfBoundPKs != numOfTargetPKs) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Primary key column should not be none");
   }
 
