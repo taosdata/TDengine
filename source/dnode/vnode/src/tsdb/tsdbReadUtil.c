@@ -130,7 +130,7 @@ STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, c
   return *p;
 }
 
-static int32_t initSRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc) {
+int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc) {
   pKey->numOfPKs = numOfPks;
   pKey->ts = ts;
 
@@ -169,30 +169,33 @@ static int32_t initSRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t 
 
 static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
   int32_t numOfPks = pReader->suppInfo.numOfPks;
-  bool asc = ASCENDING_TRAVERSE(pReader->info.order);
+  bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
+  int8_t  type = pReader->suppInfo.pk.type;
+  int8_t  bytes = pReader->suppInfo.pk.bytes;
 
   SRowKey* pRowKey = &pScanInfo->lastProcKey;
   if (asc) {
     int64_t skey = pReader->info.window.skey;
     int64_t ts = (skey > INT64_MIN) ? (skey - 1) : skey;
 
-    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes, asc);
-    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, pReader->suppInfo.pk.type,
-                pReader->suppInfo.pk.bytes, asc);
+    initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
+    initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, skey, numOfPks, type, bytes, asc);
   } else {
     int64_t ekey = pReader->info.window.ekey;
     int64_t ts = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
 
-    initSRowKey(pRowKey, ts, numOfPks, pReader->suppInfo.pk.type, pReader->suppInfo.pk.bytes, asc);
-    initSRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, pReader->suppInfo.pk.type,
-                pReader->suppInfo.pk.bytes, asc);
+    initRowKey(pRowKey, ts, numOfPks, type, bytes, asc);
+    initRowKey(&pScanInfo->sttKeyInfo.nextProcKey, ekey, numOfPks, type, bytes, asc);
   }
+
+  initRowKey(&pScanInfo->sttRange.skey, INT64_MAX, numOfPks, type, bytes, asc);
+  initRowKey(&pScanInfo->sttRange.ekey, INT64_MIN, numOfPks, type, bytes, asc);
 }
 
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
                                STsdbReader* pReader) {
   pScanInfo->uid = uid;
-  INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+  INIT_KEYRANGE(&pScanInfo->sttRange);
   INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
 
   pScanInfo->cleanSttBlocks = false;
@@ -311,7 +314,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   pScanInfo->cleanSttBlocks = false;
   pScanInfo->numOfRowsInStt = 0;
   pScanInfo->sttBlockReturned = false;
-  INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+  INIT_KEYRANGE(&pScanInfo->sttRange);
   INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 }

@@ -32,6 +32,12 @@ extern "C" {
     (_w)->ekey = INT64_MIN; \
   } while (0);
 
+#define INIT_KEYRANGE(_k)      \
+  do {                         \
+    (_k)->skey.ts = INT64_MAX; \
+    (_k)->ekey.ts = INT64_MIN; \
+  } while (0);
+
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
@@ -78,9 +84,12 @@ typedef enum ESttKeyStatus {
 typedef struct SSttKeyInfo {
   ESttKeyStatus status;           // this value should be updated when switch to the next fileset
   SRowKey       nextProcKey;
-  //  int64_t       nextProcKey;   // todo remove this attribute, since it is impossible to set correct nextProcKey
-  //  value
 } SSttKeyInfo;
+
+typedef struct SSttKeyRange {
+  SRowKey skey;
+  SRowKey ekey;
+} SSttKeyRange;
 
 // clean stt file blocks:
 // 1. not overlap with stt blocks in other stt files of the same fileset
@@ -88,24 +97,25 @@ typedef struct SSttKeyInfo {
 // 3. not overlap with in-memory data (mem/imem)
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
-  uint64_t    uid;
-  SRowKey     lastProcKey;
-  SSttKeyInfo sttKeyInfo;
-  SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
-  SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
-  SArray*     pMemDelData;       // SArray<SDelData>
-  SArray*     pFileDelData;      // SArray<SDelData> from each file set
-  SIterInfo   iter;              // mem buffer skip list iterator
-  SIterInfo   iiter;             // imem buffer skip list iterator
-  SArray*     delSkyline;        // delete info for this table
-  int32_t     fileDelIndex;      // file block delete index
-  int32_t     sttBlockDelIndex;  // delete index for last block
-  bool        iterInit;          // whether to initialize the in-memory skip list iterator or not
-  bool        cleanSttBlocks;    // stt block is clean in current fileset
-  bool        sttBlockReturned;  // result block returned alreay
-  int64_t     numOfRowsInStt;
-  STimeWindow sttWindow;         // timestamp window for current stt files
-  STimeWindow filesetWindow;     // timestamp window for current file set
+  uint64_t     uid;
+  SRowKey      lastProcKey;
+  SSttKeyInfo  sttKeyInfo;
+  SArray*      pBlockList;        // block data index list, SArray<SBrinRecord>
+  SArray*      pBlockIdxList;     // SArray<STableDataBlockIndx>
+  SArray*      pMemDelData;       // SArray<SDelData>
+  SArray*      pFileDelData;      // SArray<SDelData> from each file set
+  SIterInfo    iter;              // mem buffer skip list iterator
+  SIterInfo    iiter;             // imem buffer skip list iterator
+  SArray*      delSkyline;        // delete info for this table
+  int32_t      fileDelIndex;      // file block delete index
+  int32_t      sttBlockDelIndex;  // delete index for last block
+  bool         iterInit;          // whether to initialize the in-memory skip list iterator or not
+  bool         cleanSttBlocks;    // stt block is clean in current fileset
+  bool         sttBlockReturned;  // result block returned alreay
+  int64_t      numOfRowsInStt;
+  SSttKeyRange sttRange;
+  //  STimeWindow sttWindow;         // timestamp window for current stt files
+  STimeWindow filesetWindow;  // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -336,6 +346,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
 bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
 bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2);
+int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
 
 typedef struct {
   SArray* pTombData;

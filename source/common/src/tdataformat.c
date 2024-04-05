@@ -1306,8 +1306,8 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
       if (IS_NUMERIC_TYPE(pVal->type)) {
         pVal->val = pSrc->pks[i].val;
       } else {
-        memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
         pVal->nData = pSrc->pks[i].nData;
+        memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
       }
     }
   }
