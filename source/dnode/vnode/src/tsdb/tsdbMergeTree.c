@@ -502,8 +502,10 @@ static void setSttInfoForCurrentTable(SSttBlockLoadInfo *pLoadInfo, uint64_t uid
 
     *numOfRows += *(int64_t *)taosArrayGet(pLoadInfo->info.pCount, index);
 
-    memcpy(&pRange->skey.pks[0], taosArrayGet(pLoadInfo->info.pFirstKey, index), sizeof(SValue));
-    memcpy(&pRange->ekey.pks[0], taosArrayGet(pLoadInfo->info.pLastKey, index), sizeof(SValue));
+    if (pRange->skey.numOfPKs > 0) {
+      memcpy(&pRange->skey.pks[0], taosArrayGet(pLoadInfo->info.pFirstKey, index), sizeof(SValue));
+      memcpy(&pRange->ekey.pks[0], taosArrayGet(pLoadInfo->info.pLastKey, index), sizeof(SValue));
+    }
   }
 }
 
