@@ -275,7 +275,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random"):
         self.clean_env()
         self.dataDict = {
             "stb_name" : f"{self.case_name}_stb",
@@ -330,8 +330,8 @@ class StreamComputingTest(TDCase):
         if fill_history_value == 1:
             for i in range(self.range_count):
                 ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col)
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 # if ignore_expired is not None:
                 #     self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=ts_value, constant_col=constant_col)
                 if i == 1:
@@ -2340,7 +2340,7 @@ class StreamComputingTest(TDCase):
 
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if subtable is not None else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
-    def at_once_session_ext(self, session, ignore_expired=None, partition="tbname", delete=False, fill_history_value=None, case_when=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
+    def at_once_session_ext(self, session, ignore_expired=None, partition="tbname", delete=False, fill_history_value=None, case_when=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, custom_col_index=0, col_value_type="random"):
         if stb_field_name_value == self.partitial_stb_filter_des_select_elm or stb_field_name_value == self.exchange_stb_filter_des_select_elm:
             partitial_tb_source_str = self.partitial_ext_tb_source_select_str
         else:
@@ -2350,7 +2350,7 @@ class StreamComputingTest(TDCase):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         defined_tag_count = len(tag_value.split())
-        self.prepare_data(session=session, fill_history_value=fill_history_value)
+        self.prepare_data(session=session, fill_history_value=fill_history_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
         exceed_child_tbname = self.tdCom.get_long_name(self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH + 1)
         if partition == "tbname":
             if case_when:
@@ -2415,9 +2415,9 @@ class StreamComputingTest(TDCase):
             if i == 0:
                 record_window_close_ts = window_close_ts
             for ts_value in [self.date_time, window_close_ts]:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.delete and i%2 != 0:
                     dt = f'cast({self.date_time-1} as timestamp)'
                     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
@@ -2431,7 +2431,7 @@ class StreamComputingTest(TDCase):
                     self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from ext_{self.stb_name}{self.des_table_suffix} order by ts;', f'select _wstart AS wstart, {self.stb_source_select_str} from {self.stb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart;', sorted=True, defined_tag_count=defined_tag_count, tag_value_list=tag_value_list, n_print=self.n_print)
 
         if self.disorder:
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts, col_value_type=col_value_type)
             if ignore_expired:
                 self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from ext_{self.stb_name}{self.des_table_suffix} order by ts;', f'select _wstart AS wstart, {self.stb_source_select_str} from {self.stb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart;', sorted=True, defined_tag_count=defined_tag_count, tag_value_list=tag_value_list, n_print=self.n_print)
                     # self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}')
@@ -2446,7 +2446,7 @@ class StreamComputingTest(TDCase):
             #         else:
             #             self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
         if fill_history_value:
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, custom_col_index=custom_col_index, col_value_type=col_value_type)
             if self.delete:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(self.record_history_ts, "-"))
 
@@ -4814,7 +4814,7 @@ class StreamComputingTest(TDCase):
                     self.at_once_state_window_ext(state_window="c1", delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     self.at_once_state_window_ext(state_window="c1", delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
                     self.watermark_window_close_session_ext(session=random.randint(10, 12), watermark=random.randint(20, 25), subtable=None, partition=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
-                    self.at_once_session_ext(session=random.randint(10, 15), delete=False, fill_history_value=fill_history_value, subtable="c1", partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
+                    self.at_once_session_ext(session=random.randint(10, 15), delete=False, fill_history_value=fill_history_value, subtable="c1", partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, custom_col_index=0, col_value_type="Incremental")
                     self.watermark_max_delay_interval_ext(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s", delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     # self-define tag
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=f'{self.tag_filter_des_select_elm}', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
