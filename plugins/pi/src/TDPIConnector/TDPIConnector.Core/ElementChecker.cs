@@ -59,6 +59,12 @@ namespace TDPIConnector.Core
                         if (checkResult.items.Contains(template)) continue;
                         checkResult.items.Add($"template {template} not exist");
                     }
+                    var noTemplateElements = CheckElementsNoTemplateValid(AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.ElementList);
+                    foreach (string elementName in noTemplateElements)
+                    {
+                        if (checkResult.items.Contains(elementName)) continue;
+                        checkResult.items.Add($"ElementOfNoTemplate invalid: {elementName}");
+                    }
                 }
                 if (checkResult.items.Count() > 0)
                 {
@@ -110,6 +116,38 @@ namespace TDPIConnector.Core
             }
 
             return result;
+        }
+
+        internal List<string> CheckElementsNoTemplateValid(string afDBName, List<string> elementNames)
+        {
+            List<string> result = new List<string>();
+            if (elementNames == null) return result;
+            foreach (string elementName in elementNames)
+            {
+                if (!ElementNoTemplateValid(afDBName, elementName)) {
+                    result.Add(elementName);
+                }
+            }
+            return result;
+        }
+        internal bool ElementNoTemplateValid(string afDBName, string elementName)
+        {
+            try
+            {
+                var wrappers = pISystemManager.GetElementByName(afDBName, elementName);
+                if (wrappers.Count() == 0) return false;
+                foreach (var element in wrappers) {
+                    if (element.hasTemplate())
+                    {
+                        return false;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            return true;
         }
 
         internal bool DBValid(string afDBName)

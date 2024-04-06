@@ -172,6 +172,11 @@ namespace TDPIConnector.Core
                 var wrappers = piSystemManager.GetElementByName(afDatabaseName, elementName);
                 foreach (AFElementWrapper element in wrappers)
                 {
+                    if (element.hasTemplate())
+                    {
+                        log.Error($"Element {elementName} is used for no template but it has template.");
+                        continue;
+                    }
                     var elements = await CreateTaosxClientForSingleElement(tdDatabaseName, element);
                     if (null == elements) continue;
                     elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);

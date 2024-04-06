@@ -244,6 +244,7 @@ namespace TDPIConnector.Core
                 List<TDTable> tables = new List<TDTable>();
                 foreach (AFElementWrapper element in wrappers)
                 {
+                    if (element.hasTemplate()) continue;
                     var superTable = ElemenetSTableConverter.Convert(element);
                     if (!superTable.HasValidColumn()) continue;
                     var resp2 = await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
