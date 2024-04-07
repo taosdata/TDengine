@@ -1634,7 +1634,7 @@ static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
 
   const STraceId *trace = &pRsp->info.traceId;
   mGInfo("msg:%p, create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", pRsp, nReq,
-         nSuccess, nFailed, finished ? "encrypt done" : "in encrypting") return 0;
+         nSuccess, nFailed, finished ? "encrypt done" : "in encrypting");
 
   return 0;
 }

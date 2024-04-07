@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -50,10 +50,11 @@ class TDTestCase:
         self.tbnum = 20
         self.rowNum = 10
         self.tag_dict = {
-            't0':'int'
+            't0':'int',
+            't1':f'nchar({self.nchar_length})'
         }
         self.tag_values = [
-            f'1'
+            f'1', '""'
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
@@ -72,7 +73,7 @@ class TDTestCase:
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
-            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
     def count_check(self):
         tdSql.query('select count(*) from information_schema.ins_tables')
@@ -316,13 +317,15 @@ class TDTestCase:
     def ins_encryptions_check(self):
         key_status_list = ['unknown', 'unset', 'set', 'loaded']
 
+        # unset/none
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        time.sleep(2)
         tdSql.query(f'select * from information_schema.ins_encryptions')
         result = tdSql.queryResult
         index = 0
         for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list)
+            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
             index += 1
         tdSql.checkEqual(True, index > 0)
                     
@@ -330,11 +333,36 @@ class TDTestCase:
         result = tdSql.queryResult
         index = 0
         for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list)
+            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+        
+        # loaded/sm4
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create encrypt_key \'12345678\'')
+        time.sleep(3)
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'sm4\'')
+        tdSql.query(f'select * from information_schema.ins_encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+                    
+        tdSql.query(f'show encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
             index += 1
         tdSql.checkEqual(True, index > 0)
 
-        # ENCRYPT_TODO: create encrypt_key 'xxx'
+    def test_query_ins_tags(self):
+        sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+
 
     def run(self):
         self.prepare_data()
@@ -346,6 +374,7 @@ class TDTestCase:
         self.ins_dnodes_check()
         self.ins_grants_check()
         self.ins_encryptions_check()
+        self.test_query_ins_tags()
 
 
     def stop(self):

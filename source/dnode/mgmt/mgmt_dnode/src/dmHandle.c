@@ -114,9 +114,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
-  req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;  // ENCRYPT_TODO
-  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum; // ENCRYPT_TODO
-  //     pMgmt->pData->dnodeId == 1 ? 0 : pMgmt->pData->dnodeId + 10;  // tsEncryptionKeyChksum; // ENCRYPT_TODO
+  req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
+  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
