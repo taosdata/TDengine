@@ -1523,7 +1523,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
   if (mndTransCheckConflict(pCxt->pMnode, pTrans) != 0) goto _OVER;
 
-  mndTransSetParallel(pTrans);
+  mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create tsma:%s stream:%s", pTrans->id, pCxt->pCreateSmaReq->name,
         pCxt->pCreateStreamReq->name);
 
