@@ -1197,11 +1197,16 @@ void tRowGetKey(SRow *row, SRowKey *key) {
   for (int32_t i = 0; i < row->numOfPKs; i++) {
     key->pks[i].type = indices[i].type;
 
+    uint8_t *tdata = data + indices[i].offset;
+    if (row->flag >> 4) {
+      tdata += tGetI16v(tdata, NULL);
+    }
+
     if (IS_VAR_DATA_TYPE(indices[i].type)) {
-      key->pks[i].pData = data + indices[i].offset;
+      key->pks[i].pData = tdata;
       key->pks[i].pData += tGetU32v(key->pks[i].pData, &key->pks[i].nData);
     } else {
-      memcpy(&key->pks[i].val, data + indices[i].offset, tDataTypes[indices[i].type].bytes);
+      memcpy(&key->pks[i].val, tdata, tDataTypes[indices[i].type].bytes);
     }
   }
 }
