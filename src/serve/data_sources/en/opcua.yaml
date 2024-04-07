@@ -254,6 +254,8 @@ datasets:
           multiple: true
           hint:
             type: str
+            choices:
+              - "--NONE--"
         - name: pattern
           display: Regex pattern
           description: Match the data point name or id
