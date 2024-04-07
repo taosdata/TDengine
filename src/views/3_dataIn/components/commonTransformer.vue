@@ -136,7 +136,7 @@
                 <SplitExpression ref="splitExpression"></SplitExpression>
               </template>
               <el-input
-                v-else
+                v-else-if="parseruleForm.type == 'regex'"
                 v-model="parseruleForm.expression"
                 :placeholder="
                   parseruleForm.type == 'json'
@@ -147,13 +147,39 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
+              <!-- <el-select v-else
+                multiple
+                size="small"
+                v-model="parseruleForm.expression"
+                @visible-change="handleChange"
+              >
+                <el-option
+                  v-for="item in allProperties"
+                  :key="item.defaultValue"
+                  :value="item.defaultValue"
+                >
+                <template #default>
+                  <el-checkbox class="my-checkbox" v-model="item.checked">
+                    <span style="float: left">{{ item.defaultValue }}</span>
+                    <el-input style="margin-left: 4px; width: 100px; float: right" size="mini" v-model="item.rename" @focus="focus" @mousedown.native="handleInput" ref="inputRef"></el-input>
+                  </el-checkbox>
+                </template>
+                </el-option>
+              </el-select> -->
+              <cusSelect
+                v-else
+                v-model="parseruleForm.expression"
+                :allProperties="allProperties"
+                :selectJson="selectJson"
+                @updateData="updateData"
+              />
             </el-form-item>
-            <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
+            <!-- <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
               <Icon
                 :name="'json'"
                 class="transform-json-icon"
               ></Icon>
-            </el-button>
+            </el-button> -->
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -567,6 +593,7 @@ import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, deepClone } from "@/utils"
+import cusSelect from "./cusSelect.vue"
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -575,7 +602,8 @@ export default {
     FilterExpression,
     CreateSTB,
     SplitExpression,
-    DocsContent
+    DocsContent,
+    cusSelect
   },
   props: {
     parent: {
@@ -767,6 +795,20 @@ export default {
     this.statisticCol();
   },
   methods: {
+    // handleChange(visible) {
+    //   if (visible) {
+    //     setTimeout(() => {
+    //       this.$refs.inputRef.focus();
+    //     }, 100);
+    //   }
+    // },
+    // handleInput(data) {
+    //   this.$refs.inputRef.focus();
+    //   console.log('Input value:', data.inputValue);
+    // },
+    // focus() {
+
+    // },
     handleClickPop(key) {
       switch (key) {
         case '1':
@@ -1189,7 +1231,7 @@ export default {
             ? Object.values(value.parser.parse[tagKey]).toString()
             : Object.values(value.parser.parse[tagKey])
                 .toString()
-                .replace(",", ";");
+                // .replace(",", ";");
       }
 
       await this.submitParse();
@@ -1284,6 +1326,7 @@ export default {
         // this.subrule.subname = value.parser.model.name;
         await this.getSTbaleList();
         await this.echoFetchMap();
+        await this.selectJson();
         this.$store.commit("app/SET_RESULTTB_SHOW", false);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
@@ -2043,9 +2086,12 @@ export default {
     handleLimit(val) {
       this.$store.commit("app/SET_LIMIT_OFFSET", val);
     },
+    updateData(data) {
+      this.parseruleForm.expression = data
+    },
     selectJson() {
-      this.dialogVisible = true;
-      if (this.parseruleForm.expression) {
+      // this.dialogVisible = true;
+      if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
         this.allProperties = extractAllProperties(this.msgForm.msgbody)
         let firstSplitArr = this.parseruleForm.expression.split(',')
@@ -2174,6 +2220,11 @@ export default {
         }
       },
     },
+    "parseruleForm.type": {
+      handler() {
+        this.parseruleForm.expression = ""
+      }
+    }
   },
 };
 </script>
@@ -2385,6 +2436,7 @@ export default {
     .el-form {
       display: flex !important;
       flex: 1;
+      align-items: center;
       .el-form-item {
         margin-bottom: 0px;
         margin-right: 15px;
@@ -2402,7 +2454,7 @@ export default {
       align-items: center;
       border-radius: 6px;
       padding: 12px 20px;
-      margin-top: 5px;
+      margin-top: 2px;
     }
     .split-expression {
       margin-top: 5px;
