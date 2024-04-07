@@ -201,9 +201,9 @@ TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项�
 
 TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项指定：
 
-1. 检查数据是否被修改，即 IGNORE UPDATE 0：默认配置，如果被修改，则重新计算对应窗口。
+1. 检查数据是否被修改，即 IGNORE UPDATE 0，如果数据被修改，则重新计算对应窗口。
 
-2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1。
+2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1，默认配置。
 
 
 ## 写入已存在的超级表
