@@ -9140,16 +9140,49 @@ static SColumnNode* createColumnNodeWithName(const char* name) {
   return pCol;
 }
 
-static bool sortFuncWithFuncId(SNode* pNode1, SNode* pNode2) {
-  SFunctionNode* pFunc1 = (SFunctionNode*)pNode1;
-  SFunctionNode* pFunc2 = (SFunctionNode*)pNode2;
-  return pFunc1->funcId < pFunc2->funcId;
-}
-
-static bool sortColWithColId(SNode* pNode1, SNode* pNode2) {
+static int32_t compareTsmaColWithColId(SNode* pNode1, SNode* pNode2) {
   SColumnNode* pCol1 = (SColumnNode*)pNode1;
   SColumnNode* pCol2 = (SColumnNode*)pNode2;
-  return pCol1->colId < pCol2->colId;
+  if (pCol1->colId < pCol2->colId)
+    return -1;
+  else if (pCol1->colId > pCol2->colId)
+    return 1;
+  else
+    return 0;
+}
+
+static int32_t compareTsmaFuncWithFuncAndColId(SNode* pNode1, SNode* pNode2) {
+  SFunctionNode* pFunc1 = (SFunctionNode*)pNode1;
+  SFunctionNode* pFunc2 = (SFunctionNode*)pNode2;
+  if (pFunc1->funcId < pFunc2->funcId)
+    return -1;
+  else if (pFunc1->funcId > pFunc2->funcId)
+    return 1;
+  else {
+    SNode* pCol1 = pFunc1->pParameterList->pHead->pNode;
+    SNode* pCol2 = pFunc2->pParameterList->pHead->pNode;
+    return compareTsmaColWithColId(pCol1, pCol2);
+  }
+}
+
+// pFuncs are already sorted by funcId and colId
+static int32_t deduplicateTsmaFuncs(SNodeList* pFuncs) {
+  SNode* pLast = NULL;
+  SNode* pFunc = NULL;
+  SNodeList* pRes = NULL;
+  FOREACH(pFunc, pFuncs) {
+    if (pLast) {
+      if (compareTsmaFuncWithFuncAndColId(pLast, pFunc) == 0) {
+        ERASE_NODE(pFuncs);
+        continue;
+      } else {
+        pLast = pFunc;
+      }
+    } else {
+      pLast = pFunc;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildTSMAAstStreamSubTable(SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, const SNode* pTbname, SNode** pSubTable) {
@@ -9324,7 +9357,8 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    nodesSortList(&pStmt->pOptions->pFuncs, sortFuncWithFuncId);
+    nodesSortList(&pStmt->pOptions->pFuncs, compareTsmaFuncWithFuncAndColId);
+    deduplicateTsmaFuncs(pStmt->pOptions->pFuncs);
   }
   return code;
 }
@@ -9343,11 +9377,6 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 #define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000) // 1h
   if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
     return TSDB_CODE_TSMA_INVALID_INTERVAL;
-  }
-
-#define TSMA_RES_STB_EXTRA_COLUMN_NUM 3
-  if (LIST_LENGTH(pStmt->pOptions->pFuncs) > TSDB_MAX_COLUMNS - TSMA_RES_STB_EXTRA_COLUMN_NUM) {
-    return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -9384,7 +9413,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       memcpy(pStmt->originalTbName, pRecursiveTsma->tb, TSDB_TABLE_NAME_LEN);
       tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pRecursiveTsma->tb, useTbName), pReq->stb);
       numOfCols = pRecursiveTsma->pUsedCols->size;
-      numOfTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->size: 0;
+      numOfTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->size : 0;
       pCols = pRecursiveTsma->pUsedCols->pData;
       pTags = pRecursiveTsma->pTags ? pRecursiveTsma->pTags->pData : NULL;
       code = getTableMeta(pCxt, pStmt->dbName, pRecursiveTsma->targetTb, &pTableMeta);
@@ -9410,6 +9439,11 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTSMAFuncs(pCxt, pStmt, numOfCols, pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pStmt->pOptions->recursiveTsma) {
+    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_COLUMNS) {
+      code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTSMAAst(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName,

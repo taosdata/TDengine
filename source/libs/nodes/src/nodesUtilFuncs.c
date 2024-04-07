@@ -2499,7 +2499,7 @@ bool nodesIsTableStar(SNode* pNode) {
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
-void nodesSortList(SNodeList** pList, bool (*comp)(SNode* pNode1, SNode* pNode2)) {
+void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNode2)) {
   if ((*pList)->length == 1) return;
 
   uint32_t inSize = 1;
@@ -2534,7 +2534,7 @@ void nodesSortList(SNodeList** pList, bool (*comp)(SNode* pNode1, SNode* pNode2)
           pCell = p;
           p = p->pNext;
           --pSize;
-        } else if (!comp(q->pNode, p->pNode)) {
+        } else if (comp(q->pNode, p->pNode) >= 0) {
           pCell = p;
           p = p->pNext;
           --pSize;

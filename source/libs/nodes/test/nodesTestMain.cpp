@@ -56,11 +56,16 @@ TEST(NodesTest, traverseTest) {
   nodesDestroyNode(pRoot);
 }
 
-bool compareValueNode(SNode* pNode1, SNode* pNode2) {
+int32_t compareValueNode(SNode* pNode1, SNode* pNode2) {
   SValueNode* p1 = (SValueNode*)pNode1;
   SValueNode* p2 = (SValueNode*)pNode2;
 
-  return p1->datum.i < p2->datum.i;
+  if (p1->datum.i < p2->datum.i)
+    return -1;
+  else if (p1->datum.i > p2->datum.i)
+    return 1;
+  else
+    return 0;
 }
 
 void assert_sort_result(SNodeList* pList) {
