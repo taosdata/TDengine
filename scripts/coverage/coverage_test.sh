@@ -186,8 +186,6 @@ function runPythonCases() {
     runCasesOneByOne ../parallel_test/cases.task system-test
 
     # taostest
-    # cd /root && bash taostest.sh
-    # /root/TestNG/scripts/run.sh -m /home/m.json -t /root/TestNG/scripts/cases_query_replica1.txt -l /root/TestNG/testnglog/FullTest-3.0-query_001  -d debug  -o 12000  -w http://192.168.1.64:8081/testnglog/FullTest-3.0-query_001 -f True
     runTestNGCases
     # develop-test
     cd $TDENGINE_DIR/tests/develop-test
