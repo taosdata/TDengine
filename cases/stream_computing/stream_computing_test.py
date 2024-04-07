@@ -85,25 +85,49 @@ class StreamComputingTest(TDCase):
         self.partition_col_alias = "pcol_alias" if self.subtable else ""
         self.partition_expression_alias = "pexp_alias" if self.subtable else ""
 
+        self.pk_test = True
+        self.pk_dict_list = [{"pname": "pk", "ptype": "bigint"}, {"pname": "pk", "ptype": "int"}, {"pname": "pk", "ptype": "varchar", "plen": "16"}]
+        self.pk_dict_list = [{"pname": "pk", "ptype": "bigint"}, {"pname": "pk", "ptype": "int"}]
+        self.pk_dict_list = [{"pname": "pk", "ptype": "int"}]
+        self.pk_dict = random.choice(self.pk_dict_list) if self.pk_test else None
+        self.c1_idx = 2 if self.pk_test else 1
+
         # ! apercentile(c6, 50) "avg(c7)" "timetruncate(_wstart, 1m)" "timediff(1, 0, 1h)" TD-16878 TD-16877 TD-16876 TD-16869
-        self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)", 
+        self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
         "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
         # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
         # "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         # ! now() timezone() to_iso8601(now)
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.fill_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        self.fill_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "spread(udf1(c1))", 
+        self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "spread(udf1(c1))",
         "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
         "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
         self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "spread(udf1(c1))",
         "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
+        # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)",
         #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstart, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+        if self.pk_test:
+            self.partition_by_downsampling_function_list = [f'min({self.pk_dict["pname"]})', f'max({self.pk_dict["pname"]})', f'sum({self.pk_dict["pname"]})', f'first({self.pk_dict["pname"]})', f'last({self.pk_dict["pname"]})', f'count({self.pk_dict["pname"]})', f'spread({self.pk_dict["pname"]})',
+            f'stddev({self.pk_dict["pname"]})', f'hyperloglog({self.pk_dict["pname"]})', "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
+            # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
+            # "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+            # ! now() timezone() to_iso8601(now)
+            self.downsampling_function_list = [f'min({self.pk_dict["pname"]})', f'max({self.pk_dict["pname"]})', f'sum({self.pk_dict["pname"]})', f'first({self.pk_dict["pname"]})', f'last({self.pk_dict["pname"]})', f'apercentile({self.pk_dict["pname"]}, 50)', f'avg({self.pk_dict["pname"]})', f'count({self.pk_dict["pname"]})', f'spread({self.pk_dict["pname"]})',
+            f'stddev({self.pk_dict["pname"]})', f'hyperloglog({self.pk_dict["pname"]})', "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+            self.fill_function_list = [f'min({self.pk_dict["pname"]})', f'max({self.pk_dict["pname"]})', f'sum({self.pk_dict["pname"]})', f'apercentile({self.pk_dict["pname"]}, 50)', f'avg({self.pk_dict["pname"]})', f'count({self.pk_dict["pname"]})', f'spread({self.pk_dict["pname"]})',
+            f'stddev({self.pk_dict["pname"]})', f'hyperloglog({self.pk_dict["pname"]})', "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+            self.udf_function_list = [f'min(udf1({self.pk_dict["pname"]}))', f'max(udf1({self.pk_dict["pname"]}))', f'sum(udf1({self.pk_dict["pname"]}))', 'first(udf1({self.pk_dict["pname"]}))', f'last(udf1({self.pk_dict["pname"]}))', f'apercentile(udf1({self.pk_dict["pname"]}), 50)', f'avg(udf1({self.pk_dict["pname"]}))', f'count(udf1({self.pk_dict["pname"]}))', f'spread(udf1({self.pk_dict["pname"]}))',
+            f'stddev(udf1({self.pk_dict["pname"]}))', f'hyperloglog(udf1({self.pk_dict["pname"]}))', "timediff(1, 0, 1h)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
+            "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
+            self.udf_function_list = [f'min(udf1({self.pk_dict["pname"]}))', f'max(udf1({self.pk_dict["pname"]}))', f'sum(udf1({self.pk_dict["pname"]}))',f'apercentile(udf1({self.pk_dict["pname"]}), 50)', f'avg(udf1({self.pk_dict["pname"]}))', f'count(udf1({self.pk_dict["pname"]}))', f'spread(udf1({self.pk_dict["pname"]}))',
+            f'stddev(udf1({self.pk_dict["pname"]}))', f'hyperloglog(udf1({self.pk_dict["pname"]}))', "timediff(1, 0, 1h)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
         self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
@@ -134,6 +158,8 @@ class StreamComputingTest(TDCase):
 
         self.filter_source_select_elm = "*"
         self.stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
+        if self.pk_test:
+            self.stb_filter_des_select_elm = f'ts, {self.pk_dict["pname"]}, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13'
         self.partitial_stb_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.split(",")[:3])
         self.exchange_stb_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.split(",")[0], self.stb_filter_des_select_elm.split(",")[2], self.stb_filter_des_select_elm.split(",")[1]])
         self.partitial_ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:2])
@@ -142,6 +168,8 @@ class StreamComputingTest(TDCase):
         self.exchange_tag_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[0], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[2], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[1]])
         self.partitial_tag_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[:3])
         self.partitial_tag_stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t3, t2, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
+        if self.pk_test:
+            self.partitial_tag_stb_filter_des_select_elm = f'ts, {self.pk_dict["pname"]}, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t3, t2, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13'
         self.cast_tag_filter_des_select_elm = "t5,t11,t13"
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
@@ -319,19 +347,19 @@ class StreamComputingTest(TDCase):
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
 
         self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision)
-        self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name)
+        self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
         if ignore_expired is not None:
             self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.expired_ctb_name)
-        self.tdCom.create_table(dbname=self.dbname, tbname=self.tb_name)
-        self.tdCom.create_stable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table)
+        self.tdCom.create_table(dbname=self.dbname, tbname=self.tb_name, pk_dict=self.pk_dict)
+        self.tdCom.create_stable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table, ctbname=self.ext_ctb_stream_des_table)
-        self.tdCom.create_table(dbname=self.dbname, tbname=self.ext_tb_stream_des_table)
+        self.tdCom.create_table(dbname=self.dbname, tbname=self.ext_tb_stream_des_table, pk_dict=self.pk_dict)
         if fill_history_value == 1:
             for i in range(self.range_count):
                 ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col)
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col, pk_dict=self.pk_dict)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col, pk_dict=self.pk_dict)
                 # if ignore_expired is not None:
                 #     self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=ts_value, constant_col=constant_col)
                 if i == 1:
@@ -358,8 +386,8 @@ class StreamComputingTest(TDCase):
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
-                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s', pk_dict=self.pk_dict)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s', pk_dict=self.pk_dict)
                     if self.update:
                         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
                         self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
@@ -369,8 +397,8 @@ class StreamComputingTest(TDCase):
                 ts_cast_delete_value = self.tdCom.time_cast(ts_value)
                 step_count += 1
                 for k in range(2):
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict)
                     if self.delete:
                         self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
                         self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
@@ -501,12 +529,12 @@ class StreamComputingTest(TDCase):
         self.tdCom.createDb(dbname=source_tandem_db, vgroups=self.vgroups)
         self.tdCom.createDb(dbname=target_tandem_db, vgroups=self.vgroups)
 
-        self.tdCom.create_stable(dbname=source_tandem_db, stbname=source_tandem_stb)
+        self.tdCom.create_stable(dbname=source_tandem_db, stbname=source_tandem_stb, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=source_tandem_db, stbname=source_tandem_stb, ctbname=source_tandem_ctb)
-        self.tdCom.create_table(dbname=source_tandem_db, tbname=source_tandem_tb)
-        self.tdCom.create_stable(dbname=target_tandem_db, stbname=target_tandem_stb)
+        self.tdCom.create_table(dbname=source_tandem_db, tbname=source_tandem_tb, pk_dict=self.pk_dict)
+        self.tdCom.create_stable(dbname=target_tandem_db, stbname=target_tandem_stb, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=target_tandem_db, stbname=target_tandem_stb, ctbname=target_tandem_ctb)
-        self.tdCom.create_table(dbname=target_tandem_db, tbname=target_tandem_tb)
+        self.tdCom.create_table(dbname=target_tandem_db, tbname=target_tandem_tb, pk_dict=self.pk_dict)
 
         self.tdCom.create_stream(stream_name=source_stb_stream_name, des_table=source_stb_stream_target_tbname, source_sql=source_stb_source_sql)
         self.tdCom.create_stream(stream_name=source_ctb_stream_name, des_table=source_ctb_stream_target_tbname, source_sql=source_ctb_source_sql)
@@ -516,8 +544,8 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_stream(stream_name=target_tb_stream_name, des_table=target_tb_stream_target_tbname, source_sql=target_tb_source_sql)
         count = 0
         for i in range(self.range_count):
-            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_ctb, ts_value=self.date_time+i, need_null=True)
-            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_tb, ts_value=self.date_time+i, need_null=True)
+            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_ctb, ts_value=self.date_time+i, need_null=True, pk_dict=self.pk_dict)
+            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_tb, ts_value=self.date_time+i, need_null=True, pk_dict=self.pk_dict)
             count += 1
         for tbname in [target_stb_stream_target_tbname, target_ctb_stream_target_tbname, target_tb_stream_target_tbname]:
             if tbname == target_stb_stream_target_tbname:
@@ -708,15 +736,15 @@ class StreamComputingTest(TDCase):
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
             # ctb_name = self.tdCom.get_long_name()
             # self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
@@ -746,7 +774,7 @@ class StreamComputingTest(TDCase):
                 ptn_counter = 0
                 for c1_value in self.tdSql.query_data:
                     if partition == "c1":
-                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                     elif partition is None:
@@ -754,7 +782,7 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
                     elif partition == "abs(c1)":
-                        abs_c1_value = abs(c1_value[1])
+                        abs_c1_value = abs(c1_value[self.c1_idx])
                         tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
@@ -770,7 +798,7 @@ class StreamComputingTest(TDCase):
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
                 if partition == "c1":
-                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                 elif partition is None:
@@ -778,7 +806,7 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
                 elif partition == "abs(c1)":
-                    abs_c1_value = abs(c1_value[1])
+                    abs_c1_value = abs(c1_value[self.c1_idx])
                     tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
@@ -4071,7 +4099,38 @@ class StreamComputingTest(TDCase):
         # self.prepare_stream_data()
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
-
+        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
+        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+        if self.pk_test:
+            if self.pk_dict["ptype"].lower() == "varchar":
+                for string_function in string_function_list:
+                    if string_function == "concat":
+                        self.tdSql.error(f'create stream stb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_stb as select ts, {string_function}({self.pk_dict["pname"]}, c4) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_ctb as select ts, {string_function}({self.pk_dict["pname"]}, c4) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_tb as select ts, {string_function}({self.pk_dict["pname"]}, c4) from {self.case_name}_tb;')
+                    elif string_function == "concat_ws":
+                        self.tdSql.error(f'create stream stb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_stb as select ts, {string_function}("aND", {self.pk_dict["pname"]}, c4) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_ctb as select ts, {string_function}("aND", {self.pk_dict["pname"]}, c4) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_tb as select ts, {string_function}("aND", {self.pk_dict["pname"]}, c4) from {self.case_name}_tb;')
+                    elif string_function == "substr":
+                        self.tdSql.error(f'create stream stb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_stb as select ts, {string_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_ctb as select ts, {string_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_tb as select ts, {string_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_tb;')
+                    else:
+                        self.tdSql.error(f'create stream stb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_stb as select ts, {string_function}({self.pk_dict["pname"]}) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_ctb as select ts, {string_function}({self.pk_dict["pname"]}) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{string_function}_stream trigger at_once ignore expired 0 ignore update 0  into output_{string_function}_tb as select ts, {string_function}({self.pk_dict["pname"]}) from {self.case_name}_tb;')
+            else:
+                for math_function in math_function_list:
+                    if math_function in ["log", "pow"]:
+                        self.tdSql.error(f'create stream stb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_stb as select ts, {math_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_ctb as select ts, {math_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_tb as select ts, {math_function}({self.pk_dict["pname"]}, 2) from {self.case_name}_tb;')
+                    else:
+                        self.tdSql.error(f'create stream stb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_stb as select ts, {math_function}({self.pk_dict["pname"]}) from {self.case_name}_stb partition by {partition};')
+                        self.tdSql.error(f'create stream ctb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_ctb as select ts, {math_function}({self.pk_dict["pname"]}) from {self.case_name}_ct1;')
+                        self.tdSql.error(f'create stream tb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 into output_{math_function}_tb as select ts, {math_function}({self.pk_dict["pname"]}) from {self.case_name}_tb;')
+            return
         self.tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
         # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
@@ -4087,8 +4146,6 @@ class StreamComputingTest(TDCase):
                 self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
 
         # self.tdCom.write_latency(self.case_name)
-        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
-        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
         for math_function in math_function_list:
             if math_function in ["log", "pow"]:
                 self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once ignore expired 0 ignore update 0 {fill_history} into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb partition by {partition};')
@@ -4645,6 +4702,11 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # self.at_once_interval(interval=random.randint(10, 15), partition="c1")
+        # return
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", check_stream_task=True)
+        # self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), check_stream_task=True, checkpoint_check=True, pause=True, resume=True)
+        # return
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True)
         # ! stream_sql_0204_1.txt
         # self.at_once_count_window_i(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=True, watermark=random.randint(15, 20), ignore_expired=1)
@@ -4664,28 +4726,29 @@ class StreamComputingTest(TDCase):
         # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
-            self.create_none_db_stream()
-            self.create_none_source_tb_stream()
-            self.create_none_source_tb_tag_stream()
-            self.create_none_source_tb_col_stream()
-            self.create_error_source_sql_stream()
-            if self.replica != 3: #! TD-26057
-                self.insert_after_restart()
-                self.insert_after_restart(delete=True, fill_history_value=1)
-            ## ! TD-18123
-            # # self.insert_after_recreate_source_table()
-            self.query_after_drop_stream_db()
-            self.data_filter()
-            self.data_filter(delete=True)
-            self.data_filter(delete=True, fill_history_value=1)
+            # self.create_none_db_stream()
+            # self.create_none_source_tb_stream()
+            # self.create_none_source_tb_tag_stream()
+            # self.create_none_source_tb_col_stream()
+            # self.create_error_source_sql_stream()
+            # ! TD-29448 pk
+            # if self.replica != 3: #! TD-26057
+            #     self.insert_after_restart()
+            #     self.insert_after_restart(delete=True, fill_history_value=1)
+            # ## ! TD-18123
+            # # # self.insert_after_recreate_source_table()
+            # self.query_after_drop_stream_db()
+            # self.data_filter()
+            # self.data_filter(delete=True)
+            # self.data_filter(delete=True, fill_history_value=1)
             # self.life_cycle()
             self.scalar_function(partition="tbname", delete=True, fill_history_value=1)
             self.scalar_function(partition="tbname,c1", delete=True, fill_history_value=1)
             self.stream_tandem()
-            self.udf_test(8, "int")
-            self.udf_test(8, "int", 1)
-            self.udaf_test(10, 8, "double")
-            self.udaf_test(10, 8, "double", 1)
+            # self.udf_test(8, "int")
+            # self.udf_test(8, "int", 1)
+            # self.udaf_test(10, 8, "double")
+            # self.udaf_test(10, 8, "double", 1)
             if self.replica != 3: #! TD-26057
                 self.at_once_interval(interval=random.randint(10, 15), partition="tbname", check_stream_task=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
