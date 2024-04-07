@@ -84,8 +84,9 @@ export default {
   },
   watch: {},
   created() {
-    // if(this.isEdit) {
-    // }
+    if(this.isEdit) {
+      this.handleValidOpcFile()
+    }
     // 在新增或者编辑时切换 tab 都能保持上传的文件列表
     this.handleFiles()
   },
@@ -103,6 +104,9 @@ export default {
       file.path = response[0];
       this.files = [].concat(file);
       this.update();
+      handleValidOpcFile()
+    },
+    async handleValidOpcFile() {
       if (this.isOpcDataset) {
         // csv 文件合法性检查
         const type = this.sourceParent.sourceForm.type
