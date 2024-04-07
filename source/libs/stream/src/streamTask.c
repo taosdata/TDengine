@@ -375,10 +375,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->schedInfo.pDelayTimer != NULL) {
-    while(!taosTmrStop(pTask->schedInfo.pDelayTimer)) {
-      stError("failed to stop the trigger sched timer, wait for 100ms and retry");
-      taosMsleep(100);
-    }
+    taosTmrStop(pTask->schedInfo.pDelayTimer);
     pTask->schedInfo.pDelayTimer = NULL;
   }
 
