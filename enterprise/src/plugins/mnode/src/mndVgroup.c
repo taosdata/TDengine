@@ -54,6 +54,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "bal-vg-leader");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
+  mndTransSetChangeless(pTrans);
   mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
 
   void *pIter = NULL;
