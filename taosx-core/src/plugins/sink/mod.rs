@@ -17,8 +17,9 @@ use crate::runners::opc::config::model::TableConfig;
 use anyhow::{bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
-    Int16Array, Int32Array, Int64Array, Int8Array, StringArray, TimestampMillisecondArray,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Int16Array, Int32Array, Int64Array, Int8Array, StringArray, TimestampMicrosecondArray,
+    TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+    UInt8Array,
 };
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient};
@@ -46,6 +47,7 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
+use crate::runners::opc::config::model::TagConfig;
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
@@ -988,14 +990,25 @@ fn transform_by_name(
                 scope.set_or_push(name, value.to_string());
             }
             DataType::Timestamp(TimeUnit::Millisecond, None) => {
-                // expr = expr.replace("h", "*3600000");
-                // expr = expr.replace("m", "*60000");
-                // expr = expr.replace("s", "*1000");
-                // expr = expr.replace("ms", "*1");
-
                 let value = columns[col_index]
                     .as_any()
                     .downcast_ref::<TimestampMillisecondArray>()
+                    .unwrap()
+                    .value(row_index);
+                scope.set_or_push(name, value);
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                let value = columns[col_index]
+                    .as_any()
+                    .downcast_ref::<TimestampMicrosecondArray>()
+                    .unwrap()
+                    .value(row_index);
+                scope.set_or_push(name, value);
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                let value = columns[col_index]
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
                     .unwrap()
                     .value(row_index);
                 scope.set_or_push(name, value);
@@ -1204,7 +1217,9 @@ fn stable_name(
 
 #[derive(Clone, Debug)]
 struct PointInsertion {
-    columns: Vec<(String, String)>,
+    column_configs: Vec<ColumnConfig>,
+    tag_configs: Option<Vec<TagConfig>>,
+    columns: Vec<(String, String)>, // column_name(original_ts/received_ts/value/quality), column_alias
     value_column_config: Option<ColumnConfig>,
     other_columns: String,
     tags: String,
@@ -1266,6 +1281,8 @@ impl PointInsertion {
         };
 
         Self {
+            column_configs: table_config.column_configs.clone(),
+            tag_configs: table_config.tag_configs.clone(),
             columns,
             value_column_config,
             other_columns,
@@ -1328,7 +1345,6 @@ async fn consume_point_record(
         let status_column_view = cv_vec.get(status_index).unwrap();
 
         let point_config_map = &config.point_config_map;
-        let table_config = &config.table_config;
         let table_config_map = &config.table_config_map;
 
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
@@ -1472,7 +1488,6 @@ async fn consume_point_record(
                         _ => value.to_string(),
                     };
                     tag_values.push_str(format!("{},", value.replace("NaN", "NULL")).as_str());
-                    // index += 1;
                 }
                 tag_names.pop();
                 tag_values.pop();
@@ -1499,13 +1514,6 @@ async fn consume_point_record(
                     );
                     child_table_create_sql_map.insert(stable_name.clone(), map);
                 }
-                // child_table_create_sql_map.insert(
-                //     child_table_name.clone(),
-                //     format!(
-                //         "(`point_id`, `point_name`) TAGS (\"{point_id}\", {})",
-                //         &point_name
-                //     ),
-                // );
             } else {
                 if child_table_create_sql_map.contains_key(&stable_name) {
                     let map = child_table_create_sql_map.get_mut(&stable_name).unwrap();
@@ -1521,11 +1529,6 @@ async fn consume_point_record(
                     );
                     child_table_create_sql_map.insert(stable_name.clone(), map);
                 }
-
-                // child_table_create_sql_map.insert(
-                //     child_table_name.clone(),
-                //     format!("({}) TAGS ({})", tag_names, tag_values),
-                // );
             }
 
             let sql_vec = stable_insert_map.get_mut(&stable_name);
@@ -1559,7 +1562,6 @@ async fn consume_point_record(
                         value_column_length,
                     },
                 });
-
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
                 let sql_vec = sql_vec.unwrap();
@@ -1617,7 +1619,6 @@ async fn consume_point_record(
         for (stable_name, sql_vec) in stable_insert_map {
             for sql_insertion in sql_vec {
                 debug!("point message insert sql len: {}", sql_insertion.sql.len());
-
                 tracing::trace!("sql>>>{}", sql_insertion.sql);
 
                 let mut retry = 0;
@@ -1680,7 +1681,7 @@ async fn consume_point_record(
 
                                 let tags = sql_insertion.point_insertion.tags.clone();
                                 let stable_sql = format!(
-                                    "CREATE STABLE IF NOT EXISTS `{}` ({}) tags ({})",
+                                    "CREATE STABLE `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
@@ -1727,7 +1728,7 @@ async fn consume_point_record(
                                 for (child_table_name, child_table_create_sql) in
                                     child_table_create_sql_map
                                 {
-                                    let suffix_sql = format!(" IF NOT EXISTS `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
+                                    let suffix_sql = format!(" `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
                                         sql_prefix = "CREATE TABLE".to_string();
@@ -1761,21 +1762,21 @@ async fn consume_point_record(
                                                 tracing::warn!("create table sql encounter 0x032C");
                                             } else if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
-                                                retry += 1;
                                                 break_err = Err(err);
-                                                continue 'outer;
                                             } else {
                                                 tracing::error!(
                                                     sql = create_child_sql,
                                                     "create table sql error: {err:#}"
                                                 );
                                             }
+                                            retry += 1;
+                                            continue 'outer;
                                         }
                                     }
                                 }
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
                                 // Illegal number of columns or tags, alter to add columns or tag
-                                for column_config in &table_config.column_configs {
+                                for column_config in &sql_insertion.point_insertion.column_configs {
                                     let mut need_add = true;
                                     let column_name = get_real_column_name(column_config);
                                     // alter stable column not supported by taosd
@@ -1789,6 +1790,7 @@ async fn consume_point_record(
                                                 0x0E001 | 0x0E002 | 0x0E003 => {
                                                     taos.replace(pool.get().await?);
                                                     break_err = Err(err);
+                                                    retry += 1;
                                                     continue 'outer;
                                                 }
                                                 _ => {
@@ -1807,6 +1809,7 @@ async fn consume_point_record(
                                             need_add = false;
                                         }
                                     });
+
                                     if need_add {
                                         let column_real_name = get_real_column_name(column_config);
                                         if column_config.r#type.is_none() {
@@ -1853,14 +1856,12 @@ async fn consume_point_record(
                                     }
                                 }
 
-                                if table_config.tag_configs.is_some() {
-                                    // let tag_configs = &table_config.tag_configs.clone().unwrap();
+                                if let Some(tag_configs) =
+                                    &sql_insertion.point_insertion.tag_configs
+                                {
                                     let desc =
                                         taos.as_ref().unwrap().describe(&stable_name).await?;
-                                    let fields = table_config
-                                        .tag_configs
-                                        .as_ref()
-                                        .unwrap()
+                                    let fields = tag_configs
                                         .iter()
                                         .map(|config| (config.name.clone(), config.r#type.clone()))
                                         .collect_vec();
@@ -1895,6 +1896,7 @@ async fn consume_point_record(
                                                             "alter table err: {}",
                                                             err.to_string()
                                                         );
+                                                        retry += 1;
                                                         break 'outer;
                                                     }
                                                 }
@@ -1929,11 +1931,16 @@ async fn consume_point_record(
                                     )
                                     .unwrap(),
                                 ));
-                                if table_config.tag_configs.is_some() {
-                                    for tag_conf in table_config.tag_configs.clone().unwrap() {
-                                        tags_for_diff.push((tag_conf.name, tag_conf.r#type));
+
+                                if let Some(tag_configs) =
+                                    &sql_insertion.point_insertion.tag_configs
+                                {
+                                    for tag_conf in tag_configs {
+                                        tags_for_diff
+                                            .push((tag_conf.name.clone(), tag_conf.r#type.clone()));
                                     }
                                 }
+
                                 let sqls = generate_alter_sql_diff_desc(
                                     &stable_name,
                                     &desc,
