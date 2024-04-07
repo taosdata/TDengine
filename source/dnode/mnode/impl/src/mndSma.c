@@ -1960,8 +1960,8 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     // create sql
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char buf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    len = snprintf(buf + 2, TSDB_SHOW_SQL_LEN, "%s", pSma->sql);
-    varDataSetLen(buf, len);
+    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_SHOW_SQL_LEN, "%s", pSma->sql);
+    varDataSetLen(buf, TMIN(len, TSDB_SHOW_SQL_LEN));
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
     // func list
@@ -1976,6 +1976,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
           if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
           len += snprintf(start, TSDB_SHOW_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
                           ((SExprNode *)pFunc)->userAlias);
+          if (len >= TSDB_SHOW_SQL_LEN) {
+            len = TSDB_SHOW_SQL_LEN;
+            break;
+          }
           start = buf + VARSTR_HEADER_SIZE + len;
         }
       }

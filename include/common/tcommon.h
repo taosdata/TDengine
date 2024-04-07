@@ -416,6 +416,7 @@ int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t 
 
 #define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN 32
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {
   const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
