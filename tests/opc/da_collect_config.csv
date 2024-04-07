@@ -1,0 +1,3 @@
+0,tbname,tag_name,tag::VARCHAR(200)::name,tag::VARCHAR(50)::unit,type,value_col,quality_col,enabled,stable,ts_col,received_time_col
+1,tbname1,tag1,name1,unit1,int,value11,quality11,1,stable1,ts11,received_time11
+2,tbname2,tag2,name2,unit2,double,value11,quality11,0,stable2,ts11,received_time11

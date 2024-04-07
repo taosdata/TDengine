@@ -1,29 +1,33 @@
-use crate::runners::opc::config::csv::CsvHeader;
-use crate::runners::opc::config::{generate_config_from_csv, OPCConfig};
-use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
-use anyhow::bail;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
-use taos::{Dsn, Ty};
+
+use anyhow::bail;
+use csv_async::StringRecord;
+use linked_hash_map::LinkedHashMap;
+use serde::{Deserialize, Serialize};
+use taos::Ty;
+
 use taosx_ipc::prelude::IpcDataType;
+
+use crate::runners::opc::config::csv::header::CsvHeader;
+use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcModelConfig {
     /// id, (code, stable, enabled)
     /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
-    pub point_config_map: HashMap<String, PointConfig>,
+    pub point_config_map: LinkedHashMap<String, PointConfig>,
     pub table_config: TableConfig, // for compatibility
-    pub table_config_map: HashMap<String, TableConfig>,
+    pub table_config_map: LinkedHashMap<String, TableConfig>,
 }
 
 impl OpcModelConfig {
     pub fn new() -> Self {
         OpcModelConfig {
-            point_config_map: HashMap::new(),
+            point_config_map: LinkedHashMap::new(),
             table_config: TableConfig::empty(),
-            table_config_map: HashMap::new(),
+            table_config_map: LinkedHashMap::new(),
         }
     }
 
@@ -31,18 +35,30 @@ impl OpcModelConfig {
     pub async fn append(
         &mut self,
         header: &CsvHeader,
-        row: csv_async::StringRecord,
+        row: StringRecord,
+        row_index: usize,
     ) -> anyhow::Result<()> {
         let point_id = parse_point_id(header, &row)?;
 
         // add point config
-        let is_duplicated = self
-            .point_config_map
-            .insert(point_id.clone(), PointConfig::from_csv(&header, &row)?);
+        let is_duplicated = self.point_config_map.insert(
+            point_id.clone(),
+            PointConfig::from_csv(&header, &row, row_index)?,
+        );
 
         // check point_id duplicated
-        if is_duplicated.is_some() {
-            tracing::warn!("found duplicated point: {} in csv row", point_id);
+        if let Some(point_config) = is_duplicated {
+            match header.get_opc_type() {
+                OpcType::OPCUA => {
+                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index,row_index);
+                }
+                OpcType::OPCDA => {
+                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index, row_index);
+                }
+                OpcType::FAKE => {
+                    unimplemented!()
+                }
+            }
         }
 
         // add table config
@@ -68,7 +84,7 @@ impl OpcModelConfig {
     }
 }
 
-fn parse_point_id(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<String> {
+fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
     let opc_type = header.get_opc_type();
 
     let point_id_col = match opc_type {
@@ -100,6 +116,7 @@ fn parse_point_id(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PointConfig {
+    pub row_index: usize,
     pub code: String, // code is tbname
     pub stable: Option<String>,
     pub tag_values: Option<HashMap<String, String>>,
@@ -107,13 +124,18 @@ pub struct PointConfig {
 }
 
 impl PointConfig {
-    pub fn from_csv(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<Self> {
+    pub fn from_csv(
+        header: &CsvHeader,
+        row: &StringRecord,
+        row_index: usize,
+    ) -> anyhow::Result<Self> {
         let code = parse_tbname(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
         let value_type = parse_type(header, row);
 
         Ok(PointConfig {
+            row_index,
             code,
             stable,
             tag_values,
@@ -232,7 +254,7 @@ impl TableConfig {
         }
     }
 
-    pub fn from_csv(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<Self> {
+    pub fn from_csv(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Self> {
         let stable = parse_stable(header, row);
         let stable_prefix = if stable.is_none() {
             Some(String::from(DEFAULT_STABLE_PREFIX))
@@ -256,57 +278,65 @@ impl TableConfig {
         })
     }
 
-    pub async fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
-        let opc_type = OpcType::from_dsn(dsn)?;
-        let csv_config_file = OPCConfig::parse_csv_config_file(dsn);
-        let opc_table_config = match (opc_type, csv_config_file) {
-            (OpcType::OPCUA, Some(csv)) => {
-                let config = generate_config_from_csv("opcua", csv.as_str())
-                    .await
-                    .map(|(a, _b, _c)| a)
-                    .map_err(|err| {
-                        anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                    })?;
-                Some(config)
-            }
-            (OpcType::OPCUA, None) => None,
-            (OpcType::OPCDA, Some(csv)) => {
-                let config = generate_config_from_csv("opcda", csv.as_str())
-                    .await
-                    .map(|(a, _b, _c)| a)
-                    .map_err(|err| {
-                        anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                    })?;
-                Some(config)
-            }
-            (OpcType::OPCDA, None) => None,
-            (OpcType::FAKE, _) => None,
-        };
-
-        let table_config = match opc_table_config {
-            Some(table_config) => Some(table_config.table_config),
-            None => {
-                let select_all_points = OPCConfig::parse_select_all_points(dsn);
-
-                if select_all_points {
-                    None
-                } else {
-                    let config = dsn.params.get("opc_table_config");
-                    if config.is_none() {
-                        bail!("opc_table_config is required");
-                    }
-                    Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| {
-                        anyhow::anyhow!(
-                            "failed to parse opc_table_config, cause: {}",
-                            v.to_string()
-                        )
-                    })?)
-                }
-            }
-        };
-
-        Ok(table_config)
-    }
+    // pub async fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+    //     let opc_type = OpcType::from_dsn(dsn)?;
+    //     let csv_config_file = OPCConfig::parse_csv_config_file(dsn);
+    //
+    //     let opc_table_config = if csv_config_file.is_some() {
+    //         let parser = CsvParser::from_dsn(dsn).await?;
+    //         Some(parser.get_model_config().table_config_map)
+    //     } else {
+    //         None
+    //     };
+    //
+    //     // let opc_table_config = match (opc_type, csv_config_file) {
+    //     //     (OpcType::OPCUA, Some(csv)) => {
+    //     //         let config = generate_config_from_csv("opcua", csv.as_str())
+    //     //             .await
+    //     //             .map(|(a, _b, _c)| a)
+    //     //             .map_err(|err| {
+    //     //                 anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+    //     //             })?;
+    //     //         Some(config)
+    //     //     }
+    //     //     (OpcType::OPCUA, None) => None,
+    //     //     (OpcType::OPCDA, Some(csv)) => {
+    //     //         let config = generate_config_from_csv("opcda", csv.as_str())
+    //     //             .await
+    //     //             .map(|(a, _b, _c)| a)
+    //     //             .map_err(|err| {
+    //     //                 anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+    //     //             })?;
+    //     //         Some(config)
+    //     //     }
+    //     //     (OpcType::OPCDA, None) => None,
+    //     //     (OpcType::FAKE, _) => None,
+    //     // };
+    //
+    //     let table_config = match opc_table_config {
+    //         Some(table_config) => Some(table_config.table_config),
+    //         None => {
+    //             let select_all_points = OPCConfig::parse_select_all_points(dsn);
+    //
+    //             if select_all_points {
+    //                 None
+    //             } else {
+    //                 let config = dsn.params.get("opc_table_config");
+    //                 if config.is_none() {
+    //                     bail!("opc_table_config is required");
+    //                 }
+    //                 Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| {
+    //                     anyhow::anyhow!(
+    //                         "failed to parse opc_table_config, cause: {}",
+    //                         v.to_string()
+    //                     )
+    //                 })?)
+    //             }
+    //         }
+    //     };
+    //
+    //     Ok(table_config)
+    // }
 
     pub fn column_config(&self, name: &str) -> Option<&ColumnConfig> {
         self.column_configs.iter().find(|c| c.name == name)

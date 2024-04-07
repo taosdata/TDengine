@@ -1,0 +1,5 @@
+point_id,stable,tbname,value_col,tag::VARCHAR(200)::name
+ns=3;i=1013,stb,tb_wide,d_col,DOUBLE
+ns=3;i=1014,stb,tb_wide,s_col,STRING
+ns=3;i=1015,stb,tb_wide,i_col,INTEGER
+ns=3;i=1016,stb,tb_wide,b_col,BOOLEAN

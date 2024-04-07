@@ -213,7 +213,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
         Ok(dsn) => {
             match dsn.driver.as_str() {
                 // TODO: clickhouse
-                runners::historian::AVEVA_HISTORIAN_ID => runners::historian::is_valid(&dsn).await,
+                AVEVA_HISTORIAN_ID => historian::is_valid(&dsn).await,
                 "influxdb" => runners::influxdb::is_valid(&dsn).await,
                 runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
                 "mqtt" => runners::mqtt::is_valid(&dsn).await,

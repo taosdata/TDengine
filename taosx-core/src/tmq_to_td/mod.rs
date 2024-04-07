@@ -512,8 +512,8 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    let refresh_pgrogress_interval =
-        crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
+    // let refresh_pgrogress_interval =
+    //     crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -551,12 +551,13 @@ async fn sync(
                     if let Err(err) = consumer.commit(offset).await {
                         tracing::warn!("Commit error: {err:?}");
                     } else {
-                        if refresh_pgrogress_interval.ticked() {
+                        // if refresh_pgrogress_interval.ticked() {
                             let assignments = consumer.assignments().await;
                             match assignments {
                                 Some(assignments) => {
                                     if !assignments.is_empty() {
                                         for (topic, assignments) in assignments {
+                                            tracing::debug!("Update progress for topic {topic} with {:?}", &assignments);
                                             metrics.update_progress(topic, assignments);
                                         }
                                     }
@@ -565,7 +566,7 @@ async fn sync(
                                     tracing::warn!("Failed to get assignments");
                                 }
                             }
-                        }
+                        // }
                     }
                 } else {
                     break;
