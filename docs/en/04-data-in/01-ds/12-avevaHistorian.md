@@ -54,8 +54,7 @@ AVEVA Historian data source is the process of writing data from the AVEVA Histor
 9. In the **Advanced Options** area, fill in the configuration parameters related to advanced options.
    - Set the maximum number of concurrent reads in **Max Read Concurrency**. The default value is 0, which means auto, automatically configure the concurrency.
    - Set the batch size in **Batch Size**, which is the maximum number of messages sent in a single send.
-   - Select whether to save the original data in **Keep Raw Data**. The default value is No.
-   - When saving the original data, the following two parameters are configured.
+   - Select whether to save the original data in **Keep Raw Data**. The default value is No. When saving the original data, the following two parameters are configured.
    - Set the maximum retention days of the original data in **Max Keep Days**.
    - Set the original data storage directory in **Raw Data Directory**.
 10. After filling in the above information, click the **Submit** button to start the data synchronization from AVEVA Historian to TDengine.

@@ -23,10 +23,7 @@ There is an additional charge for extracting OPC UA . The charge depends on your
 2. In the **Target DB**, select the database of the current TDengine Cloud instance as the target database.
 3. In the **Service endpoint** field, you need to configure the address of the OPC DA server, 127.0.0.1&lt;,localhost&gt;/Matrikon.OPC.Simulation.
 4. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the OPC DA server is available.
-5. In the **DataSet CSV config file** field, configure whether to enable the CSV config. If enabled, copy the specifics of the CSV profile to configure the dataset information, and the **Data Sets** and **Table Config** will no longer take effect.
-6. in the **Connection** part, configure the Connection Timeout Interval and Acquisition Timeout Interval (in seconds), the default value is 10 seconds.
-7. In the **Original Data Save** part, configure whether to enable save. If it is saved, please set the save path and the specific number of days to save.
-8. In the **Others** part, configure the parallelism, single collection report batch (default value is 100), report timeout (unit: second, default value is 10), and whether to enable debug level logging.
-9. In the **Table Config** part, configure the super table and sub-table structure information of the data stored in the target TDengine.
-10. In the **Data Sets** field, configure the point information. Click the **Select** button to select the DA tags.
-11. After completing the above information, click the **Add** button to directly initiate data synchronization from the OPC DA server to the TDengine Cloud instance.
+5. In the **Data Sets** field, configure the point information. Click the **Select** button to select the regular expression to filter the points, and up to 10 points can be filtered out at a time.
+6. in the **Connection** part, configure the Connection Timeout Interval and Request Timeout Interval (in seconds), the default value is 10 seconds.
+7. In the **Advanced Options** part, configure the Write Concurrency, Batch Size (default value is 1000), Batch Timeout (unit: second, default value is 1), and whether to enable debug level logging. In the **Keep Raw Data** part, configure whether to enable save. If it is saved, please set the save path and the specific number of days to save.
+8. After completing the above information, click the **Add** button to directly initiate data synchronization from the OPC DA server to the TDengine Cloud instance.
