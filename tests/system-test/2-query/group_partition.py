@@ -126,7 +126,7 @@ class TDTestCase:
             tdSql.checkData(0, 1, i)
             tdSql.checkData(0, 2, i*10)
 
-        tdSql.query(f"select t1, t2, t3, count(*) from {self.stable} partition by c1, tbname order by tbname desc")
+        tdSql.query(f"select t1, t2, t3, count(*) from {self.dbname}.{self.stable} partition by c1, tbname order by tbname desc")
         tdSql.checkRows(50)
         tdSql.checkData(0, 1, 4)
         tdSql.checkData(0, 2, 40)
