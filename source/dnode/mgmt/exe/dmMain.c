@@ -367,6 +367,10 @@ int mainWindows(int argc, char **argv) {
   }
 
   if(global.generateCode) {
+    if(dmCheckRunning(tsDataDir) == NULL) {
+      dError("failed to generate encrypt code since taosd is running, please stop it first");
+      return -1;
+    }
     int ret = updateEncryptKey(global.encryptKey);
     taosCloseLog();
     taosCleanupArgs();

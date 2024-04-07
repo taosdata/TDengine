@@ -148,7 +148,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
-  pCfg->tsdbCfg.cryptAlgorithm = 0;
+  pCfg->tsdbCfg.encryptAlgorithm = 0;
 #endif
 
   pCfg->walCfg.vgId = pCreate->vgId;
@@ -164,7 +164,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
-  pCfg->walCfg.cryptAlgorithm = 0;
+  pCfg->walCfg.encryptAlgorithm = 0;
 #endif
 
 #if defined(TD_ENTERPRISE)
@@ -173,7 +173,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
   }
 #else
-  pCfg->tdbEncryptKey = 0;
+  pCfg->tdbEncryptAlgorithm = 0;
 #endif
 
   pCfg->sttTrigger = pCreate->sstTrigger;
