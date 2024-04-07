@@ -849,10 +849,51 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
+static bool mndTransActionsOfSameType(SArray *pActions) {
+  int32_t size = taosArrayGetSize(pActions);
+  ETrnAct lastActType = TRANS_ACTION_NULL;
+  bool    same = true;
+  for (int32_t i = 0; i < size; ++i) {
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (i > 0) {
+      if (lastActType != pAction->actionType) {
+        same = false;
+        break;
+      }
+    }
+    lastActType = pAction->actionType;
+  }
+  return same;
+}
+
+static int32_t mndTransCheckParallelActions(SMnode *pMnode, STrans *pTrans) {
+  if (pTrans->exec == TRN_EXEC_PARALLEL) {
+    if (mndTransActionsOfSameType(pTrans->redoActions) == false) {
+      terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+      mError("trans:%d, types of parallel redo actions are not the same", pTrans->id);
+      return -1;
+    }
+
+    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      if (mndTransActionsOfSameType(pTrans->undoActions) == false) {
+        terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+        mError("trans:%d, types of parallel undo actions are not the same", pTrans->id);
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans == NULL) return -1;
 
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+    return -1;
+  }
+
+  if (mndTransCheckParallelActions(pMnode, pTrans) != 0) {
     return -1;
   }
 
