@@ -115,20 +115,6 @@ async fn write_data(
                 }
             }
         } else {
-            while let Some(raw) = data
-                .fetch_raw_block()
-                .await
-                .context("Fetch raw block error")?
-            {
-                *rows += raw.nrows();
-                metrics.add_written_rows(raw.nrows() as _);
-                metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
-                metrics.add_suc_blocks(1);
-            }
-            tracing::debug!(
-                "End writing data, current written rows {}",
-                metrics.written_rows()
-            );
             return Ok(0);
         }
     }
