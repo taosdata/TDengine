@@ -19,7 +19,7 @@
 #include "tgeosctx.h"
 #include "tlog.h"
 
-#define QUEUE_THRESHOLD 1000 * 1000
+#define QUEUE_THRESHOLD (1000 * 1000)
 
 typedef void *(*ThreadFp)(void *param);
 

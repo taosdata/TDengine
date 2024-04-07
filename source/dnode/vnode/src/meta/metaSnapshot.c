@@ -79,6 +79,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   int32_t     nKey = 0;
   int32_t     nData = 0;
   STbDbKey    key;
+  SMetaInfo   info;
 
   *ppData = NULL;
   for (;;) {
@@ -91,7 +92,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
       goto _exit;
     }
 
-    if (key.version < pReader->sver) {
+    if (key.version < pReader->sver  //
+        || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
       tdbTbcMoveToNext(pReader->pTbc);
       continue;
     }
