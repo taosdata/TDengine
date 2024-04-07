@@ -1,12 +1,12 @@
 settings:
   - name: taosd
-    fqdn: [node230]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: node230:6030
+        firstEP: localhost:6030
       dnodes:
-        - endpoint: node230:6030
+        - endpoint: localhost:6030
           config_dir: /root/jayden/config/dnode1
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -14,13 +14,13 @@ settings:
             logDir: /root/jayden/log/taos/dnode1
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
-        - endpoint: node230:6031
+        - endpoint: localhost:6031
           config_dir: /root/jayden/config/dnode2
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -28,13 +28,13 @@ settings:
             logDir: /root/jayden/log/taos/dnode2
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
-        - endpoint: node230:6032
+        - endpoint: localhost:6032
           config_dir: /root/jayden/config/dnode3
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -42,13 +42,13 @@ settings:
             logDir: /root/jayden/log/taos/dnode3
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
-        - endpoint: node230:6033
+        - endpoint: localhost:6033
           config_dir: /root/jayden/config/dnode4
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -56,14 +56,14 @@ settings:
             logDir: /root/jayden/log/taos/dnode4
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
       reserve_dnodes:
-        - endpoint: node230:6034
+        - endpoint: localhost:6034
           config_dir: /root/jayden/config/dnode5
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -71,13 +71,13 @@ settings:
             logDir: /root/jayden/log/taos/dnode5
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
-        - endpoint: node230:6035
+        - endpoint: localhost:6035
           config_dir: /root/jayden/config/dnode6
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -85,13 +85,13 @@ settings:
             logDir: /root/jayden/log/taos/dnode6
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
-        - endpoint: node230:6036
+        - endpoint: localhost:6036
           config_dir: /root/jayden/config/dnode7
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -99,29 +99,29 @@ settings:
             logDir: /root/jayden/log/taos/dnode7
             qDebugFlag: 131
             mDebugFlag: 131
-            tqDebugFlag: 131
-            stDebugFlag: 131
+            tqDebugFlag: 135
+            stDebugFlag: 135
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
             checkpointInterval: 60
   - name: taosBenchmark
-    fqdn: [node230]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0
       taos_version: 3.0.0.0
       config_dir: /etc/taos
       taos_config:
-        firstEP: node230:6030
+        firstEP: localhost:6030
         logDir: /var/log/taos
         debugFlag: 131
   - name: taospy
-    fqdn: [node230]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0
       client_version: 3.0.0.0
       config:
-        firstEP: node230:6030
+        firstEP: localhost:6030
         dataDir: /var/lib/taos
         logDir: /var/log/taos
         debugFlag: 131
