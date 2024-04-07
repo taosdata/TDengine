@@ -1379,17 +1379,13 @@ export default {
       let columns = [];
       let mutates = [];
       let mutateMap = {};
-      let primarykey = "";
+  
       this.tableData.forEach((item) => {
         if (item["Expression"]) {
           if (
-            this.params_columns.includes(item["Name"]) &&
-            !item["Type"].includes("TIMESTAMP")
+            this.params_columns.includes(item["Name"])
           ) {
             columns.push(item["Name"]);
-          }
-          if (item["Type"].includes("TIMESTAMP") && !primarykey) {
-            primarykey = item["Name"];
           }
           if (this.params_tags.includes(item["Name"])) {
             tags.push(item["Name"]);
@@ -1416,7 +1412,7 @@ export default {
       mutates.forEach((item) => {
         Object.assign(mutateMap, item);
       });
-      columns.unshift(primarykey);
+
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
@@ -1468,10 +1464,9 @@ export default {
           currentPage: this.currentPage,
         },
       };
-      // if (this.activeName == "first" && this.radio == "2" && !this.istext) {
-      //   return;
-      // }
-      if (tags.length == 0 || columns.length == 0 || !primarykey) {
+
+      // 至少必须配置一个tag和一个column 
+      if (tags.length == 0 || columns.length == 0) {
         Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
         return;
