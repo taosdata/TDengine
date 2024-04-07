@@ -19,16 +19,12 @@ extern "C" {
 #endif
 
 #include <uv.h>
-#include "os.h"
-#include "taoserror.h"
 #include "theap.h"
-#include "tmisce.h"
 #include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
-#include "tutil.h"
 
 typedef bool (*FilteFunc)(void* arg);
 
@@ -115,9 +111,12 @@ typedef SRpcConnInfo STransHandleInfo;
 
 // ref mgt handle
 typedef struct SExHandle {
-  void*   handle;
-  int64_t refId;
-  void*   pThrd;
+  void*    handle;
+  int64_t  refId;
+  void*    pThrd;
+  queue    q;
+  int8_t   inited;
+  SRWLatch latch;
 } SExHandle;
 
 typedef struct {
