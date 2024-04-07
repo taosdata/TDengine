@@ -375,17 +375,22 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->schedInfo.pDelayTimer != NULL) {
-    taosTmrStop(pTask->schedInfo.pDelayTimer);
+    while(!taosTmrStop(pTask->schedInfo.pDelayTimer)) {
+      stError("failed to stop the trigger sched timer, wait for 100ms and retry");
+      taosMsleep(100);
+    }
     pTask->schedInfo.pDelayTimer = NULL;
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
-    taosTmrStop(pTask->hTaskInfo.pTimer);
+    bool ret = taosTmrStop(pTask->hTaskInfo.pTimer);
+    ASSERT(ret);
     pTask->hTaskInfo.pTimer = NULL;
   }
 
   if (pTask->msgInfo.pTimer != NULL) {
-    taosTmrStop(pTask->msgInfo.pTimer);
+    bool ret = taosTmrStop(pTask->msgInfo.pTimer);
+    ASSERT(ret);
     pTask->msgInfo.pTimer = NULL;
   }
 
