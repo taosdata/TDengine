@@ -38,17 +38,18 @@ KILL COMPACT compact_id；
 - The `COMPACT` command blocks data ingestion but does not block data querying.
 - The progress of the `COMPACT` command is not displayed.
 
-## Raft Leader Balancing
+## Vgroup Leader Balancing
 
 If one or more nodes in a multi-replica cluster are restarted due to an upgrade or another reason, load on the cluster may become unevenly distributed among the dnodes in the cluster. In extreme cases, it is possible that a single dnode becomes the leader node of all vgroups in the cluster. You can run the following command to rebalance your cluster:
 
 ```SQL
-balance vgroup leader;
+balance vgroup leader; # balance leaders on all vgroups
+balance vgroup leader on <vgroup_id>; # balance leader on a given vgroup
 ```
 
 ### Features
 
-The command distributes all vgroup leader nodes evenly across replicas. It implements this by forcing vgroups to reelect their leaders.
+The command tries to distribute one or all vgroup leaders nodes evenly across replicas. It implements this by forcing vgroups to reelect their leaders.
 
 ### Notes
 
