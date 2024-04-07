@@ -75,6 +75,8 @@ void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
     taosArrayDestroy(pLoadInfo->info.pFirstKey);
     taosArrayDestroy(pLoadInfo->info.pLastKey);
     taosArrayDestroy(pLoadInfo->info.pCount);
+    taosArrayDestroy(pLoadInfo->info.pFirstTs);
+    taosArrayDestroy(pLoadInfo->info.pLastTs);
   }
 
   taosArrayDestroy(pLoadInfo->aSttBlk);
