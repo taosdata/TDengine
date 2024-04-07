@@ -992,39 +992,39 @@ static bool overlapWithTimeWindow(STimeWindow* p1, STimeWindow* pQueryWindow, ST
 }
 
 static int32_t sortUidComparFn(const void* p1, const void* p2) {
-  const STimeWindow* px1 = p1;
-  const STimeWindow* px2 = p2;
-  if (px1->skey == px2->skey) {
-    return 0;
-  } else {
-    return px1->skey < px2->skey ? -1 : 1;
-  }
+  const SSttKeyRange* px1 = p1;
+  const SSttKeyRange* px2 = p2;
+
+  int32_t ret = tRowKeyCompare(&px1, px2);
+  return ret;
 }
 
-bool isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo,
+bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo,
                      int32_t order) {
   // check if it overlap with del skyline
-  taosArraySort(pTimewindowList, sortUidComparFn);
+  taosArraySort(pKeyRangeList, sortUidComparFn);
 
-  int32_t num = taosArrayGetSize(pTimewindowList);
+  int32_t num = taosArrayGetSize(pKeyRangeList);
   if (num == 0) {
     return false;
   }
 
-  STimeWindow* p = taosArrayGet(pTimewindowList, 0);
-  if (overlapWithTimeWindow(p, pQueryWindow, pScanInfo, order)) {
+  SSttKeyRange* pRange = taosArrayGet(pKeyRangeList, 0);
+  STimeWindow w = {.skey = pRange->skey.ts, .ekey = pRange->ekey.ts};
+  if (overlapWithTimeWindow(&w, pQueryWindow, pScanInfo, order)) {
     return false;
   }
 
   for (int32_t i = 0; i < num - 1; ++i) {
-    STimeWindow* p1 = taosArrayGet(pTimewindowList, i);
-    STimeWindow* p2 = taosArrayGet(pTimewindowList, i + 1);
+    SSttKeyRange* p1 = taosArrayGet(pKeyRangeList, i);
+    SSttKeyRange* p2 = taosArrayGet(pKeyRangeList, i + 1);
 
-    if (p1->ekey >= p2->skey) {
+    if (p1->ekey.ts >= p2->skey.ts) {
       return false;
     }
 
-    bool overlap = overlapWithTimeWindow(p2, pQueryWindow, pScanInfo, order);
+    STimeWindow w2 = {.skey = p2->skey.ts, .ekey = p2->ekey.ts};
+    bool overlap = overlapWithTimeWindow(&w2, pQueryWindow, pScanInfo, order);
     if (overlap) {
       return false;
     }
