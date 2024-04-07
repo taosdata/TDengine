@@ -310,6 +310,16 @@ int32_t smlJoinMeasureTag(SSmlLineInfo *elements){
   return TSDB_CODE_SUCCESS;
 }
 
+static bool smlIsPKTable(STableMeta *pTableMeta){
+  for(int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++){
+    if(pTableMeta->schema[i].flags & COL_IS_KEY){
+      return true;
+    }
+  }
+
+  return false;
+}
+
 int32_t smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements) {
   bool isSameMeasure = IS_SAME_SUPER_TABLE;
   if(isSameMeasure) {
@@ -328,6 +338,11 @@ int32_t smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements) {
   info->currSTableMeta = sMeta->tableMeta;
   info->maxTagKVs = sMeta->tags;
   info->maxColKVs = sMeta->cols;
+
+  if(smlIsPKTable(sMeta->tableMeta)){
+    terrno = TSDB_CODE_SML_NOT_SUPPORT_PK;
+    return -1;
+  }
   return 0;
 }
 
@@ -1063,6 +1078,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
     } else if (code == TSDB_CODE_SUCCESS) {
+
+      if(smlIsPKTable(pTableMeta)){
+        code = TSDB_CODE_SML_NOT_SUPPORT_PK;
+        goto end;
+      }
+
       hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_NO_LOCK);
       for (uint16_t i = pTableMeta->tableInfo.numOfColumns;
