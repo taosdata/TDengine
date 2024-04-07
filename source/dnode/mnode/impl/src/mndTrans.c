@@ -886,6 +886,21 @@ static int32_t mndTransCheckParallelActions(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
+static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
+  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
+    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
+    mError("trans:%d, commit actions of non-changeless trans are empty", pTrans->id);
+    return -1;
+  }
+  if (mndTransActionsOfSameType(pTrans->commitActions) == false) {
+    terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+    mError("trans:%d, types of commit actions are not the same", pTrans->id);
+    return -1;
+  }
+
+  return 0;
+}
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans == NULL) return -1;
 
@@ -897,9 +912,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
-    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+  if (mndTransCheckCommitActions(pMnode, pTrans) != 0) {
     return -1;
   }
 
