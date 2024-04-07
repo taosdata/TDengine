@@ -154,6 +154,7 @@ datasets:
         description: |
           Support multiple selections, only query the data points under these namespaces.
         placeholder: Please select after connection check successfully
+        multiple: true
         hint:
           type: str
       - name: pattern
