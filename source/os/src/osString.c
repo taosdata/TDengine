@@ -492,6 +492,8 @@ float taosStr2Float(const char *str, char **pEnd) {
 }
 
 #define HEX_PREFIX_LEN 2    // \x
+#define HEX_BYTE_LEN   2
+
 bool isHex(const char* z, uint32_t n){
   if(n < HEX_PREFIX_LEN) return false;
   if(z[0] == '\\' && z[1] == 'x') return true;
@@ -508,34 +510,38 @@ bool isValidateHex(const char* z, uint32_t n){
   return true;
 }
 
-int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
-  n -= HEX_PREFIX_LEN;  // remove 0x
+int32_t taosHex2AsciiImpl(const char *z, uint32_t n, void *data, uint32_t size) {
+  n -= HEX_PREFIX_LEN; // remove \x
   z += HEX_PREFIX_LEN;
-  *size = n / HEX_PREFIX_LEN;
-  if (*size == 0) {
-    if (!(*data = taosStrdup(""))) return -1;
-    return 0;
-  }
-  uint8_t *tmp = (uint8_t *)taosMemoryCalloc(*size, 1);
-  if (tmp == NULL) return -1;
-  int8_t   num = 0;
-  uint8_t *byte = tmp + *size - 1;
 
-  for (int i = n - 1; i >= 0; i--) {
+  uint8_t *bytes = (uint8_t *)data;
+  int8_t   flag = 1;
+  ASSERT(size > n / HEX_BYTE_LEN);
+  bytes[n / HEX_BYTE_LEN] = 0;
+
+  for (int i = 0; i < n; i++) {
     if (z[i] >= 'a') {
-      *byte |= ((uint8_t)(10 + (z[i] - 'a')) << (num * 4));
+      *bytes |= ((uint8_t)(10 + (z[i] - 'a')) << (flag * 4));
     } else if (z[i] >= 'A') {
-      *byte |= ((uint8_t)(10 + (z[i] - 'A')) << (num * 4));
+      *bytes |= ((uint8_t)(10 + (z[i] - 'A')) << (flag * 4));
     } else {
-      *byte |= ((uint8_t)(z[i] - '0') << (num * 4));
+      *bytes |= ((uint8_t)(z[i] - '0') << (flag * 4));
     }
-    if (num == 1) {
-      byte--;
-      num = 0;
+    if (flag == 1) {
+      flag = 0;
     } else {
-      num++;
+      bytes++;
+      flag++;
     }
   }
+  return bytes - (uint8_t *)data;
+}
+
+int32_t taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size) {
+  uint32_t sLen = n / HEX_BYTE_LEN;
+  uint8_t *tmp = (uint8_t *)taosMemoryCalloc(sLen, 1);
+  if (tmp == NULL) return -1;
+  *size = taosHex2AsciiImpl(z, n, tmp, sLen);
   *data = tmp;
   return 0;
 }
