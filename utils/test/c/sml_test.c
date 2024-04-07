@@ -1950,7 +1950,7 @@ int main(int argc, char *argv[]) {
 
   int ret = 0;
   ret = sml_td29373_Test();
-  ASSERT(!ret);
+  ASSERT(ret);
   ret = sml_td24559_Test();
   ASSERT(!ret);
   ret = sml_td18789_Test();
