@@ -512,8 +512,8 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    // let refresh_pgrogress_interval =
-    //     crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
+    let refresh_pgrogress_interval =
+        crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -551,22 +551,9 @@ async fn sync(
                     if let Err(err) = consumer.commit(offset).await {
                         tracing::warn!("Commit error: {err:?}");
                     } else {
-                        // if refresh_pgrogress_interval.ticked() {
-                            let assignments = consumer.assignments().await;
-                            match assignments {
-                                Some(assignments) => {
-                                    if !assignments.is_empty() {
-                                        for (topic, assignments) in assignments {
-                                            tracing::debug!("Update progress for topic {topic} with {:?}", &assignments);
-                                            metrics.update_progress(topic, assignments);
-                                        }
-                                    }
-                                }
-                                None => {
-                                    tracing::warn!("Failed to get assignments");
-                                }
-                            }
-                        // }
+                        if refresh_pgrogress_interval.ticked() {
+                            update_progress(&consumer, &metrics).await;
+                        }
                     }
                 } else {
                     break;
@@ -574,12 +561,27 @@ async fn sync(
             }
         }
     }
+    update_progress(&consumer, &metrics).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
     drop(stream);
     let _ = sender.send(consumer); // tokio send
     Ok(())
+}
+
+async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
+    let assignments = consumer.assignments().await;
+    match assignments {
+        Some(assignments) => {
+            if !assignments.is_empty() {
+                metrics.update_progress(assignments);
+            }
+        }
+        None => {
+            tracing::warn!("Failed to get assignments");
+        }
+    }
 }
 
 #[instrument(skip_all)]

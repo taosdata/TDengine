@@ -402,6 +402,7 @@ async fn init_tracing_layers(
                 .add_directive("h2=warn".parse()?)
                 .add_directive("sqlx::query=warn".parse()?)
                 .add_directive("hyper=warn".parse()?)
+                .add_directive("reqwest=warn".parse()?)
         } else {
             event_filter.add_directive("sqlx::query=warn".parse()?)
         };
