@@ -48,15 +48,14 @@ jobs:
       - name: taosx unit test
         continue-on-error: true
         run: |
-          echo "run taosx unit test"
-          # if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-          #     echo "run taosx unit test"
-          #     export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
-          #     cargo test --target-dir ./target/debug/taosx-build/
-          # fi
-          cargo llvm-cov nextest --workspace
-          cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
-
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+              echo "run taosx unit test"
+              # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+              # cargo test --target-dir ./target/debug/taosx-build/
+              cargo llvm-cov nextest --workspace
+              cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
+          fi
+          
       - name: Build agent
         run: |
           # build agent
@@ -219,6 +218,11 @@ jobs:
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
           ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
       
+      - name: Restart taos-explorer & taosadapter
+        run: |
+          systemctl restart taos-explorer
+          systemctl restart taosadapter
+      
       - name: Run Test
         run: |
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
@@ -258,6 +262,11 @@ jobs:
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
           ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
+
+      - name: Restart taos-explorer & taosadapter
+        run: |
+          systemctl restart taos-explorer
+          systemctl restart taosadapter
       
       - name: Run Test
         run: |
@@ -297,7 +306,17 @@ jobs:
           grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info
           /root/.cargo/bin/grcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info
           # merge filter report
-          lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info
+          if [-f "$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info"]; then
+            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info
+          else
+            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info
+          fi
+
           lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info
 
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined_removed.info
@@ -305,7 +324,6 @@ jobs:
 
       - name: mqtt & opc Report
         run: |
-          # TODO 各组件的单元测试覆盖率还需要添加
           # mqtt report
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/mqtt 
           cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/mqtt
