@@ -8534,7 +8534,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
   return nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
 }
 
-static int32_t checkStreamDestTableSchema(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+static int32_t checkAndAdjStreamDestTableSchema(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   SSelectStmt*    pSelect = (SSelectStmt*)pStmt->pQuery;
   SNode*          pNode = nodesListGetNode(pStmt->pCols, 0);
   SColumnDefNode* pCol = (SColumnDefNode*)pNode;
@@ -8560,6 +8560,9 @@ static int32_t checkStreamDestTableSchema(STranslateContext* pCxt, SCreateStream
 
     pNode = nodesListGetNode(pStmt->pCols, 1);
     pCol = (SColumnDefNode*)pNode;
+    if (STREAM_CREATE_STABLE_TRUE == pReq->createStb) {
+      pCol->is_pk = true;
+    }
     if (!pCol->is_pk) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Source table has primary key, dest table must has primary key");
     }
@@ -8593,7 +8596,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     code = adjustTags(pCxt, pStmt, pMeta, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkStreamDestTableSchema(pCxt, pStmt);
+    code = checkAndAdjStreamDestTableSchema(pCxt, pStmt, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
     getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
