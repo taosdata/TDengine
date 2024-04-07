@@ -11,7 +11,7 @@ fi
 
 # work main path
 TDENGINE_DIR=/root/TDinternal/community
-TAOSTEST_ROOT=/root/taostest
+TAOSTEST_ROOT=/root/taos-test-framework
 TESTNG_ROOT=/root/TestNG
 TAOSTEST_BRANCH=master
 TESTNG_BRANCH=master
