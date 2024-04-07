@@ -165,6 +165,7 @@ function runTestNGCases() {
     runtime=`date +"%Y%m%d_%H_%M_%S"`
     /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_insert_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-insert_$runtime  -d debug  -o 12000 -f False
     /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_query.json -t $TEST_ROOT/scripts/coverage/cases_query_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-query_$runtime  -d debug  -o 12000 -f False
+    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_cluster_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-cluster_$runtime  -d debug  -o 1800 -f False
     stopTaosd
 }
 

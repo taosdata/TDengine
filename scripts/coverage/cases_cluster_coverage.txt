@@ -1,0 +1,7 @@
+taostest --setup=cluster/local_cluster_common_insert.yaml --case=cluster/redistribute_test.py --coverage --disable_collection
+taostest --setup=cluster/local_cluster_common_insert.yaml --case=cluster/compact_test.py --coverage --disable_collection
+taostest --setup=cluster/local_cluster_common_insert.yaml --case=cluster/vnode_split_test.py --coverage --disable_collection
+
+
+
+

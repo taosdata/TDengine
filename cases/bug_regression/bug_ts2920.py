@@ -29,7 +29,7 @@ class TestTs2920(TDCase):
         self.tdSql.execute('create stream nginx_avg_2 ignore update 0 ignore expired 0 fill_history 1 into test_ts2920.nginx_avg_output subtable(short_request) as select _wstart as start_time, _wend as end_time, short_request, short_request1, avg(upstream_response) as avg_response from test_ts2920.nginx partition by short_request,short_request1 interval(1m);')
         for i in range(self.rows_count):
             self.tdSql.execute(f'insert into test_ts2920.ctb values (now+{i}m, "/gdmall/auction_syn/{self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH)}", {i}.{i});')
-        self.tdSql.execute('drop stream nginx_avg')
+        self.tdSql.execute('drop stream nginx_avg_2')
         self.tdSql.execute('alter stable test_ts2920.nginx_avg_output add column sum_response double')
         self.tdSql.execute('create stream nginx_avg_2 ignore update 0 ignore expired 0 fill_history 1 into test_ts2920.nginx_avg_output subtable(short_request) as select _wstart as start_time, _wend as end_time, short_request, short_request1, avg(upstream_response) as avg_response, sum(upstream_response) as sum_response from test_ts2920.nginx partition by short_request,short_request1 interval(1m);')
         for i in range(self.rows_count, self.rows_count*2):
