@@ -1500,7 +1500,7 @@ impl TaskController {
             via,
             offset: 0,
             pattern: None,
-            limit: 0,
+            limit: usize::MAX / 2 - 1,
             lang: None,
         };
 
