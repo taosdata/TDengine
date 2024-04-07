@@ -2843,7 +2843,8 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   STablesReq*        pTbReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
   SName*             pTbName = taosArrayGet(pTbReq->pTables, pFetch->tbIdx);
 
-  CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
+  if (reqType != TDMT_VND_GET_STREAM_PROGRESS)
+    CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
  switch (reqType) {
     case TDMT_MND_GET_TABLE_TSMA: {
@@ -2876,10 +2877,12 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       }
     } break;
     case TDMT_VND_GET_STREAM_PROGRESS: {
+      SStreamProgressRsp rsp = {0};
+      CTG_ERR_JRET(ctgProcessRspMsg(&rsp, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
       // update progress into res
       STableTSMAInfoRsp*  pTsmasRsp = pRes->pRes;
       SArray*             pTsmas = pTsmasRsp->pTsmas;
-      SStreamProgressRsp* pRsp = pMsgCtx->out;
+      SStreamProgressRsp* pRsp = &rsp;
       int32_t             tsmaIdx = pRsp->subFetchIdx / pFetch->vgNum;
       STableTSMAInfo*     pTsmaInfo = taosArrayGetP(pTsmas, tsmaIdx);
       if (pTsmaInfo->rspTs == 0) pTsmaInfo->fillHistoryFinished = true;
