@@ -104,7 +104,7 @@ const state = {
   complete: false,// 判断数据点位数据是否准备完成 
   ticket: '',
   limitOffset: 5,
-  validOpcFileRes: {}
+  validOpcFileRes: { valid: true }
   
 };
 const saveKey = encodeURIComponent("appId");

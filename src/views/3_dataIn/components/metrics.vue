@@ -204,6 +204,8 @@ export default {
           this.handleMetricsData(this.data);
           this.connect();
           if (this.type == 'tmq') {
+            this.tbReplicationData = [];
+            this.vgroupData = [];
             this.handleRefresh()
           }
         } else {
