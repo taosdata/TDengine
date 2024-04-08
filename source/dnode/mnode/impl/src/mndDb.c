@@ -486,9 +486,9 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     return -1;
   }
-  if (pCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return -1;
-  if (pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return -1;
-  if (pCfg->s3Compact < TSDB_MIN_S3_COMPACT || pCfg->s3Compact > TSDB_MAX_S3_COMPACT) return -1;
+  if (pNewCfg->s3ChunkSize < TSDB_MIN_S3_CHUNK_SIZE || pNewCfg->s3ChunkSize > TSDB_MAX_S3_CHUNK_SIZE) return -1;
+  if (pNewCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return -1;
+  if (pNewCfg->s3Compact < TSDB_MIN_S3_COMPACT || pNewCfg->s3Compact > TSDB_MAX_S3_COMPACT) return -1;
 
   terrno = 0;
   return terrno;
