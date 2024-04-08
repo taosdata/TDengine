@@ -14,14 +14,14 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb">
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb" width="120">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.fromdb" placement="top-start">
             <span class="nowrap">{{ scope.row.fromdb }}</span>
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport">
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport"  min-width="140">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.hostport" placement="top-start">
             <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
@@ -45,10 +45,10 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" min-width="210" show-overflow-tooltip>
+      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.createat')" prop="created_at" min-width="210" show-overflow-tooltip>
+      <el-table-column :label="$t('taosuser.createat')" prop="created_at" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">

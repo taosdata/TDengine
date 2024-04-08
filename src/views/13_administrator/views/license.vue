@@ -140,6 +140,7 @@
         size="mini"
         :label-width="getlabelWidth"
         class="demo-ruleForm"
+        label-position="left"
       >
         <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
           <el-input v-model.trim="ruleForm.active_code"></el-input>
@@ -228,8 +229,11 @@ export default {
     },
     getlabelWidth() {
       let lang = getBrowserLang();
-      if (lang === "zh") {
+      if (lang === "zh" && this.version_no_later_than_3230) {
         return "120px";
+      }
+      if (!this.version_no_later_than_3230) {
+        return "auto"
       }
       return "240px";
     },
