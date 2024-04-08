@@ -593,12 +593,16 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
   for (int32_t iCol = 0; iCol < pTSchema->numOfCols; iCol++) {
     SColVal *pColVal = NULL;
-    for (int32_t iRow = 0; iRow < nRow; iRow++) {
+    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
       SColVal *pColValT = tRowIterNext(aIter[iRow]);
+      while (pColValT->cid < pTSchema->columns[iCol].colId) {
+        pColValT = tRowIterNext(aIter[iRow]);
+      }
 
       // todo: take strategy according to the flag
       if (COL_VAL_IS_VALUE(pColValT)) {
         pColVal = pColValT;
+        break;
       } else if (COL_VAL_IS_NULL(pColValT)) {
         if (pColVal == NULL) {
           pColVal = pColValT;
