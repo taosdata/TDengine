@@ -162,7 +162,7 @@ To better understand the data model using metrics, tags, super table and subtabl
 
 <figure>
 
-![Meters Data Model Diagram](./supertable.webp)
+![Meters Data Model Diagram](../assets/supertable.webp)
 
 <center><figcaption>Figure 1. Meters Data Model Diagram</figcaption></center>
 </figure>

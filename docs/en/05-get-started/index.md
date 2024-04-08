@@ -3,12 +3,12 @@ title: Get Started
 description: This document describes how to install TDengine on various platforms.
 ---
 
-import GitHubSVG from './github.svg'
-import DiscordSVG from './discord.svg'
-import TwitterSVG from './twitter.svg'
-import YouTubeSVG from './youtube.svg'
-import LinkedInSVG from './linkedin.svg'
-import StackOverflowSVG from './stackoverflow.svg'
+import GitHubSVG from '../assets/github.svg'
+import DiscordSVG from '../assets/discord.svg'
+import TwitterSVG from '../assets/twitter.svg'
+import YouTubeSVG from '../assets/youtube.svg'
+import LinkedInSVG from '../assets/linkedin.svg'
+import StackOverflowSVG from '../assets/stackoverflow.svg'
 
 You can install and run TDengine on Linux/Windows/macOS machines as well as Docker containers. You can also deploy TDengine as a managed service with TDengine Cloud.
 

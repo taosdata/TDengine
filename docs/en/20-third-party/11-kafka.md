@@ -10,11 +10,11 @@ TDengine Kafka Connector contains two plugins: TDengine Source Connector and TDe
 
 Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that enables other systems, such as databases, cloud services, file systems, etc., to connect to Kafka easily. Data can flow from other software to Kafka via Kafka Connect and Kafka to other systems via Kafka Connect. Plugins that read data from other software are called Source Connectors, and plugins that write data to other software are called Sink Connectors. Neither Source Connector nor Sink Connector will directly connect to Kafka Broker, and Source Connector transfers data to Kafka Connect. Sink Connector receives data from Kafka Connect.
 
-![TDengine Database Kafka Connector -- Kafka Connect](kafka/Kafka_Connect.webp)
+![TDengine Database Kafka Connector -- Kafka Connect](../assets/Kafka_Connect.webp)
 
 TDengine Source Connector is used to read data from TDengine in real-time and send it to Kafka Connect. Users can use The TDengine Sink Connector to receive data from Kafka Connect and write it to TDengine.
 
-![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/streaming-integration-with-kafka-connect.webp)
+![TDengine Database Kafka Connector -- streaming integration with kafka connect](../assets/streaming-integration-with-kafka-connect.webp)
 
 ## Prerequisites
 

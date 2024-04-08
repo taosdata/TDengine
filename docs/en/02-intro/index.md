@@ -70,7 +70,7 @@ This is how TDengine would be situated, in a typical time-series data processing
 
 <figure>
 
-![TDengine Database Technical Ecosystem ](eco_system.webp)
+![TDengine Database Technical Ecosystem ](../assets/eco_system.webp)
 
 <center><figcaption>Figure 1. TDengine Technical Ecosystem</figcaption></center>
 </figure>

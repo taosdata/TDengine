@@ -76,7 +76,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-![Seeq demo schema](./seeq/seeq-demo-schema.webp)
+![Seeq demo schema](../assets/seeq-demo-schema.webp)
 
 ### Mock data
 
@@ -275,7 +275,7 @@ Please login with Seeq administrator and create a few data sources as following.
 
 Please login to Seeq server and create a new Seeq Workbench, then select data sources and choose the correct tools to do data visualization and analysis. Please refer to [the official documentation](https://support.seeq.com/space/KB/146440193/Seeq+Workbench) for the details.
 
-![Seeq Workbench](./seeq/seeq-demo-workbench.webp)
+![Seeq Workbench](../assets/seeq-demo-workbench.webp)
 
 #### Use Seeq Data Lab Server for advanced data analysis
 
@@ -344,7 +344,7 @@ plt.show()
 
 Example output:
 
-![Seeq forecast result](./seeq/seeq-forecast-result.webp)
+![Seeq forecast result](../assets/seeq-forecast-result.webp)
 
 ### How to configure Seeq data source to access TDengine Cloud
 
@@ -415,7 +415,7 @@ This data source contains the data from a smart meter in public database smartme
 
 #### Seeq Workbench with TDengine Cloud data source example
 
-![Seeq workbench with TDengine Cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
+![Seeq workbench with TDengine Cloud](../assets/seeq-workbench-with-tdengine-cloud.webp)
 
 ## Conclusion
 

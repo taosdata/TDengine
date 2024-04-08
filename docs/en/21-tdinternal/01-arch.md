@@ -12,7 +12,7 @@ The design of TDengine is based on the assumption that any hardware or software 
 
 Logical structure diagram of TDengine's distributed architecture is as follows:
 
-![TDengine Database architecture diagram](structure.webp)
+![TDengine Database architecture diagram](../assets/structure.webp)
 
 <center> Figure 1: TDengine architecture diagram </center>
 
@@ -65,7 +65,7 @@ After obtaining the mnode EP list, the data node initiates the connection. It wi
 
 To explain the relationship between vnode, mnode, TAOSC and application and their respective roles, the following is an analysis of a typical data writing process.
 
-![typical process of TDengine Database](message.webp)
+![typical process of TDengine Database](../assets/message.webp)
 
 <center> Figure 2: Typical process of TDengine </center>
 
@@ -127,7 +127,7 @@ TDengine utilizes RAFT protocol to replicate data. If a database has N replicas,
 
 Leader Vnode uses a writing process as follows:
 
-![TDengine Database Leader Writing Process](write_leader.webp)
+![TDengine Database Leader Writing Process](../assets/write_leader.webp)
 
 <center> Figure 3: TDengine Leader writing process </center>
 
@@ -142,7 +142,7 @@ Leader Vnode uses a writing process as follows:
 
 For a follower vnode, the write process as follows:
 
-![TDengine Database Follower Writing Process](write_follower.webp)
+![TDengine Database Follower Writing Process](../assets/write_follower.webp)
 
 <center> Figure 4: TDengine Follower Writing Process </center>
 
@@ -260,7 +260,7 @@ For the data collected by device D1001, the number of records per hour is counte
 
 TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different data collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable (super table). STable is used to represent a specific type of data collection points. It is a table set containing multiple tables. The schema of each table in the set is the same, but each table has its own static tags. There can be multiple tags which can be added, deleted and modified at any time. Applications can aggregate or statistically operate on all or a subset of tables under a STable by specifying tag filters. This greatly simplifies the development of applications. The process for aggregation across multiple tables is shown in the following figure:
 
-![TDengine Database Diagram of multi-table aggregation query](multi_tables.webp)
+![TDengine Database Diagram of multi-table aggregation query](../assets/multi_tables.webp)
 
 <center> Figure 5: Diagram of multi-table aggregation query </center>
 

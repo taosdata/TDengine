@@ -193,35 +193,35 @@ The default username/password is `admin`. Grafana will require a password change
 
 Point to the **Configurations** -> **Data Sources** menu, and click the **Add data source** button.
 
-![TDengine Database TDinsight Add data source button](./assets/howto-add-datasource-button.webp)
+![TDengine Database TDinsight Add data source button](../../assets/howto-add-datasource-button.webp)
 
 Search for and select **TDengine**.
 
-![TDengine Database TDinsight Add datasource](./assets/howto-add-datasource-tdengine.webp)
+![TDengine Database TDinsight Add datasource](../../assets/howto-add-datasource-tdengine.webp)
 
 Configure the TDengine datasource.
 
-![TDengine Database TDinsight Datasource Configuration](./assets/howto-add-datasource.webp)
+![TDengine Database TDinsight Datasource Configuration](../../assets/howto-add-datasource.webp)
 
 Save and test. It will report 'TDengine Data source is working' under normal circumstances.
 
-![TDengine Database TDinsight datasource test](./assets/howto-add-datasource-test.webp)
+![TDengine Database TDinsight datasource test](../../assets/howto-add-datasource-test.webp)
 
 ### Importing dashboards
 
 In the page of configuring data source, click **Dashboards** tab.
 
-![TDengine Database TDinsight Import Dashboard and Configuration](./assets/import_dashboard.webp)
+![TDengine Database TDinsight Import Dashboard and Configuration](../../assets/import_dashboard.webp)
 
 Choose `TDengine for 3.x` and click `import`.
 
 After the importing is done, `TDinsight for 3.x` dashboard is available on the page of `search dashboards by name`.
 
-![TDengine Database TDinsight Import via grafana.com](./assets/import_dashboard_view.webp)
+![TDengine Database TDinsight Import via grafana.com](../../assets/import_dashboard_view.webp)
 
 In the `TDinsight for 3.x` dashboard, choose the database used by taosKeeper to store monitoring data, you can see the monitoring result.
 
-![TDengine Database TDinsight select database](./assets/select_dashboard_db.webp)
+![TDengine Database TDinsight select database](../../assets/select_dashboard_db.webp)
 
 ## TDinsight dashboard details
 
@@ -231,7 +231,7 @@ Details of the metrics are as follows.
 
 ### Cluster Status
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
+![TDengine Database TDinsight mnodes overview](../../assets/TDinsight-1-cluster-status.webp)
 
 This section contains the current information and status of the cluster, the alert information is also here (from left to right, top to bottom).
 
@@ -250,7 +250,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### DNodes Status
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
+![TDengine Database TDinsight mnodes overview](../../assets/TDinsight-2-dnodes.webp)
 
 - **DNodes Status**: simple table view of `show dnodes`.
 - **DNodes Lifetime**: the time elapsed since the dnode was created.
@@ -258,21 +258,21 @@ This section contains the current information and status of the cluster, the ale
 
 ### MNode Overview
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
+![TDengine Database TDinsight mnodes overview](../../assets/TDinsight-3-mnodes.webp)
 
 1. **MNodes Status**: a simple table view of `show mnodes`.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
 
-![TDengine Database TDinsight tdinsight requests](./assets/TDinsight-4-requests.webp)
+![TDengine Database TDinsight tdinsight requests](../../assets/TDinsight-4-requests.webp)
 
 1. **Requests Rate(Inserts per Second)**: average number of inserts per second.
 2. **Requests (Selects)**: number of query requests and change rate (count of second).
 
 ### Database
 
-![TDengine Database TDinsight database](./assets/TDinsight-5-database.webp)
+![TDengine Database TDinsight database](../../assets/TDinsight-5-database.webp)
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
@@ -283,7 +283,7 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 
 ### DNode Resource Usage
 
-![TDengine Database TDinsight dnode usage](./assets/TDinsight-6-dnode-usage.webp)
+![TDengine Database TDinsight dnode usage](../../assets/TDinsight-6-dnode-usage.webp)
 
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
@@ -304,13 +304,13 @@ Data node resource usage display with repeated multiple rows for the variable `$
 
 ### Login History
 
-![TDengine Database TDinsight Login History](./assets/TDinsight-7-login-history.webp)
+![TDengine Database TDinsight Login History](../../assets/TDinsight-7-login-history.webp)
 
 Currently, only the number of logins per minute is reported.
 
 ### Monitoring taosAdapter
 
-![TDengine Database TDinsight monitor taosadapter](./assets/TDinsight-8-taosadapter.webp)
+![TDengine Database TDinsight monitor taosadapter](../../assets/TDinsight-8-taosadapter.webp)
 
 Support monitoring taosAdapter request statistics and status details. Includes.
 

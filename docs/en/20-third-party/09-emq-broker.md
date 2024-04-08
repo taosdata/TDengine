@@ -37,13 +37,13 @@ Since the configuration interface of EMQX differs from version to version, here 
 
 Use your browser to open the URL `http://IP:18083` and log in to EMQX Dashboard. The initial installation username is `admin` and the password is: `public`.
 
-![TDengine Database EMQX login dashboard](./emqx/login-dashboard.webp)
+![TDengine Database EMQX login dashboard](../assets/login-dashboard.webp)
 
 ### Creating Rule
 
 Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
-![TDengine Database EMQX rule engine](./emqx/rule-engine.webp)
+![TDengine Database EMQX rule engine](../assets/rule-engine.webp)
 
 ### Edit SQL fields
 
@@ -56,15 +56,15 @@ FROM
   "sensor/data"
 ```
 
-![TDengine Database EMQX create rule](./emqx/create-rule.webp)
+![TDengine Database EMQX create rule](../assets/create-rule.webp)
 
 ### Add "action handler"
 
-![TDengine Database EMQX add action handler](./emqx/add-action-handler.webp)
+![TDengine Database EMQX add action handler](../assets/add-action-handler.webp)
 
 ### Add "Resource"
 
-![TDengine Database EMQX create resource](./emqx/create-resource.webp)
+![TDengine Database EMQX create resource](../assets/create-resource.webp)
 
 Select "Data to Web Service" and click the "New Resource" button.
 
@@ -72,7 +72,7 @@ Select "Data to Web Service" and click the "New Resource" button.
 
 Select "WebHook" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
 
-![TDengine Database EMQX edit resource](./emqx/edit-resource.webp)
+![TDengine Database EMQX edit resource](../assets/edit-resource.webp)
 
 ### Edit "action"
 
@@ -83,7 +83,7 @@ Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
 Please refer to the [ TDengine REST API documentation ](../../reference/rest-api/) for the authorization in details. 
- 
+
 Enter the rule engine replacement template in the message body:
 
 ```sql
@@ -103,7 +103,7 @@ INSERT INTO test.sensor_data VALUES(
 )
 ```
 
-![TDengine Database EMQX edit action](./emqx/edit-action.webp)
+![TDengine Database EMQX edit action](../assets/edit-action.webp)
 
 Finally, click the "Create" button at bottom left corner saving the rule.
 ## Compose program to mock data
@@ -114,7 +114,7 @@ Finally, click the "Create" button at bottom left corner saving the rule.
 
 Note: `CLIENT_NUM` in the code can be set to a smaller value at the beginning of the test to avoid hardware performance be not capable to handle a more significant number of concurrent clients.
 
-![TDengine Database EMQX client num](./emqx/client-num.webp)
+![TDengine Database EMQX client num](../assets/client-num.webp)
 
 ## Execute tests to simulate sending MQTT data
 
@@ -123,19 +123,19 @@ npm install mqtt mockjs --save ---registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-![TDengine Database EMQX run mock](./emqx/run-mock.webp)
+![TDengine Database EMQX run mock](../assets/run-mock.webp)
 
 ## Verify that EMQX is receiving data
 
 Refresh the EMQX Dashboard rules engine interface to see how many records were received correctly:
 
-![TDengine Database EMQX rule matched](./emqx/check-rule-matched.webp)
+![TDengine Database EMQX rule matched](../assets/check-rule-matched.webp)
 
 ## Verify that data writing to TDengine
 
 Use the TDengine CLI program to log in and query the appropriate databases and tables to verify that the data is being written to TDengine correctly:
 
-![TDengine Database EMQX result in taos](./emqx/check-result-in-taos.webp)
+![TDengine Database EMQX result in taos](../assets/check-result-in-taos.webp)
 
 Please refer to the [TDengine official documentation](https://docs.tdengine.com/) for more details on how to use TDengine.
 EMQX Please refer to the [EMQX official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use EMQX.

@@ -6,7 +6,7 @@ description: Use PowerBI and TDengine to analyze time series data
 
 # Tools - Power BI
 
-![Power BI use step](./powerbi-step-en.png)
+![Power BI use step](../assets/powerbi-step-en.png)
 
 [Power BI](https://powerbi.microsoft.com/) is a business analytics tool provided by Microsoft. With TDengine ODBC driver, PowerBI can access time series data stored in the TDengine. You can import tag data, original time series data, or aggregated data into Power BI from a TDengine, to create reports or dashboard without any coding effort.
 
