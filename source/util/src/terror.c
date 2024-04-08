@@ -668,6 +668,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,               "Invalid data format
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,            "Invalid schemaless db config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_NOT_SAME_TYPE,              "Not the same type like before")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INTERNAL_ERROR,             "Internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_NOT_SUPPORT_PK,             "Can not insert data into table with primary key")
 
 //tsma
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INIT_FAILED,               "Tsma init failed")

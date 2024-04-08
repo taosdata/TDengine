@@ -206,27 +206,13 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
     cur.pks[0].type = pPkCol->info.type;
   }
 
+  // let's discard the duplicated ts
   if ((pSliceInfo->prevTsSet == true) && (currentTs == pSliceInfo->prevKey.ts)) {
-//    if (pPkCol == NULL) {
-      return true;
-    /* } else {
-       tRowGetKeyFromColData(currentTs, pPkCol, curIndex, &cur);
-       if (tRowKeyCompare(&cur, &pSliceInfo->prevKey) == 0) {
-         return true;
-       }
-     }*/
+    return true;
   }
 
   pSliceInfo->prevTsSet = true;
   tRowKeyAssign(&pSliceInfo->prevKey, &cur);
-
-  // todo handle next
-  if (currentTs == pSliceInfo->win.ekey && curIndex < rows - 1) {
-    int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, curIndex + 1);
-    if (currentTs == nextTs) {
-      return true;
-    }
-  }
 
   return false;
 }
@@ -735,7 +721,6 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
     // check for duplicate timestamps
     if (checkDuplicateTimestamps(pSliceInfo, pTsCol, pPkCol, i, pBlock->info.rows)) {
       continue;
-//      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
     }
 
     if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
@@ -754,6 +739,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       if (checkWindowBoundReached(pSliceInfo)) {
         break;
       }
+
       if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         saveBlockStatus(pSliceInfo, pBlock, i);
         return;
@@ -828,7 +814,6 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
   // if reached here, meaning block processing finished naturally,
   // or interpolation reach window upper bound
   pSliceInfo->pRemainRes = NULL;
-
 }
 
 static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperatorInfo* pOperator, int32_t index) {

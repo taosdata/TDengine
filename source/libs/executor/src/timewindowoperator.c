@@ -520,9 +520,8 @@ static void doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDataB
 
     // duplicated ts row does not involve in the interpolation of end value for current time window
     int32_t x = endRowIndex;
-    while(x >= 0) {
+    while(x > 0) {
       if (tsCols[x] == tsCols[x-1]) {
-
         x -= 1;
       } else {
         endRowIndex = x;
