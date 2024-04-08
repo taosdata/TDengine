@@ -214,6 +214,7 @@ SWords shellCommands[] = {
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
     {"insert into <tb_name> file ", 0, 0, NULL},
     {"trim database <db_name>", 0, 0, NULL},
+    {"s3migrate database <db_name>", 0, 0, NULL},
     {"use <db_name>", 0, 0, NULL},
     {"quit", 0, 0, NULL}};
 
@@ -283,6 +284,9 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
+		      "s3_chunksize ",
+		      "s3_keeplocal ",
+		      "s3_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
@@ -290,6 +294,7 @@ char* db_options[] = {"keep ",
 
 char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
                             "wal_retention_period ", "wal_retention_size ", "cachesize ", 
+			    "s3_keeplocal ", "s3_compact ",
                             "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
