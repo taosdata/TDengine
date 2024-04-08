@@ -25,7 +25,7 @@ For more details please refer to [Database](../../taos-sql/database).
 
 ## Create STable
 
-In a time-series application, there may be multiple kinds of data collection points. For example, in the electrical power system there are meters, transformers, bus bars, switches, etc. For easy and efficient aggregation of multiple tables, one STable needs to be created for each kind of data collection point. For example, for the meters in [table 1](/concept/#model_table1), the SQL statement below can be used to create the super table.
+In a time-series application, there may be multiple kinds of data collection points. For example, in the electrical power system there are meters, transformers, bus bars, switches, etc. For easy and efficient aggregation of multiple tables, one STable needs to be created for each kind of data collection point. For example, for the meters in [table 1](/concept/), the SQL statement below can be used to create the super table.
 
 ```sql
 CREATE STable power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
@@ -39,7 +39,7 @@ At most 4096 (or 1024 prior to version 2.1.7.0) columns are allowed in a STable.
 
 ## Create Table
 
-A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](/tdinternal/arch#model_table1), the table can be created using below SQL statement.
+A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](/concept/), the table can be created using below SQL statement.
 
 ```sql
 CREATE TABLE power.d101 USING meters TAGS ("California.SanFrancisco", 2);
