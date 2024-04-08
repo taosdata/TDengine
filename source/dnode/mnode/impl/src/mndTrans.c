@@ -857,6 +857,58 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
+static bool mndTransActionsOfSameType(SArray *pActions) {
+  int32_t size = taosArrayGetSize(pActions);
+  ETrnAct lastActType = TRANS_ACTION_NULL;
+  bool    same = true;
+  for (int32_t i = 0; i < size; ++i) {
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (i > 0) {
+      if (lastActType != pAction->actionType) {
+        same = false;
+        break;
+      }
+    }
+    lastActType = pAction->actionType;
+  }
+  return same;
+}
+
+static int32_t mndTransCheckParallelActions(SMnode *pMnode, STrans *pTrans) {
+  if (pTrans->exec == TRN_EXEC_PARALLEL) {
+    if (mndTransActionsOfSameType(pTrans->redoActions) == false) {
+      terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+      mError("trans:%d, types of parallel redo actions are not the same", pTrans->id);
+      return -1;
+    }
+
+    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      if (mndTransActionsOfSameType(pTrans->undoActions) == false) {
+        terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+        mError("trans:%d, types of parallel undo actions are not the same", pTrans->id);
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
+  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
+    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
+    mError("trans:%d, commit actions of non-changeless trans are empty", pTrans->id);
+    return -1;
+  }
+  if (mndTransActionsOfSameType(pTrans->commitActions) == false) {
+    terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+    mError("trans:%d, types of commit actions are not the same", pTrans->id);
+    return -1;
+  }
+
+  return 0;
+}
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans == NULL) return -1;
 
@@ -864,9 +916,11 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
-    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+  if (mndTransCheckParallelActions(pMnode, pTrans) != 0) {
+    return -1;
+  }
+
+  if (mndTransCheckCommitActions(pMnode, pTrans) != 0) {
     return -1;
   }
 
@@ -1283,24 +1337,25 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute redoActions since:%s, code:0x%x", terrstr(), terrno);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute redoActions since:%s, code:0x%x, topHalf:%d", pTrans->id, terrstr(), terrno,
+           topHalf);
   }
   return code;
 }
 
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute undoActions since %s", terrstr());
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute undoActions since %s. topHalf:%d", pTrans->id, terrstr(), topHalf);
   }
   return code;
 }
 
 static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->commitActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute commitActions since %s", terrstr());
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute commitActions since %s. topHalf:%d", pTrans->id, terrstr(), topHalf);
   }
   return code;
 }
