@@ -41,8 +41,6 @@ extern "C" {
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct STqOffsetStore STqOffsetStore;
-
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
 // tqExec
@@ -101,10 +99,11 @@ struct STQ {
   SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
-  STqOffsetStore* pOffsetStore;
+  SHashObj*       pOffset;     // subKey -> STqOffsetVal
   TDB*            pMetaDB;
   TTB*            pExecStore;
   TTB*            pCheckStore;
+  TTB*            pOffsetStore;
   SStreamMeta*    pStreamMeta;
 };
 
@@ -128,28 +127,19 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
-int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
-int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
-int32_t tqMetaRestoreCheckInfo(STQ* pTq);
+int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen);
+int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key);
-int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
-
-STqOffsetStore* tqOffsetOpen(STQ* pTq);
-void            tqOffsetClose(STqOffsetStore*);
-STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
-int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
-
+int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
+int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
+void*   tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid);
 // tqSink
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr, bool newSubTableRule);
 void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
-char*   tqOffsetBuildFName(const char* path, int32_t fVer);
-int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
+int32_t tqOffsetRestoreFromFile(STQ* pTq);
 
 // tq util
 int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
