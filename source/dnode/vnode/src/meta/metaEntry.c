@@ -482,7 +482,16 @@ static int32_t metaHandleNormalTableInsert(SMeta *meta, const SMetaEntry *entry)
   int32_t code = 0;
   int32_t lino = 0;
 
+  /* schema.db */
+  code = metaUpsertSchema(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // TODO
+  // code = metaUpdateNcolIdx(meta, entry);
+  // TSDB_CHECK_CODE(code, lino, _exit);
+
+  // code = metaUpdateTtl(meta, entry);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   meta->pVnode->config.vndStats.numOfNTables++;
   meta->pVnode->config.vndStats.numOfNTimeSeries += entry->ntbEntry.schemaRow.nCols - 1;
@@ -582,63 +591,5 @@ _exit:
     metaDebug("vgId:%d handle meta entry success, version:%" PRId64 ", type:%d, uid:%" PRId64 ", name:%s",
               TD_VID(meta->pVnode), entry->version, entry->type, entry->uid, name);
   }
-  return code;
-#if 0
-  metaWLock(pMeta);
-
-  // save to table.db
-  code = metaSaveToTbDb(pMeta, pME);
-  VND_CHECK_CODE(code, line, _err);
-
-  // update uid.idx
-  code = metaUpdateUidIdx(pMeta, pME);
-  VND_CHECK_CODE(code, line, _err);
-
-  // update name.idx
-  code = metaUpdateNameIdx(pMeta, pME);
-  VND_CHECK_CODE(code, line, _err);
-
-  if (pME->type == TSDB_CHILD_TABLE) {
-    // update ctb.idx
-    code = metaUpdateCtbIdx(pMeta, pME);
-    VND_CHECK_CODE(code, line, _err);
-
-    // update tag.idx
-    code = metaUpdateTagIdx(pMeta, pME);
-    VND_CHECK_CODE(code, line, _err);
-  } else {
-    // update schema.db
-    code = metaSaveToSkmDb(pMeta, pME);
-    VND_CHECK_CODE(code, line, _err);
-
-    if (pME->type == TSDB_SUPER_TABLE) {
-      code = metaUpdateSuidIdx(pMeta, pME);
-      VND_CHECK_CODE(code, line, _err);
-    }
-  }
-
-  code = metaUpdateBtimeIdx(pMeta, pME);
-  VND_CHECK_CODE(code, line, _err);
-
-  if (pME->type == TSDB_NORMAL_TABLE) {
-    code = metaUpdateNcolIdx(pMeta, pME);
-    VND_CHECK_CODE(code, line, _err);
-  }
-
-  if (pME->type != TSDB_SUPER_TABLE) {
-    code = metaUpdateTtl(pMeta, pME);
-    VND_CHECK_CODE(code, line, _err);
-  }
-
-  metaULock(pMeta);
-  metaDebug("vgId:%d, handle meta entry, ver:%" PRId64 ", uid:%" PRId64 ", name:%s", TD_VID(pMeta->pVnode),
-            pME->version, pME->uid, pME->name);
-  return 0;
-
-_err:
-  metaULock(pMeta);
-  metaError("vgId:%d, failed to handle meta entry since %s at line:%d, ver:%" PRId64 ", uid:%" PRId64 ", name:%s",
-            TD_VID(pMeta->pVnode), terrstr(), line, pME->version, pME->uid, pME->name);
-  return -1;
-#endif
+  return (terrno = code);
 }

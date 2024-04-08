@@ -2249,22 +2249,24 @@ void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
 static int32_t metaValidateCreateTableRequest(SMeta *meta, SVCreateTbReq *request) {
   int32_t code = 0;
   int32_t lino = 0;
+  void   *value = NULL;
+  int32_t valueSize = 0;
 
-  // TODO
+  if (request->type != TSDB_CHILD_TABLE && request->type != TSDB_NORMAL_TABLE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
 
-  //   // validate message
-  //   if (request->type != TSDB_CHILD_TABLE && request->type != TSDB_NORMAL_TABLE) {
-  //     terrno = TSDB_CODE_INVALID_MSG;
-  //     goto _err;
-  //   }
+  if (request->type == TSDB_CHILD_TABLE) {
+    if (tdbTbGet(meta->pNameIdx, request->ctb.stbName, strlen(request->ctb.stbName) + 1, &value, &valueSize) != 0 ||
+        *(int64_t *)value != request->ctb.suid) {
+    }
+    TSDB_CHECK_CODE(code = TSDB_CODE_PAR_TABLE_NOT_EXIST, lino, _exit);
+  }
 
-  //   if (request->type == TSDB_CHILD_TABLE) {
-  //     tb_uid_t suid = metaGetTableEntryUidByName(meta, request->ctb.stbName);
-  //     if (suid != request->ctb.suid) {
-  //       terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-  //       return -1;
-  //     }
-  //   }
+  if (tdbTbGet(meta->pNameIdx, request->name, strlen(request->name) + 1, &value, &valueSize) == 0) {
+    // TODO
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST, lino, _exit);
+  }
 
   //   // validate req
   //   metaReaderDoInit(&mr, meta, META_READER_LOCK);
@@ -2285,11 +2287,12 @@ static int32_t metaValidateCreateTableRequest(SMeta *meta, SVCreateTbReq *reques
   //     terrno = TSDB_CODE_SUCCESS;
   //   }
   //   metaReaderClear(&mr);
-  // _exit:
 
+_exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  tdbFree(value);
   return code;
 }
 
@@ -2318,15 +2321,15 @@ static int32_t metaCreateNormalTable(SMeta *meta, int64_t version, SVCreateTbReq
     }
     metaUpdateMetaRsp(request->uid, request->name, &request->ntb.schemaRow, *response);
   }
+  // if (!TSDB_CACHE_NO(meta->pVnode->config)) {
+  //   tsdbCacheNewTable(meta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
+  // // }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
-  // if (!TSDB_CACHE_NO(meta->pVnode->config)) {
-  //   tsdbCacheNewTable(meta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
-  // // }
 }
 
 static int32_t metaCreateChildTable(SMeta *meta, int64_t version, SVCreateTbReq *request, STableMetaRsp **response) {
@@ -2335,7 +2338,7 @@ static int32_t metaCreateChildTable(SMeta *meta, int64_t version, SVCreateTbReq 
 
   SMetaEntry entry = {
       .version = version,
-      .type = TSDB_NORMAL_TABLE,
+      .type = TSDB_CHILD_TABLE,
       .uid = request->uid,
       .name = request->name,
       .ctbEntry.btime = request->btime,
