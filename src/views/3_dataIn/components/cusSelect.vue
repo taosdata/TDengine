@@ -1,5 +1,7 @@
 <template>
-  <div class="custom-select">
+  <div class="custom-select" 
+    ref="myDiv" 
+    @click="divClicked">
     <div
       @click="showOption"
       class="custom-input"
@@ -11,6 +13,7 @@
         size="small"
         v-model="expression"
       >
+        <i slot="suffix" :class="['el-input__icon', isShow ? 'el-icon-arrow-up' : 'el-icon-arrow-down']"></i>
       </el-input>
     </div>
     <ul class="custom-ul" v-if="isShow">
@@ -59,11 +62,29 @@ export default {
       }
     }
   },
+  mounted() {
+    // 在mounted钩子中添加事件监听
+    document.addEventListener('click', this.documentClicked);
+  },
+  beforeDestroy() {
+    // 在组件销毁前移除事件监听
+    document.removeEventListener('click', this.documentClicked);
+  },
   methods: {
     showOption() {
       this.isShow = !this.isShow
       if (this.isShow) {
         this.selectJson()
+      }
+    },
+    divClicked() {
+      // 阻止冒泡
+      event.stopPropagation();
+    },
+    documentClicked(event) {
+      // 如果点击的是div外部，执行外部点击的操作
+      if (!this.$refs.myDiv.contains(event.target)) {
+        this.isShow = false;
       }
     }
   }
@@ -73,9 +94,9 @@ export default {
 <style scoped>
 .custom-select {
   position: relative;
-  cursor: pointer;
 }
-.custom-input {
+.custom-input 
+::v-deep .el-input__inner:hover {
   cursor: pointer;
 }
 .custom-ul {
