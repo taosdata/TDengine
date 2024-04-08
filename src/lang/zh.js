@@ -1155,7 +1155,7 @@ export default {
       更详细解析规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
       filterdesc: `<strong>过滤表达式为 true 的行才被写入 TDengine：</strong><br/>
       - <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
-      - <strong>字符串类型</strong>：支持函数<em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em>等，例如c.starts_with("taos")，可判断字段<em>c<em>是否以<em>taos</em>为前缀。<br/>
+      - <strong>字符串类型</strong>：支持函数<em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em>等，例如c.starts_with("taos")，可判断字段<em>c</em>是否以<em>taos</em>为前缀。<br/>
       - <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
       - <strong>多条件组合</strong>：支持 && 或 || 多条件组合过滤。<br/><br/>
       更详细过滤规则请访问<a href="/docs/enterprise/datain/transformation#filter">企业版文档<a>`,

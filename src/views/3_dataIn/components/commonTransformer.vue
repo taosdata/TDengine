@@ -91,7 +91,7 @@
               ? $t("datasource.transformer.identified")
               : $t("datasource.transformer.parse")
           }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop1">
+          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop1">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('1')"></i>
               <DocsContent
@@ -223,7 +223,7 @@
           style="justify-content: flex-start; align-items: baseline"
         >
           <span>{{ $t("datasource.transformer.extract") }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop2">
+          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop2">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('2')"></i>
               <DocsContent
@@ -236,6 +236,11 @@
               ><i class="el-icon-info" @click="handleClickPop('2')"></i>
             </span>
           </el-popover>
+      
+          <el-button type="text" icon="el-icon-plus" style="padding:0;float:right;" @click="addNewExtract" :disabled="columnsArr.length == 0">
+            {{ $t("datasource.transformer.addExtract") }}
+          </el-button>
+ 
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -251,21 +256,11 @@
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
-        <div class="extract-btns">
-          <el-button
-            type="primary"
-            size="small"
-            @click="addNewExtract"
-            :disabled="columnsArr.length == 0"
-          >
-            {{ $t("datasource.transformer.addExtract") }}
-          </el-button>
-        </div>
       </section>
       <section class="filter">
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop3">
+          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop3">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('3')"></i>
               <DocsContent
@@ -278,6 +273,15 @@
               ><i class="el-icon-info" @click="handleClickPop('3')"></i>
             </span>
           </el-popover>
+          <el-button
+            type="text"
+            icon="el-icon-plus"
+            style="padding:0;float:right;"
+            @click="addNewFilter"
+            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
+          >
+            {{ $t("datasource.transformer.addfilter") }}
+          </el-button>
         </div>
         <template v-for="(item, index) in filterArr">
           <FilterExpression
@@ -292,14 +296,6 @@
             ref="filter"
           ></FilterExpression>
         </template>
-        <el-button
-          type="primary"
-          size="small"
-          @click="addNewFilter"
-          :disabled="filterArr.length >= 1 || columnsArr.length == 0"
-        >
-          {{ $t("datasource.transformer.addfilter") }}
-        </el-button>
       </section>
       <section>
         <div class="block-title">
@@ -2270,12 +2266,6 @@ export default {
     }
   }
 }
-.extract {
-  .el-button {
-    width: 100%;
-    margin-top: 15px;
-  }
-}
 .col-list {
   margin-top: 15px;
   margin-bottom: 20px;
@@ -2298,9 +2288,6 @@ export default {
   }
 }
 .filter {
-  .el-button {
-    width: 100%;
-  }
   ::v-deep .el-input {
     margin-left: 0px !important;
   }
