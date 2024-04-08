@@ -279,7 +279,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid);
+int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 // tsdbMerge.c ==============================================================================================
 typedef struct {
@@ -639,6 +639,7 @@ typedef struct {
   STsdb      *pTsdb;
   const char *objName;
   uint8_t     s3File;
+  int32_t     lcn;
   int32_t     fid;
   int64_t     cid;
   int64_t     blkno;

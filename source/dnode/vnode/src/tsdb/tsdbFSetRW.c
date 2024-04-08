@@ -149,6 +149,7 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
         .skmTb = writer[0]->skmTb,
         .skmRow = writer[0]->skmRow,
         .bufArr = writer[0]->bufArr,
+        .lcn = config->lcn,
     };
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
       dataWriterConfig.files[ftype].exist = config->files[ftype].exist;

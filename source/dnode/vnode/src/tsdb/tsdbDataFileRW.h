@@ -79,6 +79,7 @@ typedef struct SDataFileWriterConfig {
   int64_t cid;
   SDiskID did;
   int64_t compactVersion;
+  int32_t lcn;
   struct {
     bool   exist;
     STFile file;

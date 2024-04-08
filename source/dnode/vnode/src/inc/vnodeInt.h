@@ -108,13 +108,13 @@ typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_METRIC_SQL_COUNT "taos_sql_req:count"
 
-#define VNODE_METRIC_TAG_NAME_SQL_TYPE "sql_type"
+#define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
 #define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_ID "dnode_id"
-#define VNODE_METRIC_TAG_NAME_DNODE_EP "dnode_ep"
-#define VNODE_METRIC_TAG_NAME_VGROUP_ID "vgroup_id"
-#define VNODE_METRIC_TAG_NAME_USERNAME "username"
-#define VNODE_METRIC_TAG_NAME_RESULT "result"
+#define VNODE_METRIC_TAG_NAME_DNODE_ID   "dnode_id"
+#define VNODE_METRIC_TAG_NAME_DNODE_EP   "dnode_ep"
+#define VNODE_METRIC_TAG_NAME_VGROUP_ID  "vgroup_id"
+#define VNODE_METRIC_TAG_NAME_USERNAME   "username"
+#define VNODE_METRIC_TAG_NAME_RESULT     "result"
 
 #define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
 //#define VNODE_METRIC_TAG_VALUE_INSERT "insert"
@@ -239,6 +239,7 @@ int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t 
 int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
+int32_t tsdbS3Migrate(STsdb* tsdb, int64_t now, int32_t sync);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -461,12 +462,12 @@ typedef struct SVCommitSched {
   int64_t maxWaitMs;
 } SVCommitSched;
 
-typedef struct SVMonitorObj{
-  char strClusterId[TSDB_CLUSTER_ID_LEN];
-  char strDnodeId[TSDB_NODE_ID_LEN];
-  char strVgId[TSDB_VGROUP_ID_LEN];
-  taos_counter_t *insertCounter;
-}SVMonitorObj;
+typedef struct SVMonitorObj {
+  char            strClusterId[TSDB_CLUSTER_ID_LEN];
+  char            strDnodeId[TSDB_NODE_ID_LEN];
+  char            strVgId[TSDB_VGROUP_ID_LEN];
+  taos_counter_t* insertCounter;
+} SVMonitorObj;
 
 struct SVnode {
   char*     path;
