@@ -9338,12 +9338,18 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
         break;
       }
       SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
-      for (int32_t i = 0; i < columnNum; ++i) {
+      int32_t      i = 0;
+      for (; i < columnNum; ++i) {
         if (strcmp(pCols[i].name, pCol->colName) == 0) {
           pCol->colId = pCols[i].colId;
           pCol->node.resType.type = pCols[i].type;
           pCol->node.resType.bytes = pCols[i].bytes;
+          break;
         }
+      }
+      if (i == columnNum) {
+        code = TSDB_CODE_TSMA_INVALID_FUNC_PARAM;
+        break;
       }
       code = fmGetFuncInfo(pFunc, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) break;

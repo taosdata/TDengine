@@ -676,7 +676,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointe
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_TB,                "Invalid table to create tsma, only stable or normal table allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_INTERVAL,          "Invalid tsma interval, 1ms ~ 1h is allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_FUNC_PARAM,        "Invalid tsma func param, only one column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_FUNC_PARAM,        "Invalid tsma func param, only one non-tag column allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NAME_TOO_LONG,             "Tsma name too long")

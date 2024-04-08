@@ -601,7 +601,7 @@ class TSMATestSQLGenerator:
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143, 'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4}
+    updatecfgDict = {'debugFlag': 143, 'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 8}
 
     def __init__(self):
         self.vgroups = 4
@@ -1323,6 +1323,9 @@ class TDTestCase:
         tdSql.error(
             'create tsma tsma1 on meters function(avg(c1), avg(c2)) interval(10m)', -2147482496)
 
+        # tsma already exists: test.tsma1
+        tdSql.error('create tsma tsma1 on nsdb.meters function(avg(c1)) interval(10m)', -2147482496)
+
         # max tsma num 8
         self.create_tsma('tsma2', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '10s')
         self.create_tsma('tsma3', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '100s')
@@ -1344,6 +1347,8 @@ class TDTestCase:
 
         tdSql.error(
             'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
+        # only non-tag columns are allowed
+        tdSql.error('create tsma tsma1 on test.meters function(avg(c1), avg(t6)) interval(10m)', -2147471096)
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):

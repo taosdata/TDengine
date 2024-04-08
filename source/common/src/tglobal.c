@@ -550,6 +550,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0)
     return -1;
+  if (cfgAddInt32(pCfg, "maxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
+      0)
+    return -1;
   return 0;
 }
 
@@ -723,10 +726,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddInt32(pCfg, "tsMaxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "tsMaxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
-      0)
-    return -1;
+  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1190,8 +1190,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
-  tsMaxTsmaNum = cfgGetItem(pCfg, "tsMaxTsmaNum")->i32;
-  tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "tsMaxTsmaCalcDelay")->i32;
+  tsMaxTsmaNum = cfgGetItem(pCfg, "maxTsmaNum")->i32;
+  tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
@@ -1535,8 +1535,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
-                                         {"maxTsmaNum", &tsMaxTsmaNum},
-                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay}};
+                                         {"maxTsmaNum", &tsMaxTsmaNum}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1753,7 +1752,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
                                          {"shellActivityTimer", &tsShellActivityTimer},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"useAdapter", &tsUseAdapter},
-                                         {"experimental", &tsExperimental}};
+                                         {"experimental", &tsExperimental},
+                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
