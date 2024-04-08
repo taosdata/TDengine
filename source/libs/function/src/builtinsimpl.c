@@ -3201,15 +3201,15 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
 int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   prepareBuf(pCtx);
 
-  SWinKey key;
+  SWinKey key = {0};
   if (pCtx->saveHandle.pBuf == NULL) {
-    SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
-    if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      int64_t skey = *(int64_t*)colDataGetData(pColInfo, rowIndex);
-
-      key.groupId = pSrcBlock->info.id.groupId;
-      key.ts = skey;
+    SColumnInfoData* pColInfo = pCtx->input.pPTS;
+    if (!pColInfo || pColInfo->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
     }
+    ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    key.groupId = pSrcBlock->info.id.groupId;
+    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);;
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
