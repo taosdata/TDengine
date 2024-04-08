@@ -372,7 +372,7 @@ export default {
       handler(val) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
-        this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", {});
+        this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", { valid: true });
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
@@ -462,11 +462,6 @@ export default {
     async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          if (this.sourceForm.type.startsWith('opc') && !this.$store.state.app.validOpcFileRes?.valid) {
-            this.$message.error(this.$store.state.app.validOpcFileRes.message)
-            this.loading = false;
-            return
-          }
           if (this.sourceForm.type == "csv") {
             let flag=this.$refs.configform.$refs.csvdata[0].submitUpload()
             if(!flag){
@@ -475,6 +470,14 @@ export default {
             }
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+           if (this.sourceForm.type.startsWith('opc') 
+              && dsn.includes('csv_config_file')
+              && !this.$store.state.app.validOpcFileRes?.valid
+            ) {
+            this.$message.error(this.$store.state.app.validOpcFileRes.message)
+            this.loading = false;
+            return
+          }
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
