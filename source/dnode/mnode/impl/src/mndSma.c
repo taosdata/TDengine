@@ -1684,7 +1684,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   pStream = mndAcquireStream(pMnode, streamName);
   if (pStream != NULL) {
     mError("tsma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
-    terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
   }
 
@@ -1959,9 +1959,9 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     // create sql
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    char buf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_SHOW_SQL_LEN, "%s", pSma->sql);
-    varDataSetLen(buf, TMIN(len, TSDB_SHOW_SQL_LEN));
+    char buf[TSDB_MAX_SAVED_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
+    varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
     // func list
@@ -1974,10 +1974,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
         if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
           SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
           if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
-          len += snprintf(start, TSDB_SHOW_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
+          len += snprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
                           ((SExprNode *)pFunc)->userAlias);
-          if (len >= TSDB_SHOW_SQL_LEN) {
-            len = TSDB_SHOW_SQL_LEN;
+          if (len >= TSDB_MAX_SAVED_SQL_LEN) {
+            len = TSDB_MAX_SAVED_SQL_LEN;
             break;
           }
           start = buf + VARSTR_HEADER_SIZE + len;
