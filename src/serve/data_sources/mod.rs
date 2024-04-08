@@ -335,7 +335,7 @@ pub(super) async fn data_source_is_valid(
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_valid_impl(controller, query),
+        is_datasource_valid_impl(controller, query),
     )
     .await;
     match result {
@@ -347,7 +347,7 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub(crate) async fn is_valid_impl(
+pub(crate) async fn is_datasource_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {
@@ -601,8 +601,10 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 }
 
 async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
-    let dsn = dsn.into_dsn()?;
+    // set current dir to DATA_DIR
     let path = get_data_dir();
     let _ = std::env::set_current_dir(&path);
+
+    let dsn = dsn.into_dsn()?;
     plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }
