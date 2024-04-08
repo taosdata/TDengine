@@ -1678,11 +1678,9 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   __compar_fn_t       compFn = pReader->pkComparFn;
   int32_t             pkSrcSlot = pReader->suppInfo.pkSrcSlot;
 
-  SRowKey* pSttKey = &(SRowKey){0};
+  SRowKey* pSttKey = NULL;
   if (hasDataInSttBlock(pBlockScanInfo) && (!pBlockScanInfo->cleanSttBlocks)) {
     pSttKey = getCurrentKeyInSttBlock(pSttBlockReader);
-  } else {
-    pSttKey = NULL;
   }
 
   SRowKey k;
@@ -1714,10 +1712,8 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     }
   }
 
-  SRowKey minKey;
+  SRowKey minKey = k;
   if (pReader->info.order == TSDB_ORDER_ASC) {
-    minKey = k;  // chosen the minimum value
-
     if (pfKey != NULL && pkCompEx(compFn, pfKey, &minKey) < 0) {
       minKey = *pfKey;
     }
@@ -1726,8 +1722,6 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = *pSttKey;
     }
   } else {
-    minKey = k;
-
     if (pfKey != NULL && pkCompEx(compFn, pfKey, &minKey) > 0) {
       minKey = *pfKey;
     }
@@ -1882,11 +1876,9 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pDelList, pReader);
   TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pDelList, pReader);
 
-  SRowKey* pSttKey = &(SRowKey){0};
+  SRowKey* pSttKey = NULL;
   if (hasDataInSttBlock(pBlockScanInfo) && (!pBlockScanInfo->cleanSttBlocks)) {
-    tRowKeyAssign(pSttKey, getCurrentKeyInSttBlock(pSttBlockReader));
-  } else {
-    pSttKey = NULL;
+    pSttKey = getCurrentKeyInSttBlock(pSttBlockReader);
   }
 
   SRowKey* pfKey = &(SRowKey){0};

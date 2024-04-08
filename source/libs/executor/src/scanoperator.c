@@ -1196,23 +1196,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
 
-  {  // todo :refactor:
-    SDataBlockInfo* pBlockInfo = &pInfo->pResBlock->info;
-    for(int32_t i = 0; i < taosArrayGetSize(pInfo->base.matchInfo.pList); ++i) {
-      SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, i);
-      if (pItem->isPk) {
-        SColumnInfoData* pInfoData = taosArrayGet(pInfo->pResBlock->pDataBlock, pItem->dstSlotId);
-        pBlockInfo->pks[0].type = pInfoData->info.type;
-        pBlockInfo->pks[1].type = pInfoData->info.type;
-
-        if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
-          pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
-          pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
-        }
-      }
-    }
-  }
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -4417,6 +4402,8 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   } else {
     pInfo->bSortRowId = false;
   }
+
+  prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
 
   pInfo->pSortInfo = generateSortByTsPkInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
