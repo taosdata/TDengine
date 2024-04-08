@@ -1925,10 +1925,8 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     }
   }
 
-  SRowKey minKey = {0};
+  SRowKey minKey = k;
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    minKey = k;  // let's find the minimum
-
     if (pkCompEx(compFn, &ik, &minKey) < 0) {  // minKey > ik.key.ts) {
       minKey = ik;
     }
@@ -1941,7 +1939,6 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = *pSttKey;
     }
   } else {
-    minKey = k;  // let find the maximum ts value
     if (pkCompEx(compFn, &ik, &minKey) > 0) {
       minKey = ik;
     }
@@ -1968,7 +1965,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pfKey, pReader);
   }
 
-  if (pkCompEx(compFn, &minKey, &pBlockScanInfo->lastProcKey) == 0) {
+  if (pkCompEx(compFn, &minKey, pSttKey) == 0) {
     TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, pRow1, NULL);
     if (code != TSDB_CODE_SUCCESS) {
