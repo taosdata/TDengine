@@ -664,10 +664,13 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     if (NULL != pLastCol) {
       rocksdb_writebatch_delete(wb, keys_list[0], klen);
     }
+    taosMemoryFreeClear(pLastCol);
+
     pLastCol = tsdbCacheDeserialize(values_list[1]);
     if (NULL != pLastCol) {
       rocksdb_writebatch_delete(wb, keys_list[1], klen);
     }
+    taosMemoryFreeClear(pLastCol);
 
     rocksdb_free(values_list[0]);
     rocksdb_free(values_list[1]);
@@ -675,9 +678,7 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     bool       erase = false;
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[0], klen);
     if (h) {
-      SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
       erase = true;
-
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
     }
     if (erase) {
@@ -687,16 +688,12 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
     erase = false;
     h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[1], klen);
     if (h) {
-      SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
       erase = true;
-
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
     }
     if (erase) {
       taosLRUCacheErase(pTsdb->lruCache, keys_list[1], klen);
     }
-
-    taosMemoryFree(pLastCol);
   }
 
   taosMemoryFree(keys_list[0]);
@@ -1705,13 +1702,16 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     if (NULL != pLastCol && (pLastCol->rowKey.ts <= eKey && pLastCol->rowKey.ts >= sKey)) {
       rocksdb_writebatch_delete(wb, keys_list[i], klen);
     }
+
+    taosMemoryFreeClear(pLastCol);
+
     pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
     if (NULL != pLastCol && (pLastCol->rowKey.ts <= eKey && pLastCol->rowKey.ts >= sKey)) {
       rocksdb_writebatch_delete(wb, keys_list[num_keys + i], klen);
     }
     taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
+    taosMemoryFreeClear(pLastCol);
 
-    taosMemoryFree(pLastCol);
     rocksdb_free(values_list[i]);
     rocksdb_free(values_list[i + num_keys]);
 
