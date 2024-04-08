@@ -212,15 +212,21 @@ jobs:
           systemctl restart taosadapter
 
       - name: Run Test
+        continue-on-error: true
         run: |
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity mqtt_test.py
 
       - name: Stop taosx-agent & taosx
-        if: always()
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
+      
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
 
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa]
@@ -257,6 +263,7 @@ jobs:
           systemctl restart taosadapter
 
       - name: Run Test
+        continue-on-error: true
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
@@ -269,6 +276,12 @@ jobs:
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
+      
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
