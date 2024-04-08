@@ -255,7 +255,7 @@ jobs:
         run: |
           systemctl restart taos-explorer
           systemctl restart taosadapter
-          
+
       - name: Run Test
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
@@ -294,15 +294,15 @@ jobs:
           grcov $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx.info
           /root/.cargo/bin/grcov $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-agent-profraw/ -s $ARTIFACT_BASE_DIR/$DIR_PATH/taosx --binary-path $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent -t lcov --branch --ignore-not-existing --ignore build.rs -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx-agent.info
           # merge filter report
-          if [-f "$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info"]; then
-            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info \
-              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
-              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
-              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info
+          if [-f "$ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info"]; then
+            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx-agent.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info
           else
-            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx.info \
-              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_taosx-agent.info \
-              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_combined.info
+            lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx-agent.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info
           fi
 
           lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined_removed.info
