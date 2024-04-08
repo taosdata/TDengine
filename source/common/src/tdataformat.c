@@ -2880,8 +2880,12 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
                                     char *data) {
   int32_t code = 0;
   if (data == NULL) {
-    for (int32_t i = 0; i < nRows; ++i) {
-      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+    if (pColData->cflag & COL_IS_KEY) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      }
     }
     goto _exit;
   }
@@ -2890,8 +2894,13 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
     for (int32_t i = 0; i < nRows; ++i) {
       int32_t offset = *((int32_t *)lengthOrbitmap + i);
       if (offset == -1) {
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
-        if (code) goto _exit;
+        if (pColData->cflag & COL_IS_KEY) {
+          code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+          goto _exit;
+        }
+        if ((code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0))) {
+          goto _exit;
+        }
       } else {
         if (varDataTLen(data + offset) > bytes) {
           uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
@@ -2912,6 +2921,10 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
       } else {
         allValue = false;
       }
+    }
+    if ((pColData->cflag & COL_IS_KEY) && !allValue) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+      goto _exit;
     }
 
     if (allValue) {
@@ -2951,6 +2964,10 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
+        if (pColData->cflag & COL_IS_KEY) {
+          code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+          goto _exit;
+        }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else if (pBind->length[i] > buffMaxLen) {
@@ -2971,6 +2988,11 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
     } else {
       allNull = false;
       allValue = true;
+    }
+
+    if ((pColData->cflag & COL_IS_KEY) && !allValue) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+      goto _exit;
     }
 
     if (allValue) {
@@ -3001,91 +3023,6 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
 _exit:
   return code;
 }
-
-#ifdef BUILD_NO_CALL
-static int32_t tColDataSwapValue(SColData *pColData, int32_t i, int32_t j) {
-  int32_t code = 0;
-
-  if (IS_VAR_DATA_TYPE(pColData->type)) {
-    int32_t  nData1 = pColData->aOffset[i + 1] - pColData->aOffset[i];
-    int32_t  nData2 = (j < pColData->nVal - 1) ? pColData->aOffset[j + 1] - pColData->aOffset[j]
-                                               : pColData->nData - pColData->aOffset[j];
-    uint8_t *pData = taosMemoryMalloc(TMAX(nData1, nData2));
-    if (pData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-
-    if (nData1 > nData2) {
-      memcpy(pData, pColData->pData + pColData->aOffset[i], nData1);
-      memcpy(pColData->pData + pColData->aOffset[i], pColData->pData + pColData->aOffset[j], nData2);
-      // memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i] + nData1,
-      //         pColData->aOffset[j] - pColData->aOffset[i + 1]);
-      memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i + 1],
-              pColData->aOffset[j] - pColData->aOffset[i + 1]);
-      memcpy(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pData, nData1);
-    } else {
-      memcpy(pData, pColData->pData + pColData->aOffset[j], nData2);
-      memcpy(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pColData->pData + pColData->aOffset[i], nData1);
-      // memmove(pColData->pData + pColData->aOffset[j] + nData2 - nData1, pColData->pData + pColData->aOffset[i] +
-      // nData1,
-      //         pColData->aOffset[j] - pColData->aOffset[i + 1]);
-      memmove(pColData->pData + pColData->aOffset[i] + nData2, pColData->pData + pColData->aOffset[i + 1],
-              pColData->aOffset[j] - pColData->aOffset[i + 1]);
-      memcpy(pColData->pData + pColData->aOffset[i], pData, nData2);
-    }
-    for (int32_t k = i + 1; k <= j; ++k) {
-      pColData->aOffset[k] = pColData->aOffset[k] + nData2 - nData1;
-    }
-
-    taosMemoryFree(pData);
-  } else {
-    uint64_t val;
-    memcpy(&val, &pColData->pData[TYPE_BYTES[pColData->type] * i], TYPE_BYTES[pColData->type]);
-    memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * i], &pColData->pData[TYPE_BYTES[pColData->type] * j],
-           TYPE_BYTES[pColData->type]);
-    memcpy(&pColData->pData[TYPE_BYTES[pColData->type] * j], &val, TYPE_BYTES[pColData->type]);
-  }
-
-_exit:
-  return code;
-}
-
-static void tColDataSwap(SColData *pColData, int32_t i, int32_t j) {
-  ASSERT(i < j);
-  ASSERT(j < pColData->nVal);
-
-  switch (pColData->flag) {
-    case HAS_NONE:
-    case HAS_NULL:
-      break;
-    case (HAS_NULL | HAS_NONE): {
-      uint8_t bv = GET_BIT1(pColData->pBitMap, i);
-      SET_BIT1(pColData->pBitMap, i, GET_BIT1(pColData->pBitMap, j));
-      SET_BIT1(pColData->pBitMap, j, bv);
-    } break;
-    case HAS_VALUE: {
-      tColDataSwapValue(pColData, i, j);
-    } break;
-    case (HAS_VALUE | HAS_NONE):
-    case (HAS_VALUE | HAS_NULL): {
-      uint8_t bv = GET_BIT1(pColData->pBitMap, i);
-      SET_BIT1(pColData->pBitMap, i, GET_BIT1(pColData->pBitMap, j));
-      SET_BIT1(pColData->pBitMap, j, bv);
-      tColDataSwapValue(pColData, i, j);
-    } break;
-    case (HAS_VALUE | HAS_NULL | HAS_NONE): {
-      uint8_t bv = GET_BIT2(pColData->pBitMap, i);
-      SET_BIT2(pColData->pBitMap, i, GET_BIT2(pColData->pBitMap, j));
-      SET_BIT2(pColData->pBitMap, j, bv);
-      tColDataSwapValue(pColData, i, j);
-    } break;
-    default:
-      ASSERT(0);
-      break;
-  }
-}
-#endif
 
 static int32_t tColDataCopyRowCell(SColData *pFromColData, int32_t iFromRow, SColData *pToColData, int32_t iToRow) {
   int32_t code = TSDB_CODE_SUCCESS;
