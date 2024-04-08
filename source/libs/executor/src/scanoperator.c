@@ -1692,7 +1692,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo)) {
+      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], ver, pVal);
@@ -1769,7 +1769,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo)) {
+      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], ver, pVal);
@@ -1834,7 +1834,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
     uint64_t groupId = srcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo)) {
+      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], ver, pVal);
@@ -1871,10 +1871,6 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
   uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
-  SColumnInfoData* pSrcPkCol = NULL;
-  if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX ) {
-    pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
-  }
 
   ASSERT(pSrcStartTsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY*  srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
