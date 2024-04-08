@@ -202,7 +202,12 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
       if(i < argc - 1) {
-        if (strlen(argv[++i]) > ENCRYPT_KEY_LEN) {
+        int32_t len = strlen(argv[++i]);
+        if (len < ENCRYPT_KEY_LEN_MIN) {
+          printf("encrypt key is too short, it should be great or equal to %d\n", ENCRYPT_KEY_LEN_MIN);
+          return -1;
+        }
+        if (len > ENCRYPT_KEY_LEN) {
           printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPT_KEY_LEN);
           return -1;
         }
