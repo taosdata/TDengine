@@ -421,7 +421,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_S3_CHUNK_SIZE (256 * 1024)
 #define TSDB_MIN_S3_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_S3_KEEP_LOCAL     (365000 * 1440)
-#define TSDB_DEFAULT_S3_KEEP_LOCAL (30 * 1440)
+#define TSDB_DEFAULT_S3_KEEP_LOCAL (3650 * 1440)
 #define TSDB_MIN_S3_COMPACT        0
 #define TSDB_MAX_S3_COMPACT        1
 #define TSDB_DEFAULT_S3_COMPACT    0
@@ -540,12 +540,12 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define DEFAULT_HANDLE    0
-#define MNODE_HANDLE      1
-#define QNODE_HANDLE      -1
-#define SNODE_HANDLE      -2
-#define VNODE_HANDLE      -3
-#define CLIENT_HANDLE     -5
+#define DEFAULT_HANDLE 0
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define CLIENT_HANDLE  -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
@@ -565,8 +565,8 @@ enum {
 // sort page size by default
 #define DEFAULT_PAGESIZE 4096
 
-#define VNODE_TIMEOUT_SEC      60
-#define MNODE_TIMEOUT_SEC      60
+#define VNODE_TIMEOUT_SEC 60
+#define MNODE_TIMEOUT_SEC 60
 
 #define MONITOR_TABLENAME_LEN   200
 #define MONITOR_TAG_NAME_LEN    100
