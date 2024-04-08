@@ -138,7 +138,7 @@ username:password@protocol(address)/dbname?param=value
 
 _taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
 
-Use `taosSql` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName`, DSN supports the following parameters.
+Use `taosSql` as `driverName` and use a correct DSN as `dataSourceName`, DSN supports the following parameters.
 
 * cfg specifies the `taos.cfg` directory
 
@@ -200,7 +200,7 @@ func main() {
 
 _taosRestful_ implements Go's `database/sql/driver` interface via `http client`. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver (driver-go minimum version 3.0.2).
 
-Use `taosWS` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName` with the following parameters supported by the DSN.
+Use `taosWS` as `driverName` and use a correct DSN as `dataSourceName` with the following parameters supported by the DSN.
 
 * `writeTimeout` The timeout to send data via WebSocket.
 * `readTimeout` The timeout to receive response data via WebSocket.
