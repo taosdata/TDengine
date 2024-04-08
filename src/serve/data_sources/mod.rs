@@ -334,7 +334,7 @@ pub(super) async fn data_source_is_valid(
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_valid_impl(controller, query),
+        is_datasource_valid_impl(controller, query),
     )
     .await;
     match result {
@@ -346,7 +346,7 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub(crate) async fn is_valid_impl(
+pub(crate) async fn is_datasource_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {

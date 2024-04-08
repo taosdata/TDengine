@@ -473,7 +473,9 @@ fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
     let file_name = file_name.unwrap();
 
     if file_name.starts_with('@') {
-        dsn.set(key, file_name[1..].to_string());
+        let file_path = &file_name[1..];
+        let f = fs::canonicalize(&PathBuf::from(file_path)).unwrap();
+        dsn.set(key, f.to_str().unwrap());
         None
     } else {
         let mut file = NamedTempFile::new().unwrap();
@@ -590,6 +592,11 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opcda only support windows".to_string(),
         );
     }
+
+    // set current dir to DATA_DIR
+    let path = get_data_dir();
+    let _ = std::env::set_current_dir(&path);
+
     let mut dsn = dsn.clone();
     let certificate = get_temp_file(&mut dsn, "certificate");
     let private_key = get_temp_file(&mut dsn, "private_key");
@@ -602,18 +609,22 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opc".to_string(),
             format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
         ),
-        Ok(c) => validate_opc(c).await.unwrap_or_else(|err| {
-            DataSourceValidation::invalid(
-                "opc".to_string(),
-                format!(
-                    "failed to connect to dsn: {}, cause: {}",
-                    dsn.to_string(),
-                    err.to_string()
-                ),
-            )
-        }),
+        Ok(c) => {
+            let res = validate_opc(c).await;
+            res.unwrap_or_else(|err| {
+                DataSourceValidation::invalid(
+                    "opc".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                )
+            })
+        }
     };
 
+    // clean temporary files
     certificate.map(|f| f.close());
     private_key.map(|f| f.close());
     auth_certificate.map(|f| f.close());
@@ -641,25 +652,16 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
         .with_context(|| format!("failed to execute opc: {:?}", opc_exe_path.as_path()))?;
 
     if output.status.success() {
-        let result: serde_json::Value =
-            serde_json::from_slice(&output.stdout).with_context(|| {
+        let mut result: DataSourceValidation = serde_json::from_slice(&output.stdout)
+            .with_context(|| {
                 format!(
                     "Deserialize opc validation result error: {}",
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
-        Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
-            data_source: "opc".to_string(),
-            version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
-            namespaces: result["namespaces"].as_array().map(|v| {
-                v.iter()
-                    .map(|v| v.as_str().unwrap_or("").to_string())
-                    .collect()
-            }),
-        })
+
+        result.data_source = "opc".to_string();
+        Ok(result)
     } else {
         Ok(DataSourceValidation::invalid(
             "opc".to_string(),
