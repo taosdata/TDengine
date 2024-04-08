@@ -106,7 +106,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-#define VNODE_METRIC_SQL_COUNT "taos_sql_req:count"
+#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
 
 #define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
 #define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"
@@ -136,7 +136,7 @@ typedef SVCreateTSmaReq SSmaCfg;
 SMTbCursor* metaOpenTbCursor(void* pVnode);
 void        metaCloseTbCursor(SMTbCursor* pTbCur);
 void        metaPauseTbCursor(SMTbCursor* pTbCur);
-void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first);
+void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
 int32_t     metaTbCursorNext(SMTbCursor* pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor* pTbCur, ETableType jumpTableType);
 

@@ -159,7 +159,7 @@ static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static FORCE_INLINE void destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
@@ -527,6 +527,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
+          if (conn->regArg.init) {
+            transFreeMsg(conn->regArg.msg.pCont);
+            conn->regArg.init = 0;
+          }
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
           conn->regArg.msg = msg->msg;
@@ -757,9 +761,12 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     tTrace("conn %p received release request", pConn);
 
     STraceId traceId = pHead->traceId;
-    pConn->status = ConnRelease;
     transClearBuffer(&pConn->readBuf);
     transFreeMsg(transContFromHead((char*)pHead));
+    if (pConn->status != ConnAcquire) {
+      return true;
+    }
+    pConn->status = ConnRelease;
 
     STransMsg tmsg = {.code = 0, .info.handle = (void*)pConn, .info.traceId = traceId, .info.ahandle = (void*)0x9527};
     SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
@@ -1086,6 +1093,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   STrans* pTransInst = pThrd->pTransInst;
   pConn->refId = exh->refId;
+  QUEUE_INIT(&exh->q);
   transRefSrvHandle(pConn);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pTransInst), exh, pConn, pConn->refId);
   return pConn;
@@ -1117,6 +1125,7 @@ static int reallocConnRef(SSvrConn* conn) {
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  QUEUE_INIT(&exh->q);
   transAcquireExHandle(transGetRefMgt(), exh->refId);
   conn->refId = exh->refId;
 
@@ -1350,6 +1359,11 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
       return;
     }
     transQueuePop(&conn->srvMsgs);
+
+    if (conn->regArg.init) {
+      transFreeMsg(conn->regArg.msg.pCont);
+      conn->regArg.init = 0;
+    }
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;

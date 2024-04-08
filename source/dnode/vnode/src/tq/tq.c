@@ -101,10 +101,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
-    return -1;
-  }
-
+  /*int32_t code = */streamMetaLoadAllTasks(pTq->pStreamMeta);
   return 0;
 }
 
@@ -860,6 +857,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
         pTask->info.selfChildId, pTask->info.taskLevel, p, pNext, pTask->info.fillHistory,
         (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam, nextProcessVer);
+
+    ASSERT(pChkInfo->checkpointVer <= pChkInfo->nextProcessVer);
   }
 
   return 0;
@@ -1203,8 +1202,15 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
-  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d", pTask->id.idStr,
-        vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
+  if (req.mndTrigger) {
+    qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d, ", pTask->id.idStr,
+          vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
+  } else {
+    const char* pPrevStatus = streamTaskGetStatusStr(streamTaskGetPrevStatus(pTask));
+    qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64
+          ", transId:%d after transfer-state, prev status:%s",
+          pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, req.transId, pPrevStatus);
+  }
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {

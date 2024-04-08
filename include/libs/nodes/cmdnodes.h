@@ -104,6 +104,7 @@ typedef struct SDatabaseOptions {
   int32_t     s3KeepLocal;
   SValueNode* s3KeepLocalStr;
   int8_t      s3Compact;
+  int8_t      withArbitrator;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

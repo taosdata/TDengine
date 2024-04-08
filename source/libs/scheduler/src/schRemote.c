@@ -486,6 +486,7 @@ int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
+  rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -526,6 +527,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
+    rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
     SCH_ERR_JRET(code);
   }
 
@@ -892,7 +894,7 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
 int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   SMsgSendInfo *pSrc = src;
   int32_t       code = 0;
-  SMsgSendInfo *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  SMsgSendInfo *pDst = taosMemoryCalloc(1, sizeof(*pSrc));
   if (NULL == pDst) {
     qError("malloc SMsgSendInfo for rpcCtx failed, len:%d", (int32_t)sizeof(*pSrc));
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -939,6 +941,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   bool          isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
+
+  if (isHb && persistHandle && trans->pHandle == 0) {
+    trans->pHandle = rpcAllocHandle();
+  } 
 
   if (pJob && pTask) {
     SCH_TASK_DLOG("start to send %s msg to node[%d,%s,%d], pTrans:%p, pHandle:%p", TMSG_INFO(msgType), addr->nodeId,
@@ -1086,6 +1092,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.sqlLen = strlen(pJob->sql);
       req.sql = (char *)pJob->sql;
       req.msg = pTask->msg;
+      req.source = pJob->source;
       msgSize = tSerializeSVDeleteReq(NULL, 0, &req);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
@@ -1176,7 +1183,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.queryId = pJob->queryId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
-      qMsg.execId = pTask->execId;
+      qMsg.execId = *(int32_t*)param;
 
       msgSize = tSerializeSTaskDropReq(NULL, 0, &qMsg);
       if (msgSize < 0) {

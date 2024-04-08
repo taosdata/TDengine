@@ -107,11 +107,11 @@ SArray  *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
 void     mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
                         int32_t retryCode);
-STrans  *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char *pMsg);
+STrans  *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, const char *pMsg);
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
 void     killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo);
-int32_t  mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
+int32_t  mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
 int32_t     extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);

@@ -638,6 +638,14 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   }
 }
 
+static void vnodeBecomeAssignedLeader(const SSyncFSM* pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, true);
+  }
+}
+
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
 
@@ -674,6 +682,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeAssignedLeaderCb = vnodeBecomeAssignedLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;

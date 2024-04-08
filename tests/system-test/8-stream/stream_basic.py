@@ -78,14 +78,55 @@ class TDTestCase:
         tdLog.info(cmd)
         os.system(cmd)
 
+    def case1(self):
+
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+
+        tdSql.execute("create stream stream1 fill_history 1 into sta subtable(concat('new-', tname)) AS SELECT "
+                      "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
+
+        tdSql.execute("create stream stream2 fill_history 1 into stb subtable(concat('new-', tname)) AS SELECT "
+                      "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
+
+        time.sleep(2)
+        tdSql.query("select * from sta")
+        tdSql.checkRows(3)
+        tdSql.query("select tbname from sta order by tbname")
+        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.sta_'):
+            tdLog.exit("error1")
+
+        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.sta_'):
+            tdLog.exit("error2")
+
+        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.sta_'):
+            tdLog.exit("error3")
+
+        tdSql.query("select * from stb")
+        tdSql.checkRows(3)
+        tdSql.query("select tbname from stb order by tbname")
+        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.stb_'):
+            tdLog.exit("error4")
+
+        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.stb_'):
+            tdLog.exit("error5")
+
+        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.stb_'):
+            tdLog.exit("error6")
+
     # run
     def run(self):
+        self.case1()
         # gen data
         random.seed(int(time.time()))
         self.taosBenchmark(" -d db -t 2 -v 2 -n 1000000 -y")
         # create stream
         tdSql.execute("use db")
-        tdSql.execute("create stream stream1 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
+        tdSql.execute("create stream stream3 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
         sql = "select count(*) from sta"
         # loop wait max 60s to check count is ok
         tdLog.info("loop wait result ...")

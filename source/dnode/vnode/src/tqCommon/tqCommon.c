@@ -850,11 +850,17 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
+  taosThreadMutexLock(&pTask->lock);
+
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+    tqDebug("s-task:%s reset task status from checkpoint, current checkpointingId:%" PRId64 ", transId:%d",
+            pTask->id.idStr, pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
     streamTaskClearCheckInfo(pTask, true);
     streamTaskSetStatusReady(pTask);
   }
+
+  taosThreadMutexUnlock(&pTask->lock);
 
   streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
@@ -929,6 +935,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     }
 
     if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && status == TASK_STATUS__SCAN_HISTORY) {
+      pTask->hTaskInfo.operatorOpen = false;
       streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
       tqScanWalAsync((STQ*)handle, false);

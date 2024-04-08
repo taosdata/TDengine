@@ -33,7 +33,7 @@
 #include "taos_monitor.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
-#define TSDB_DNODE_RESERVE_SIZE 64
+#define TSDB_DNODE_RESERVE_SIZE 40
 
 static const char *offlineReason[] = {
     "",
@@ -183,11 +183,10 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_INT64(pRaw, dataPos, pDnode->updateTime, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDnode->port, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDnode->machineId, TSDB_MACHINE_ID_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, TSDB_ACTIVE_KEY_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, 0, _OVER) // forward/backward compatible
+  SDB_SET_INT16(pRaw, dataPos, 0, _OVER) // forward/backward compatible
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
   terrno = 0;
@@ -227,13 +226,14 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDnode->updateTime, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDnode->port, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pDnode->machineId, TSDB_MACHINE_ID_LEN, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
   if (sver > 1) {
     int16_t keyLen = 0;
     SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
-    SDB_GET_BINARY(pRaw, dataPos, pDnode->active, keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
     SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
-    SDB_GET_BINARY(pRaw, dataPos, pDnode->connActive, keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, NULL, keyLen, _OVER)
   }
 
   terrno = 0;
@@ -271,12 +271,7 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew
   mTrace("dnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
 #ifdef TD_ENTERPRISE
-  if (strncmp(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN) != 0) {
-    strncpy(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN);
-  }
-  if (strncmp(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN) != 0) {
-    strncpy(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
-  }
+  tstrncpy(pOld->machineId, pNew->machineId, TSDB_MACHINE_ID_LEN + 1);
 #endif
   return 0;
 }
@@ -308,6 +303,17 @@ void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
 SEpSet mndGetDnodeEpset(SDnodeObj *pDnode) {
   SEpSet epSet = {0};
   addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
+  return epSet;
+}
+
+SEpSet mndGetDnodeEpsetById(SMnode *pMnode, int32_t dnodeId) {
+  SEpSet     epSet = {0};
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+  if (!pDnode) return epSet;
+
+  epSet = mndGetDnodeEpset(pDnode);
+
+  mndReleaseDnode(pMnode, pDnode);
   return epSet;
 }
 
@@ -610,7 +616,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         for(int32_t j = 0; j < tagSize; j++){
           SJson* item = tjsonGetArrayItem(arrayTag, j);
 
-          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN); 
+          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
           tjsonGetStringValue(item, "name", *(labels + j));
 
           *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
@@ -626,7 +632,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         for(int32_t j = 0; j < metricLen; j++){
           SJson *item = tjsonGetArrayItem(metrics, j);
 
-          char name[MONITOR_METRIC_NAME_LEN] = {0}; 
+          char name[MONITOR_METRIC_NAME_LEN] = {0};
           tjsonGetStringValue(item, "name", name);
 
           double value = 0;
@@ -636,7 +642,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
           tjsonGetDoubleValue(item, "type", &type);
 
           int32_t metricNameLen = strlen(name) + strlen(tableName) + 2;
-          char* metricName = taosMemoryMalloc(metricNameLen); 
+          char* metricName = taosMemoryMalloc(metricNameLen);
           memset(metricName, 0, metricNameLen);
           sprintf(metricName, "%s:%s", tableName, name);
 
@@ -669,7 +675,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
           else{
             mTrace("get metric from registry:%p", metric);
           }
-          
+
           if(type == 0){
             taos_counter_add(metric, value, (const char**)sample_labels);
           }
@@ -689,7 +695,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
         taosMemoryFreeClear(labels);
       }
     }
-    
+
   }
 
   code = 0;
@@ -703,6 +709,35 @@ _OVER:
   tFreeSStatisReq(&statisReq);
   return code;
   */
+}
+
+static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
+  int32_t code = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
+  if (pTrans == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  pDnode->updateTime = taosGetTimestampMs();
+
+  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    code = terrno;
+    goto _exit;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    code = terrno;
+    goto _exit;
+  }
+
+_exit:
+  mndTransDrop(pTrans);
+  return code;
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
@@ -776,7 +811,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
-      if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
+      if (pVload->syncState == TAOS_SYNC_STATE_LEADER || pVload->syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
         pVgroup->numOfCachedTables = pVload->numOfCachedTables;
         pVgroup->numOfTables = pVload->numOfTables;
@@ -874,8 +909,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfDiskCfg = statusReq.numOfDiskCfg;
     pDnode->memAvail = statusReq.memAvail;
     pDnode->memTotal = statusReq.memTotal;
-    if (pDnode->machineId[0] == 0 && statusReq.machineId[0] != 0) {
+    if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
+      mndUpdateDnodeObj(pMnode, pDnode);
     }
 
     SStatusRsp statusRsp = {0};
@@ -1409,24 +1445,6 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     strcpy(dcfgReq.config, "resetlog");
 #ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "supportvnodes", 13) == 0) {
-    int32_t optLen = strlen("supportvnodes");
-    int32_t flag = -1;
-    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
-
-    if (flag < 0 || flag > 4096) {
-      mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      goto _err_out;
-    }
-    if (flag == 0) {
-      flag = tsNumOfCores * 2;
-    }
-    flag = TMAX(flag, 2);
-
-    strcpy(dcfgReq.config, "supportvnodes");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
     int32_t optLen = strlen("s3blocksize");
     int32_t flag = -1;

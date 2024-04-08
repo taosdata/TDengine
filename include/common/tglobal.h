@@ -76,6 +76,11 @@ extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 
+// arbitrator
+extern int32_t tsArbHeartBeatIntervalSec;
+extern int32_t tsArbCheckSyncIntervalSec;
+extern int32_t tsArbSetAssignedTimeoutSec;
+
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
 

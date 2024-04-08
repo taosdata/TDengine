@@ -39,7 +39,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
-  // check for the dispath info and the upstream task info
+  // check for the dispatch info and the upstream task info
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
     streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
@@ -216,7 +216,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
-  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
+  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER || pTask->ver > SSTREAM_TASK_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
@@ -287,7 +287,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tDecodeI64(pDecoder, &pTask->info.triggerParam) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
+  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+    if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
+  }
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
 
   tEndDecode(pDecoder);
@@ -378,12 +380,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
-    taosTmrStop(pTask->hTaskInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->hTaskInfo.pTimer);
     pTask->hTaskInfo.pTimer = NULL;
   }
 
   if (pTask->msgInfo.pTimer != NULL) {
-    taosTmrStop(pTask->msgInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->msgInfo.pTimer);
     pTask->msgInfo.pTimer = NULL;
   }
 
@@ -456,12 +458,49 @@ void tFreeStreamTask(SStreamTask* pTask) {
   stDebug("s-task:0x%x free task completed", taskId);
 }
 
+static void setInitialVersionInfo(SStreamTask* pTask, int64_t ver) {
+  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
+  SDataRange*      pRange = &pTask->dataRange;
+
+  // only set the version info for stream tasks without fill-history task
+  if ((pTask->info.fillHistory == 0) && (!HAS_RELATED_FILLHISTORY_TASK(pTask))) {
+    pChkInfo->checkpointVer = ver - 1;  // only update when generating checkpoint
+    pChkInfo->processedVer = ver - 1;   // already processed version
+    pChkInfo->nextProcessVer = ver;     // next processed version
+
+    pRange->range.maxVer = ver;
+    pRange->range.minVer = ver;
+  } else {
+    // the initial value of processedVer/nextProcessVer/checkpointVer for stream task with related fill-history task
+    // is set at the mnode.
+    if (pTask->info.fillHistory == 1) {
+      pChkInfo->checkpointVer = pRange->range.maxVer;
+      pChkInfo->processedVer = pRange->range.maxVer;
+      pChkInfo->nextProcessVer = pRange->range.maxVer + 1;
+    } else {
+      pChkInfo->checkpointVer = pRange->range.minVer - 1;
+      pChkInfo->processedVer = pRange->range.minVer - 1;
+      pChkInfo->nextProcessVer = pRange->range.minVer;
+
+      {  // for compatible purpose, remove it later
+        if (pRange->range.minVer == 0) {
+          pChkInfo->checkpointVer = 0;
+          pChkInfo->processedVer = 0;
+          pChkInfo->nextProcessVer = 1;
+          stDebug("s-task:%s update the processedVer to 0 from -1 due to compatible purpose", pTask->id.idStr);
+        }
+      }
+    }
+  }
+}
+
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
   pTask->refCnt = 1;
 
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
+
   pTask->inputq.queue = streamQueueOpen(512 << 10);
   pTask->outputq.queue = streamQueueOpen(512 << 10);
   if (pTask->inputq.queue == NULL || pTask->outputq.queue == NULL) {
@@ -479,41 +518,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   pTask->execInfo.created = taosGetTimestampMs();
-  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
-  SDataRange*      pRange = &pTask->dataRange;
-
-  // only set the version info for stream tasks without fill-history task
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    if ((pTask->info.fillHistory == 0) && (!HAS_RELATED_FILLHISTORY_TASK(pTask))) {
-      pChkInfo->checkpointVer = ver - 1;  // only update when generating checkpoint
-      pChkInfo->processedVer = ver - 1;   // already processed version
-      pChkInfo->nextProcessVer = ver;     // next processed version
-
-      pRange->range.maxVer = ver;
-      pRange->range.minVer = ver;
-    } else {
-      // the initial value of processedVer/nextProcessVer/checkpointVer for stream task with related fill-history task
-      // is set at the mnode.
-      if (pTask->info.fillHistory == 1) {
-        pChkInfo->checkpointVer = pRange->range.maxVer;
-        pChkInfo->processedVer = pRange->range.maxVer;
-        pChkInfo->nextProcessVer = pRange->range.maxVer + 1;
-      } else {
-        pChkInfo->checkpointVer = pRange->range.minVer - 1;
-        pChkInfo->processedVer = pRange->range.minVer - 1;
-        pChkInfo->nextProcessVer = pRange->range.minVer;
-
-        { // for compatible purpose, remove it later
-          if (pRange->range.minVer == 0) {
-            pChkInfo->checkpointVer = 0;
-            pChkInfo->processedVer = 0;
-            pChkInfo->nextProcessVer = 1;
-            stDebug("s-task:%s update the processedVer to 0 from -1 due to compatible purpose", pTask->id.idStr);
-          }
-        }
-      }
-    }
-  }
+  setInitialVersionInfo(pTask, ver);
 
   pTask->pMeta = pMeta;
   pTask->pMsgCb = pMsgCb;
@@ -622,6 +627,7 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
 void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
   EPSET_TO_STR(pEpSet, buf);
+  int32_t id = pTask->id.taskId;
 
   int8_t type = pTask->outputInfo.type;
   if (type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -633,8 +639,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
 
       if (pVgInfo->vgId == nodeId) {
         epsetAssign(&pVgInfo->epSet, pEpSet);
-        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId,
-                pVgInfo->taskId, nodeId, buf);
+        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId,
+                buf);
         break;
       }
     }
@@ -642,8 +648,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
     STaskDispatcherFixed* pDispatcher = &pTask->outputInfo.fixedDispatcher;
     if (pDispatcher->nodeId == nodeId) {
       epsetAssign(&pDispatcher->epSet, pEpSet);
-      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpSet:%s", pTask->id.taskId,
-              pDispatcher->taskId, nodeId, buf);
+      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId,
+              buf);
     }
   }
 }
@@ -778,8 +784,10 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
     CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
 
     if (resetRelHalt) {
+      stDebug("s-task:0x%" PRIx64 " set the persistent status attr to be ready, prev:%s, status in sm:%s",
+              sTaskId.taskId, streamTaskGetStatusStr((*ppStreamTask)->status.taskStatus),
+              streamTaskGetStatus(*ppStreamTask)->name);
       (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
-      stDebug("s-task:0x%" PRIx64 " set the status to be ready", sTaskId.taskId);
     }
 
     streamMetaSaveTask(pMeta, *ppStreamTask);

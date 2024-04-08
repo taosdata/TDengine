@@ -263,8 +263,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
             PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq)
           } else if (pHead->msgType == TDMT_VND_DELETE) {
-            fetchVer++;
-            continue;
+            PROCESS_EXCLUDED_MSG(SDeleteRes, tDecodeDeleteRes)
           }
         }
 

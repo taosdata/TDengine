@@ -88,3 +88,11 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   }
   return ths->commitIndex;
 }
+
+int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex) {
+  SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  assignedCommitIndex = TMAX(assignedCommitIndex, ths->assignedCommitIndex);
+  ths->assignedCommitIndex = TMIN(assignedCommitIndex, lastVer);
+  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex);
+  return ths->commitIndex;
+}

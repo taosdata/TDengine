@@ -66,7 +66,7 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
 }
 
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
-  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
@@ -156,7 +156,7 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
   }
 
   SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
-  STrans* pTrans = doCreateTrans(pMnode, &dummyObj, NULL, MND_STREAM_DROP_NAME, "drop stream");
+  STrans* pTrans = doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
     mError("failed to create trans to drop orphan tasks since %s", terrstr());
     return -1;

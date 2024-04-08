@@ -434,7 +434,9 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
 
-  pTask->ver = SSTREAM_TASK_VER;
+  if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+    pTask->ver = SSTREAM_TASK_VER;
+  }
   tEncodeStreamTask(&encoder, pTask);
 
   int32_t size = encoder.pos;
@@ -513,6 +515,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   createReq.numOfColumns = pStream->outputSchema.nCols;
   createReq.numOfTags = 1;  // group id
   createReq.pColumns = taosArrayInit_s(sizeof(SField), createReq.numOfColumns);
+
   // build fields
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SField *pField = taosArrayGet(createReq.pColumns, i);
@@ -586,12 +589,15 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   mndFreeStb(&stbObj);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-
+  mDebug("stream:%s create dst stable:%s, cols:%d", pStream->name, pStream->targetSTbName, pStream->outputSchema.nCols);
   return 0;
+
 _OVER:
   tFreeSMCreateStbReq(&createReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
+
+  mDebug("stream:%s failed to create dst stable:%s, code:%s", pStream->name, pStream->targetSTbName, tstrerror(terrno));
   return -1;
 }
 
@@ -647,7 +653,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   terrno = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
-  mInfo("stream:%s, start to create, sql:%s", createReq.name, createReq.sql);
+  mInfo("stream:%s, start to create stream, sql:%s", createReq.name, createReq.sql);
 
   if (mndCheckCreateStreamReq(&createReq) != 0) {
     mError("stream:%s, failed to create since %s", createReq.name, terrstr());
@@ -684,17 +690,20 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  STrans *pTrans = doCreateTrans(pMnode, &streamObj, pReq, MND_STREAM_CREATE_NAME, "create stream tasks on dnodes");
+  STrans *pTrans = doCreateTrans(pMnode, &streamObj, pReq, TRN_CONFLICT_DB, MND_STREAM_CREATE_NAME, "create stream tasks on dnodes");
   if (pTrans == NULL) {
     goto _OVER;
   }
 
   // create stb for stream
-  if (createReq.createStb == STREAM_CREATE_STABLE_TRUE &&
-      mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
-    mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createReq.name, terrstr());
-    mndTransDrop(pTrans);
-    goto _OVER;
+  if (createReq.createStb == STREAM_CREATE_STABLE_TRUE) {
+    if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
+      mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createReq.name, terrstr());
+      mndTransDrop(pTrans);
+      goto _OVER;
+    }
+  } else {
+    mDebug("stream:%s no need create stable", createReq.name);
   }
 
   // schedule stream task for stream obj
@@ -724,7 +733,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add into buffer firstly
   // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
   taosThreadMutexLock(&execInfo.lock);
-  mDebug("stream stream:%s tasks register into node list", createReq.name);
+  mDebug("stream stream:%s start to register tasks into task_node_list", createReq.name);
   saveStreamTasksInfo(&streamObj, &execInfo);
   taosThreadMutexUnlock(&execInfo.lock);
 
@@ -890,7 +899,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     return -1;
   }
 
-  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_CHECKPOINT_NAME, "gen checkpoint for stream");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_CHECKPOINT_NAME, "gen checkpoint for stream");
   if (pTrans == NULL) {
     mError("failed to checkpoint of stream name%s, checkpointId: %" PRId64 ", reason:%s", pStream->name, checkpointId,
            tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
@@ -1143,7 +1152,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, MND_STREAM_DROP_NAME, "drop stream");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -1508,6 +1517,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    pBlock->info.rows = numOfRows;
+
     destroyStreamTaskIter(pIter);
     taosRUnLockLatch(&pStream->lock);
 
@@ -1571,7 +1582,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, MND_STREAM_PAUSE_NAME, "pause the stream");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_PAUSE_NAME, "pause the stream");
   if (pTrans == NULL) {
     mError("stream:%s failed to pause stream since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -1660,7 +1671,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, MND_STREAM_RESUME_NAME, "resume the stream");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RESUME_NAME, "resume the stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to resume stream since %s", resumeReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -1792,7 +1803,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     // here create only one trans
     if (pTrans == NULL) {
-      pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_UPDATE_NAME, "update task epsets");
+      pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_UPDATE_NAME, "update task epsets");
       if (pTrans == NULL) {
         sdbRelease(pSdb, pStream);
         sdbCancelFetch(pSdb, pIter);
@@ -1813,7 +1824,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans, transId:%d", pStream->uid,
            pStream->name, pTrans->id);
 
-    int32_t code = mndStreamSetUpdateEpsetAction(pStream, pChangeInfo, pTrans);
+    int32_t code = mndStreamSetUpdateEpsetAction(pMnode, pStream, pChangeInfo, pTrans);
 
     // todo: not continue, drop all and retry again
     if (code != TSDB_CODE_SUCCESS) {
@@ -2144,41 +2155,60 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
   if (pStream == NULL) {
-    mError("failed to find the stream:0x%" PRIx64 " not handle the checkpoint req", req.streamId);
-    terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
-    taosThreadMutexUnlock(&execInfo.lock);
+    mWarn("failed to find the stream:0x%" PRIx64 ", not handle the checkpoint req, try to acquire in buf", req.streamId);
 
-    return -1;
+    // not in meta-store yet, try to acquire the task in exec buffer
+    // the checkpoint req arrives too soon before the completion of the create stream trans.
+    STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
+    void* p = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
+    if (p == NULL) {
+      mError("failed to find the stream:0x%" PRIx64 " in buf, not handle the checkpoint req", req.streamId);
+      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      taosThreadMutexUnlock(&execInfo.lock);
+      return -1;
+    } else {
+      mDebug("s-task:0x%" PRIx64 "-0x%x in buf not in mnode/meta, create stream trans may not complete yet",
+             req.streamId, req.taskId);
+    }
   }
 
-  int32_t  numOfTasks = mndGetNumOfStreamTasks(pStream);
+  int32_t numOfTasks = (pStream == NULL)? 0: mndGetNumOfStreamTasks(pStream);
+
   SArray **pReqTaskList = (SArray **)taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
   if (pReqTaskList == NULL) {
     SArray *pList = taosArrayInit(4, sizeof(int32_t));
-    doAddTaskId(pList, req.taskId, pStream->uid, numOfTasks);
+    doAddTaskId(pList, req.taskId, req.streamId, numOfTasks);
     taosHashPut(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t), &pList, sizeof(void *));
 
     pReqTaskList = (SArray **)taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
   } else {
-    doAddTaskId(*pReqTaskList, req.taskId, pStream->uid, numOfTasks);
+    doAddTaskId(*pReqTaskList, req.taskId, req.streamId, numOfTasks);
   }
 
   int32_t total = taosArrayGetSize(*pReqTaskList);
   if (total == numOfTasks) {  // all tasks has send the reqs
     int64_t checkpointId = mndStreamGenChkpId(pMnode);
-    mDebug("stream:0x%" PRIx64 " all tasks req, start checkpointId:%" PRId64, pStream->uid, checkpointId);
+    mInfo("stream:0x%" PRIx64 " all tasks req checkpoint, start checkpointId:%" PRId64, req.streamId, checkpointId);
 
-    // TODO:handle error
-    int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
+    if (pStream != NULL) { // TODO:handle error
+      int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
+    } else {
+      // todo: wait for the create stream trans completed, and launch the checkpoint trans
+      // SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
+      // sleep(500ms)
+    }
 
     // remove this entry
     taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
-    mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", pStream->uid, numOfStreams);
+    mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", req.streamId, numOfStreams);
   }
 
-  mndReleaseStream(pMnode, pStream);
+  if (pStream != NULL) {
+    mndReleaseStream(pMnode, pStream);
+  }
+
   taosThreadMutexUnlock(&execInfo.lock);
 
   {

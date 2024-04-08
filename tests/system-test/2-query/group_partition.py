@@ -24,7 +24,7 @@ class TDTestCase:
         for i in range(self.tb_nums):
             tbname = f"{self.dbname}.sub_{self.stable}_{i}"
             ts = self.ts + i*10000
-            tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags ({ts} , {i} , {i}*10 ,{i}*1.0,{i}*1.0 , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )")
+            tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags ({ts} , {i} , %d ,%d , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0))
 
     def insert_db(self, tb_nums, row_nums):           
         for i in range(tb_nums):

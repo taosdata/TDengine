@@ -150,6 +150,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_GRANTS_FULL,
   TSDB_MGMT_TABLE_GRANTS_LOGS,
   TSDB_MGMT_TABLE_MACHINES,
+  TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -337,6 +338,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_QNODES_STMT,
   QUERY_NODE_SHOW_SNODES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
+  QUERY_NODE_SHOW_ARBGROUPS_STMT,
   QUERY_NODE_SHOW_CLUSTER_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_FUNCTIONS_STMT,
@@ -1156,6 +1158,7 @@ typedef struct {
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
+  int8_t  withArbitrator;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1186,6 +1189,7 @@ typedef struct {
   int8_t  s3Compact;
   int32_t sqlLen;
   char*   sql;
+  int8_t  withArbitrator;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1325,6 +1329,7 @@ typedef struct {
   SArray* pRetensions;
   int8_t  schemaless;
   int16_t sstTrigger;
+  int8_t  withArbitrator;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
@@ -2174,6 +2179,99 @@ int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* 
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+  int32_t hbSeq;
+} SVArbHbReqMember;
+
+typedef struct {
+  int32_t dnodeId;
+  char*   arbToken;
+  int64_t arbTerm;
+  SArray* hbMembers;  // SVArbHbReqMember
+} SVArbHeartBeatReq;
+
+int32_t tSerializeSVArbHeartBeatReq(void* buf, int32_t bufLen, SVArbHeartBeatReq* pReq);
+int32_t tDeserializeSVArbHeartBeatReq(void* buf, int32_t bufLen, SVArbHeartBeatReq* pReq);
+void    tFreeSVArbHeartBeatReq(SVArbHeartBeatReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  char    memberToken[TSDB_ARB_TOKEN_SIZE];
+  int32_t hbSeq;
+} SVArbHbRspMember;
+
+typedef struct {
+  char    arbToken[TSDB_ARB_TOKEN_SIZE];
+  int32_t dnodeId;
+  SArray* hbMembers;  // SVArbHbRspMember
+} SVArbHeartBeatRsp;
+
+int32_t tSerializeSVArbHeartBeatRsp(void* buf, int32_t bufLen, SVArbHeartBeatRsp* pRsp);
+int32_t tDeserializeSVArbHeartBeatRsp(void* buf, int32_t bufLen, SVArbHeartBeatRsp* pRsp);
+void    tFreeSVArbHeartBeatRsp(SVArbHeartBeatRsp* pRsp);
+
+typedef struct {
+  char* arbToken;
+  int64_t arbTerm;
+  char* member0Token;
+  char* member1Token;
+} SVArbCheckSyncReq;
+
+int32_t tSerializeSVArbCheckSyncReq(void* buf, int32_t bufLen, SVArbCheckSyncReq* pReq);
+int32_t tDeserializeSVArbCheckSyncReq(void* buf, int32_t bufLen, SVArbCheckSyncReq* pReq);
+void    tFreeSVArbCheckSyncReq(SVArbCheckSyncReq* pRsp);
+
+typedef struct {
+  char*   arbToken;
+  char*   member0Token;
+  char*   member1Token;
+  int32_t vgId;
+  int32_t errCode;
+} SVArbCheckSyncRsp;
+
+int32_t tSerializeSVArbCheckSyncRsp(void* buf, int32_t bufLen, SVArbCheckSyncRsp* pRsp);
+int32_t tDeserializeSVArbCheckSyncRsp(void* buf, int32_t bufLen, SVArbCheckSyncRsp* pRsp);
+void    tFreeSVArbCheckSyncRsp(SVArbCheckSyncRsp* pRsp);
+
+typedef struct {
+  char*    arbToken;
+  int64_t  arbTerm;
+  char*    memberToken;
+} SVArbSetAssignedLeaderReq;
+
+int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
+int32_t tDeserializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
+void    tFreeSVArbSetAssignedLeaderReq(SVArbSetAssignedLeaderReq* pReq);
+
+typedef struct {
+  char*   arbToken;
+  char*   memberToken;
+  int32_t vgId;
+} SVArbSetAssignedLeaderRsp;
+
+int32_t tSerializeSVArbSetAssignedLeaderRsp(void* buf, int32_t bufLen, SVArbSetAssignedLeaderRsp* pRsp);
+int32_t tDeserializeSVArbSetAssignedLeaderRsp(void* buf, int32_t bufLen, SVArbSetAssignedLeaderRsp* pRsp);
+void    tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp* pRsp);
+
+typedef struct {
+  int32_t dnodeId;
+  char*   token;
+} SMArbUpdateGroupReqMember;
+
+typedef struct {
+  int32_t vgId;
+  int64_t dbUid;
+  SMArbUpdateGroupReqMember members[2];
+  int8_t                    isSync;
+  SMArbUpdateGroupReqMember assignedLeader;
+  int64_t                   version;
+} SMArbUpdateGroupReq;
+
+int32_t tSerializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
+int32_t tDeserializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
+void    tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq* pReq);
+
+typedef struct {
   char queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 
@@ -2848,8 +2946,10 @@ typedef struct {
   char*    tagName;
   int8_t   isNull;
   int8_t   tagType;
+  int8_t   tagFree;
   uint32_t nTagVal;
   uint8_t* pTagVal;
+  SArray*  pTagArray;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;
@@ -3848,6 +3948,7 @@ typedef struct {
   uint32_t phyLen;
   char*    sql;
   char*    msg;
+  int8_t   source;
 } SVDeleteReq;
 
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
@@ -3869,6 +3970,7 @@ typedef struct SDeleteRes {
   char     tableFName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
   int64_t  ctimeMs;  // fill by vnode
+  int8_t   source;
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -3945,11 +4047,11 @@ int32_t tSerializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
-int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
+void    tDestroySMqHbReq(SMqHbReq* pReq);
 
 int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
-int32_t tDeatroySMqHbRsp(SMqHbRsp* pRsp);
+void    tDestroySMqHbRsp(SMqHbRsp* pRsp);
 
 int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);

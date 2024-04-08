@@ -46,6 +46,10 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+
+static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
@@ -452,6 +456,21 @@ static int32_t vnodePreProcessBatchDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVArbCheckSyncReq syncReq = {0};
+
+  if (tDeserializeSVArbCheckSyncReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
+                                    &syncReq) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  (void)vnodePreCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token);
+  int32_t code = terrno;
+  tFreeSVArbCheckSyncReq(&syncReq);
+
+  return code;
+}
+
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -473,6 +492,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     } break;
     case TDMT_VND_BATCH_DEL: {
       code = vnodePreProcessBatchDeleteMsg(pVnode, pMsg);
+    } break;
+    case TDMT_VND_ARB_CHECK_SYNC: {
+      code = vnodePreProcessArbCheckSyncMsg(pVnode, pMsg);
     } break;
     default:
       break;
@@ -647,6 +669,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       vnodeProcessKillCompactReq(pVnode, ver, pReq, len, pRsp);
       break;
 #endif
+    /* ARB */
+    case TDMT_VND_ARB_CHECK_SYNC:
+      vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
+      break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -2154,6 +2180,98 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   pRsp->contLen = 0;
 
   return 0;
+}
+
+static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+  SSyncState syncState = syncGetState(pVnode->sync);
+  if (syncState.state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    return -1;
+  }
+
+  char token[TSDB_ARB_TOKEN_SIZE] = {0};
+  if (vnodeGetArbToken(pVnode, token) != 0) {
+    terrno = TSDB_CODE_NOT_FOUND;
+    return -1;
+  }
+
+  if (strncmp(token, member0Token, TSDB_ARB_TOKEN_SIZE) != 0 &&
+      strncmp(token, member1Token, TSDB_ARB_TOKEN_SIZE) != 0) {
+    terrno = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
+    return -1;
+  }
+
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
+static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+  int32_t code = vnodePreCheckAssignedLogSyncd(pVnode, member0Token, member1Token);
+  if (code != 0) {
+    return code;
+  }
+
+  return syncGetAssignedLogSynced(pVnode->sync);
+}
+
+static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  SVArbCheckSyncReq syncReq = {0};
+
+  if (tDeserializeSVArbCheckSyncReq(pReq, len, &syncReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  pRsp->msgType = TDMT_VND_ARB_CHECK_SYNC_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  SVArbCheckSyncRsp syncRsp = {0};
+  syncRsp.arbToken = syncReq.arbToken;
+  syncRsp.member0Token = syncReq.member0Token;
+  syncRsp.member1Token = syncReq.member1Token;
+  syncRsp.vgId = TD_VID(pVnode);
+
+  (void)vnodeCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token);
+  syncRsp.errCode = terrno;
+
+  if (vnodeUpdateArbTerm(pVnode, syncReq.arbTerm) != 0) {
+    vError("vgId:%d, failed to update arb term", TD_VID(pVnode));
+    code = -1;
+    goto _OVER;
+  }
+
+  int32_t contLen = tSerializeSVArbCheckSyncRsp(NULL, 0, &syncRsp);
+  if (contLen <= 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
+  void *pHead = rpcMallocCont(contLen);
+  if (!pHead) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
+
+  if (tSerializeSVArbCheckSyncRsp(pHead, contLen, &syncRsp) <= 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    rpcFreeCont(pHead);
+    code = -1;
+    goto _OVER;
+  }
+
+  pRsp->pCont = pHead;
+  pRsp->contLen = contLen;
+
+  terrno = TSDB_CODE_SUCCESS;
+
+_OVER:
+  tFreeSVArbCheckSyncReq(&syncReq);
+  return code;
 }
 
 #ifndef TD_ENTERPRISE

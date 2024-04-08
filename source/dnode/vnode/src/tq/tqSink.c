@@ -71,8 +71,8 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
-      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0) {
-        buildCtbNameAddGroupId(name, groupId);
+      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0 && stbFullName) {
+        buildCtbNameAddGroupId(stbFullName, name, groupId);
       }
     } else if (stbFullName) {
       name = buildCtbNameByGroupId(stbFullName, groupId);
@@ -182,10 +182,10 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
     if (newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName) &&
-        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0) {
+        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0 && stbFullName) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
-      buildCtbNameAddGroupId(pCreateTableReq->name, gid);
+      buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
 //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
@@ -612,7 +612,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
 
     // wait for the table to be created
     SMetaReader mr = {0};
-    metaReaderDoInit(&mr, pVnode->pMeta, 0);
+    metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
     int32_t code = metaGetTableEntryByName(&mr, dstTableName);
     if (code == 0) {  // table already exists, check its type and uid
@@ -671,10 +671,14 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     } else {
-      if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1 &&
-          !isAutoTableName(dstTableName) && !alreadyAddGroupId(dstTableName) && groupId != 0) {
+      if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
+          !alreadyAddGroupId(dstTableName) && groupId != 0) {
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
-        buildCtbNameAddGroupId(dstTableName, groupId);
+        if(pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+          buildCtbNameAddGroupId(NULL, dstTableName, groupId);
+        }else if(pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+          buildCtbNameAddGroupId(stbFullName, dstTableName, groupId);
+        }
       }
     }
 
@@ -705,7 +709,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     // those mismatched table uids. Only the FIRST table has the correct table uid, and those remain all have
     // randomly generated, but false table uid in the WAL.
     SMetaReader mr = {0};
-    metaReaderDoInit(&mr, pVnode->pMeta, 0);
+    metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
     // table not in cache, let's try the extract it from tsdb meta
     if (metaGetTableEntryByName(&mr, dstTableName) < 0) {
