@@ -1923,6 +1923,9 @@ int sml_td29373_Test() {
   ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
   taos_free_result(pRes);
 
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql3[i]);
+  }
 
   // case 4
   const char *sql4[] = {
