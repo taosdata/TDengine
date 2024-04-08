@@ -114,10 +114,10 @@ int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2) {
         if (p1->pks[0].nData == p2->pks[0].nData) {
           return 0;
         } else {
-          return p1->pks[0].nData > p2->pks[0].nData?1:-1;
+          return p1->pks[0].nData > p2->pks[0].nData ? 1 : -1;
         }
       } else {
-        return ret > 0? 1:-1;
+        return ret > 0 ? 1 : -1;
       }
     } else {
       return comparFn(&p1->pks[0].val, &p2->pks[0].val);
