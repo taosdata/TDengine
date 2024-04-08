@@ -3107,11 +3107,27 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
   return code;
 }
 
+static FORCE_INLINE void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key) {
+  SColVal cv;
+
+  key->ts = ((TSKEY *)aColData[0].pData)[iRow];
+  key->numOfPKs = 0;
+
+  for (int i = 1; i < nColData; i++) {
+    if (aColData[i].cflag & COL_IS_KEY) {
+      ASSERT(aColData->flag == HAS_VALUE);
+      tColDataGetValue4(&aColData[i], iRow, &cv);
+      key->pks[key->numOfPKs++] = cv.value;
+    } else {
+      break;
+    }
+  }
+}
+
 static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t mid, int32_t end, int32_t nColData) {
   SColData *aDstColData = NULL;
-  TSKEY    *aKey = (TSKEY *)aColData[0].pData;
-
-  int32_t i = start, j = mid + 1, k = 0;
+  int32_t   i = start, j = mid + 1, k = 0;
+  SRowKey   keyi, keyj;
 
   if (end > start) {
     aDstColData = taosMemoryCalloc(1, sizeof(SColData) * nColData);
@@ -3121,30 +3137,25 @@ static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t
     if (aDstColData == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    /*
-    for (int32_t i = 0; i < nColData; i++) {
-      tColDataCopy(&aColData[i], &aDstColData[i], tColDataDefaultMalloc, NULL);
-    }
-    */
   }
 
+  tColDataArrGetRowKey(aColData, nColData, i, &keyi);
+  tColDataArrGetRowKey(aColData, nColData, j, &keyj);
   while (i <= mid && j <= end) {
-    if (aKey[i] <= aKey[j]) {
-      // tColDataCopyRow(aColData, i++, aDstColData, k++);
+    if (tRowKeyCompare(&keyi, &keyj) <= 0) {
       tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+      tColDataArrGetRowKey(aColData, nColData, i, &keyi);
     } else {
-      // tColDataCopyRow(aColData, j++, aDstColData, k++);
       tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+      tColDataArrGetRowKey(aColData, nColData, j, &keyj);
     }
   }
 
   while (i <= mid) {
-    // tColDataCopyRow(aColData, i++, aDstColData, k++);
     tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
   }
 
   while (j <= end) {
-    // tColDataCopyRow(aColData, j++, aDstColData, k++);
     tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
   }
 
@@ -3391,12 +3402,16 @@ static void tColDataMergeImpl(SColData *pColData, int32_t iStart, int32_t iEnd /
 }
 static void tColDataMerge(SColData *aColData, int32_t nColData) {
   int32_t iStart = 0;
+  SRowKey keyStart, keyEnd;
+
   for (;;) {
     if (iStart >= aColData[0].nVal - 1) break;
+    tColDataArrGetRowKey(aColData, nColData, iStart, &keyStart);
 
     int32_t iEnd = iStart + 1;
     while (iEnd < aColData[0].nVal) {
-      if (((TSKEY *)aColData[0].pData)[iEnd] != ((TSKEY *)aColData[0].pData)[iStart]) break;
+      tColDataArrGetRowKey(aColData, nColData, iEnd, &keyEnd);
+      if (tRowKeyCompare(&keyStart, &keyEnd) != 0) break;
 
       iEnd++;
     }
@@ -3410,6 +3425,7 @@ static void tColDataMerge(SColData *aColData, int32_t nColData) {
     iStart++;
   }
 }
+
 void tColDataSortMerge(SArray *colDataArr) {
   int32_t   nColData = TARRAY_SIZE(colDataArr);
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
@@ -3423,11 +3439,17 @@ void tColDataSortMerge(SArray *colDataArr) {
   int8_t doSort = 0;
   int8_t doMerge = 0;
   // scan -------
-  TSKEY *aKey = (TSKEY *)aColData[0].pData;
+  SRowKey lastKey;
+  tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
   for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
-    if (aKey[iVal] > aKey[iVal - 1]) {
+    SRowKey key;
+    tColDataArrGetRowKey(aColData, nColData, iVal, &key);
+
+    int32_t c = tRowKeyCompare(&lastKey, &key);
+    if (c < 0) {
+      lastKey = key;
       continue;
-    } else if (aKey[iVal] < aKey[iVal - 1]) {
+    } else if (c > 0) {
       doSort = 1;
       break;
     } else {
@@ -3441,11 +3463,17 @@ void tColDataSortMerge(SArray *colDataArr) {
   }
 
   if (doMerge != 1) {
+    tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
     for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
-      if (aKey[iVal] == aKey[iVal - 1]) {
+      SRowKey key;
+      tColDataArrGetRowKey(aColData, nColData, iVal, &key);
+
+      int32_t c = tRowKeyCompare(&lastKey, &key);
+      if (c == 0) {
         doMerge = 1;
         break;
       }
+      lastKey = key;
     }
   }
 
