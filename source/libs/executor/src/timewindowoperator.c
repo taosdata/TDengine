@@ -359,8 +359,8 @@ static bool setTimeWindowInterpolationStartTs(SIntervalAggOperatorInfo* pInfo, i
 }
 
 static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SExprSupp* pSup, int32_t endRowIndex,
-                                            SArray* pDataBlock, const TSKEY* tsCols, TSKEY blockEkey,
-                                            STimeWindow* win) {
+                                            int32_t nextRowIndex, SArray* pDataBlock, const TSKEY* tsCols,
+                                            TSKEY blockEkey, STimeWindow* win) {
   int32_t order = pInfo->binfo.inputTsOrder;
 
   TSKEY actualEndKey = tsCols[endRowIndex];
@@ -378,7 +378,6 @@ static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SEx
     return true;
   }
 
-  int32_t nextRowIndex = endRowIndex + 1;
   ASSERT(nextRowIndex >= 0);
 
   TSKEY nextKey = tsCols[nextRowIndex];
@@ -496,7 +495,6 @@ static void doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDataB
 
   ASSERT(pBlock != NULL);
   if (pBlock->pDataBlock == NULL) {
-    //    tscError("pBlock->pDataBlock == NULL");
     return;
   }
 
@@ -514,17 +512,25 @@ static void doWindowBorderInterpolation(SIntervalAggOperatorInfo* pInfo, SSDataB
   }
 
   // point interpolation does not require the end key time window interpolation.
-  //  if (pointInterpQuery) {
-  //    return;
-  //  }
-
   // interpolation query does not generate the time window end interpolation
   done = isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP);
   if (!done) {
     int32_t endRowIndex = startPos + forwardRows - 1;
+    int32_t nextRowIndex = endRowIndex + 1;
+
+    // duplicated ts row does not involve in the interpolation of end value for current time window
+    int32_t x = endRowIndex;
+    while(x > 0) {
+      if (tsCols[x] == tsCols[x-1]) {
+        x -= 1;
+      } else {
+        endRowIndex = x;
+        break;
+      }
+    }
 
     TSKEY endKey = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC) ? pBlock->info.window.ekey : pBlock->info.window.skey;
-    bool  interp = setTimeWindowInterpolationEndTs(pInfo, pSup, endRowIndex, pBlock->pDataBlock, tsCols, endKey, win);
+    bool  interp = setTimeWindowInterpolationEndTs(pInfo, pSup, endRowIndex, nextRowIndex, pBlock->pDataBlock, tsCols, endKey, win);
     if (interp) {
       setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
     }
@@ -658,11 +664,12 @@ static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* 
  */
 static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STimeWindow* win, uint64_t groupId) {
   if (!pOperatorInfo->limited  // if no limit info, no filter will be applied
-      || pOperatorInfo->binfo.inputTsOrder !=
-             pOperatorInfo->binfo.outputTsOrder  // if input/output ts order mismatch, no filter
+      || pOperatorInfo->binfo.inputTsOrder != pOperatorInfo->binfo.outputTsOrder
+      // if input/output ts order mismatch, no filter
   ) {
     return false;
   }
+
   if (pOperatorInfo->limit == 0) return true;
 
   if (pOperatorInfo->pBQ == NULL) {

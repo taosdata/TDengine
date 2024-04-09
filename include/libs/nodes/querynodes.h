@@ -85,6 +85,9 @@ typedef struct SColumnNode {
   char        colName[TSDB_COL_NAME_LEN];
   int16_t     dataBlockId;
   int16_t     slotId;
+  int16_t     numOfPKs;
+  bool        tableHasPk;
+  bool        isPk;
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -163,6 +166,8 @@ typedef struct SFunctionNode {
   int32_t    funcType;
   SNodeList* pParameterList;
   int32_t    udfBufSize;
+  bool       hasPk;
+  int32_t    pkBytes;
 } SFunctionNode;
 
 typedef struct STableNode {

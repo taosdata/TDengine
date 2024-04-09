@@ -108,3 +108,11 @@ add_test(
     NAME tbaseCodecTest
     COMMAND tbaseCodecTest
 )
+
+# bufferTest
+add_executable(bufferTest "bufferTest.cpp")
+target_link_libraries(bufferTest os util gtest_main)
+add_test(
+    NAME bufferTest
+    COMMAND bufferTest
+)

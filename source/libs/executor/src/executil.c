@@ -250,6 +250,34 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
   return pBlock;
 }
 
+int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) {
+  SDataBlockInfo* pBlockInfo = &pDataBlock->info;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pMatchInfo->pList); ++i) {
+    SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
+    if (pItem->isPk) {
+      SColumnInfoData* pInfoData = taosArrayGet(pDataBlock->pDataBlock, pItem->dstSlotId);
+      pBlockInfo->pks[0].type = pInfoData->info.type;
+      pBlockInfo->pks[1].type = pInfoData->info.type;
+
+      if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
+        pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+        if (pBlockInfo->pks[0].pData == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+        if (pBlockInfo->pks[1].pData == NULL) {
+          taosMemoryFreeClear(pBlockInfo->pks[0].pData);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   SMetaReader* mr = (SMetaReader*)pContext;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
@@ -370,7 +398,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
                          .type = pSColumnNode->node.resType.type,
-                         .bytes = pSColumnNode->node.resType.bytes};
+                         .bytes = pSColumnNode->node.resType.bytes,
+                         .pk = pSColumnNode->isPk};
 #if TAG_FILTER_DEBUG
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
@@ -1342,6 +1371,8 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
+      c.isPk = pColNode->isPk;
+      c.dataType = pColNode->node.resType;
       taosArrayPush(pList, &c);
     }
   }
@@ -1765,6 +1796,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     pCond->colList[j].type = pColNode->node.resType.type;
     pCond->colList[j].bytes = pColNode->node.resType.bytes;
     pCond->colList[j].colId = pColNode->colId;
+    pCond->colList[j].pk = pColNode->isPk;
 
     pCond->pSlotList[j] = pNode->slotId;
     j += 1;

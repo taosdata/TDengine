@@ -189,8 +189,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
   int64_t lastTs = TSKEY_MIN;
-  bool    updateLastRow = false;
-  bool    disorderTs = false;
+  bool    needSortMerge = false;
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
@@ -217,12 +216,18 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           ASSERT(pColInfoData->info.type == pCol->type);
           if (colDataIsNull_s(pColInfoData, j)) {
+            if ((pCol->flags & COL_IS_KEY)) {
+              qError("Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+              terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+              goto _end;
+            }
             SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
             taosArrayPush(pVals, &cv);
           } else {
-            void*   data = colDataGetVarData(pColInfoData, j);
-            SValue  sv = (SValue){.nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            void*  data = colDataGetVarData(pColInfoData, j);
+            SValue sv = (SValue){
+                .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           }
           break;
@@ -239,27 +244,30 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-                qError("NULL value for primary key");
+                qError("Primary timestamp column should not be null");
                 terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
                 goto _end;
               }
-              
+              if ((pCol->flags & COL_IS_KEY)) {
+                qError("Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, pCol->colId, pCol->type);
+                terrno = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+                goto _end;
+              }
+
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
               taosArrayPush(pVals, &cv);
             } else {
-              if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-                if (*(int64_t*)var == lastTs) {
-                  updateLastRow = true;
-                } else if (*(int64_t*)var < lastTs) {
-                  disorderTs = true;
+              if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && !needSortMerge) {
+                if (*(int64_t*)var <= lastTs) {
+                  needSortMerge = true;
                 } else {
                   lastTs = *(int64_t*)var;
                 }
               }
 
-              SValue sv;
+              SValue sv = {.type = pCol->type};
               memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
-              SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
               taosArrayPush(pVals, &cv);
             }
           } else {
@@ -276,19 +284,12 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
-    if (updateLastRow) {
-      updateLastRow = false;
-      SRow** lastRow = taosArrayPop(tbData.aRowP);
-      tRowDestroy(*lastRow);
-      taosArrayPush(tbData.aRowP, &pRow);
-    } else {
-      taosArrayPush(tbData.aRowP, &pRow);
-    }
+    taosArrayPush(tbData.aRowP, &pRow);
   }
 
-  if (disorderTs) {
+  if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
-      (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+        (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
       goto _end;
     }
   }
@@ -393,7 +394,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
-  
+
   taosMemoryFree(pInserter->pManager);
   return TSDB_CODE_SUCCESS;
 }
@@ -475,6 +476,6 @@ _return:
   } else {
     taosMemoryFree(pManager);
   }
-  
-  return terrno;  
+
+  return terrno;
 }

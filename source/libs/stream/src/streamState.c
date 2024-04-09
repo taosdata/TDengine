@@ -278,11 +278,11 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
 #ifdef USE_ROCKSDB
   void*    pVal = NULL;
   int32_t  len = 0;
-  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
-  return code;
+  return TSDB_CODE_SUCCESS;
 #else
   return tdbTbUpsert(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, pState->pTdbState->txn);
 #endif

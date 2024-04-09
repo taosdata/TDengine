@@ -1610,11 +1610,25 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     } else {
       int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+      SRowKey lastRowKey;
       for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-        if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey || (iRow > 0 && aRow[iRow]->ts <= aRow[iRow - 1]->ts)) {
+        if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey) {
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
           goto _exit;
+        }
+        if (iRow == 0) {
+          tRowGetKey(aRow[iRow], &lastRowKey);
+        } else {
+          SRowKey rowKey;
+          tRowGetKey(aRow[iRow], &rowKey);
+
+          if (tRowKeyCompare(&lastRowKey, &rowKey) >= 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
+            goto _exit;
+          }
+          lastRowKey = rowKey;
         }
       }
     }

@@ -7772,6 +7772,16 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI64(&encoder, p->ver) < 0) return -1;
   }
 
+  int32_t colSize = taosArrayGetSize(pReq->pCols);
+  if (tEncodeI32(&encoder, colSize) < 0) return -1;
+  for (int32_t i = 0; i < colSize; ++i) {
+    SField *pField = taosArrayGet(pReq->pCols, i);
+    if (tEncodeI8(&encoder, pField->type) < 0) return -1;
+    if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
+    if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
+    if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7877,6 +7887,27 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
       }
     }
   }
+  int32_t colSize = 0;
+  if (tDecodeI32(&decoder, &colSize) < 0) return -1;
+  if (colSize > 0) {
+    pReq->pCols = taosArrayInit(colSize, sizeof(SField));
+    if (pReq->pCols == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < colSize; ++i) {
+      SField field = {0};
+      if (tDecodeI8(&decoder, &field.type) < 0) return -1;
+      if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
+      if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+      if (taosArrayPush(pReq->pCols, &field) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -7957,6 +7988,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->pTags);
   taosArrayDestroy(pReq->fillNullCols);
   taosArrayDestroy(pReq->pVgroupVerList);
+  taosArrayDestroy(pReq->pCols);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {

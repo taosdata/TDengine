@@ -393,7 +393,8 @@ full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                         
 column_def_list(A) ::= column_def(B).                                             { A = createNodeList(pCxt, B); }
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
-column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL); }
+column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL, false); }
+column_def(A) ::= column_name(B) type_name(C) PRIMARY KEY.                        { A = createColumnDefNode(pCxt, &B, C, NULL, true); }
 //column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
 
 %type type_name                                                                   { SDataType }
@@ -688,13 +689,23 @@ cmd ::= RESUME STREAM exists_opt(A) ignore_opt(C) stream_name(B).               
 %type col_list_opt                                                                { SNodeList* }
 %destructor col_list_opt                                                          { nodesDestroyList($$); }
 col_list_opt(A) ::= .                                                             { A = NULL; }
-col_list_opt(A) ::= NK_LP col_name_list(B) NK_RP.                                 { A = B; }
+col_list_opt(A) ::= NK_LP column_stream_def_list(B) NK_RP.                        { A = B; }
+
+%type column_stream_def_list                                                      { SNodeList* }
+%destructor column_stream_def_list                                                { nodesDestroyList($$); }
+column_stream_def_list(A) ::= column_stream_def(B).                               { A = createNodeList(pCxt, B); }
+column_stream_def_list(A) ::= column_stream_def_list(B)
+ NK_COMMA column_stream_def(C).                                                   { A = addNodeToList(pCxt, B, C); }
+
+column_stream_def(A) ::= column_name(B).                                          { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), NULL, false); }
+column_stream_def(A) ::= column_name(B) PRIMARY KEY.                              { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), NULL, true); }
+//column_stream_def(A) ::= column_def(B).                                         { A = B; }
 
 %type tag_def_or_ref_opt                                                          { SNodeList* }
 %destructor tag_def_or_ref_opt                                                    { nodesDestroyList($$); }
 tag_def_or_ref_opt(A) ::= .                                                       { A = NULL; }
 tag_def_or_ref_opt(A) ::= tags_def(B).                                            { A = B; }
-tag_def_or_ref_opt(A) ::= TAGS NK_LP col_name_list(B) NK_RP.                      { A = B; }
+tag_def_or_ref_opt(A) ::= TAGS NK_LP column_stream_def_list(B) NK_RP.             { A = B; }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE(C).                       { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }

@@ -277,7 +277,12 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   return SCAN_TYPE_TABLE;
 }
 
-static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema) {
+
+static bool hasPkInTable(const STableMeta* pTableMeta) {
+  return pTableMeta->tableInfo.numOfColumns>=2 && pTableMeta->schema[1].flags & COL_IS_KEY;
+}
+
+static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema, const STableMeta* pMeta) {
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
@@ -287,11 +292,14 @@ static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema) {
   pCol->tableId = tableId;
   pCol->colId = pSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->isPk = pSchema->flags & COL_IS_KEY;
+  pCol->tableHasPk = hasPkInTable(pMeta);
+  pCol->numOfPKs = pMeta->tableInfo.numOfPKs;
   strcpy(pCol->colName, pSchema->name);
   return (SNode*)pCol;
 }
 
-static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols, const STableMeta* pMeta) {
   bool   found = false;
   SNode* pCol = NULL;
   FOREACH(pCol, *pCols) {
@@ -302,23 +310,43 @@ static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeL
   }
 
   if (!found) {
-    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema, pMeta));
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+static int32_t addPkCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols, const STableMeta* pMeta) {
+  bool   found = false;
+  SNode* pCol = NULL;
+  FOREACH(pCol, *pCols) {
+    if (pSchema->colId == ((SColumnNode*)pCol)->colId) {
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema, pMeta));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols, const STableMeta* pMeta) {
   if (LIST_LENGTH(*pCols) > 0) {
     return TSDB_CODE_SUCCESS;
   }
-  return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+  return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema, pMeta));
 }
 
 static int32_t addDefaultScanCol(const STableMeta* pMeta, SNodeList** pCols) {
   if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
-    return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols);
+    return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols, pMeta);
   }
-  return addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols);
+  int32_t code = addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols, pMeta);
+  if (code == TSDB_CODE_SUCCESS && hasPkInTable(pMeta)) {
+    code = addPkCol(pMeta->uid, pMeta->schema + 1, pCols, pMeta);
+  }
+  return code;
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
@@ -1667,6 +1695,11 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
     if (NULL == pScan->pScanCols) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
+  if (TSDB_CODE_SUCCESS == code && hasPkInTable(pMeta)) {
+    code = addPkCol(pMeta->uid, pMeta->schema + 1, &pScan->pScanCols, pMeta);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
