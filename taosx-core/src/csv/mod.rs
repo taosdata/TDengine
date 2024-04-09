@@ -630,7 +630,7 @@ impl CsvSource {
 
         let columns = headers
             .iter()
-            .map(|header| Field::new(header, ArrowDataType::Utf8, false))
+            .map(|header| Field::new(header, ArrowDataType::Utf8, true))
             .collect::<Vec<Field>>();
 
         Schema::new(columns).with_metadata(metadata)
