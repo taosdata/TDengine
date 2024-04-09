@@ -1392,7 +1392,7 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
     if (NULL == pCol) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tColDataInit(pCol, pSchema->colId, pSchema->type, 0);
+    tColDataInit(pCol, pSchema->colId, pSchema->type, pSchema->flags);
   }
 
   return TSDB_CODE_SUCCESS;

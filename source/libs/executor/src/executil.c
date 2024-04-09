@@ -250,6 +250,34 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
   return pBlock;
 }
 
+int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) {
+  SDataBlockInfo* pBlockInfo = &pDataBlock->info;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pMatchInfo->pList); ++i) {
+    SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
+    if (pItem->isPk) {
+      SColumnInfoData* pInfoData = taosArrayGet(pDataBlock->pDataBlock, pItem->dstSlotId);
+      pBlockInfo->pks[0].type = pInfoData->info.type;
+      pBlockInfo->pks[1].type = pInfoData->info.type;
+
+      if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
+        pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+        if (pBlockInfo->pks[0].pData == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        pBlockInfo->pks[1].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
+        if (pBlockInfo->pks[1].pData == NULL) {
+          taosMemoryFreeClear(pBlockInfo->pks[0].pData);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   SMetaReader* mr = (SMetaReader*)pContext;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {

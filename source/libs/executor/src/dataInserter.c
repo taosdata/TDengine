@@ -189,8 +189,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
   int64_t lastTs = TSKEY_MIN;
-  bool    updateLastRow = false;
-  bool    disorderTs = false;
+  bool    needSortMerge = false;
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
@@ -258,11 +257,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
               taosArrayPush(pVals, &cv);
             } else {
-              if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-                if (*(int64_t*)var == lastTs) {
-                  updateLastRow = true;
-                } else if (*(int64_t*)var < lastTs) {
-                  disorderTs = true;
+              if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && !needSortMerge) {
+                if (*(int64_t*)var <= lastTs) {
+                  needSortMerge = true;
                 } else {
                   lastTs = *(int64_t*)var;
                 }
@@ -287,17 +284,10 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
-    if (updateLastRow) {
-      updateLastRow = false;
-      SRow** lastRow = taosArrayPop(tbData.aRowP);
-      tRowDestroy(*lastRow);
-      taosArrayPush(tbData.aRowP, &pRow);
-    } else {
-      taosArrayPush(tbData.aRowP, &pRow);
-    }
+    taosArrayPush(tbData.aRowP, &pRow);
   }
 
-  if (disorderTs) {
+  if (needSortMerge) {
     if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
         (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
       goto _end;

@@ -535,8 +535,8 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
 
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      pDataBlock->info.pks[0].val = *(int32_t*) skey;
-      pDataBlock->info.pks[1].val = *(int32_t*) ekey;
+      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, ekey);
     } else {  // todo refactor
       memcpy(pDataBlock->info.pks[0].pData, varDataVal(skey), varDataLen(skey));
       pDataBlock->info.pks[0].nData = varDataLen(skey);
@@ -546,8 +546,8 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      pDataBlock->info.pks[0].val = *(int32_t*) ekey;
-      pDataBlock->info.pks[1].val = *(int32_t*) skey;
+      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, skey);
     } else {  // todo refactor
       memcpy(pDataBlock->info.pks[0].pData, varDataVal(ekey), varDataLen(ekey));
       pDataBlock->info.pks[0].nData = varDataLen(ekey);
@@ -1489,6 +1489,18 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
     blockDataAppendColInfo(pBlock, &colInfo);
+  }
+
+  // prepare the pk buffer if necessary
+  if (IS_VAR_DATA_TYPE(pDataBlock->info.pks[0].type)) {
+    SValue* pVal = &pBlock->info.pks[0];
+
+    pVal->type = pDataBlock->info.pks[0].type;
+    pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[0].nData);
+
+    pVal = &pBlock->info.pks[1];
+    pVal->type = pDataBlock->info.pks[1].type;
+    pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
   }
 
   if (copyData) {
