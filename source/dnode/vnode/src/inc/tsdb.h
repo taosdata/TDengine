@@ -758,9 +758,11 @@ typedef struct SBlockDataInfo {
 // todo: move away
 typedef struct {
   SArray *pUid;
+  SArray *pFirstTs;
+  SArray *pLastTs;
+  SArray *pCount;
   SArray *pFirstKey;
   SArray *pLastKey;
-  SArray *pCount;
 } SSttTableRowsInfo;
 
 typedef struct SSttBlockLoadInfo {
@@ -836,7 +838,7 @@ struct SLDataIter {
   STimeWindow            timeWindow;
   SVersionRange          verRange;
   SSttBlockLoadInfo     *pBlockLoadInfo;
-  SRowKey                startRowKey;        // current row key
+  SRowKey*               pStartRowKey;        // current row key
   __compar_fn_t          comparFn;
   bool                   ignoreEarlierTs;
   struct SSttFileReader *pReader;
@@ -870,7 +872,7 @@ typedef struct SMergeTreeConf {
 } SMergeTreeConf;
 
 typedef struct SSttDataInfoForTable {
-  SArray *pTimeWindowList;
+  SArray *pKeyRangeList;
   int64_t numOfRows;
 } SSttDataInfoForTable;
 
@@ -893,10 +895,16 @@ typedef enum {
 } EExecMode;
 
 typedef struct {
-  TSKEY   ts;
+  SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
 } SLastCol;
+
+typedef struct {
+  TSKEY   ts;
+  int8_t  dirty;
+  SColVal colVal;
+} SLastColV1;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);

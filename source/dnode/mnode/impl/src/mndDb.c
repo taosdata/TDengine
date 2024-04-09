@@ -1209,6 +1209,25 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   if (mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
 
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SArbGroup *pArbGroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_ARBGROUP, pIter, (void **)&pArbGroup);
+    if (pIter == NULL) break;
+
+    if (pArbGroup->dbUid == pDb->uid) {
+      if (mndSetDropArbGroupPrepareLogs(pTrans,pArbGroup) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pArbGroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pArbGroup);
+  }
+
   return 0;
 }
 

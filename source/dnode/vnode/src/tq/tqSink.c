@@ -71,8 +71,8 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
-      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0) {
-        buildCtbNameAddGroupId(name, groupId);
+      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0 && stbFullName) {
+        buildCtbNameAddGroupId(stbFullName, name, groupId);
       }
     } else if (stbFullName) {
       name = buildCtbNameByGroupId(stbFullName, groupId);
@@ -182,10 +182,10 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
     if (newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName) &&
-        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0) {
+        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0 && stbFullName) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
-      buildCtbNameAddGroupId(pCreateTableReq->name, gid);
+      buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
 //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
@@ -324,6 +324,7 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id) {
   int32_t oldLen = taosArrayGetSize(pExisted->aRowP);
   int32_t newLen = taosArrayGetSize(pNew->aRowP);
+  int32_t numOfPk = 0;
 
   int32_t j = 0, k = 0;
   SArray* pFinal = taosArrayInit(oldLen + newLen, POINTER_BYTES);
@@ -335,17 +336,40 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   while (j < newLen && k < oldLen) {
     SRow* pNewRow = taosArrayGetP(pNew->aRowP, j);
     SRow* pOldRow = taosArrayGetP(pExisted->aRowP, k);
-    if (pNewRow->ts <= pOldRow->ts) {
+    if (pNewRow->ts < pOldRow->ts) {
       taosArrayPush(pFinal, &pNewRow);
       j += 1;
-
-      if (pNewRow->ts == pOldRow->ts) {
-        k += 1;
-        tRowDestroy(pOldRow);
-      }
-    } else {
+    } else if (pNewRow->ts > pOldRow->ts) {
       taosArrayPush(pFinal, &pOldRow);
       k += 1;
+    } else {
+        // check for the existance of primary key
+        if (pNewRow->numOfPKs == 0) {
+          taosArrayPush(pFinal, &pNewRow);
+          k += 1;
+          j += 1;
+          tRowDestroy(pOldRow);
+        } else {
+          numOfPk = pNewRow->numOfPKs;
+
+          SRowKey kNew, kOld;
+          tRowGetKey(pNewRow, &kNew);
+          tRowGetKey(pOldRow, &kOld);
+
+          int32_t ret = tRowKeyCompare(&kNew, &kOld);
+          if (ret <= 0) {
+            taosArrayPush(pFinal, &pNewRow);
+            j += 1;
+
+            if (ret == 0) {
+              k += 1;
+              tRowDestroy(pOldRow);
+            }
+          } else {
+            taosArrayPush(pFinal, &pOldRow);
+            k += 1;
+          }
+        }
     }
   }
 
@@ -363,8 +387,8 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   taosArrayDestroy(pExisted->aRowP);
   pExisted->aRowP = pFinal;
 
-  tqTrace("s-task:%s rows merged, final rows:%d, uid:%" PRId64 ", existed auto-create table:%d, new-block:%d", id,
-          (int32_t)taosArrayGetSize(pFinal), pExisted->uid, (pExisted->pCreateTbReq != NULL),
+  tqTrace("s-task:%s rows merged, final rows:%d, pk:%d uid:%" PRId64 ", existed auto-create table:%d, new-block:%d",
+          id, (int32_t)taosArrayGetSize(pFinal), numOfPk, pExisted->uid, (pExisted->pCreateTbReq != NULL),
           (pNew->pCreateTbReq != NULL));
 
   tdDestroySVCreateTbReq(pNew->pCreateTbReq);
@@ -672,10 +696,14 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     } else {
-      if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1 &&
-          !isAutoTableName(dstTableName) && !alreadyAddGroupId(dstTableName) && groupId != 0) {
+      if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
+          !alreadyAddGroupId(dstTableName) && groupId != 0) {
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
-        buildCtbNameAddGroupId(dstTableName, groupId);
+        if(pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+          buildCtbNameAddGroupId(NULL, dstTableName, groupId);
+        }else if(pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+          buildCtbNameAddGroupId(stbFullName, dstTableName, groupId);
+        }
       }
     }
 

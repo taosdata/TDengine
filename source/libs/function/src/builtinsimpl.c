@@ -138,7 +138,7 @@ typedef struct SElapsedInfo {
 
 typedef struct STwaInfo {
   double      dOutput;
-  bool        isNull;
+  int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
@@ -533,6 +533,24 @@ bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
   }
 }
 
+static void forwardToNextDiffTsRow(SFuncInputRowIter* pIter, int32_t rowIndex) {
+  int32_t idx = rowIndex + 1;
+  while (idx <= pIter->inputEndIndex && pIter->tsList[idx] == pIter->tsList[rowIndex]) {
+    ++idx;
+  }
+  pIter->rowIndex = idx;
+}
+
+static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32_t rowIndex, bool setPk) {
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, rowIndex);
+  pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
+  pRow->pPk = setPk? colDataGetData(pIter->pPkCol, rowIndex):NULL;
+  pRow->block = pIter->pSrcBlock;
+  pRow->rowIndex = rowIndex;
+}
+
 bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->hasPrev) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
@@ -543,33 +561,19 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
       while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
         ++idx;
       }
-      pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
-      pRow->pData = colDataGetData(pIter->pDataCol, idx);
-      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
-      pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = idx;
 
       pIter->hasPrev = false;
-      pIter->rowIndex = idx + 1;
+      setInputRowInfo(pRow, pIter, idx, true);
+      forwardToNextDiffTsRow(pIter, idx);
       return true;
     }
   } else {
     if (pIter->rowIndex <= pIter->inputEndIndex) { 
-      pRow->ts = pIter->tsList[pIter->rowIndex];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
-      pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
-      pRow->pPk = colDataGetData(pIter->pPkCol, pIter->rowIndex);
-      pRow->block = pIter->pSrcBlock;
-      pRow->rowIndex = pIter->rowIndex;
+      setInputRowInfo(pRow, pIter, pIter->rowIndex, true);
 
       TSKEY tsEnd = pIter->tsList[pIter->inputEndIndex];
       if (pIter->tsList[pIter->rowIndex] != tsEnd) {
-        int32_t idx = pIter->rowIndex + 1;
-        while (idx <= pIter->inputEndIndex && pIter->tsList[idx] == pIter->tsList[pIter->rowIndex]) {
-          ++idx;
-        }
-        pIter->rowIndex = idx;
+        forwardToNextDiffTsRow(pIter, pIter->rowIndex);
       } else {
         pIter->rowIndex = pIter->inputEndIndex + 1;
       }
@@ -585,13 +589,7 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
 
 bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
   if (pIter->rowIndex <= pIter->inputEndIndex) {
-    pRow->ts = pIter->tsList[pIter->rowIndex];
-    pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->rowIndex);
-    pRow->pData = colDataGetData(pIter->pDataCol, pIter->rowIndex);
-    pRow->pPk = NULL;
-    pRow->block = pIter->pSrcBlock;
-    pRow->rowIndex = pIter->rowIndex;
-
+    setInputRowInfo(pRow, pIter, pIter->rowIndex, false);
     ++pIter->rowIndex;
     return true;    
   } else {
@@ -602,10 +600,10 @@ bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
 bool funcInputGetNextRow(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
   SFuncInputRowIter* pIter = &pCtx->rowIter;
   if (pCtx->hasPrimaryKey) {
-    if (pCtx->order == TSDB_ORDER_DESC) {
-      return funcInputGetNextRowDescPk(pIter, pRow);
-    } else {
+    if (pCtx->order == TSDB_ORDER_ASC) {
       return funcInputGetNextRowAscPk(pIter, pRow);
+    } else {
+      return funcInputGetNextRowDescPk(pIter, pRow);
     }
   } else {
     return funcInputGetNextRowNoPk(pIter, pRow);
@@ -2821,11 +2819,13 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
   pOutput->isNull = pInput->isNull;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
+  pOutput->pkType = pInput->pkType;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   if (pInput->pkData) {
     pOutput->pkBytes = pInput->pkBytes;
     memcpy(pOutput->buf+pOutput->bytes, pInput->pkData, pOutput->pkBytes);
+    pOutput->pkData = pOutput->buf + pOutput->bytes;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5556,7 +5556,7 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   }
 
   STwaInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pInfo->isNull = false;
+  pInfo->numOfElems = 0;
   pInfo->p.key = INT64_MIN;
   pInfo->win = TSWINDOW_INITIALIZER;
   return true;
@@ -5580,16 +5580,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
-
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-
-  STwaInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  SPoint1*  last = &pInfo->p;
-  int32_t   numOfElems = 0;
+  STwaInfo*            pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SPoint1*             last = &pInfo->p;
 
   if (IS_NULL_TYPE(pInputCol->info.type)) {
-    pInfo->isNull = true;
+    pInfo->numOfElems = 0;
     goto _twa_over;
   }
 
@@ -5607,7 +5603,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
       pInfo->dOutput += twa_get_area(pCtx->start, *last);
       pInfo->win.skey = pCtx->start.key;
-      numOfElems++;
+      pInfo->numOfElems++;
       break;
     }
   } else if (pInfo->p.key == INT64_MIN) {
@@ -5621,7 +5617,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
 
       pInfo->win.skey = last->key;
-      numOfElems++;
+      pInfo->numOfElems++;
       break;
     }
   }
@@ -5635,7 +5631,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5653,7 +5649,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(int16_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5670,7 +5666,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(int32_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5687,7 +5683,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(int64_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5704,7 +5700,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(float_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5721,7 +5717,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(double*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5738,7 +5734,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(uint8_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5755,7 +5751,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(uint16_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5772,7 +5768,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(uint32_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5789,7 +5785,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
         INIT_INTP_POINT(st, row.ts, *(uint64_t*)row.pData);
         if (pInfo->p.key == st.key) {
@@ -5810,16 +5806,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (pCtx->end.key != INT64_MIN) {
     pInfo->dOutput += twa_get_area(pInfo->p, pCtx->end);
     pInfo->p = pCtx->end;
-    numOfElems += 1;
+    pInfo->numOfElems += 1;
   }
 
   pInfo->win.ekey = pInfo->p.key;
 
 _twa_over:
-  if (numOfElems == 0) {
-    pInfo->isNull = true;
-  }
-
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -5840,7 +5832,7 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo* pInfo = (STwaInfo*)GET_ROWCELL_INTERBUF(pResInfo);
-  if (pInfo->isNull == true) {
+  if (pInfo->numOfElems == 0) {
     pResInfo->numOfRes = 0;
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {

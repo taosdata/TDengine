@@ -514,6 +514,7 @@ static const char* jkSchemaType = "Type";
 static const char* jkSchemaColId = "ColId";
 static const char* jkSchemaBytes = "bytes";
 static const char* jkSchemaName = "Name";
+static const char* jkSchemaFlags = "Flags";
 
 static int32_t schemaToJson(const void* pObj, SJson* pJson) {
   const SSchema* pNode = (const SSchema*)pObj;
@@ -527,6 +528,9 @@ static int32_t schemaToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkSchemaName, pNode->name);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSchemaFlags, pNode->flags);
   }
 
   return code;
@@ -545,6 +549,9 @@ static int32_t jsonToSchema(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkSchemaName, pNode->name);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkSchemaFlags, pNode->flags, code);
   }
 
   return code;
@@ -2513,6 +2520,7 @@ static const char* jkWindowPhysiPlanDeleteMark = "DeleteMark";
 static const char* jkWindowPhysiPlanIgnoreExpired = "IgnoreExpired";
 static const char* jkWindowPhysiPlanInputTsOrder = "InputTsOrder";
 static const char* jkWindowPhysiPlanMergeDataBlock = "MergeDataBlock";
+static const char* jkWindowPhysiPlanDestHasPrimaryKey = "DestHasPrimaryKey";
 
 static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowPhysiNode* pNode = (const SWindowPhysiNode*)pObj;
@@ -2544,6 +2552,9 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkWindowPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanDestHasPrimaryKey, pNode->destHasPrimayKey);
   }
 
   return code;
@@ -2579,6 +2590,9 @@ static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkWindowPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkWindowPhysiPlanDestHasPrimaryKey, &pNode->destHasPrimayKey);
   }
 
   return code;
@@ -3618,6 +3632,7 @@ static const char* jkColumnDataBlockId = "DataBlockId";
 static const char* jkColumnSlotId = "SlotId";
 static const char* jkColumnTableHasPk = "TableHasPk";
 static const char* jkColumnIsPk = "IsPk";
+static const char* jkColumnNumOfPKs = "NumOfPKs";
 
 static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -3662,6 +3677,9 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkColumnIsPk, pNode->isPk);
   }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkColumnNumOfPKs, pNode->numOfPKs);
+  }
   return code;
 }
 
@@ -3707,7 +3725,10 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnIsPk, &pNode->isPk);
-  }      
+  }    
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetSmallIntValue(pJson, jkColumnNumOfPKs, &pNode->numOfPKs);
+  }  
   return code;
 }
 

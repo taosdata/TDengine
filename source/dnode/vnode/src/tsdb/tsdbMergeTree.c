@@ -75,6 +75,8 @@ void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
     taosArrayDestroy(pLoadInfo->info.pFirstKey);
     taosArrayDestroy(pLoadInfo->info.pLastKey);
     taosArrayDestroy(pLoadInfo->info.pCount);
+    taosArrayDestroy(pLoadInfo->info.pFirstTs);
+    taosArrayDestroy(pLoadInfo->info.pLastTs);
   }
 
   taosArrayDestroy(pLoadInfo->aSttBlk);
@@ -359,18 +361,51 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
     if (i < rows) {
       if (pBlockLoadInfo->info.pUid == NULL) {
         pBlockLoadInfo->info.pUid = taosArrayInit(rows, sizeof(int64_t));
-        pBlockLoadInfo->info.pFirstKey = taosArrayInit(rows, sizeof(int64_t));
-        pBlockLoadInfo->info.pLastKey = taosArrayInit(rows, sizeof(int64_t));
+        pBlockLoadInfo->info.pFirstTs = taosArrayInit(rows, sizeof(int64_t));
+        pBlockLoadInfo->info.pLastTs = taosArrayInit(rows, sizeof(int64_t));
         pBlockLoadInfo->info.pCount = taosArrayInit(rows, sizeof(int64_t));
+
+        pBlockLoadInfo->info.pFirstKey = taosArrayInit(rows, sizeof(SValue));
+        pBlockLoadInfo->info.pLastKey = taosArrayInit(rows, sizeof(SValue));
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
         taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pFirstKey,
+        taosArrayAddBatch(pBlockLoadInfo->info.pFirstTs,
                           tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pLastKey,
-                          tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)), rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pLastTs, tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)),
+                          rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
+
+        SValue vFirst = {0}, vLast = {0};
+        for (int32_t f = i; f < rows; ++f) {
+          int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
+          if (code) {
+            break;
+          }
+
+          if (IS_VAR_DATA_TYPE(vFirst.type)) {
+            char *p = (char *)vFirst.pData;
+            char *pBuf = taosMemoryMalloc(vFirst.nData);
+            memcpy(pBuf, p, vFirst.nData);
+            vFirst.pData = (uint8_t *)pBuf;
+          }
+          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
+
+          code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
+          if (code) {
+            break;
+          }
+
+          if (IS_VAR_DATA_TYPE(vLast.type)) {
+            char *p = (char *)vLast.pData;
+            char *pBuf = taosMemoryMalloc(vLast.nData);
+            memcpy(pBuf, p, vLast.nData);
+            vLast.pData = (uint8_t *)pBuf;
+          }
+          taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
+        }
+
       } else {
         STbStatisRecord record;
         while (i < rows) {
@@ -380,9 +415,13 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           }
 
           taosArrayPush(pBlockLoadInfo->info.pUid, &record.uid);
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &record.firstKey.ts);
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, &record.lastKey.ts);
           taosArrayPush(pBlockLoadInfo->info.pCount, &record.count);
+
+          taosArrayPush(pBlockLoadInfo->info.pFirstTs, &record.firstKey.ts);
+          taosArrayPush(pBlockLoadInfo->info.pLastTs, &record.lastKey.ts);
+
+          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &record.firstKey.pks[0]);
+          taosArrayPush(pBlockLoadInfo->info.pLastKey, &record.lastKey.pks[0]);
           i += 1;
         }
       }
@@ -452,23 +491,28 @@ static int32_t uidComparFn(const void *p1, const void *p2) {
   }
 }
 
-static void setSttInfoForCurrentTable(SSttBlockLoadInfo *pLoadInfo, uint64_t uid, STimeWindow *pTimeWindow,
+static void setSttInfoForCurrentTable(SSttBlockLoadInfo *pLoadInfo, uint64_t uid, SSttKeyRange *pRange,
                                       int64_t *numOfRows) {
-  if (pTimeWindow == NULL || taosArrayGetSize(pLoadInfo->info.pUid) == 0) {
+  if (pRange == NULL || taosArrayGetSize(pLoadInfo->info.pUid) == 0) {
     return;
   }
 
   int32_t index = taosArraySearchIdx(pLoadInfo->info.pUid, &uid, uidComparFn, TD_EQ);
   if (index >= 0) {
-    pTimeWindow->skey = *(int64_t *)taosArrayGet(pLoadInfo->info.pFirstKey, index);
-    pTimeWindow->ekey = *(int64_t *)taosArrayGet(pLoadInfo->info.pLastKey, index);
+    pRange->skey.ts = *(int64_t *)taosArrayGet(pLoadInfo->info.pFirstTs, index);
+    pRange->ekey.ts = *(int64_t *)taosArrayGet(pLoadInfo->info.pLastTs, index);
 
     *numOfRows += *(int64_t *)taosArrayGet(pLoadInfo->info.pCount, index);
+
+    if (pRange->skey.numOfPKs > 0) {
+      memcpy(&pRange->skey.pks[0], taosArrayGet(pLoadInfo->info.pFirstKey, index), sizeof(SValue));
+      memcpy(&pRange->ekey.pks[0], taosArrayGet(pLoadInfo->info.pLastKey, index), sizeof(SValue));
+    }
   }
 }
 
 int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32_t cid, int8_t backward,
-                        SMergeTreeConf *pConf, SSttBlockLoadInfo *pBlockLoadInfo, STimeWindow *pTimeWindow,
+                        SMergeTreeConf *pConf, SSttBlockLoadInfo *pBlockLoadInfo, SSttKeyRange *pKeyRange,
                         int64_t *numOfRows, const char *idStr) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -481,7 +525,7 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   pIter->timeWindow.ekey = pConf->timewindow.ekey;
   pIter->comparFn = pConf->comparFn;
 
-  tRowKeyAssign(&pIter->startRowKey, pConf->pCurRowKey);
+  pIter->pStartRowKey = pConf->pCurRowKey;
   pIter->pReader = pSttFileReader;
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
@@ -500,7 +544,7 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
     }
   }
 
-  setSttInfoForCurrentTable(pBlockLoadInfo, pConf->uid, pTimeWindow, numOfRows);
+  setSttInfoForCurrentTable(pBlockLoadInfo, pConf->uid, pKeyRange, numOfRows);
 
   // find the start block, actually we could load the position to avoid repeatly searching for the start position when
   // the skey is updated.
@@ -629,10 +673,10 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
           continue;
         }
 
-        if (ts == pIter->timeWindow.skey && pIter->startRowKey.numOfPKs > 0) {
+        if (ts == pIter->timeWindow.skey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
           if (ret < 0) {
             continue;
           }
@@ -646,10 +690,10 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
           continue;
         }
 
-        if (ts == pIter->timeWindow.ekey && pIter->startRowKey.numOfPKs > 0) {
+        if (ts == pIter->timeWindow.ekey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, &pIter->startRowKey);
+          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
           if (ret > 0) {
             continue;
           }
@@ -825,11 +869,11 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
       memset(pIter, 0, sizeof(SLDataIter));
 
-      STimeWindow w = {0};
-      int64_t     numOfRows = 0;
-      int64_t     cid = pSttLevel->fobjArr->data[i]->f->cid;
+      SSttKeyRange range = {.skey.numOfPKs = pConf->pCurRowKey->numOfPKs, .ekey.numOfPKs = pConf->pCurRowKey->numOfPKs};
+      int64_t      numOfRows = 0;
+      int64_t      cid = pSttLevel->fobjArr->data[i]->f->cid;
 
-      code = tLDataIterOpen2(pIter, pSttFileReader, cid, pMTree->backward, pConf, pLoadInfo, &w, &numOfRows,
+      code = tLDataIterOpen2(pIter, pSttFileReader, cid, pMTree->backward, pConf, pLoadInfo, &range, &numOfRows,
                              pMTree->idStr);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
@@ -841,7 +885,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
         // let's record the time window for current table of uid in the stt files
         if (pSttDataInfo != NULL && numOfRows > 0) {
-          taosArrayPush(pSttDataInfo->pTimeWindowList, &w);
+          taosArrayPush(pSttDataInfo->pKeyRangeList, &range);
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {

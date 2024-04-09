@@ -879,7 +879,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
   char*   outputWKT = NULL;
 
   if (nGeom == 0) {
-    if (!(*output = strdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!(*output = taosStrdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
     *nOutput = 0;
     return code;
   }
@@ -983,7 +983,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
         tagVarChar = taosMemoryCalloc(1, bufSize + 1);
         int32_t len = -1;
-        convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        if (tagLen > 0)
+          convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        else
+          len = 0;
         varDataSetLen(tagVarChar, len);
       }
     }

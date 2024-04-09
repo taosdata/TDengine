@@ -535,8 +535,8 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
 
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      pDataBlock->info.pks[0].val = *(int32_t*) skey;
-      pDataBlock->info.pks[1].val = *(int32_t*) ekey;
+      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, ekey);
     } else {  // todo refactor
       memcpy(pDataBlock->info.pks[0].pData, varDataVal(skey), varDataLen(skey));
       pDataBlock->info.pks[0].nData = varDataLen(skey);
@@ -546,8 +546,8 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      pDataBlock->info.pks[0].val = *(int32_t*) ekey;
-      pDataBlock->info.pks[1].val = *(int32_t*) skey;
+      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, skey);
     } else {  // todo refactor
       memcpy(pDataBlock->info.pks[0].pData, varDataVal(ekey), varDataLen(ekey));
       pDataBlock->info.pks[0].nData = varDataLen(ekey);
@@ -1491,6 +1491,18 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     blockDataAppendColInfo(pBlock, &colInfo);
   }
 
+  // prepare the pk buffer if necessary
+  if (IS_VAR_DATA_TYPE(pDataBlock->info.pks[0].type)) {
+    SValue* pVal = &pBlock->info.pks[0];
+
+    pVal->type = pDataBlock->info.pks[0].type;
+    pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[0].nData);
+
+    pVal = &pBlock->info.pks[1];
+    pVal->type = pDataBlock->info.pks[1].type;
+    pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
+  }
+
   if (copyData) {
     int32_t code = blockDataEnsureCapacity(pBlock, pDataBlock->info.rows);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2188,10 +2200,14 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
-void buildCtbNameAddGroupId(char* ctbName, uint64_t groupId) {
+void  buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId){
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%" PRIu64, groupId);
-  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
+  if (stbName == NULL){
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+  }else{
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName, groupId);
+  }
+  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
 }
 
@@ -2201,6 +2217,7 @@ bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0
 
 bool alreadyAddGroupId(char* ctbName) {
   size_t len = strlen(ctbName);
+  if (len == 0) return false;
   size_t _location = len - 1;
   while (_location > 0) {
     if (ctbName[_location] < '0' || ctbName[_location] > '9') {

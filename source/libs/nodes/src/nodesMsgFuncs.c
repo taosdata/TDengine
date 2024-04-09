@@ -731,6 +731,9 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->isPk);
   }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI16(pEncoder, pNode->numOfPKs);
+  }  
   return code;
 }
 
@@ -777,6 +780,9 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->isPk);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI16(pDecoder, &pNode->numOfPKs);
   }  
   return code;
 }
@@ -2907,7 +2913,8 @@ enum {
   PHY_WINDOW_CODE_IG_EXPIRED,
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
-  PHY_WINDOW_CODE_MERGE_DATA_BLOCK
+  PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
+  PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2940,6 +2947,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimayKey);
   }
 
   return code;
@@ -2981,6 +2991,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY:
+        code = tlvDecodeI8(pTlv, &pNode->destHasPrimayKey);
         break;
       default:
         break;

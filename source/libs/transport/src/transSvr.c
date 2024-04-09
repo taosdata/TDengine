@@ -761,9 +761,12 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     tTrace("conn %p received release request", pConn);
 
     STraceId traceId = pHead->traceId;
-    pConn->status = ConnRelease;
     transClearBuffer(&pConn->readBuf);
     transFreeMsg(transContFromHead((char*)pHead));
+    if (pConn->status != ConnAcquire) {
+      return true;
+    }
+    pConn->status = ConnRelease;
 
     STransMsg tmsg = {.code = 0, .info.handle = (void*)pConn, .info.traceId = traceId, .info.ahandle = (void*)0x9527};
     SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));
@@ -1090,6 +1093,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   STrans* pTransInst = pThrd->pTransInst;
   pConn->refId = exh->refId;
+  QUEUE_INIT(&exh->q);
   transRefSrvHandle(pConn);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pTransInst), exh, pConn, pConn->refId);
   return pConn;
@@ -1121,6 +1125,7 @@ static int reallocConnRef(SSvrConn* conn) {
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  QUEUE_INIT(&exh->q);
   transAcquireExHandle(transGetRefMgt(), exh->refId);
   conn->refId = exh->refId;
 
