@@ -416,7 +416,7 @@ type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 
 %type type_name_binary                                                            { SDataType }
-%destructor type_name_bin                                                         { }
+%destructor type_name_binary                                                      { }
 type_name_binary(A) ::= BINARY.                                                   { A = createVarLenDataType(TSDB_DATA_TYPE_BINARY, NULL); }
 
 %type tags_def_opt                                                                { SNodeList* }
