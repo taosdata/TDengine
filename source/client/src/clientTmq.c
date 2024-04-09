@@ -2957,7 +2957,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   *numOfAssignment = taosArrayGetSize(pTopic->vgs);
   for (int32_t j = 0; j < (*numOfAssignment); ++j) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, j);
-    int32_t      type = pClientVg->offsetInfo.beginOffset.type;
+    int32_t      type = pClientVg->offsetInfo.endOffset.type;
     if (isInSnapshotMode(type, tmq->useSnapshot)) {
       tscError("consumer:0x%" PRIx64 " offset type:%d not wal version, assignment not allowed", tmq->consumerId, type);
       code = TSDB_CODE_TMQ_SNAPSHOT_ERROR;
@@ -2977,13 +2977,13 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
   for (int32_t j = 0; j < (*numOfAssignment); ++j) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, j);
-    if (pClientVg->offsetInfo.beginOffset.type != TMQ_OFFSET__LOG) {
+    if (pClientVg->offsetInfo.endOffset.type != TMQ_OFFSET__LOG) {
       needFetch = true;
       break;
     }
 
     tmq_topic_assignment* pAssignment = &(*assignment)[j];
-    pAssignment->currentOffset = pClientVg->offsetInfo.beginOffset.version;
+    pAssignment->currentOffset = pClientVg->offsetInfo.endOffset.version;
     pAssignment->begin = pClientVg->offsetInfo.walVerBegin;
     pAssignment->end = pClientVg->offsetInfo.walVerEnd;
     pAssignment->vgId = pClientVg->vgId;

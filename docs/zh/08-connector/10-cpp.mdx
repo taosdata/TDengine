@@ -542,7 +542,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   } tmq_topic_assignment;
   ```
   **功能说明**
-  - tmq_get_topic_assignment 接口返回当前consumer分配的vgroup的信息，每个vgroup的信息包括vgId，wal的最大最小offset，以及当前消费到的offset。
+  - tmq_get_topic_assignment 接口返回当前consumer分配的vgroup的信息，每个vgroup的信息包括vgId，wal的最大最小offset，以及要消费的offset。
 
   **参数说明**
   - numOfAssignment ：分配给该consumer有效的vgroup个数。
