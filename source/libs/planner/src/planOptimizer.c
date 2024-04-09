@@ -3104,6 +3104,10 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
   }
 
