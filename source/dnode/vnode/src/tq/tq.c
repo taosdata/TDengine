@@ -923,13 +923,14 @@ int32_t handleStep2Async(SStreamTask* pStreamTask, void* param) {
   STaskId      hId = pStreamTask->hTaskInfo.id;
   SStreamTask* pTask = streamMetaAcquireTask(pStreamTask->pMeta, hId.streamId, hId.taskId);
   if (pTask == NULL) {
-    // todo handle error
+    tqWarn("s-task:0x%x failed to acquired it to exec step 2, scan wal quit", (int32_t) hId.taskId);
+    return TSDB_CODE_SUCCESS;
   }
 
   doStartFillhistoryStep2(pTask, pStreamTask, pTq);
 
   streamMetaReleaseTask(pMeta, pTask);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 // this function should be executed by only one thread, so we set an sentinel to protect this function
