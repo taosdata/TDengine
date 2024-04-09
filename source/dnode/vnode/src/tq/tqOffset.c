@@ -33,7 +33,11 @@ int32_t tqOffsetRestoreFromFile(STQ * pTq) {
   char*     fname   = tqOffsetBuildFName(pTq->path, 0);
   TdFilePtr pFile   = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL || fname == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    if(errno == ENOENT) {
+      code = 0;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    }
     goto END;
   }
 
