@@ -733,6 +733,7 @@ bool streamTaskIsAllUpstreamClosed(SStreamTask* pTask) {
 bool streamTaskSetSchedStatusWait(SStreamTask* pTask) {
   bool ret = false;
 
+  // double check
   taosThreadMutexLock(&pTask->lock);
   if (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
