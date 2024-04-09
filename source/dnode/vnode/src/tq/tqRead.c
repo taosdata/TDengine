@@ -439,7 +439,7 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   SDecoder decoder;
 
   tDecoderInit(&decoder, pReader->msg.msgStr, pReader->msg.msgLen);
-  if (tDecodeSubmitReq(&decoder, &pReader->submit) < 0) {
+  if (tDecodeSubmitTbDataReq(&decoder, &pReader->submit) < 0) {
     tDecoderClear(&decoder);
     tqError("DecodeSSubmitReq2 error, msgLen:%d, ver:%" PRId64, msgLen, ver);
     return -1;

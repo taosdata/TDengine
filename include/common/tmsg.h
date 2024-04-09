@@ -4208,8 +4208,8 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
-int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
-int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq);
+int32_t tEncodeSubmitTbDataReq(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSubmitTbDataReq(SDecoder* pCoder, SSubmitReq2* pReq);
 void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
 void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 

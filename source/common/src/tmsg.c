@@ -9525,7 +9525,7 @@ _exit:
   return 0;
 }
 
-int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+int32_t tEncodeSubmitTbDataReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
@@ -9537,7 +9537,7 @@ int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   return 0;
 }
 
-int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
+int32_t tDecodeSubmitTbDataReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));

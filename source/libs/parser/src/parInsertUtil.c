@@ -563,7 +563,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
   int32_t  code = TSDB_CODE_SUCCESS;
   uint32_t len = 0;
   void*    pBuf = NULL;
-  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
+  tEncodeSize(tEncodeSubmitTbDataReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -575,7 +575,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    code = tEncodeSubmitReq(&encoder, pReq);
+    code = tEncodeSubmitTbDataReq(&encoder, pReq);
     tEncoderClear(&encoder);
   }
 

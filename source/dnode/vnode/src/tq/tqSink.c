@@ -506,7 +506,7 @@ int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, i
 
   // encode
   int32_t len = 0;
-  tEncodeSize(tEncodeSubmitReq, pSubmitReq, len, code);
+  tEncodeSize(tEncodeSubmitTbDataReq, pSubmitReq, len, code);
 
   SEncoder encoder;
   len += sizeof(SSubmitReq2Msg);
@@ -522,7 +522,7 @@ int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, i
   ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
 
   tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-  if (tEncodeSubmitReq(&encoder, pSubmitReq) < 0) {
+  if (tEncodeSubmitTbDataReq(&encoder, pSubmitReq) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to encode submit req, code:%s, ignore and continue", terrstr());
     tEncoderClear(&encoder);

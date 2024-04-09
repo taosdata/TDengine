@@ -1600,7 +1600,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   int32_t  code = TSDB_CODE_SUCCESS;
   char    *pMsg = NULL;
   uint32_t msglen = 0;
-  tEncodeSize(tEncodeSubmitReq, pSubmitReq, msglen, code);
+  tEncodeSize(tEncodeSubmitTbDataReq, pSubmitReq, msglen, code);
   if (TSDB_CODE_SUCCESS == code) {
     pMsg = taosMemoryMalloc(msglen);
     if (NULL == pMsg) {
@@ -1610,7 +1610,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     tEncoderInit(&encoder, (uint8_t *)pMsg, msglen);
-    code = tEncodeSubmitReq(&encoder, pSubmitReq);
+    code = tEncodeSubmitTbDataReq(&encoder, pSubmitReq);
     tEncoderClear(&encoder);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1651,7 +1651,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitTbDataReq(&dc, pSubmitReq) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }

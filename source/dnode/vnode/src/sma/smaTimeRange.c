@@ -230,7 +230,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   taosHashCleanup(pTableIndexMap);
 
   // encode
-  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
+  tEncodeSize(tEncodeSubmitTbDataReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -243,7 +243,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    if (tEncodeSubmitReq(&encoder, pReq) < 0) {
+    if (tEncodeSubmitTbDataReq(&encoder, pReq) < 0) {
       tEncoderClear(&encoder);
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
