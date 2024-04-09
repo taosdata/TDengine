@@ -65,6 +65,7 @@ extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
+extern bool    tsForbiddenBackTrace;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
@@ -85,9 +86,9 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 
 void taosPrintSlowLog(const char *format, ...)
 #ifdef __GNUC__
-      __attribute__((format(printf, 1, 2)))
+    __attribute__((format(printf, 1, 2)))
 #endif
-      ;
+    ;
 
 bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
 bool taosAssertRelease(bool condition);
@@ -105,9 +106,9 @@ bool taosAssertRelease(bool condition);
 #endif
 #endif
 
-void    taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
-void    taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
-void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
+void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
+void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}

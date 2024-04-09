@@ -155,7 +155,6 @@ int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
 int32_t tsTimeSeriesThreshold = 50;
-bool    tsForbiddenBackTrace = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,

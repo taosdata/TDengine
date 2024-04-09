@@ -82,6 +82,7 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
+bool tsForbiddenBackTrace = false;
 #ifdef ASSERT_NOT_CORE
 bool tsAssert = false;
 #else
