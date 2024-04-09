@@ -454,38 +454,43 @@ impl PutStream {
             .in_current_span(),
         );
         let cur_span = Span::current();
-        let stream = stream
-            .zip(futures::stream::repeat(tx))
-            .map(move |(message, tx)| {
-                let metrics = metrics_arc.ipc();
-                let message = message?;
-                let app_metadata = message.app_metadata();
-                let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
-                cur_span.in_scope(|| {
-                    metrics.add_received_batches(1);
-                    tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
-                });
-                Ok(match message.payload {
-                    arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                        if let Err(err) = tx.send((batch, trace_id)) {
-                            tracing::warn!(
-                                trace_id = get_data_trace_id_str(trace_id),
-                                ipc.channel.capacity = tx.capacity(),
-                                ipc.channel.len = tx.len(),
-                                ipc.channel.receiver_count = tx.receiver_count(),
-                                ipc.channel.sender_count = tx.sender_count(),
-                                ipc.channel.is_disconnected = tx.is_disconnected(),
-                                "IPC channel sent err: {:#}",
-                                err
-                            );
 
-                            return Err(FlightError::ExternalError(Box::new(err)));
-                        } else {
-                            PutResult { app_metadata }
+        let stream = stream
+            .then(move |message| {
+                let metrics = metrics_arc.ipc();
+                let message = message.map(|message| {
+                    let app_metadata = message.app_metadata();
+                    let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
+                    cur_span.in_scope(|| {
+                        metrics.add_received_batches(1);
+                        tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                    });
+                    (message, app_metadata, trace_id, tx.clone())
+                });
+                async move {
+                    let (message, app_metadata, trace_id, tx) = message?;
+                    Ok(match message.payload {
+                        arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
+                            if let Err(err) = tx.send_async((batch, trace_id)).await {
+                                tracing::warn!(
+                                    trace_id = get_data_trace_id_str(trace_id),
+                                    ipc.channel.capacity = tx.capacity(),
+                                    ipc.channel.len = tx.len(),
+                                    ipc.channel.receiver_count = tx.receiver_count(),
+                                    ipc.channel.sender_count = tx.sender_count(),
+                                    ipc.channel.is_disconnected = tx.is_disconnected(),
+                                    "IPC channel sent err: {:#}",
+                                    err
+                                );
+
+                                return Err(FlightError::ExternalError(Box::new(err)));
+                            } else {
+                                PutResult { app_metadata }
+                            }
                         }
-                    }
-                    _ => PutResult { app_metadata },
-                })
+                        _ => PutResult { app_metadata },
+                    })
+                }
             })
             .map_err(|err: FlightError| {
                 tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
