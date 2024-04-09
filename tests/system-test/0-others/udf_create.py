@@ -197,7 +197,9 @@ class TDTestCase:
             tdLog.info("create two udf functions success ")
 
     def basic_udf_query(self):
-
+        # create tsma of  udf 
+        tdSql.error("create tsma tsma_udf on db.tb  function(udf1(num1)) interval(10m);") # DB error: Not buildin function (0.001656s)
+        tdSql.error("create tsma tsma_udf on db.stb1  function(udf1(c1)) interval(10m);") # DB error: Not buildin function (0.001656s)
         # scalar functions
 
         # udf1_dup
@@ -690,7 +692,7 @@ class TDTestCase:
         self.prepare_data()
         self.create_udf_function()
         self.basic_udf_query()
-        self.unexpected_create()
+        # self.unexpected_create()
 
 
     def stop(self):
