@@ -530,7 +530,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
-    char* newBody = taosMemoryMalloc(cyptedBodyLen);
+    
+    newBody = taosMemoryMalloc(cyptedBodyLen);
     if(newBody == NULL){
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
@@ -540,7 +541,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     memset(newBody, 0, cyptedBodyLen);
     memcpy(newBody, body, plainBodyLen);
 
-    char* newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
+    newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
     if(newBodyEncrypted == NULL){
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
             strerror(errno));
@@ -570,15 +571,15 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
            strerror(errno));
     code = -1;
     if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
-      taosMemoryFree(newBody);
-      taosMemoryFree(newBodyEncrypted);
+      taosMemoryFreeClear(newBody);
+      taosMemoryFreeClear(newBodyEncrypted);
     }
     goto END;
   }
 
   if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
-    taosMemoryFree(newBody);
-    taosMemoryFree(newBodyEncrypted); 
+    taosMemoryFreeClear(newBody);
+    taosMemoryFreeClear(newBodyEncrypted); 
     //wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
     //      pWal->cfg.vgId, __FUNCTION__);   
   }
