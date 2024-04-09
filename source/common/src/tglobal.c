@@ -155,6 +155,7 @@ int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
 int32_t tsTimeSeriesThreshold = 50;
+bool    tsForbiddenBackTrace = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -617,8 +618,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16,
-                  (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER) != 0)
+  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2),
+                  CFG_SCOPE_SERVER) != 0)
     return -1;
 
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, CFG_SCOPE_SERVER) != 0)
@@ -693,6 +694,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   CFG_SCOPE_SERVER) != 0)
     return -1;
 
+  if (cfgAddBool(pCfg, "forbiddenBackTrace", tsForbiddenBackTrace, CFG_SCOPE_SERVER) != 0) {
+  }
   GRANT_CFG_ADD;
   return 0;
 }
@@ -1104,7 +1107,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
   tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
-
+  tsForbiddenBackTrace = cfgGetItem(pCfg, "forbiddenBackTrace")->bval;
   GRANT_CFG_GET;
   return 0;
 }
