@@ -689,6 +689,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .encryptAlgorithm = pCreate->encryptAlgorithm,
   };
 
+  dbObj.cfg.encryptAlgorithm = 1;
+
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
 

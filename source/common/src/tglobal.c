@@ -46,7 +46,8 @@ char     tsEncryptScope[100] = {0};
 EEncryptAlgor  tsiEncryptAlgorithm = 0;
 EEncryptScope  tsiEncryptScope = 0;
 //char     tsAuthCode[500] = {0};
-char     tsEncryptKey[17] = {0};
+//char     tsEncryptKey[17] = {0};
+char     tsEncryptKey[17] = "1234567890123456";
 
 // common
 int32_t tsMaxShellConns = 50000;
