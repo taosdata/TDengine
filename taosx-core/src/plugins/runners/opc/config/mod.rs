@@ -87,17 +87,26 @@ impl OPCConfig {
             bail!("invalid opc driver");
         }
 
+        // keep_raw_data is not needed in point mode
+        let mut dsn = dsn.clone();
+        if dsn.params.contains_key("enable") {
+            dsn.params.remove("enable");
+        }
+        if dsn.params.contains_key("keep_raw_data") {
+            dsn.params.remove("keep_raw_data");
+        }
+
         Ok(Self {
-            opc_type: OpcType::from_dsn(dsn)?,
-            debug: Self::parse_debug(dsn)?,
-            connect: ConnectConfig::from_dsn(dsn)?,
+            opc_type: OpcType::from_dsn(&dsn)?,
+            debug: Self::parse_debug(&dsn)?,
+            connect: ConnectConfig::from_dsn(&dsn)?,
             points: None,
             collect: if dsn.get("csv_config_file").is_some() {
-                CollectConfig::from_dsn(dsn, None).await?
+                CollectConfig::from_dsn(&dsn, None).await?
             } else {
                 CollectConfig::new_empty()
             },
-            report: ReportConfig::from_dsn(dsn, 0)?,
+            report: ReportConfig::from_dsn(&dsn, 0)?,
             param_mapping: LinkedHashMap::new(),
             opc_table_config: None,
         })
