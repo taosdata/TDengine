@@ -114,6 +114,7 @@ export default {
         const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
         this.paramDsn = type === "tmq" ? dsn : type + dsn
         let result = await validOpcFile(this.paramDsn)
+        // eslint-disable-next-line no-prototype-builtins
         if (result && result.hasOwnProperty('code')) {
           this.$message.error(result.message)
           let res = {
