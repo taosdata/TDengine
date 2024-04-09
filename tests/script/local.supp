@@ -1655,6 +1655,25 @@
    fun:start_thread
    fun:clone
 }
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Param
+   write(buf)
+   fun:__libc_write
+   fun:write
+   fun:uv__try_write
+   fun:uv__write
+   fun:uv_write2
+   fun:uvStartSendRespImpl
+   fun:uvStartSendResp
+   fun:uvHandleResp
+   fun:uvPrepareCb
+   fun:uv__run_prepare
+   fun:uv_run
+   fun:transWorkerThread
+   fun:start_thread
+   fun:clone
+}
 
 {
    <memalign suppression>
@@ -1676,4 +1695,3 @@
    fun:start_thread
    fun:clone
 }
-
