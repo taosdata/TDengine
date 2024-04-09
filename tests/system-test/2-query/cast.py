@@ -79,6 +79,10 @@ class TDTestCase:
         tdSql.query(f"select cast(c1 as binary(32)) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c1)):
             tdSql.checkData( i, 0, str(data_t1_c1[i]) )
+            
+        tdSql.query(f"select cast(c1 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            tdSql.checkData( i, 0, str(data_t1_c1[i]) )
 
         tdLog.printNoPrefix("==========step6: cast int to nchar, expect changes to str(int) ")
 
@@ -128,6 +132,13 @@ class TDTestCase:
         for i in range(len(data_ct4_c2)):
             tdSql.checkData( i, 0, str(data_ct4_c2[i]) )
         tdSql.query(f"select cast(c2 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c2)):
+            tdSql.checkData( i, 0, str(data_t1_c2[i]) )
+            
+        tdSql.query(f"select cast(c2 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            tdSql.checkData( i, 0, str(data_ct4_c2[i]) )
+        tdSql.query(f"select cast(c2 as binary) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c2)):
             tdSql.checkData( i, 0, str(data_t1_c2[i]) )
 
@@ -184,6 +195,13 @@ class TDTestCase:
         tdSql.query(f"select cast(c3 as binary(32)) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c3)):
             tdSql.checkData( i, 0, str(data_t1_c3[i]) )
+            
+        tdSql.query(f"select cast(c3 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            tdSql.checkData( i, 0, str(data_ct4_c3[i]) )
+        tdSql.query(f"select cast(c3 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            tdSql.checkData( i, 0, str(data_t1_c3[i]) )
 
         tdLog.printNoPrefix("==========step14: cast smallint to nchar, expect changes to str(int) ")
 
@@ -235,6 +253,13 @@ class TDTestCase:
         tdSql.query(f"select cast(c4 as binary(32)) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c4)):
             tdSql.checkData( i, 0, str(data_t1_c4[i]) )
+            
+        tdSql.query(f"select cast(c4 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            tdSql.checkData( i, 0, str(data_ct4_c4[i]) )
+        tdSql.query(f"select cast(c4 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            tdSql.checkData( i, 0, str(data_t1_c4[i]) )
 
         tdLog.printNoPrefix("==========step18: cast tinyint to nchar, expect changes to str(int) ")
 
@@ -282,6 +307,12 @@ class TDTestCase:
         for i in range(len(data_ct4_c5)):
             tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
         tdSql.query(f"select cast(c5 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
+        tdSql.query(f"select cast(c5 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkData( i, 0, f'{data_ct4_c5[i]:.6f}' )
+        tdSql.query(f"select cast(c5 as binary) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c5)):
             tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
 
@@ -579,6 +610,10 @@ class TDTestCase:
         tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary(16)) as b from {self.dbname}.ct4")
         ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
         tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary(2)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary) as b from {self.dbname}.ct4")
         ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
         tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as nchar(16)) as b from {self.dbname}.ct4")
         ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )

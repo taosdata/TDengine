@@ -1601,7 +1601,9 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int32(pLen->z, NULL, 10)};
+  int32_t len = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
+  if(pLen) len = taosStr2Int32(pLen->z, NULL, 10);
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = len};
   return dt;
 }
 
