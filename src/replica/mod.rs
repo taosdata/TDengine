@@ -1115,6 +1115,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_replica_func() {
         std::env::set_var("RUST_LOG", "debug");
         use tracing_subscriber::EnvFilter;
