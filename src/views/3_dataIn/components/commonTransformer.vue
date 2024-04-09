@@ -218,12 +218,9 @@
         </ul>
       </section>
       <section class="extract">
-        <div
-          class="block-title top"
-          style="justify-content: flex-start; align-items: baseline"
-        >
+        <div class="block-title top">
           <span>{{ $t("datasource.transformer.extract") }}</span>
-          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop2">
+          <el-popover placement="top" trigger="hover" width="520" v-model="visiblePop2">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('2')"></i>
               <DocsContent
@@ -236,11 +233,6 @@
               ><i class="el-icon-info" @click="handleClickPop('2')"></i>
             </span>
           </el-popover>
-      
-          <el-button type="text" icon="el-icon-plus" style="padding:0;float:right;" @click="addNewExtract" :disabled="columnsArr.length == 0">
-            {{ $t("datasource.transformer.addExtract") }}
-          </el-button>
- 
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -256,6 +248,17 @@
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
+        <el-button 
+          type="primary"
+          icon="el-icon-plus" 
+          size="small" 
+          class="btn-icon-small"
+          plain
+          @click="addNewExtract" 
+          :disabled="columnsArr.length == 0"
+        >
+          {{ $t("datasource.transformer.addExtract") }}
+        </el-button>
       </section>
       <section class="filter">
         <div class="block-title">
@@ -273,15 +276,6 @@
               ><i class="el-icon-info" @click="handleClickPop('3')"></i>
             </span>
           </el-popover>
-          <el-button
-            type="text"
-            icon="el-icon-plus"
-            style="padding:0;float:right;"
-            @click="addNewFilter"
-            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
-          >
-            {{ $t("datasource.transformer.addfilter") }}
-          </el-button>
         </div>
         <template v-for="(item, index) in filterArr">
           <FilterExpression
@@ -296,6 +290,17 @@
             ref="filter"
           ></FilterExpression>
         </template>
+        <el-button
+            type="primary"
+            icon="el-icon-plus"
+            size="small"
+            class="btn-icon-small"
+            plain
+            @click="addNewFilter"
+            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
+          >
+            {{ $t("datasource.transformer.addfilter") }}
+        </el-button>
       </section>
       <section>
         <div class="block-title">
@@ -330,9 +335,10 @@
             </div>
             <el-button
               type="primary"
-              class="btn-create-stable"
+              class="btn-icon-small"
               size="small"
               icon="el-icon-plus"
+              plain
               @click="createStable"
               :disabled="$store.state.app.currentDBName == ''"
             >
@@ -2242,7 +2248,7 @@ export default {
 ::v-deep i {
   font-size: 16px;
 }
-::v-deep .btn-create-stable i {
+::v-deep .btn-icon-small i {
   font-size: 12px;
 }
 
@@ -2287,7 +2293,11 @@ export default {
     color: #fff;
   }
 }
-.filter {
+
+.extract, .filter {
+  .el-button {
+    width: 100%;
+  }
   ::v-deep .el-input {
     margin-left: 0px !important;
   }
