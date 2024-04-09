@@ -61,6 +61,26 @@ typedef struct SCpdIsMultiTableCondCxt {
   bool       condIsNull;
 } SCpdIsMultiTableCondCxt;
 
+typedef struct SCpdIsMultiTableResCxt {
+  SSHashObj* pLeftTbls;
+  SSHashObj* pRightTbls;
+  bool       haveLeftCol;
+  bool       haveRightCol;
+  bool       leftColOp;
+  bool       rightColOp;
+  bool       leftColNonNull;
+  bool       rightColNonNull;
+} SCpdIsMultiTableResCxt;
+
+typedef struct SCpdCollRewriteTableColsCxt {
+  int32_t    code;
+  SSHashObj* pLeftTbls;
+  SSHashObj* pRightTbls;
+  SSHashObj* pLeftCols;
+  SSHashObj* pRightCols;
+} SCpdCollRewriteTableColsCxt;
+
+
 typedef struct SCpdCollectTableColCxt {
   SSHashObj* pTables;
   SNodeList* pResCols;
@@ -1338,7 +1358,9 @@ static EDealRes pdcCheckTableCondType(SNode* pNode, void* pContext) {
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
-      pCxt->condIsNull = (OP_TYPE_IS_NULL == pOp->opType);
+      if (OP_TYPE_IS_NULL == pOp->opType) {
+        pCxt->condIsNull = true;
+      }
       break;
     }
     default:
@@ -1462,6 +1484,151 @@ static int32_t pdcRewriteTypeBasedOnConds(SOptimizeContext* pCxt, SJoinLogicNode
   return code;
 }
 
+static EDealRes pdcCheckTableResType(SNode* pNode, void* pContext) {
+  SCpdIsMultiTableResCxt* pCxt = pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
+        pCxt->haveLeftCol = true;
+      } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
+        pCxt->haveRightCol = true;
+      }
+      break;
+    }
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_GROUPING_SET:
+      break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      SCpdIsMultiTableResCxt cxt = {.pLeftTbls = pCxt->pLeftTbls, .pRightTbls = pCxt->pRightTbls, 
+        .haveLeftCol = false, .haveRightCol = false, .leftColNonNull = true, .rightColNonNull = true};
+      
+      nodesWalkExprs(pFunc->pParameterList, pdcCheckTableResType, &cxt);
+      if (!cxt.leftColNonNull) {
+        pCxt->leftColNonNull = false;
+      }
+      if (!cxt.rightColNonNull) {
+        pCxt->rightColNonNull = false;
+      }
+      if (cxt.leftColOp) {
+        pCxt->leftColOp = true;
+      }
+      if (cxt.rightColOp) {
+        pCxt->rightColOp = true;
+      }
+      if (!cxt.haveLeftCol && !cxt.haveRightCol) {
+        pCxt->leftColNonNull = false;
+        pCxt->rightColNonNull = false;
+        return DEAL_RES_END;
+      } else if (!fmIsIgnoreNullFunc(pFunc->funcId)) {
+        if (cxt.haveLeftCol) {
+          pCxt->leftColNonNull = false;
+        }
+        if (cxt.haveRightCol) {
+          pCxt->rightColNonNull = false;
+        }
+      } else {
+        if (cxt.haveLeftCol) {
+          pCxt->leftColOp = true;
+        } else if (cxt.haveRightCol) {
+          pCxt->rightColOp = true;
+        }
+      }
+      if (!pCxt->leftColNonNull && !pCxt->rightColNonNull) {
+        return DEAL_RES_END;
+      }
+      break;
+    }
+    default:
+      pCxt->leftColNonNull = false;
+      pCxt->rightColNonNull = false;
+      return DEAL_RES_END;
+  }
+  
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t pdcRewriteTypeBasedOnJoinRes(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (JOIN_TYPE_INNER == pJoin->joinType || JOIN_STYPE_OUTER != pJoin->subType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = 0;
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+
+  SLogicNode* pParent = pJoin->node.pParent;
+  bool tableResNonNull[2] = {true, true};
+  bool tableResOp[2] = {false, false};
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pParent)) {
+    SAggLogicNode* pAgg = (SAggLogicNode*)pParent;
+    if (NULL != pAgg->pGroupKeys) {
+      tableResNonNull[0] = false;
+      tableResNonNull[1] = false;
+    } else {
+      SCpdIsMultiTableResCxt cxt = {.pLeftTbls = pLeftTables, .pRightTbls = pRightTables, 
+        .haveLeftCol = false, .haveRightCol = false, .leftColNonNull = true, .rightColNonNull = true, .leftColOp = false, .rightColOp = false};
+      
+      nodesWalkExprs(pAgg->pAggFuncs, pdcCheckTableResType, &cxt);
+      if (!cxt.leftColNonNull) {
+        tableResNonNull[0] = false;
+      }
+      if (!cxt.rightColNonNull) {
+        tableResNonNull[1] = false;
+      }
+      if (cxt.leftColOp) {
+        tableResOp[0] = true;
+      }
+      if (cxt.rightColOp) {
+        tableResOp[1] = true;
+      }
+    }
+  } else {
+    tableResNonNull[0] = false;
+    tableResNonNull[1] = false;
+  }
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_LEFT:
+      if (tableResNonNull[1] && !tableResOp[0]) {
+        pJoin->joinType = JOIN_TYPE_INNER;
+        pJoin->subType = JOIN_STYPE_NONE;
+      }
+      break;
+    case JOIN_TYPE_RIGHT:
+      if (tableResNonNull[0] && !tableResOp[1]) {
+        pJoin->joinType = JOIN_TYPE_INNER;
+        pJoin->subType = JOIN_STYPE_NONE;
+      }
+      break;
+    case JOIN_TYPE_FULL:
+      if (tableResNonNull[1] && !tableResOp[0]) {
+        if (tableResNonNull[0] && !tableResOp[1]) {
+          pJoin->joinType = JOIN_TYPE_INNER;
+          pJoin->subType = JOIN_STYPE_NONE;
+        } else {
+          pJoin->joinType = JOIN_TYPE_RIGHT;
+        }
+      } else if (tableResNonNull[0] && !tableResOp[1]) {
+        pJoin->joinType = JOIN_TYPE_LEFT;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -1495,6 +1662,10 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
       }
     }
 
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pdcRewriteTypeBasedOnJoinRes(pCxt, pJoin);
+    }
+    
     if (TSDB_CODE_SUCCESS != code || t == pJoin->joinType) {
       break;
     }
