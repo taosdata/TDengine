@@ -158,6 +158,10 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->left = -1;
     p->total = 0;
     p->len = 0;
+    if (p->cap > BUFFER_CAP) {
+      p->cap = BUFFER_CAP;
+      p->buf = taosMemoryRealloc(p->buf, p->cap);
+    }
   } else {
     ASSERTS(0, "invalid read from sock buf");
     return -1;
