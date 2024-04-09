@@ -317,7 +317,7 @@ fn add_task_progress_tables(
                 },
                 Metric {
                     name: "latest".to_string(),
-                    value: assignment.end() as f64 - 1.0,
+                    value: assignment.end() as f64,
                 },
             ];
             let table = Table { table_key, metrics };
