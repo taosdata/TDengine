@@ -1634,7 +1634,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  if (0 == pMsg->version) {
+  int64_t         version = be64toh(pMsg->version);
+  if (0 == version) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
@@ -1645,7 +1646,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-  } else {
+  } else if (1 == version) {
     // decode
     pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
     len -= sizeof(SSubmitReq2Msg);
@@ -1656,6 +1657,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       goto _exit;
     }
     tDecoderClear(&dc);
+  } else {
+    ASSERTS(0, "invalid version:%d", pMsg->version);
   }
 
   // scan
