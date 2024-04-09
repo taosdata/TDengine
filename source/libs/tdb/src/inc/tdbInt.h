@@ -394,7 +394,7 @@ struct STDB {
 #endif
   int64_t txnId;
   int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN];
+  char    encryptKey[ENCRYPT_KEY_LEN + 1];
 };
 
 struct SPager {

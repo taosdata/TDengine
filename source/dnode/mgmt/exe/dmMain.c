@@ -376,13 +376,13 @@ int mainWindows(int argc, char **argv) {
       dError("failed to generate encrypt code since taosd is running, please stop it first");
       return -1;
     }
-    int ret = updateEncryptKey(global.encryptKey);
+    int ret = dmUpdateEncryptKey(global.encryptKey);
     taosCloseLog();
     taosCleanupArgs();
     return ret;
   }
 
-  if(getEncryptKey() != 0){
+  if(dmGetEncryptKey() != 0){
     dError("failed to start since failed to get encrypt key");
     taosCloseLog();
     taosCleanupArgs();

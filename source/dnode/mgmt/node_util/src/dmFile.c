@@ -21,7 +21,7 @@
 #include "tchecksum.h"
 
 #define MAXLEN 1024
-#define DM_KEY_INDICATOR "this indicator!"
+#define DM_KEY_INDICATOR      "this indicator!"
 #define DM_ENCRYPT_CODE_FILE  "encryptCode.cfg"
 #define DM_CHECK_CODE_FILE    "checkCode.bin"
 
@@ -186,7 +186,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
 
 extern int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 
-static int32_t writeCheckCode(char* file, char* realfile, char* key){
+static int32_t dmWriteCheckCodeFile(char* file, char* realfile, char* key){
   TdFilePtr pFile = NULL;
   char     *result = NULL;
   int32_t   code = -1;
@@ -220,7 +220,7 @@ _OVER:
   return code;
 }
 
-static int32_t writeEncryptCode(char* file, char* realfile, char* encryptCode){
+static int32_t dmWriteEncryptCodeFile(char* file, char* realfile, char* encryptCode){
   TdFilePtr pFile = NULL;
   int32_t   code = -1;
 
@@ -243,7 +243,7 @@ _OVER:
   return code;
 }
 
-static int32_t compareCheckCode(char* file, char* key){
+static int32_t dmCompareEncryptKey(char* file, char* key){
   char     *content = NULL;
   int64_t   size = 0;
   TdFilePtr pFile = NULL;
@@ -304,7 +304,7 @@ _OVER:
   return code;
 }
 
-int32_t updateEncryptKey(char *key) {
+int32_t dmUpdateEncryptKey(char *key) {
   int32_t code = -1;
   char   *machineId = NULL;
   char   *encryptCode = NULL;
@@ -332,7 +332,7 @@ int32_t updateEncryptKey(char *key) {
   }
 
   if(taosCheckExistFile(realCheckFile)){
-    if(compareCheckCode(realCheckFile, key) != 0){
+    if(dmCompareEncryptKey(realCheckFile, key) != 0){
       goto _OVER;
     }
   }
@@ -346,11 +346,11 @@ int32_t updateEncryptKey(char *key) {
     goto _OVER;
   }
 
-  if(writeEncryptCode(encryptFile, realEncryptFile, encryptCode) != 0){
+  if(dmWriteEncryptCodeFile(encryptFile, realEncryptFile, encryptCode) != 0){
     goto _OVER;
   }
 
-  if(writeCheckCode(checkFile, realCheckFile, key) != 0){
+  if(dmWriteCheckCodeFile(checkFile, realCheckFile, key) != 0){
     goto _OVER;
   }
 
@@ -367,7 +367,7 @@ _OVER:
 
 extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
 
-static int32_t readEncryptCode(char* file, char** output){
+static int32_t dmReadEncryptCodeFile(char* file, char** output){
   TdFilePtr pFile = NULL;
   int32_t   code = -1;
   char     *content = NULL;
@@ -410,7 +410,7 @@ _OVER:
   return code;
 }
 
-int32_t getEncryptKey(){
+int32_t dmGetEncryptKey(){
   int32_t   code = -1;
   char      encryptFile[PATH_MAX] = {0};
   char      checkFile[PATH_MAX] = {0};
@@ -426,7 +426,7 @@ int32_t getEncryptKey(){
     return 0;
   }
 
-  if(readEncryptCode(encryptFile, &content) != 0){
+  if(dmReadEncryptCodeFile(encryptFile, &content) != 0){
     goto _OVER;
   }
 
@@ -448,7 +448,7 @@ int32_t getEncryptKey(){
     goto _OVER;
   }
 
-  if(compareCheckCode(checkFile, encryptKey) != 0){
+  if(dmCompareEncryptKey(checkFile, encryptKey) != 0){
     goto _OVER;
   }
 

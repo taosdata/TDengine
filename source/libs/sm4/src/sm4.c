@@ -395,6 +395,7 @@ void SMS4_CBC_DecryptionEx(unsigned char ciphertext[16], unsigned int key[32], u
     }
 }
 
+/*
 int SM4_ECB_Encrypt( unsigned char *pKey, 
                       unsigned int KeyLen, 
                       unsigned char *pInData,
@@ -461,7 +462,7 @@ int SM4_ECB_Decrypt(  unsigned char *pKey,
     *pOutDataLen = inDataLen;
     return 0;
 }
-
+*/
 int SM4_CBC_Encrypt( unsigned char *pKey, 
                      unsigned int KeyLen,
                      unsigned char *pIV, 
