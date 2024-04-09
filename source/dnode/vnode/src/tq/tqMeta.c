@@ -202,7 +202,7 @@ static int32_t tqMetaProcessHistoryCheckInfo(STQ* pTq) {
   int      vLen = 0;
 
   char key[] = "__check_info_history__";
-  if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
+  if (tdbTbGet(pTq->pCheckStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
     if(tqMetaTransformCheckInfo(pTq) != 0){
       return -1;
     }
