@@ -225,6 +225,7 @@ jobs:
       - name: Force stop taosx-agent & taosx
         if: always()
         run: |
+          sleep 20
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx"; kill -9 "$pid"; done; fi
 
@@ -280,6 +281,7 @@ jobs:
       - name: Force stop taosx-agent & taosx
         if: always()
         run: |
+          sleep 20
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx"; kill -9 "$pid"; done; fi
 
