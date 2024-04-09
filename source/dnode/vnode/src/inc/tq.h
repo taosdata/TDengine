@@ -129,10 +129,12 @@ int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen);
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
-int32_t tqMetaGetHandle(STQ* pTq, const char* key);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
+void*   tqMetaGetHandle(STQ* pTq, const char* key);
 void*   tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid);
+void*   tqMetaGetOffset(STQ* pTq, const char* subkey);
+
 // tqSink
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr, bool newSubTableRule);

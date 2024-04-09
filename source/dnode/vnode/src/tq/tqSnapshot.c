@@ -212,7 +212,7 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
     goto _err;
   }
 
-  code = tqMetaSaveInfo(pTq->pCheckStore, &info.ntbUid, sizeof(info.ntbUid), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.ntbUid, sizeof(info.ntbUid), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   if (code) goto _err;
 
   return code;
@@ -227,7 +227,7 @@ int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   STQ*      pTq = pWriter->pTq;
   STqOffset *info = (STqOffset*)(pData + sizeof(SSnapDataHdr));
 
-  code = tqMetaSaveInfo(pTq->pOffsetStore, info->subKey, strlen(info->subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info->subKey, strlen(info->subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   if (code) goto _err;
 
   return code;

@@ -735,18 +735,18 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
-  if (pWriter->pTqSnapWriter) {
-    code = tqSnapWriterClose(&pWriter->pTqSnapWriter, rollback);
+  if (pWriter->pTqSnapHandleWriter) {
+    code = tqSnapWriterClose(&pWriter->pTqSnapHandleWriter, rollback);
     if (code) goto _exit;
   }
 
-  if (pWriter->pTqCheckInfoWriter) {
-    code = tqCheckInfoWriterClose(&pWriter->pTqCheckInfoWriter, rollback);
+  if (pWriter->pTqSnapCheckInfoWriter) {
+    code = tqSnapWriterClose(&pWriter->pTqSnapCheckInfoWriter, rollback);
     if (code) goto _exit;
   }
 
-  if (pWriter->pTqOffsetWriter) {
-    code = tqOffsetWriterClose(&pWriter->pTqOffsetWriter, rollback);
+  if (pWriter->pTqSnapOffsetWriter) {
+    code = tqSnapWriterClose(&pWriter->pTqSnapOffsetWriter, rollback);
     if (code) goto _exit;
   }
 

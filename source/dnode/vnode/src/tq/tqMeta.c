@@ -110,7 +110,6 @@ void* tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid){
   } else {
     return data;
   }
-
 }
 
 static int32_t tqMetaReadCheckInfo(STQ* pTq){
@@ -245,7 +244,7 @@ int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
   }
 
   if (tdbTbDelete(ttb, key, kLen, txn) < 0) {
-    tqWarn("vgId:%d, tq try delete checkinfo failed %s", pTq->pVnode->config.vgId, key);
+    tqWarn("vgId:%d, tq try delete checkinfo failed %s", pTq->pVnode->config.vgId, (const char*)key);
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
@@ -288,7 +287,6 @@ static int32_t tqMetaProcessHistoryOffsetInfo(STQ* pTq) {
 
   char key[] = "__offset_info_history__";
   if (tdbTbGet(pTq->pOffsetStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
-
     if(tqMetaTransformOffsetInfo(pTq) != 0){
       return -1;
     }
@@ -298,30 +296,23 @@ static int32_t tqMetaProcessHistoryOffsetInfo(STQ* pTq) {
   return 0;
 }
 
-void* tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid){
-  void* data = taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
+void* tqMetaGetOffset(STQ* pTq, const char* subkey){
+  void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
     int      vLen = 0;
-    if (tdbTbGet(pTq->pCheckStore, &tbUid, sizeof(tbUid), &data, &vLen) < 0) {
-      tdbFree(data);
-      return NULL;
-    }
-    STqCheckInfo info= {0};
-    if(tqMetaDecodeCheckInfo(&info, data, vLen) != 0) {
+    if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
       tdbFree(data);
       return NULL;
     }
     tdbFree(data);
 
-    if(taosHashPut(pTq->pCheckInfo, &tbUid, sizeof(tbUid), &info, sizeof(STqCheckInfo)) != 0){
-      tDeleteSTqCheckInfo(&info);
+    if(taosHashPut(pTq->pOffset, subkey, strlen(subkey), data, sizeof(STqOffset)) != 0){
       return NULL;
     }
-    return taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
+    return taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   } else {
     return data;
   }
-
 }
 
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
@@ -360,7 +351,7 @@ end:
   return code;
 }
 
-static int tqMetaBuildHandle(STQ* pTq, STqHandle* handle){
+static int tqMetaInitHandle(STQ* pTq, STqHandle* handle){
   SVnode* pVnode = pTq->pVnode;
   int32_t vgId = TD_VID(pVnode);
 
@@ -439,7 +430,7 @@ static int tqMetaRestoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   code = tDecodeSTqHandle(&decoder, handle);
   if (code) goto end;
-  code = tqMetaBuildHandle(pTq, handle);
+  code = tqMetaInitHandle(pTq, handle);
   if (code) goto end;
   tqInfo("tqMetaRestoreHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
   code = taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
@@ -470,27 +461,36 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
 
   handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
 
-  if(tqMetaBuildHandle(pTq, handle) < 0){
+  if(tqMetaInitHandle(pTq, handle) < 0){
     return -1;
   }
   tqInfo("tqMetaCreateHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
-int32_t tqMetaGetHandle(STQ* pTq, const char* key) {
-  void*    pVal = NULL;
-  int      vLen = 0;
-
-  if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
-    return -1;
+void* tqMetaGetHandle(STQ* pTq, const char* key) {
+  void* data = taosHashGet(pTq->pHandle, key, strlen(key));
+  if(data == NULL){
+    int      vLen = 0;
+    if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &data, &vLen) < 0) {
+      tdbFree(data);
+      return NULL;
+    }
+    STqHandle handle = {0};
+    if (tqMetaRestoreHandle(pTq, data, vLen, &handle) != 0){
+      tdbFree(data);
+      tqDestroyTqHandle(&handle);
+      return NULL;
+    }
+    tdbFree(data);
+    if(taosHashPut(pTq->pHandle, key, strlen(key), &handle, sizeof(STqHandle)) != 0){
+      tqDestroyTqHandle(&handle);
+      return NULL;
+    }
+    return taosHashGet(pTq->pCheckInfo, key, strlen(key));
+  }else{
+    return data;
   }
-  STqHandle handle = {0};
-  int code = tqMetaRestoreHandle(pTq, pVal, vLen, &handle);
-  if (code < 0){
-    tqDestroyTqHandle(&handle);
-  }
-  tdbFree(pVal);
-  return code;
 }
 
 int32_t tqMetaOpen(STQ* pTq) {

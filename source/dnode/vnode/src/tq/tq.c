@@ -205,7 +205,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  STqOffset* pSavedOffset = (STqOffset*)taosHashGet(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey));
+  STqOffset* pSavedOffset = (STqOffset*)tqMetaGetOffset(pTq, pOffset->subKey);
   if (pSavedOffset != NULL && tqOffsetEqual(pOffset, pSavedOffset)) {
     tqInfo("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
            vgId, pOffset->subKey, pOffset->val.version, pSavedOffset->val.version);
@@ -218,7 +218,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  if (tqMetaSaveInfo(pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset)) < 0) {
+  if (tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -337,20 +337,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   while (1) {
     taosWLockLatch(&pTq->lock);
     // 1. find handle
-    pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+    pHandle = tqMetaGetHandle(pTq, req.subKey);
     if (pHandle == NULL) {
-      do {
-        if (tqMetaGetHandle(pTq, req.subKey) == 0) {
-          pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
-          if (pHandle != NULL) {
-            break;
-          }
-        }
-        tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
-        terrno = TSDB_CODE_INVALID_MSG;
-        taosWUnLockLatch(&pTq->lock);
-        return -1;
-      } while (0);
+      tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
+      terrno = TSDB_CODE_INVALID_MSG;
+      taosWUnLockLatch(&pTq->lock);
+      return -1;
     }
 
     // 2. check re-balance status
@@ -416,7 +408,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   STqOffset* pOffset = &vgOffset.offset;
-  STqOffset* pSavedOffset = (STqOffset*)taosHashGet(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey));
+  STqOffset* pSavedOffset = (STqOffset*)tqMetaGetOffset(pTq, pOffset->subKey);
   if (pSavedOffset == NULL) {
     terrno = TSDB_CODE_TMQ_NO_COMMITTED;
     return terrno;
@@ -496,7 +488,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   if (reqOffset.type == TMQ_OFFSET__LOG) {
     dataRsp.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
-    STqOffset* pOffset = (STqOffset*)taosHashGet(pTq->pOffset, req.subKey, strlen(req.subKey));
+    STqOffset* pOffset = (STqOffset*)(STqOffset*)tqMetaGetOffset(pTq, req.subKey);
     if (pOffset != NULL) {
       if (pOffset->val.type != TMQ_OFFSET__LOG) {
         tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s, no valid wal info", consumerId, vgId, req.subKey);
@@ -649,21 +641,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   tqInfo("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
-
-  STqHandle* pHandle = NULL;
-  while (1) {
-    pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
-    if (pHandle) {
-      break;
-    }
-    taosRLockLatch(&pTq->lock);
-    ret = tqMetaGetHandle(pTq, req.subKey);
-    taosRUnLockLatch(&pTq->lock);
-
-    if (ret < 0) {
-      break;
-    }
-  }
+  taosRLockLatch(&pTq->lock);
+  STqHandle* pHandle = tqMetaGetHandle(pTq, req.subKey);
+  taosRUnLockLatch(&pTq->lock);
 
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {

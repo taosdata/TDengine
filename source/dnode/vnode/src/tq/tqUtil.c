@@ -75,7 +75,7 @@ static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
 static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                      SRpcMsg* pMsg, bool* pBlockReturned) {
   uint64_t   consumerId = pRequest->consumerId;
-  STqOffset* pOffset = (STqOffset*)taosHashGet(pTq->pOffset, pRequest->subKey, strlen(pRequest->subKey));
+  STqOffset* pOffset = (STqOffset*)tqMetaGetOffset(pTq, pRequest->subKey);
   int32_t    vgId = TD_VID(pTq->pVnode);
 
   *pBlockReturned = false;

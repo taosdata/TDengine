@@ -66,9 +66,7 @@ set(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqStreamTask.c"
-    "src/tq/tqHandleSnapshot.c"
-    "src/tq/tqCheckInfoSnapshot.c"
-    "src/tq/tqOffsetSnapshot.c"
+    "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
     
