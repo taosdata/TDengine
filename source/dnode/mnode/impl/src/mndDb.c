@@ -525,7 +525,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
-  if (pCfg->s3ChunkSize < 0) pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
+  if (pCfg->s3ChunkSize <= 0) pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
   if (pCfg->s3KeepLocal <= 0) pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   if (pCfg->s3Compact <= 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
@@ -1257,7 +1257,7 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
     if (pIter == NULL) break;
 
     if (pArbGroup->dbUid == pDb->uid) {
-      if (mndSetDropArbGroupPrepareLogs(pTrans,pArbGroup) != 0) {
+      if (mndSetDropArbGroupPrepareLogs(pTrans, pArbGroup) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pArbGroup);
         return -1;
@@ -1285,7 +1285,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     if (pIter == NULL) break;
 
     if (pArbGroup->dbUid == pDb->uid) {
-      if (mndSetDropArbGroupCommitLogs(pTrans,pArbGroup) != 0) {
+      if (mndSetDropArbGroupCommitLogs(pTrans, pArbGroup) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pArbGroup);
         return -1;
