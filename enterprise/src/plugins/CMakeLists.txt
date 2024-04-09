@@ -12,7 +12,6 @@ ADD_SUBDIRECTORY(storage)
 ADD_SUBDIRECTORY(dnode)
 
 ADD_SUBDIRECTORY(web)
-add_subdirectory(crypto)
 
 if ("${CUS_PROMPT}" STREQUAL "")
     MESSAGE("CUS_PROMPT EMPTY set taos")
