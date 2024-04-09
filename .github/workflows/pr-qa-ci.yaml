@@ -225,8 +225,8 @@ jobs:
       - name: Force stop taosx-agent & taosx
         if: always()
         run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx"; kill -9 "$pid"; done; fi
 
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa]
@@ -280,8 +280,8 @@ jobs:
       - name: Force stop taosx-agent & taosx
         if: always()
         run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do "run kill -9 taosx"; kill -9 "$pid"; done; fi
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
