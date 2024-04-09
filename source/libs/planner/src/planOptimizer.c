@@ -2943,6 +2943,13 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
               }
             }
           }
+          FOREACH(pColNode, pScan->pScanPseudoCols) {
+            if (nodesEqualNode(pParamNode, pColNode)) {
+              if (funcType != FUNCTION_TYPE_LAST) {
+                nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
+              }
+            }
+          }
         }
       }
 
