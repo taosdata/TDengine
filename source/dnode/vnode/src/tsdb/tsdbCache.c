@@ -1089,6 +1089,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       // SColVal *pColVal = (SColVal *)taosArrayGet(aColVal, idxKey->idx);
 
       SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
+      SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_ROW_KEY(idxKey->key)) {
         if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
@@ -1170,10 +1171,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
             taosMemoryFree(value);
           }
         }
-
-        taosMemoryFree(pLastCol);
       }
 
+      taosMemoryFreeClear(PToFree);
       rocksdb_free(values_list[i]);
     }
 
@@ -1559,6 +1559,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
+    SLastCol* PToFree = pLastCol;
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
@@ -1592,7 +1593,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       taosArraySet(pLastArray, idxKey->idx, &lastCol);
       taosArrayRemove(remainCols, j);
 
-      taosMemoryFree(pLastCol);
+      taosMemoryFreeClear(PToFree);
       taosMemoryFree(values_list[i]);
     } else {
       ++j;
