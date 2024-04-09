@@ -4,6 +4,7 @@ use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
+use reqwest::RequestBuilder;
 use rustls::{server::ServerConfig, Certificate, PrivateKey};
 use rustls_pemfile::{certs, private_key};
 use std::{
@@ -22,11 +23,9 @@ use actix_embed::Embed;
 use actix_web::{
     dev::{fn_service, ServiceRequest, ServiceResponse},
     error::{self, JsonPayloadError, PayloadError},
-    http::header::{ContentType, AUTHORIZATION},
+    http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::{Compress, Logger},
-    post,
-    web::{self},
-    App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
+    post, web, App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
 
 use clap::Parser;
@@ -335,6 +334,22 @@ async fn renew_license(
     }
 }
 
+fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBuilder {
+    static X_REAL_IP: &str = "x-real-ip";
+    let info = req.connection_info();
+    let real_ip = info.realip_remote_addr().or(info.peer_addr());
+    if !req.headers().contains_key(X_FORWARDED_FOR) && real_ip.is_some() {
+        builder = builder.header(X_FORWARDED_FOR, real_ip.unwrap());
+    }
+    if !req.headers().contains_key(X_REAL_IP) && real_ip.is_some() {
+        builder = builder.header(X_REAL_IP, real_ip.unwrap());
+    }
+    for (key, value) in req.headers() {
+        builder = builder.header(key, value);
+    }
+    builder
+}
+
 async fn proxy(
     req: HttpRequest,
     payload: web::Payload,
@@ -345,16 +360,8 @@ async fn proxy(
         // Websocket proxy.
 
         // Forward the request.
-        let mut builder = reqwest::ClientBuilder::new().build().unwrap().get(url);
-        let info = req.connection_info();
-        if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
-            builder = builder
-                .header("X-Forward-For", addr)
-                .header("X-Real-IP", addr);
-        }
-        for (key, value) in req.headers() {
-            builder = builder.header(key, value);
-        }
+        let builder = real_ip_forward(&req, client.get(url));
+
         let target_response = builder.send().await.unwrap();
 
         // Make sure the server is willing to accept the websocket.
@@ -406,19 +413,11 @@ async fn proxy(
                 }
             }
         });
-        let mut builder = client
+        let builder = client
             .request(req.method().clone(), url)
-            .timeout(Duration::from_secs(std::u64::MAX))
+            .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        let info = req.connection_info();
-        if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
-            builder = builder
-                .header("X-Forward-For", addr)
-                .header("X-Real-IP", addr);
-        }
-        for (k, v) in req.headers() {
-            builder = builder.header(k, v);
-        }
+        let builder = real_ip_forward(&req, builder);
         let res = builder
             .send()
             .await
@@ -504,19 +503,11 @@ async fn x_api_doc(
             }
         }
     });
-    let mut builder = client
+    let builder = client
         .request(req.method().clone(), url)
-        .timeout(Duration::from_secs(std::u64::MAX))
+        .timeout(Duration::from_secs(u64::MAX))
         .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-    let info = req.connection_info();
-    if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
-        builder = builder
-            .header("X-Forward-For", addr)
-            .header("X-Real-IP", addr);
-    }
-    for (k, v) in req.headers() {
-        builder = builder.header(k, v);
-    }
+    let builder = real_ip_forward(&req, builder);
     let res = builder
         .send()
         .await
@@ -740,7 +731,7 @@ impl Args {
         // check version and use different function
         if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
             if let Some(active_code) = license.active_code.as_ref() {
-                if active_code.len() > 0 {
+                if !active_code.is_empty() {
                     let sql = format!("alter cluster 'activeCode' '{active_code}'");
                     conn.exec(&sql).await.map_err(|err| {
                         RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
@@ -760,7 +751,7 @@ impl Args {
                 });
             }
             if let Some(active_code) = license.active_code.as_ref() {
-                if active_code.len() > 0 {
+                if !active_code.is_empty() {
                     let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
                     conn.exec(&sql).await.map_err(|err| {
                         RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
@@ -768,7 +759,7 @@ impl Args {
                 }
             }
             if let Some(c_active_code) = license.c_active_code.as_ref() {
-                if c_active_code.len() > 0 {
+                if !c_active_code.is_empty() {
                     let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
                     conn.exec(&sql).await.map_err(|err| {
                         RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
@@ -857,7 +848,7 @@ impl From<taos::Error> for RestErrResponse {
 }
 
 pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<(i32, i32, i32)> {
-    let mut version_vec = version.splitn(4, ".").collect_vec();
+    let mut version_vec = version.splitn(4, '.').collect_vec();
     version_vec.truncate(3);
     let res = version_vec
         .into_iter()
