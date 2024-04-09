@@ -1314,7 +1314,7 @@ class TDTestCase:
         self.create_tsma('tsma1', 'nsdb', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         # Invalid tsma interval, 1ms ~ 1h is allowed
         tdSql.error(
-            'create tsma nsdb.tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
+            'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
         tdSql.error(
             'create tsma tsma2 on nsdb.meters function(avg(c1), avg(c2)) interval(3601s)', -2147471097)
         tdSql.error(

@@ -692,7 +692,7 @@ class TDTestCase:
         self.prepare_data()
         self.create_udf_function()
         self.basic_udf_query()
-        # self.unexpected_create()
+        self.unexpected_create()
 
 
     def stop(self):
