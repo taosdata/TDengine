@@ -499,7 +499,7 @@ async fn sync(
         .is_ok();
     let metrics = metrics_arc.tmq();
     let refresh_pgrogress_interval =
-        crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
+        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
