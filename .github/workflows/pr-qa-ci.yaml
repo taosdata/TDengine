@@ -311,16 +311,16 @@ jobs:
             lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info \
               -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx.info \
               -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx-agent.info \
-              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info --quiet
           else
             lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx.info \
               -a $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_taosx-agent.info \
-              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info --quiet
           fi
 
-          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined_removed.info
+          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined.info '*/.cargo/*' '*/report/*' '*/target/*' -o $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined_removed.info --quiet
 
-          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH/taosx-report-merged/  --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined_removed.info
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH/taosx-report-merged/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH/lcov_combined_removed.info
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/taosx-report-merged/"
 
       - name: mqtt & opc Report
