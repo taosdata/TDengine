@@ -1730,25 +1730,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pSup->pResultRows = tSimpleHashInit(32, hashFn);
 
-  int32_t pageSize = 4096;
-  while (pageSize < pSup->resultRowSize * 4) {
-    pageSize <<= 1u;
-  }
-  // at least four pages need to be in buffer
-  int32_t bufSize = 4096 * 256;
-  if (bufSize <= pageSize) {
-    bufSize = pageSize * 4;
-  }
-
-  if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    qError("Init stream agg supporter failed since %s, tempDir:%s", terrstr(), tsTempDir);
-    return terrno;
-  }
-
-  int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, "function", tsTempDir);
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    pExpSup->pCtx[i].saveHandle.pBuf = pSup->pResultBuf;
+    pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
   }
 
   pSup->pSessionAPI = pApi;
@@ -2948,6 +2931,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
       .deleteMark = getDeleteMark(&pSessionNode->window, 0),
   };
 
+  pInfo->primaryTsIndex = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, pSessionNode->gap,
                                 pTaskInfo->streamInfo.pState, 0, 0, &pTaskInfo->storageAPI.stateStore, pHandle,
                                 &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
@@ -2957,7 +2941,6 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
-  pInfo->primaryTsIndex = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
   if (pSessionNode->window.pTsEnd) {
     pInfo->endTsIndex = ((SColumnNode*)pSessionNode->window.pTsEnd)->slotId;
   }
@@ -3843,14 +3826,13 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   }
   int32_t keySize = sizeof(SStateKeys) + pColNode->node.resType.bytes;
   int16_t type = pColNode->node.resType.type;
+  pInfo->primaryTsIndex = tsSlotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState, keySize,
                                 type, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
                                 GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
-  pInfo->primaryTsIndex = tsSlotId;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
   pInfo->pDelIterator = NULL;

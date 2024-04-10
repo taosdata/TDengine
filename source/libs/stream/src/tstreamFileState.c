@@ -58,6 +58,8 @@ struct SStreamFileState {
   _state_file_remove_fn stateFileRemoveFn;
   _state_file_get_fn    stateFileGetFn;
   _state_file_clear_fn  stateFileClearFn;
+
+  _state_fun_get_fn stateFunctionGetFn;
 };
 
 typedef SRowBuffPos SRowBuffInfo;
@@ -157,6 +159,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     pFileState->stateFileGetFn = intervalFileGetFn;
     pFileState->stateFileClearFn = streamStateClear_rocksdb;
     pFileState->cfName = taosStrdup("state");
+    pFileState->stateFunctionGetFn = getRowBuff;
   } else {
     pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
     pFileState->stateBuffCleanupFn = sessionWinStateCleanup;
@@ -168,6 +171,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     pFileState->stateFileGetFn = sessionFileGetFn;
     pFileState->stateFileClearFn = streamStateSessionClear_rocksdb;
     pFileState->cfName = taosStrdup("sess");
+    pFileState->stateFunctionGetFn = getSessionRowBuff;
   }
 
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowStateBuff) {
@@ -736,7 +740,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }
+int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }
 
 void streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts) {
   pFileState->flushMark = TMAX(pFileState->flushMark, ts);
@@ -754,3 +758,7 @@ bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
 bool isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap) { return ts <= (pFileState->flushMark + gap); }
 
 int32_t getRowStateRowSize(SStreamFileState* pFileState) { return pFileState->rowSize; }
+
+int32_t getFunctionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen) {
+  return pFileState->stateFunctionGetFn(pFileState, pKey, keyLen, pVal, pVLen);
+}
