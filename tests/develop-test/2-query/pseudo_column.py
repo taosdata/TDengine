@@ -66,10 +66,10 @@ class TDTestCase:
         tdSql.query('select * from (select tbname, avg(f) from st partition by tbname) a partition by a.tbname order by a.tbname');       
         tdSql.checkRows(2)
         tdSql.checkCols(2)
-        tdSql.checkData(0, 0, 'ct1');
-        tdSql.checkData(0, 1, 6.0);
-        tdSql.checkData(1, 0, 'ct2');
-        tdSql.checkData(1, 1, 12.0);
+        tdSql.checkData(0, 0, 'ct1')
+        tdSql.checkData(0, 1, 6.0)
+        tdSql.checkData(1, 0, 'ct2')
+        tdSql.checkData(1, 1, 12.0)
                          
         tdSql.error('select tbname from (select * from st)')
         tdSql.error('select st.tbname from (select st.tbname from st)')

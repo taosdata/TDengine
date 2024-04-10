@@ -126,7 +126,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetKey(SRow *pRow, SRowKey *key);
 int32_t tRowKeyCompare(const void *p1, const void *p2);
-int32_t tRowKeyAssign(SRowKey* pDst, SRowKey* pSrc);
+int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -174,6 +174,7 @@ int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
 
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
@@ -188,8 +189,8 @@ void    tColDataSortMerge(SArray *colDataArr);
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
+int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
 
 // STRUCT ================================
 struct STColumn {

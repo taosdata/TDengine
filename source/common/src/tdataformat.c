@@ -3111,7 +3111,7 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
   return code;
 }
 
-static FORCE_INLINE void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key) {
+void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key) {
   SColVal cv;
 
   key->ts = ((TSKEY *)aColData[0].pData)[iRow];
@@ -3490,7 +3490,7 @@ _exit:
   return;
 }
 
-int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
+static int32_t tPutColDataVersion0(uint8_t *pBuf, SColData *pColData) {
   int32_t n = 0;
 
   n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid);
@@ -3532,7 +3532,7 @@ int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
   return n;
 }
 
-int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
+static int32_t tGetColDataVersion0(uint8_t *pBuf, SColData *pColData) {
   int32_t n = 0;
 
   n += tGetI16v(pBuf + n, &pColData->cid);
@@ -3571,8 +3571,43 @@ int32_t tGetColData(uint8_t *pBuf, SColData *pColData) {
       n += pColData->nData;
     }
   }
+  pColData->cflag = 0;
 
   return n;
+}
+
+static int32_t tPutColDataVersion1(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = tPutColDataVersion0(pBuf, pColData);
+  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->cflag);
+  return n;
+}
+
+static int32_t tGetColDataVersion1(uint8_t *pBuf, SColData *pColData) {
+  int32_t n = tGetColDataVersion0(pBuf, pColData);
+  n += tGetI8(pBuf ? pBuf + n : NULL, &pColData->cflag);
+  return n;
+}
+
+int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
+  if (version == 0) {
+    return tPutColDataVersion0(pBuf, pColData);
+  } else if (version == 1) {
+    return tPutColDataVersion1(pBuf, pColData);
+  } else {
+    ASSERT(0);
+    return -1;
+  }
+}
+
+int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
+  if (version == 0) {
+    return tGetColDataVersion0(pBuf, pColData);
+  } else if (version == 1) {
+    return tGetColDataVersion1(pBuf, pColData);
+  } else {
+    ASSERT(0);
+    return -1;
+  }
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \

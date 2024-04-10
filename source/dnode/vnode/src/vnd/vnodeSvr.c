@@ -240,10 +240,13 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   SSubmitTbData submitTbData;
+  uint8_t       version;
   if (tDecodeI32v(pCoder, &submitTbData.flags) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+  version = (submitTbData.flags >> 8) & 0xff;
+  submitTbData.flags = submitTbData.flags & 0xff;
 
   if (submitTbData.flags & SUBMIT_REQ_FROM_FILE) {
     code = grantCheck(TSDB_GRANT_CSV);
@@ -307,7 +310,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     SColData colData = {0};
-    pCoder->pos += tGetColData(pCoder->data + pCoder->pos, &colData);
+    pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, &colData);
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
@@ -321,7 +324,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     for (uint64_t i = 1; i < nColData; i++) {
-      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, &colData);
+      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, &colData);
     }
   } else {
     uint64_t nRow;
@@ -1572,17 +1575,18 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         goto _exit;
       }
 
-      SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
-      TSKEY    *aKey = (TSKEY *)(pColData->pData);
-
-      for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
-        if (aKey[iRow] < minKey || aKey[iRow] > maxKey || (iRow > 0 && aKey[iRow] <= aKey[iRow - 1])) {
+      SColData *colDataArr = TARRAY_DATA(pSubmitTbData->aCol);
+      SRowKey   lastKey;
+      tColDataArrGetRowKey(colDataArr, TARRAY_SIZE(pSubmitTbData->aCol), 0, &lastKey);
+      for (int32_t iRow = 1; iRow < colDataArr[0].nVal; iRow++) {
+        SRowKey key;
+        tColDataArrGetRowKey(TARRAY_DATA(pSubmitTbData->aCol), TARRAY_SIZE(pSubmitTbData->aCol), iRow, &key);
+        if (tRowKeyCompare(&lastKey, &key) >= 0) {
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), ver);
           goto _exit;
         }
       }
-
     } else {
       int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
