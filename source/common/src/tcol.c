@@ -366,13 +366,14 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     return TSDB_COLVAL_ENCODE_DELTAD == l1 ? 1 : 0;
   } else if ((type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
              type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY) {
-    if (l1 >= TSDB_COLVAL_ENCODE_NOCHANGE || l1 <= TSDB_COLVAL_ENCODE_DELTAD) {
-      return 1;
-    } else if (l1 == TSDB_COLVAL_ENCODE_DISABLED) {
-      return 1;
-    } else {
-      return 0;
-    }
+    return l1 == TSDB_COLVAL_ENCODE_DISABLED ? 1 : 0;
+    // if (l1 >= TSDB_COLVAL_ENCODE_NOCHANGE || l1 <= TSDB_COLVAL_ENCODE_DELTAD) {
+    //   return 1;
+    // } else if (l1 == TSDB_COLVAL_ENCODE_DISABLED) {
+    //   return 1;
+    // } else {
+    //   return 0;
+    // }
   } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
     return TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type >= TSDB_DATA_TYPE_UTINYINT && type <= TSDB_DATA_TYPE_UINT) {
