@@ -35,7 +35,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
 
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
     epsetAssign(&pTask->info.epSet, pEpSet);
-    EPSET_TO_STR(pEpSet, buf)
+    epsetToStr(pEpSet, buf, tListLen(buf));
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
@@ -590,7 +590,7 @@ int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstre
 
 void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
-  EPSET_TO_STR(pEpSet, buf);
+  epsetToStr(pEpSet, buf, tListLen(buf));
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < numOfUpstream; ++i) {
@@ -624,7 +624,7 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
 
 void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
-  EPSET_TO_STR(pEpSet, buf);
+  epsetToStr(pEpSet, buf, tListLen(buf));
   int32_t id = pTask->id.taskId;
 
   int8_t type = pTask->outputInfo.type;

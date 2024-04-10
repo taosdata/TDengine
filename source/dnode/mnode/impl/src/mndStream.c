@@ -1745,7 +1745,8 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
           const SEp *pPrevEp = GET_ACTIVE_EP(&pPrevEntry->epset);
 
           char buf[256] = {0};
-          EPSET_TO_STR(&pCurrent->epset, buf);
+          epsetToStr(&pCurrent->epset, buf, tListLen(buf));
+
           mDebug("nodeId:%d restart/epset changed detected, old:%s:%d -> new:%s, stageUpdate:%d", pCurrent->nodeId,
                  pPrevEp->fqdn, pPrevEp->port, buf, pPrevEntry->stageUpdated);
 
@@ -1896,7 +1897,7 @@ static SArray *extractNodeListFromStream(SMnode *pMnode) {
     taosArrayPush(plist, pEntry);
 
     char buf[256] = {0};
-    EPSET_TO_STR(&pEntry->epset, buf);
+    epsetToStr(&pEntry->epset, buf, tListLen(buf));
     mDebug("extract nodeInfo from stream obj, nodeId:%d, %s", pEntry->nodeId, buf);
   }
   taosHashCleanup(pHash);
