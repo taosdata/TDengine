@@ -311,7 +311,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
         tqAddBlockDataToRsp(pBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlock->pDataBlock),
                             pTq->pVnode->config.tsdbCfg.precision);
-        totalRows += pBlock->info.rows;
+        *totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
         taosArrayPush(pRsp->blockSchema, &pSW);
