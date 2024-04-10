@@ -2137,10 +2137,15 @@ export default {
     handleRename(value) {
       let inputString = value
       inputString = inputString.replace(/\$./g, '');
+      // 判断不是嵌套属性 
+      if (!inputString.includes('.')) {
+        inputString = "";
+      }
       inputString = inputString.replace(/\./g, '_');
       // 替换所有的中括号为下划线
       inputString = inputString.replace(/\[/g, '_');
       inputString = inputString.replace(/\]/g, '');
+      
 
       return inputString;
     }
