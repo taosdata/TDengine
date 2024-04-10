@@ -93,7 +93,7 @@ sql create stream streams21 trigger at_once ignore expired 0 ignore update 0  in
 
 sql_error create stream streams22 trigger at_once ignore expired 0 ignore update 0  into streamt22 as select  ts,1, b from rct1;
 
-sql_error create stream streams23 trigger at_once ignore expired 0 ignore update 0  into streamt23 as select  ts, a, b from rct1;
+sql create stream streams23 trigger at_once ignore expired 0 ignore update 0  into streamt23 as select  ts, a, b from rct1;
 
 sql create stream streams24 trigger at_once ignore expired 0 ignore update 0  into streamt24(ts, a primary key, b) as select  ts, a, b from rct1;
 sql create stream streams25 trigger at_once ignore expired 0 ignore update 0  into rst6 as select  ts, a, b from rct1;

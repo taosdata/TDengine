@@ -896,6 +896,7 @@ typedef enum {
 } EExecMode;
 
 typedef struct {
+  int64_t version;
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;

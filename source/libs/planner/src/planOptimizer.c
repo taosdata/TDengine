@@ -2997,6 +2997,15 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
       if (FUNCTION_TYPE_LAST == funcType) {
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
+        if (pFunc->hasPk) {
+          if (LIST_LENGTH(pFunc->pParameterList) != 2) {
+            planError("last func which has pk but its parameter list length is not 2");
+            nodesClearList(cxt.pLastCols);
+            taosArrayDestroy(isDuplicateCol);
+            return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          }
+          nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 1), lastRowScanOptSetColDataType, &cxt);
+        }
       }
     } else {
       pNode = nodesListGetNode(pFunc->pParameterList, 0);
