@@ -9181,7 +9181,8 @@ int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder *pDecoder, SBatchDeleteReq *pReq
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, pSubmitTbData->flags) < 0) return -1;
+  int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
+  if (tEncodeI32v(pCoder, flags) < 0) return -1;
 
   // auto create table
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
@@ -9201,7 +9202,8 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     if (tEncodeU64v(pCoder, nColData) < 0) return -1;
 
     for (uint64_t i = 0; i < nColData; i++) {
-      pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+      pCoder->pos +=
+          tPutColData(SUBMIT_REQUEST_VERSION, pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
     }
   } else {
     if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
@@ -9220,13 +9222,18 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
 
 static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
+  int32_t flags;
+  uint8_t version;
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  if (tDecodeI32v(pCoder, &pSubmitTbData->flags) < 0) return -1;
+  if (tDecodeI32v(pCoder, &flags) < 0) return -1;
+
+  pSubmitTbData->flags = flags & 0xff;
+  version = (flags >> 8) & 0xff;
 
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     pSubmitTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
@@ -9270,7 +9277,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
     }
   } else {
     uint64_t nRow;

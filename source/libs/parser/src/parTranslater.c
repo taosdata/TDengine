@@ -8240,6 +8240,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList** ppC
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasTsKey = false;
   bool    hasPrimaryKey = false;
   SNode*  pCol = NULL;
   SNode*  pProj = NULL;
@@ -8255,13 +8256,22 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList** ppC
       break;
     }
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
+      hasTsKey = true;
+    }
+
+    if (pSchema->flags & COL_IS_KEY) {
       hasPrimaryKey = true;
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !hasPrimaryKey) {
+  if (TSDB_CODE_SUCCESS == code && !hasTsKey) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
-                                   "primary timestamp column can not be null");
+                                   "Primary timestamp column  of dest table can not be null");
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !hasPrimaryKey && hasPkInTable(pMeta)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "Primary key column of dest table can not be null");
   }
 
   SNodeList* pNewProjections = NULL;
