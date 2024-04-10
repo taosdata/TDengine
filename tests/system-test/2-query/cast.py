@@ -323,6 +323,12 @@ class TDTestCase:
         tdSql.query(f"select cast(c5 as nchar(32)) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c5)):
             tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
+        tdSql.query(f"select cast(c5 as nchar) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
+        tdSql.query(f"select cast(c5 as varchar) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkData( i, 0, f'{data_t1_c5[i]:.6f}' )
 
         tdLog.printNoPrefix("==========step23: cast float to timestamp, expect changes to timestamp ")
         tdSql.query(f"select cast(c5 as timestamp) as b from {self.dbname}.ct4")
