@@ -8221,7 +8221,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList** ppC
 
   if (TSDB_CODE_SUCCESS == code && !hasPrimaryKey && hasPkInTable(pMeta)) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
-                                   "Primary key column of dest table can not be null");
+                                   "Primary key column name must be defined in existed-stable field");
   }
 
   SNodeList* pNewProjections = NULL;

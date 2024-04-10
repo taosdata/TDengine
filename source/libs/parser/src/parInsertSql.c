@@ -1657,9 +1657,6 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(&pCxt->msg, "Primary timestamp column should not be null", pToken->z);
     }
-    if (pSchema->flags & COL_IS_KEY) {
-      return buildSyntaxErrMsg(&pCxt->msg, "Primary key column should not be null", pToken->z);
-    }
 
     pVal->flag = CV_FLAG_NULL;
     return TSDB_CODE_SUCCESS;
