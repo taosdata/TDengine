@@ -335,7 +335,6 @@ public Connection getConn() throws Exception{
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
   connProps.setProperty("debugFlag", "135");
-  connProps.setProperty("maxSQLLength", "1048576");
   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
   return conn;
 }
