@@ -24,7 +24,7 @@
 #include "tlog.h"
 #include "ttime.h"
 
-#define IS_FINAL_COUNT_OP(op)           ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_COUNT)
+#define IS_NORMAL_COUNT_OP(op)          ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT)
 #define STREAM_COUNT_OP_STATE_NAME      "StreamCountHistoryState"
 #define STREAM_COUNT_OP_CHECKPOINT_NAME "StreamCountOperator_Checkpoint"
 
@@ -60,6 +60,8 @@ void destroyStreamCountAggOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
+
+  tSimpleHashCleanup(pInfo->pPkDeleted);
 
   taosMemoryFreeClear(param);
 }
@@ -267,23 +269,27 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       range.win.skey = TMIN(startTsCols[i], range.win.skey);
       range.win.ekey = TMAX(startTsCols[rows-1], range.win.ekey);
       uint64_t uid = 0;
-      appendOneRowToStreamSpecialBlock(pAggSup->pScanBlock, &range.win.skey, &range.win.ekey, &uid, &range.groupId, NULL);
+      appendDataToSpecialBlock(pAggSup->pScanBlock, &range.win.skey, &range.win.ekey, &uid, &range.groupId, NULL);
       break;
     }
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &curWin.winInfo, &pResult, i, winRows, rows, numOfOutput,
                               pOperator, 0);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
       qError("%s do stream count aggregate impl error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      break;
     }
     saveSessionOutputBuf(pAggSup, &curWin.winInfo);
+
+    if (pInfo->destHasPrimaryKey && curWin.winInfo.isOutput && IS_NORMAL_COUNT_OP(pOperator)) {
+      saveDeleteRes(pInfo->pPkDeleted, curWin.winInfo.sessionWin);
+    }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pStUpdated) {
       code = saveResult(curWin.winInfo, pStUpdated);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s do stream count aggregate impl, set result error, code %s", GET_TASKID(pTaskInfo),
                tstrerror(code));
-        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+        break;
       }
     }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -484,7 +490,7 @@ void doDeleteCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SAr
 }
 
 void deleteCountWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
-                           SSHashObj* pMapDelete) {
+                         SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd) {
   SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
   if (isSlidingCountWindow(pAggSup)) {
     doDeleteCountWindows(pAggSup, pBlock, pWins);
@@ -493,6 +499,9 @@ void deleteCountWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHa
   }
   removeSessionResults(pAggSup, pMapUpdate, pWins);
   copyDeleteWindowInfo(pWins, pMapDelete);
+  if (needAdd) {
+    copyDeleteWindowInfo(pWins, pPkDelete);
+  }
   taosArrayDestroy(pWins);
 }
 
@@ -542,7 +551,8 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT) {
-      deleteCountWinState(&pInfo->streamAggSup, pBlock, pInfo->pStUpdated, pInfo->pStDeleted);
+      bool add = pInfo->destHasPrimaryKey && IS_NORMAL_COUNT_OP(pOperator);
+      deleteCountWinState(&pInfo->streamAggSup, pBlock, pInfo->pStUpdated, pInfo->pStDeleted, pInfo->pPkDeleted, add);
       continue;
     } else if (pBlock->info.type == STREAM_CLEAR) {
       doResetCountWindows(&pInfo->streamAggSup, pBlock);
@@ -581,6 +591,10 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
   pInfo->pUpdated = NULL;
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+
+  if (pInfo->destHasPrimaryKey && IS_NORMAL_COUNT_OP(pOperator)) {
+    copyDeleteSessionKey(pInfo->pPkDeleted, pInfo->pStDeleted);
+  }
 
   SSDataBlock* opRes = buildCountResult(pOperator);
   if (opRes) {
@@ -694,6 +708,8 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->recvGetAll = false;
+  pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
+  pInfo->destHasPrimaryKey = pCountNode->window.destHasPrimayKey;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT, true,

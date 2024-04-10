@@ -7665,6 +7665,16 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI64(&encoder, p->ver) < 0) return -1;
   }
 
+  int32_t colSize = taosArrayGetSize(pReq->pCols);
+  if (tEncodeI32(&encoder, colSize) < 0) return -1;
+  for (int32_t i = 0; i < colSize; ++i) {
+    SField *pField = taosArrayGet(pReq->pCols, i);
+    if (tEncodeI8(&encoder, pField->type) < 0) return -1;
+    if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
+    if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
+    if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7770,6 +7780,27 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
       }
     }
   }
+  int32_t colSize = 0;
+  if (tDecodeI32(&decoder, &colSize) < 0) return -1;
+  if (colSize > 0) {
+    pReq->pCols = taosArrayInit(colSize, sizeof(SField));
+    if (pReq->pCols == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < colSize; ++i) {
+      SField field = {0};
+      if (tDecodeI8(&decoder, &field.type) < 0) return -1;
+      if (tDecodeI8(&decoder, &field.flags) < 0) return -1;
+      if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+      if (taosArrayPush(pReq->pCols, &field) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -7850,6 +7881,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->pTags);
   taosArrayDestroy(pReq->fillNullCols);
   taosArrayDestroy(pReq->pVgroupVerList);
+  taosArrayDestroy(pReq->pCols);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
@@ -9042,7 +9074,8 @@ int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder *pDecoder, SBatchDeleteReq *pReq
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32v(pCoder, pSubmitTbData->flags) < 0) return -1;
+  int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
+  if (tEncodeI32v(pCoder, flags) < 0) return -1;
 
   // auto create table
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
@@ -9062,7 +9095,8 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     if (tEncodeU64v(pCoder, nColData) < 0) return -1;
 
     for (uint64_t i = 0; i < nColData; i++) {
-      pCoder->pos += tPutColData(pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+      pCoder->pos +=
+          tPutColData(SUBMIT_REQUEST_VERSION, pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
     }
   } else {
     if (tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)) < 0) return -1;
@@ -9081,13 +9115,18 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
 
 static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
+  int32_t flags;
+  uint8_t version;
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  if (tDecodeI32v(pCoder, &pSubmitTbData->flags) < 0) return -1;
+  if (tDecodeI32v(pCoder, &flags) < 0) return -1;
+
+  pSubmitTbData->flags = flags & 0xff;
+  version = (flags >> 8) & 0xff;
 
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     pSubmitTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
@@ -9131,7 +9170,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      pCoder->pos += tGetColData(pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
     }
   } else {
     uint64_t nRow;

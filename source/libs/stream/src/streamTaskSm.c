@@ -543,8 +543,6 @@ void streamTaskSetStatusReady(SStreamTask* pTask) {
     return;
   }
 
-  taosThreadMutexLock(&pTask->lock);
-
   pSM->prev.state = pSM->current;
   pSM->prev.evt = 0;
 
@@ -552,8 +550,6 @@ void streamTaskSetStatusReady(SStreamTask* pTask) {
   pSM->startTs = taosGetTimestampMs();
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
-
-  taosThreadMutexUnlock(&pTask->lock);
 }
 
 STaskStateTrans createStateTransform(ETaskStatus current, ETaskStatus next, EStreamTaskEvent event, __state_trans_fn fn,
