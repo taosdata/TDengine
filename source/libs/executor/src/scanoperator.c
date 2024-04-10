@@ -2900,7 +2900,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->pUpdateInfo = NULL;
     pInfo->pTableScanOp = pTableScanOp;
     if (pInfo->pTableScanOp->pTaskInfo->streamInfo.pState) {
-      pAPI->stateStore.streamStateSetNumber(pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, -1);
+      pAPI->stateStore.streamStateSetNumber(pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, -1, pInfo->primaryTsIndex);
     }
 
     pInfo->readHandle = *pHandle;

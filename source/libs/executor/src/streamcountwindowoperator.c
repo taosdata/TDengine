@@ -657,7 +657,7 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0,
                                 pTaskInfo->streamInfo.pState, sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle,
-                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

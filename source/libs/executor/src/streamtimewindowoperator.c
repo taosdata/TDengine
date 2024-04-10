@@ -1526,7 +1526,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
 
   qInfo("copy state %p to %p", pTaskInfo->streamInfo.pState, pInfo->pState);
 
-  pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
+  pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1, pInfo->primaryTsIndex);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                             pInfo->pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1707,7 +1707,7 @@ static TSKEY sesionTs(void* pKey) {
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
                                SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
-                               SStorageAPI* pApi) {
+                               SStorageAPI* pApi, int32_t tsIndex) {
   pSup->resultRowSize = keySize + getResultRowSize(pExpSup->pCtx, numOfOutput);
   pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
   pSup->gap = gap;
@@ -1723,7 +1723,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   initDummyFunction(pSup->pDummyCtx, pExpSup->pCtx, numOfOutput);
   pSup->pState = taosMemoryCalloc(1, sizeof(SStreamState));
   *(pSup->pState) = *pState;
-  pSup->stateStore.streamStateSetNumber(pSup->pState, -1);
+  pSup->stateStore.streamStateSetNumber(pSup->pState, -1, tsIndex);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
   pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
       tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, sesionTs, pSup->pState,
@@ -2955,7 +2955,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
 
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, pSessionNode->gap,
                                 pTaskInfo->streamInfo.pState, 0, 0, &pTaskInfo->storageAPI.stateStore, pHandle,
-                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3180,7 +3180,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
       }
       SStreamSessionAggOperatorInfo* pChInfo = pChildOp->info;
       pChInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i);
+      pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
       taosArrayPush(pInfo->pChildren, &pChildOp);
     }
   }
@@ -3846,7 +3846,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   int16_t type = pColNode->node.resType.type;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState, keySize,
                                 type, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
-                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4083,7 +4083,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
   *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
-  pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
+  pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1, pInfo->primaryTsIndex);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str, pInfo->pState,

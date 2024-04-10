@@ -395,7 +395,10 @@ int32_t streamStateClear(SStreamState* pState) {
 #endif
 }
 
-void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number = number; }
+void streamStateSetNumber(SStreamState* pState, int32_t number, int32_t tsIdex) {
+  pState->number = number;
+  pState->tsIndex = tsIdex;
+}
 
 int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen) {
 #ifdef USE_ROCKSDB
