@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use arrow::datatypes::{DataType, TimeUnit};
-use arrow_schema::{Field, Schema, DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE};
+use arrow_schema::{DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE};
 use taosx_ipc::stream::writer::IpcDataType;
 
 // use taosx_ipc::prelude::IpcDataType;
@@ -63,23 +61,6 @@ impl ColumnMeta {
     }
 }
 
-pub fn to_schema(columns: Vec<ColumnMeta>) -> anyhow::Result<Schema> {
-    // field list
-    let mut fields = Vec::new();
-    for col in columns {
-        let col_name = col.column_name;
-        let arrow_type = to_arrow_data_type(col.type_name)?;
-        fields.push(Field::new(col_name, arrow_type, true));
-    }
-    // schema
-    let mut metadata = HashMap::new();
-    metadata.insert(String::from("version"), String::from("1.0"));
-    metadata.insert(String::from("stream"), String::from("flat"));
-    metadata.insert(String::from("ack"), String::from("lush"));
-    let schema = arrow_schema::Schema::new(fields).with_metadata(metadata);
-    Ok(schema)
-}
-
 pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
     match type_name.as_str() {
         // 整型数
@@ -136,19 +117,6 @@ mod tests {
         assert_eq!(column_meta.column_name, "id");
         assert_eq!(column_meta.type_name, "INT");
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int32);
-    }
-
-    #[test]
-    fn test_to_schema() {
-        let columns = vec![
-            ColumnMeta::try_new("id".to_string(), "INT".to_string()).unwrap(),
-            ColumnMeta::try_new("name".to_string(), "VARCHAR".to_string()).unwrap(),
-            ColumnMeta::try_new("age".to_string(), "TINYINT".to_string()).unwrap(),
-        ];
-        let schema = to_schema(columns).unwrap();
-        assert_eq!(schema.fields().len(), 3);
-        assert_eq!(schema.metadata().len(), 3);
-        dbg!(schema);
     }
 
     #[test]

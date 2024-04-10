@@ -438,7 +438,7 @@ mod tests {
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let res = mysql_to_taos(
+        let _ = mysql_to_taos(
             from,
             parser,
             transform,

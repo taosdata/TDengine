@@ -5,6 +5,7 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
+use arrow_schema::DECIMAL256_MAX_PRECISION;
 use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use sqlx::mysql::MySqlRow;
@@ -13,15 +14,23 @@ use sqlx::{Column, Row, TypeInfo};
 pub mod column_meta;
 
 pub async fn to_schema(row: MySqlRow) -> anyhow::Result<Schema> {
-    let mut columns = Vec::new();
+    let mut fields = Vec::new();
     for col in row.columns() {
+        let col_cidx = col.ordinal();
         let col_name = col.name();
         let col_type = col.type_info().name();
-        columns.push((col_name, col_type));
-    }
-    let mut fields = Vec::new();
-    for (col_name, col_type) in columns.iter() {
-        let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+        // arrow data type
+        let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+        // modify the scale of decimal
+        if col_type == "DECIMAL" {
+            let val = row
+                .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
+                .unwrap()
+                .unwrap();
+            let (_, scale) = val.as_bigint_and_exponent();
+            arrow_type =
+                arrow::datatypes::DataType::Decimal256(DECIMAL256_MAX_PRECISION, scale as i8);
+        }
         fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
     }
     let schema = build_schema(fields)?;
@@ -38,9 +47,8 @@ pub async fn to_record_batches(
     rows: Vec<MySqlRow>,
     batch_size: usize,
 ) -> anyhow::Result<Vec<RecordBatch>> {
-    let mut columns = Vec::new();
-    let mut builders = Vec::new();
     let mut fields = Vec::new();
+    let mut builders = Vec::new();
     let mut batches = Vec::new();
 
     let mut row_count = 0;
@@ -48,31 +56,44 @@ pub async fn to_record_batches(
     for (ridx, row) in rows.iter().enumerate() {
         if ridx == 0 {
             for col in row.columns() {
+                let col_cidx = col.ordinal();
                 let col_name = col.name();
                 let col_type = col.type_info().name();
-                columns.push((col_name, col_type));
-            }
-            for (col_name, col_type) in columns.iter() {
-                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+                // arrow data type
+                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+                // modify the scale of decimal
+                if col_type == "DECIMAL" {
+                    let val = row
+                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
+                        .unwrap()
+                        .unwrap();
+                    let (_, scale) = val.as_bigint_and_exponent();
+                    arrow_type = arrow::datatypes::DataType::Decimal256(
+                        DECIMAL256_MAX_PRECISION,
+                        scale as i8,
+                    );
+                }
                 fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
                 builders.push(array::make_builder(&arrow_type, 10));
             }
         }
-        for (cidx, (_, col_type)) in columns.iter().enumerate() {
-            match col_type.to_owned() {
+        for col in row.columns() {
+            let col_cidx = col.ordinal();
+            let col_type = col.type_info().name();
+            match col_type {
                 // 整型数
                 "TINYINT" => {
-                    let val = row.try_get::<Option<i8>, _>(cidx)?;
+                    let val = row.try_get::<Option<i8>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int8Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int8Builder>()
                                 .unwrap()
@@ -81,17 +102,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "TINYINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u8>, _>(cidx)?;
+                    let val = row.try_get::<Option<u8>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
@@ -100,17 +121,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "SMALLINT" => {
-                    let val = row.try_get::<Option<i16>, _>(cidx)?;
+                    let val = row.try_get::<Option<i16>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int16Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int16Builder>()
                                 .unwrap()
@@ -119,17 +140,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "SMALLINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u16>, _>(cidx)?;
+                    let val = row.try_get::<Option<u16>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
@@ -138,17 +159,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "MEDIUMINT" | "INT" => {
-                    let val = row.try_get::<Option<i32>, _>(cidx)?;
+                    let val = row.try_get::<Option<i32>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int32Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int32Builder>()
                                 .unwrap()
@@ -157,17 +178,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "MEDIUMINT UNSIGNED" | "INT UNSIGNED" => {
-                    let val = row.try_get::<Option<u32>, _>(cidx)?;
+                    let val = row.try_get::<Option<u32>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt32Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt32Builder>()
                                 .unwrap()
@@ -176,17 +197,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "BIGINT" => {
-                    let val = row.try_get::<Option<i64>, _>(cidx)?;
+                    let val = row.try_get::<Option<i64>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int64Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int64Builder>()
                                 .unwrap()
@@ -195,17 +216,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "BIGINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u64>, _>(cidx)?;
+                    let val = row.try_get::<Option<u64>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt64Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt64Builder>()
                                 .unwrap()
@@ -215,17 +236,17 @@ pub async fn to_record_batches(
                 }
                 // 浮点数
                 "FLOAT" => {
-                    let val = row.try_get::<Option<f32>, _>(cidx)?;
+                    let val = row.try_get::<Option<f32>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float32Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float32Builder>()
                                 .unwrap()
@@ -234,17 +255,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "DOUBLE" => {
-                    let val = row.try_get::<Option<f64>, _>(cidx)?;
+                    let val = row.try_get::<Option<f64>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float64Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float64Builder>()
                                 .unwrap()
@@ -253,20 +274,20 @@ pub async fn to_record_batches(
                     }
                 }
                 "DECIMAL" => {
-                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(cidx)?;
+                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Decimal256Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            let (int_val, scale) = val.as_bigint_and_exponent();
+                            let (int_val, _) = val.as_bigint_and_exponent();
                             let value = int_val.to_string();
                             let value: i32 = value.parse().unwrap();
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Decimal256Builder>()
                                 .unwrap()
@@ -276,17 +297,17 @@ pub async fn to_record_batches(
                 }
                 // 字符串
                 "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
-                    let val = row.try_get::<Option<String>, _>(cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
@@ -295,17 +316,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "BINARY" | "VARBINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
-                    let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
+                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::BinaryBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::BinaryBuilder>()
                                 .unwrap()
@@ -315,17 +336,17 @@ pub async fn to_record_batches(
                 }
                 // 日期时间
                 "DATE" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Date32Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Date32Builder>()
                                 .unwrap()
@@ -339,17 +360,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "TIME" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Time32SecondBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Time32SecondBuilder>()
                                 .unwrap()
@@ -358,17 +379,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "DATETIME" | "TIMESTAMP" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
@@ -377,17 +398,17 @@ pub async fn to_record_batches(
                     }
                 }
                 "YEAR" => {
-                    let val = row.try_get::<Option<u16>, _>(cidx)?;
+                    let val = row.try_get::<Option<u16>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
@@ -397,17 +418,17 @@ pub async fn to_record_batches(
                 }
                 // 二进制
                 "BIT" => {
-                    let val = row.try_get::<Option<u8>, _>(cidx)?;
+                    let val = row.try_get::<Option<u8>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
@@ -416,17 +437,17 @@ pub async fn to_record_batches(
                     }
                 }
                 _ => {
-                    let val = row.try_get::<Option<String>, _>(cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
                     match val {
                         None => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            builders[cidx]
+                            builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
@@ -445,8 +466,23 @@ pub async fn to_record_batches(
             batches.push(batch);
             // reset builders
             builders = Vec::new();
-            for (_col_name, col_type) in columns.iter() {
-                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+            for col in row.columns() {
+                let col_cidx = col.ordinal();
+                let col_type = col.type_info().name();
+                // arrow data type
+                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
+                // modify the scale of decimal
+                if col_type == "DECIMAL" {
+                    let val = row
+                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
+                        .unwrap()
+                        .unwrap();
+                    let (_, scale) = val.as_bigint_and_exponent();
+                    arrow_type = arrow::datatypes::DataType::Decimal256(
+                        DECIMAL256_MAX_PRECISION,
+                        scale as i8,
+                    );
+                }
                 builders.push(array::make_builder(&arrow_type, 10));
             }
             // reset row count

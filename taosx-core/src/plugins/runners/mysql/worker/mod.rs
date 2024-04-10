@@ -1,9 +1,7 @@
 use std::cmp;
 
 use chrono::{DateTime, Utc};
-use scc::tree_index;
 
-use crate::runners::mysql::appender::to_record_batch;
 use crate::runners::mysql::appender::to_schema;
 use crate::runners::mysql::config::MySqlConfig;
 use crate::runners::mysql::query::MySqlQuery;
@@ -43,7 +41,7 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
             return Ok(());
         }
     };
-    tracing::info!("schema: {:?}", schema);
+    tracing::debug!("schema: {:?}", schema);
 
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);

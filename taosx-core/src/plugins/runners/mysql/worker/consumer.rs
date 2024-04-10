@@ -1,6 +1,6 @@
 use arrow::ipc::writer::StreamWriter;
 use arrow_schema::Schema;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use flume::Receiver;
 use futures::StreamExt;
 
@@ -149,10 +149,9 @@ mod tests {
     use crate::runners::mysql::worker::producer::Producer;
 
     use super::*;
-    use anyhow::Ok;
     use std::str::FromStr;
     use taos::Dsn;
-    use tests::appender::{to_record_batch, to_schema};
+    use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_consumer() {

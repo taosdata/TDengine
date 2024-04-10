@@ -2,7 +2,6 @@ use crate::plugins::config::AdvancedOptions;
 use crate::runners::mysql::config::connect::ConnectConfig;
 use anyhow::Ok;
 use chrono::{DateTime, Duration, Utc};
-use std::str::FromStr;
 use taos::Dsn;
 
 pub mod connect;
@@ -231,6 +230,7 @@ impl TaskConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_parse_config_invalid_driver() {
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
