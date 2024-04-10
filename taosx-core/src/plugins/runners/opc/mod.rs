@@ -16,7 +16,6 @@ use tracing::{instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::OPCConfig;
@@ -59,18 +58,6 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
-pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
-    if let Some(key) = dsn.remove(key) {
-        match key.as_str() {
-            "false" => Ok(Some(false)),
-            "" | "true" => Ok(Some(true)),
-            _ => anyhow::bail!("should config true or false"),
-        }
-    } else {
-        Ok(None)
-    }
-}
-
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
 pub async fn opc_to_taos(
     mut from: Dsn,
@@ -99,10 +86,7 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
-        .map_err(|err| anyhow::anyhow!("select_all_points config error: {}", err.to_string()))?
-        .unwrap_or(false);
-
+    let select_all_points = OPCConfig::parse_select_all_points(&from)?.unwrap_or(false);
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
@@ -114,12 +98,9 @@ pub async fn opc_to_taos(
     let auth_private_key = get_temp_file(&mut from, "auth_private_key");
 
     let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
-    if config.opc_table_config.is_none() {
-        anyhow::bail!("should config opc table config");
-    }
 
     let toml = toml::to_string(&config)?;
-    let mut config_file = tempfile::NamedTempFile::new()?;
+    let mut config_file = NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
@@ -128,34 +109,25 @@ pub async fn opc_to_taos(
         config_path.display(),
         toml
     );
+
     // save the temporary file to task dir
-    match task_id {
-        Some(task_id) => {
-            let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
-            let path = path.join(format!(
-                "{}-{}-{}.{}",
-                task_id,
-                "opc",
-                chrono::Local::now().format("%Y%m%d%H%M"),
-                "toml"
-            ));
-            let _ = fs::copy(&config_path, path);
-        }
-        None => {}
+    if let Some(task_id) = task_id {
+        let path = get_data_dir().join("tasks").join(task_id.to_string());
+        fs::create_dir_all(&path).unwrap();
+        let path = path.join(format!(
+            "{}-{}-{}.{}",
+            task_id,
+            "opc",
+            chrono::Local::now().format("%Y%m%d%H%M"),
+            "toml"
+        ));
+        let _ = fs::copy(&config_path, path);
     }
 
-    let parser = CsvParser::from_dsn(&from).await;
-    let table_config_map = match parser {
-        Ok(parser) => parser.get_model_config().table_config_map,
-        Err(_) => HashMap::new(),
-    };
-
-    let model_config = Some(config.with_table_config_map(table_config_map).await?);
     let connector = match config.opc_type {
-        OpcType::FAKE => None,
-        OpcType::OPCDA => Some("opc_da"),
         OpcType::OPCUA => Some("opc_ua"),
+        OpcType::OPCDA => Some("opc_da"),
+        OpcType::FAKE => None,
     };
 
     let mut ipc_handler = build_ipc(
@@ -163,7 +135,7 @@ pub async fn opc_to_taos(
         None,
         &to,
         connector,
-        model_config,
+        config.get_model_config().cloned(),
         &cancel,
         with_agent,
         transferred,
@@ -178,15 +150,10 @@ pub async fn opc_to_taos(
 
     let mut log_path = super::get_log_dir("");
     fs::create_dir_all(&log_path)?;
-
     tracing::info!("log path created: {}", &log_path.display());
-
     log_path.push(LOG_FILE);
-
     tracing::info!("log file dir: {}", &log_path.display());
-
     let log_keep_days = get_log_keep_days();
-
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let child = command
@@ -197,12 +164,8 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
-    let ds_name = match config.opc_type {
-        OpcType::FAKE => "fake",
-        OpcType::OPCDA => "opcda",
-        OpcType::OPCUA => "opcua",
-    };
-    send_sub_process_info(child.id(), task_id, ds_name);
+
+    send_sub_process_info(child.id(), task_id, config.opc_type.to_string().as_str());
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
@@ -438,33 +401,9 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
-#[test]
-fn test_tbname_pattern() {
-    let cases = [
-        ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
-        ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
-        (
-            "{ns}_{id}",
-            "ns=13;g=00000000-0000-0000-0000-000000009204",
-            "13_00000000-0000-0000-0000-000000009204",
-        ),
-        (
-            "{ns}_{id}",
-            r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
-            r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
-        ),
-    ];
-    for (pattern, point_id, expected) in cases.iter() {
-        let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
-        assert_eq!(tbname, *expected);
-    }
-}
-
-/*
- * 解析为文件路径.
- * 1. 如果以@开头，表示文件路径, 直接覆盖会dsn;
- * 2. 否则，认为是文件内容，存储到临时文件后，返回文件句柄，为了使tempfile不被删除，需要返回NamedTempFile.
- */
+/// 解析为文件路径.
+/// 1. 如果以@开头，表示文件路径, 直接覆盖会dsn;
+/// 2. 否则，认为是文件内容，存储到临时文件后，返回文件句柄，为了使tempfile不被删除，需要返回NamedTempFile.
 fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
     let file_name = dsn.get(key);
     if file_name.is_none() {
@@ -676,9 +615,30 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_tbname_pattern() {
+        let cases = [
+            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
+            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
+            (
+                "{ns}_{id}",
+                "ns=13;g=00000000-0000-0000-0000-000000009204",
+                "13_00000000-0000-0000-0000-000000009204",
+            ),
+            (
+                "{ns}_{id}",
+                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
+                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+            ),
+        ];
+        for (pattern, point_id, expected) in cases.iter() {
+            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
+            assert_eq!(tbname, *expected);
+        }
+    }
 
     #[ignore]
     #[tokio::test]
@@ -703,28 +663,6 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("opc", dsv.data_source);
         assert_eq!("2.4.0", dsv.version.unwrap());
-    }
-
-    #[test]
-    fn test_tbname_pattern() {
-        let cases = [
-            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
-            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
-            (
-                "{ns}_{id}",
-                "ns=13;g=00000000-0000-0000-0000-000000009204",
-                "13_00000000-0000-0000-0000-000000009204",
-            ),
-            (
-                "{ns}_{id}",
-                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
-                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
-            ),
-        ];
-        for (pattern, point_id, expected) in cases.iter() {
-            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
-            assert_eq!(tbname, *expected);
-        }
     }
 
     #[test]
@@ -807,8 +745,9 @@ impl Display for OpcType {
 
 #[cfg(test)]
 mod opc_type_tests {
-    use super::*;
     use taos::Dsn;
+
+    use super::*;
 
     #[test]
     fn test_from_dsn() {
