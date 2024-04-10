@@ -286,8 +286,11 @@ static void taosKeepOldLog(char *oldName) {
     taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
   }
 }
-
-static void *taosThreadToOpenNewFile(void *param) {
+typedef struct {
+  TdFilePtr pOldFile;
+  char      keepName[LOG_FILE_NAME_LEN + 20];
+} OldFileKeeper;
+static OldFileKeeper *taosOpenNewFile() {
   char keepName[LOG_FILE_NAME_LEN + 20];
   sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
@@ -313,13 +316,26 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  taosSsleep(20);
-  taosCloseLogByFd(pOldFile);
+  OldFileKeeper* oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
+  if (oldFileKeeper == NULL) {
+    uError("create old log keep info faild! mem is not enough.");
+    return NULL;
+  }
+  oldFileKeeper->pOldFile = pOldFile;
+  memcpy(oldFileKeeper->keepName, keepName, LOG_FILE_NAME_LEN + 20);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  taosKeepOldLog(keepName);
+  return oldFileKeeper;
+}
 
+static void *taosThreadToCloseOldFile(void* param) {
+  if(!param)  return NULL;
+  OldFileKeeper* oldFileKeeper = (OldFileKeeper*)param;
+  taosSsleep(20);
+  taosCloseLogByFd(oldFileKeeper->pOldFile);
+  taosKeepOldLog(oldFileKeeper->keepName);
+  taosMemoryFree(oldFileKeeper);
   return NULL;
 }
 
@@ -335,7 +351,8 @@ static int32_t taosOpenNewLogFile() {
     taosThreadAttrInit(&attr);
     taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    taosThreadCreate(&thread, &attr, taosThreadToOpenNewFile, NULL);
+    OldFileKeeper* oldFileKeeper = taosOpenNewFile();
+    taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper);
     taosThreadAttrDestroy(&attr);
   }
 
