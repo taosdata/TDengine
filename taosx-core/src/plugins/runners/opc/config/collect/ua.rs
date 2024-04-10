@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
 use crate::runners::opc::config::collect::CollectMode;
-use crate::runners::opc::config::{
-    generate_config_from_csv, get_string_vec_from_param_or_file_for_opc, OPCConfig,
-};
+use crate::runners::opc::config::csv::CsvParser;
+use crate::runners::opc::config::{get_string_vec_from_param_or_file_for_opc, OPCConfig};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UaCollectConfig {
@@ -43,12 +42,11 @@ impl UaCollectConfig {
         let csv_config_file = OPCConfig::parse_csv_config_file(dsn);
 
         let node_vec = match csv_config_file {
-            Some(csv) => generate_config_from_csv("opcua", csv.as_str())
-                .await
-                .map(|(_a, b, _c)| b)
-                .map_err(|err| {
-                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                })?,
+            Some(_csv) => {
+                let parser = CsvParser::from_dsn(dsn).await?;
+                let node_ids = parser.get_point_ids();
+                node_ids
+            }
             None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
                 .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?,
         };
@@ -104,23 +102,20 @@ mod tests {
     #[test]
     fn test_parse_collect_mode() {
         let dsn = Dsn::from_str("opcua://").unwrap();
-        let collect_mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(collect_mode, CollectMode::OBSERVE);
+        let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
+        assert_eq!(mode, CollectMode::OBSERVE);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=observe").unwrap();
-        let collect_mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(collect_mode, CollectMode::OBSERVE);
+        let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
+        assert_eq!(mode, CollectMode::OBSERVE);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=subscribe").unwrap();
-        let collect_mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
-        assert_eq!(collect_mode, CollectMode::SUBSCRIBE);
+        let mode = UaCollectConfig::parse_collect_mode(&dsn).unwrap();
+        assert_eq!(mode, CollectMode::SUBSCRIBE);
 
         let dsn = Dsn::from_str("opcua://?collect_mode=xxx").unwrap();
-        let collect_mode = UaCollectConfig::parse_collect_mode(&dsn);
-        assert!(collect_mode.is_err());
-        assert_eq!(
-            "parse collect_mode failed, cause: ",
-            collect_mode.unwrap_err().to_string()
-        );
+        let mode = UaCollectConfig::parse_collect_mode(&dsn);
+        assert!(mode.is_err());
+        assert_eq!("invalid collect_mode: xxx", mode.unwrap_err().to_string());
     }
 }

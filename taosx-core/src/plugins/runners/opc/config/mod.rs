@@ -36,18 +36,35 @@ mod report;
 pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
-    connect: ConnectConfig,
-    pub points: Option<PointsConfig>,
-    collect: CollectConfig,
+    pub connect: ConnectConfig,
     pub report: ReportConfig,
+    pub points: Option<PointsConfig>,
+    pub collect: CollectConfig,
 
     #[serde(skip)]
-    pub param_mapping: HashMap<String, PointConfig>,
-    #[serde(skip)]
-    pub opc_table_config: Option<TableConfig>,
+    model_config: Option<OpcModelConfig>,
 }
 
 impl OPCConfig {
+    /// 从 dsn 中解析参数 select_all_points
+    /// 1. dsn 没有参数，返回 None
+    /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
+    /// 3. dsn 有参数，不合法，Error, return Error()
+    pub fn parse_select_all_points(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
+        dsn.params
+            .get("select_all_points")
+            .map(|v| {
+                v.parse::<bool>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse select_all_points: {}, cause: {}",
+                        v,
+                        err.to_string()
+                    )
+                })
+            })
+            .transpose()
+    }
+
     pub async fn from_dsn_collect_mode(
         dsn: &Dsn,
         ipc_port: u16,
@@ -58,23 +75,17 @@ impl OPCConfig {
             bail!("invalid opc driver");
         }
 
-        let config = Self {
-            opc_type: OpcType::from_dsn(dsn)?,
-            debug: Self::parse_debug(dsn)?,
-            connect: ConnectConfig::from_dsn(dsn)?,
-            points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
-            report: ReportConfig::from_dsn(dsn, ipc_port)?,
-            param_mapping: Self::build_param_mapping(dsn).await?,
-            opc_table_config: TableConfig::from_dsn(dsn).await?,
-        };
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let debug = Self::parse_debug(dsn)?;
+        let connect = ConnectConfig::from_dsn(dsn)?;
+        let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
 
-        if csv_config_file.is_some() {
+        let model_config = if csv_config_file.is_some() {
             let parser = CsvParser::from_dsn(dsn).await?;
-            let table_to_drop = parser.get_tables_to_drop();
 
+            let table_to_drop = parser.get_tables_to_drop();
             for child_table_name in table_to_drop.iter() {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
@@ -82,9 +93,43 @@ impl OPCConfig {
                     anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
                 })?;
             }
-        }
 
-        Ok(config)
+            Some(parser.get_model_config())
+        } else {
+            // 如果没有 csv_config_file 参数，那么, 从 dsn 中解析 point_config_map 和 table_config_map
+            let point_config_map = Self::build_point_config_map(dsn)?;
+
+            // 前端传递了 opc_table_config 参数
+            let table_config = dsn
+                .params
+                .get("opc_table_config")
+                .ok_or(anyhow::anyhow!("opc_table_config is required"))?;
+            let table_config: TableConfig =
+                serde_json::from_str(table_config.as_str()).map_err(|v| {
+                    anyhow::anyhow!("failed to parse opc_table_config, cause: {}", v.to_string())
+                })?;
+
+            // all point_id share the same table_config
+            let mut table_config_map = LinkedHashMap::new();
+            for point_id in point_config_map.keys() {
+                table_config_map.insert(point_id.clone(), table_config.clone());
+            }
+
+            Some(OpcModelConfig {
+                point_config_map,
+                table_config_map,
+            })
+        };
+
+        Ok(Self {
+            opc_type,
+            debug,
+            connect,
+            report,
+            points: None,
+            collect: CollectConfig::from_dsn(dsn, id).await?,
+            model_config,
+        })
     }
 
     pub async fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
@@ -112,9 +157,12 @@ impl OPCConfig {
                 CollectConfig::new_empty()
             },
             report: ReportConfig::from_dsn(&dsn, 0)?,
-            param_mapping: HashMap::new(),
-            opc_table_config: None,
+            model_config: None,
         })
+    }
+
+    pub fn get_model_config(&self) -> Option<&OpcModelConfig> {
+        self.model_config.as_ref()
     }
 
     pub fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
@@ -125,8 +173,7 @@ impl OPCConfig {
             points: None,
             collect: CollectConfig::new_empty(),
             report: ReportConfig::from_dsn(dsn, 0)?,
-            param_mapping: HashMap::new(),
-            opc_table_config: None,
+            model_config: None,
         })
     }
 
@@ -152,21 +199,12 @@ impl OPCConfig {
         dsn.params.get("csv_config_file").map(|v| v.to_string())
     }
 
-    async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
-        let csv_config_file = Self::parse_csv_config_file(dsn);
-
-        if csv_config_file.is_some() {
-            let parser = CsvParser::from_dsn(dsn).await?;
-            let point_config_map = parser.get_model_config().point_config_map;
-            return Ok(point_config_map);
-        }
-
+    /// parse point config map from dsn
+    fn build_point_config_map(dsn: &Dsn) -> anyhow::Result<LinkedHashMap<String, PointConfig>> {
         let opc_type = OpcType::from_dsn(dsn)?;
-
-        let param_mapping = match opc_type {
+        let point_config_map = match opc_type {
             OpcType::OPCUA => {
-                let mut param_mapping = HashMap::new();
-
+                let mut point_config_map = LinkedHashMap::new();
                 let ua_nodes =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
                         .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
@@ -182,7 +220,7 @@ impl OPCConfig {
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
-                    param_mapping.insert(
+                    point_config_map.insert(
                         tag,
                         PointConfig {
                             code,
@@ -192,10 +230,10 @@ impl OPCConfig {
                         },
                     );
                 }
-                param_mapping
+                point_config_map
             }
             OpcType::OPCDA => {
-                let mut param_mapping = HashMap::new();
+                let mut point_config_map = LinkedHashMap::new();
 
                 let node_vec =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
@@ -211,7 +249,7 @@ impl OPCConfig {
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
-                    param_mapping.insert(
+                    point_config_map.insert(
                         tag,
                         PointConfig {
                             code,
@@ -221,37 +259,11 @@ impl OPCConfig {
                         },
                     );
                 }
-                param_mapping
+                point_config_map
             }
             _ => bail!("invalid opc type: {}", opc_type),
         };
-
-        Ok(param_mapping)
-    }
-
-    pub fn parse_select_all_points(dsn: &Dsn) -> bool {
-        dsn.params
-            .get("select_all_points")
-            .map(|v| v.parse::<bool>().ok().unwrap_or(true))
-            .unwrap_or(false)
-    }
-
-    pub async fn with_table_config_map(
-        &self,
-        table_config_map: HashMap<String, TableConfig>,
-    ) -> anyhow::Result<OpcModelConfig> {
-        let id_code_map = self
-            .param_mapping
-            .iter()
-            .map(|(id, code)| (id.clone(), code.clone()))
-            .collect();
-
-        let c = OpcModelConfig {
-            point_config_map: id_code_map,
-            table_config: self.opc_table_config.clone().unwrap(),
-            table_config_map,
-        };
-        Ok(c)
+        Ok(point_config_map)
     }
 }
 
@@ -263,6 +275,7 @@ pub enum AuthMethod {
     Certificate,
 }
 
+/*
 /// return opc table config, node_config, tables_to_drop
 // #[async_backtrace::framed]
 pub async fn generate_config_from_csv(
@@ -589,7 +602,7 @@ fn check_duplicated(
     }
     Ok(())
 }
-
+*/
 pub fn get_string_vec_from_param_or_file_for_opc(
     dsn: &mut Dsn,
     key: &str,
