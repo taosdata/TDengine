@@ -1190,37 +1190,22 @@ function getOptionData(data, queryArr, definition) {
 // 处理 tmq endpoint
 function handleEndpoint(endpoint) {
   if (!endpoint) return '';
-  let result = '';
-  let url = endpoint.replace(/(taos\+|tmq\+)/g, "");
+  let url = endpoint.replace(/^(taos|tmq)\+/, "").replace(/^(http|ws):/, "ws:").replace(/^(https|wss):/, "wss:");
   if (url.includes("://")) {
-    let parsed_url = new URL(url);
-    let scheme = null;
-    if (parsed_url.protocol == "http:") {
-      scheme = "tmq+ws";
-    } else if (parsed_url.protocol == "https:") {
-      scheme = "tmq+wss";
-    } else {
-      scheme = "tmq+" + parsed_url.protocol.replace(":", "");
+    try {
+      let parsed_url = new URL(url);
+      return "tmq+" + parsed_url.toString();
+    } catch (error) {
+      console.log("Invalid URL: ", url, error);
+      // not a valid url, use as is.
+      return "tmq+" + url;
     }
-
-    let host = parsed_url.host;
-    let user =
-      parsed_url.username || localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
-    let pass = parsed_url.password || decrypted || "";
-    return result =
-      scheme +
-      "://" +
-      user +
-      ":" +
-      pass +
-      "@" +
-      host +
-      parsed_url.pathname +
-      parsed_url.search;
   } else {
-    let host = url;
-    return result = "tmq+ws://" + host;
+    if (url.includes("6041")) {
+      return "tmq+ws://" + url;
+    } else {
+      return "tmq://" + url;
+    }
   }
 }
 
