@@ -380,12 +380,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
-    taosTmrStop(pTask->hTaskInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->hTaskInfo.pTimer);
     pTask->hTaskInfo.pTimer = NULL;
   }
 
   if (pTask->msgInfo.pTimer != NULL) {
-    taosTmrStop(pTask->msgInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->msgInfo.pTimer);
     pTask->msgInfo.pTimer = NULL;
   }
 

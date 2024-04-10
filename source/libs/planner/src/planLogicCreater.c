@@ -521,6 +521,9 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     } else if (pSelect->pPartitionByList) {
       isCountByTag = !keysHasCol(pSelect->pPartitionByList);
     }
+    if (pScan->tableType == TSDB_CHILD_TABLE) {
+      isCountByTag = true;
+    }
   }
   pScan->isCountByTag = isCountByTag;
 

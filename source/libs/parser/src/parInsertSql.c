@@ -1566,11 +1566,13 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     case TSDB_DATA_TYPE_NCHAR: {
       // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
       int32_t len = 0;
-      char*   pUcs4 = taosMemoryCalloc(1, pSchema->bytes - VARSTR_HEADER_SIZE);
+      int64_t realLen = pToken->n << 2;
+      if (realLen > pSchema->bytes - VARSTR_HEADER_SIZE) realLen = pSchema->bytes - VARSTR_HEADER_SIZE;
+      char* pUcs4 = taosMemoryMalloc(realLen);
       if (NULL == pUcs4) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, pSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)pUcs4, realLen, &len)) {
         taosMemoryFree(pUcs4);
         if (errno == E2BIG) {
           return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);

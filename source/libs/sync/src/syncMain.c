@@ -276,15 +276,17 @@ int32_t syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   int32_t ret = -1;
+  int32_t errcode = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
+  void*   pHead = NULL;
+  int32_t contLen = 0;
 
   SVArbSetAssignedLeaderReq req = {0};
   if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead), pRpcMsg->contLen, &req) != 0) {
     sError("vgId:%d, failed to deserialize SVArbSetAssignedLeaderReq", ths->vgId);
     terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    errcode = terrno;
+    goto _OVER;
   }
-
-  int32_t errcode = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
 
   if (ths->arbTerm > req.arbTerm) {
     sInfo("vgId:%d, skip to set assigned leader, msg with lower term, local:%" PRId64 "msg:%" PRId64, ths->vgId,
@@ -294,24 +296,25 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) == 0) {
-    if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-      raftStoreNextTerm(ths);
-      if (terrno != TSDB_CODE_SUCCESS) {
-        sError("vgId:%d, failed to set next term since:%s", ths->vgId, terrstr());
-        goto _OVER;
-      }
-      syncNodeBecomeAssignedLeader(ths);
-
-      if (syncNodeAppendNoop(ths) < 0) {
-        sError("vgId:%d, assigned leader failed to append noop entry since %s", ths->vgId, terrstr());
-      }
-    }
-    errcode = TSDB_CODE_SUCCESS;
-  } else {
+  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
     sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
           req.memberToken);
     goto _OVER;
+  }
+
+  if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+    terrno = TSDB_CODE_SUCCESS;
+    raftStoreNextTerm(ths);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      sError("vgId:%d, failed to set next term since:%s", ths->vgId, terrstr());
+      errcode = terrno;
+      goto _OVER;
+    }
+    syncNodeBecomeAssignedLeader(ths);
+
+    if (syncNodeAppendNoop(ths) < 0) {
+      sError("vgId:%d, assigned leader failed to append noop entry since %s", ths->vgId, terrstr());
+    }
   }
 
   SVArbSetAssignedLeaderRsp rsp = {0};
@@ -319,25 +322,32 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   rsp.memberToken = req.memberToken;
   rsp.vgId = ths->vgId;
 
-  int32_t contLen = tSerializeSVArbSetAssignedLeaderRsp(NULL, 0, &rsp);
+  contLen = tSerializeSVArbSetAssignedLeaderRsp(NULL, 0, &rsp);
   if (contLen <= 0) {
     sError("vgId:%d, failed to serialize SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     goto _OVER;
   }
-  void* pHead = rpcMallocCont(contLen);
+  pHead = rpcMallocCont(contLen);
   if (!pHead) {
     sError("vgId:%d, failed to malloc memory for SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     goto _OVER;
   }
   if (tSerializeSVArbSetAssignedLeaderRsp(pHead, contLen, &rsp) <= 0) {
     sError("vgId:%d, failed to serialize SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     rpcFreeCont(pHead);
     goto _OVER;
   }
 
+  errcode = TSDB_CODE_SUCCESS;
+  ret = 0;
+
+_OVER:;
   SRpcMsg rspMsg = {
       .code = errcode,
       .pCont = pHead,
@@ -347,9 +357,6 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   tmsgSendRsp(&rspMsg);
 
-  ret = 0;
-
-_OVER:
   tFreeSVArbSetAssignedLeaderReq(&req);
   return ret;
 }

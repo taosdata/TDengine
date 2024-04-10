@@ -2140,6 +2140,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;
+    if (numOfTables == 1 && pTableListInfo->idInfo.tableType == TSDB_CHILD_TABLE) {
+      pTableListInfo->oneTableForEachGroup = true;
+    }
 
     if (groupSort && groupByTbname) {
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);

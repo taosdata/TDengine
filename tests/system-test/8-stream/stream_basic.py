@@ -96,9 +96,28 @@ class TDTestCase:
         time.sleep(2)
         tdSql.query("select * from sta")
         tdSql.checkRows(3)
+        tdSql.query("select tbname from sta order by tbname")
+        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.sta_'):
+            tdLog.exit("error1")
+
+        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.sta_'):
+            tdLog.exit("error2")
+
+        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.sta_'):
+            tdLog.exit("error3")
 
         tdSql.query("select * from stb")
         tdSql.checkRows(3)
+        tdSql.query("select tbname from stb order by tbname")
+        if not tdSql.getData(0, 0).startswith('new-t1_1.d1.stb_'):
+            tdLog.exit("error4")
+
+        if not tdSql.getData(1, 0).startswith('new-t2_1.d1.stb_'):
+            tdLog.exit("error5")
+
+        if not tdSql.getData(2, 0).startswith('new-t3_1.d1.stb_'):
+            tdLog.exit("error6")
+
     # run
     def run(self):
         self.case1()
