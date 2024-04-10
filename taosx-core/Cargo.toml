@@ -121,6 +121,9 @@ sysinfo = { workspace=true }
 chardetng = "0.1.17"
 encoding_rs = "0.8.33"
 
+sqlx = { version = "0.7.4", features = ["mysql", "runtime-tokio", "chrono", "bigdecimal"] }
+bigdecimal = "0.3.0"
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"

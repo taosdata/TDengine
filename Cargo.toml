@@ -182,7 +182,7 @@ prettytable = "0.10.0"
 tikv-jemallocator = { version = "0.5", optional = true }
 
 [build-dependencies]
-sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "mysql"] }
 dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
