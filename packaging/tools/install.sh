@@ -505,7 +505,7 @@ function install_taosx_config() {
 
   fileName="${script_dir}/${xname}/etc/taos/${xname}.toml"
   if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1${serverFqdn}/" ${fileName}
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
     
     if [ -f "${configDir}/${xname}.toml" ]; then
       ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
@@ -1066,8 +1066,10 @@ check_java_env() {
 
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
-check_java_env
 if [ "$verType" == "server" ]; then
+  if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
+    check_java_env
+  fi
   # Check default 2.x data file.
   if [ -x ${dataDir}/dnode/dnodeCfg.json ]; then
     echo -e "\033[44;31;5mThe default data directory ${dataDir} contains old data of ${productName} 2.x, please clear it before installing!\033[0m"
