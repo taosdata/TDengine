@@ -527,7 +527,7 @@ void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const ch
 
     int32_t count = CBC_Decrypt(&opts);
 
-    wDebug("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
+    //wDebug("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
     memcpy(pHead->head.body, newBody, plainBodyLen);
 
