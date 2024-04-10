@@ -889,14 +889,15 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
-    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) { // group by tbname, group by tag + sort
+    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) {  // group by tbname, group by tag + sort
       if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =
             (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
+        if (NULL == pStart) return NULL;
         return getBlockForEmptyTable(pOperator, pStart);
       }
-    } else { // group by tag + no sort
+    } else {  // group by tag + no sort
       int32_t numOfTables = tableListGetSize(pTableListInfo);
       if (pTableScanInfo->tableEndIndex + 1 >= numOfTables) {
         // get empty group, mark processed & rm from hash

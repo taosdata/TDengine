@@ -415,6 +415,13 @@ type_name(A) ::= DECIMAL.                                                       
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                  { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 
+%type type_name_default_len                                                       { SDataType }
+%destructor type_name_default_len                                                 { }
+type_name_default_len(A) ::= BINARY.                                              { A = createVarLenDataType(TSDB_DATA_TYPE_BINARY, NULL); }
+type_name_default_len(A) ::= NCHAR.                                               { A = createVarLenDataType(TSDB_DATA_TYPE_NCHAR, NULL); }
+type_name_default_len(A) ::= VARCHAR.                                             { A = createVarLenDataType(TSDB_DATA_TYPE_VARCHAR, NULL); }
+type_name_default_len(A) ::= VARBINARY.                                           { A = createVarLenDataType(TSDB_DATA_TYPE_VARBINARY, NULL); }
+
 %type tags_def_opt                                                                { SNodeList* }
 %destructor tags_def_opt                                                          { nodesDestroyList($$); }
 tags_def_opt(A) ::= .                                                             { A = NULL; }
@@ -1111,6 +1118,9 @@ function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).  
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).    { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::=
   CAST(B) NK_LP expr_or_subquery(C) AS type_name(D) NK_RP(E).                     { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+function_expression(A) ::=
+  CAST(B) NK_LP expr_or_subquery(C) AS type_name_default_len(D) NK_RP(E).         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+
 function_expression(A) ::= literal_func(B).                                       { A = B; }
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
