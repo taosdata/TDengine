@@ -3203,10 +3203,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
 
   SWinKey key = {0};
   if (pCtx->saveHandle.pBuf == NULL) {
-    SColumnInfoData* pColInfo = pCtx->input.pPTS;
-    if (!pColInfo || pColInfo->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
-      pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
-    }
+    SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
     ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     key.groupId = pSrcBlock->info.id.groupId;
     key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);;
