@@ -516,7 +516,6 @@ typedef struct SStreamMeta {
   TdThreadMutex   backendMutex;
   SMetaHbInfo*    pHbInfo;
   STaskUpdateInfo updateInfo;
-  SHashObj*       pUpdateTaskSet;
   int32_t         numOfStreamTasks;  // this value should be increased when a new task is added into the meta
   int32_t         numOfPausedTasks;
   int64_t         rid;
