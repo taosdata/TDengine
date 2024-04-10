@@ -198,11 +198,8 @@ static int32_t tqMetaTransformCheckInfo(STQ* pTq) {
 }
 
 static int32_t tqMetaProcessHistoryCheckInfo(STQ* pTq) {
-  void*    pVal = NULL;
-  int      vLen = 0;
-
   char key[] = "__check_info_history__";
-  if (tdbTbGet(pTq->pCheckStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
+  if (tdbTbGet(pTq->pCheckStore, key, (int)strlen(key), NULL, NULL) < 0) {
     if(tqMetaTransformCheckInfo(pTq) != 0){
       return -1;
     }
@@ -282,11 +279,8 @@ static int32_t tqMetaTransformOffsetInfo(STQ* pTq) {
 }
 
 static int32_t tqMetaProcessHistoryOffsetInfo(STQ* pTq) {
-  void*    pVal = NULL;
-  int      vLen = 0;
-
   char key[] = "__offset_info_history__";
-  if (tdbTbGet(pTq->pOffsetStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
+  if (tdbTbGet(pTq->pOffsetStore, key, (int)strlen(key), NULL, NULL) < 0) {
     if(tqMetaTransformOffsetInfo(pTq) != 0){
       return -1;
     }
