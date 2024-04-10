@@ -59,7 +59,7 @@ static int32_t  doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pR
                                          int32_t rowIndex);
 static void     setComposedBlockFlag(STsdbReader* pReader, bool composed);
 static bool     hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t ver, int32_t order,
-                               SVersionRange* pVerRange);
+                               SVersionRange* pVerRange, bool hasPk);
 
 static int32_t doMergeMemTableMultiRows(TSDBROW* pRow, SRowKey* pKey, uint64_t uid, SIterInfo* pIter, SArray* pDelList,
                                         TSDBROW* pResRow, STsdbReader* pReader, bool* freeTSRow);
@@ -1595,7 +1595,8 @@ static bool nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBlockSc
     tColRowGetKeyDeepCopy(pRow->pBlockData, pRow->iRow, pkSrcSlot, pNextProc);
 
     if (pScanInfo->delSkyline != NULL && TARRAY_SIZE(pScanInfo->delSkyline) > 0) {
-      if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, order, pVerRange)) {
+      if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, order, pVerRange,
+                          pSttBlockReader->numOfPks > 0)) {
         pScanInfo->sttKeyInfo.status = STT_FILE_HAS_DATA;
         return true;
       }
@@ -2135,7 +2136,7 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, int32_t rowIndex, STable
 
   if (pBlockScanInfo->delSkyline != NULL && TARRAY_SIZE(pBlockScanInfo->delSkyline) > 0) {
     bool dropped = hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->fileDelIndex, ts, ver, pInfo->order,
-                                  &pInfo->verRange);
+                                  &pInfo->verRange, pReader->suppInfo.numOfPks > 0);
     if (dropped) {
       return false;
     }
@@ -3381,8 +3382,35 @@ SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_
   return (SVersionRange){.minVer = startVer, .maxVer = endVer};
 }
 
+static int32_t reverseSearchStartPos(const SArray* pDelList, int32_t index, int64_t key, bool asc) {
+  size_t  num = taosArrayGetSize(pDelList);
+  int32_t start = index;
+
+  if (asc) {
+    if (start >= num - 1) {
+      start = num - 1;
+    }
+
+    TSDBKEY* p = taosArrayGet(pDelList, start);
+    while (p->ts >= key && start > 0) {
+      start -= 1;
+    }
+  } else {
+    if (index <= 0) {
+      start = 0;
+    }
+
+    TSDBKEY* p = taosArrayGet(pDelList, start);
+    while (p->ts <= key && start < num - 1) {
+      start += 1;
+    }
+  }
+
+  return start;
+}
+
 bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t ver, int32_t order,
-                    SVersionRange* pVerRange) {
+                    SVersionRange* pVerRange, bool hasPk) {
   if (pDelList == NULL || (TARRAY_SIZE(pDelList) == 0)) {
     return false;
   }
@@ -3390,6 +3418,10 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
   size_t  num = taosArrayGetSize(pDelList);
   bool    asc = ASCENDING_TRAVERSE(order);
   int32_t step = asc ? 1 : -1;
+
+  if (hasPk) {  // handle the case where duplicated timestamps existed.
+    *index = reverseSearchStartPos(pDelList, *index, key, asc);
+  }
 
   if (asc) {
     if (*index >= num - 1) {
@@ -3503,7 +3535,7 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
     if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
       return pRow;
     } else {
-      bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange);
+      bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange, pReader->suppInfo.numOfPks > 0);
       if (!dropped) {
         return pRow;
       }
@@ -3528,7 +3560,7 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
       if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
         return pRow;
       } else {
-        bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange);
+        bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange, pReader->suppInfo.numOfPks > 0);
         if (!dropped) {
           return pRow;
         }
