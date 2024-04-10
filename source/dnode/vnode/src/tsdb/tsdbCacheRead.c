@@ -57,7 +57,6 @@ static void saveOneRowForLastRaw(SLastCol* pColVal, SCacheRowsReader* pReader, c
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
-  // bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
     uint64_t       ts = TSKEY_MIN;
@@ -108,11 +107,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         }
       }
 
-      // pColInfoData->info.bytes includes the VARSTR_HEADER_SIZE, need to substruct it
+      // pColInfoData->info.bytes includes the VARSTR_HEADER_SIZE, need to subtract it
       p->hasResult = true;
       varDataSetLen(pRes[i], pColInfoData->info.bytes - VARSTR_HEADER_SIZE);
       colDataSetVal(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
+
     for (int32_t idx = 0; idx < taosArrayGetSize(pBlock->pDataBlock); ++idx) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
       if (idx < funcTypeBlockArray->size) {
@@ -233,6 +233,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     if (IS_VAR_DATA_TYPE(pPkCol->type)) {
       p->rowKey.pks[0].pData = taosMemoryCalloc(1, pPkCol->bytes);
     }
+
+    p->pkColumn = *pPkCol;
   }
 
   if (numOfTables == 0) {
@@ -366,15 +368,15 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    int32_t bytes;
-    if (slotIds[j] == -1) {
-      bytes = 1;
-    } else {
-      bytes = pr->pSchema->columns[slotIds[j]].bytes;
-    }
+  int32_t pkBufLen = 0;
+  if (pr->rowKey.numOfPKs > 0) {
+    pkBufLen = pr->pkColumn.bytes;
+  }
 
-    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + VARSTR_HEADER_SIZE);
+  for (int32_t j = 0; j < pr->numOfCols; ++j) {
+    int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
+
+    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + pkBufLen + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
