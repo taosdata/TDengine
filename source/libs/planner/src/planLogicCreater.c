@@ -548,14 +548,16 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->hasSubQuery = pJoinTable->hasSubQuery;
   pJoin->node.inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
-  pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pJoin->hashJoinHint = getHashJoinOptHint(pSelect->pHint);
+  pJoin->node.requireDataOrder = pJoin->hashJoinHint ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
   pJoin->pWindowOffset = nodesCloneNode(pJoinTable->pWindowOffset);
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
   pJoin->addPrimEqCond = nodesCloneNode(pJoinTable->addPrimCond);
   pJoin->node.pChildren = nodesMakeList();
-  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);
+  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);  
+
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }

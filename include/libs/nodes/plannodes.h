@@ -148,6 +148,12 @@ typedef struct SJoinLogicNode {
   bool           isLowLevelJoin;
   bool           seqWinGroup;
   bool           grpJoin;
+  bool           hashJoinHint;
+
+  // FOR HASH JOIN
+  STimeWindow    timeRange;     //table onCond filter
+  SNode*         pLeftOnCond;   //table onCond filter
+  SNode*         pRightOnCond;  //table onCond filter
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -521,10 +527,14 @@ typedef struct SHashJoinPhysiNode {
   SNode*       pJLimit;  
   SNodeList*   pOnLeft;
   SNodeList*   pOnRight;
-  SNode*       pFilterConditions;
+  STimeWindow  timeRange;     //table onCond filter
+  SNode*       pLeftOnCond;   //table onCond filter
+  SNode*       pRightOnCond;  //table onCond filter
+  SNode*       pFullOnCond;   //preFilter
   SNodeList*   pTargets;
   SQueryStat   inputStat[2];
 
+  // only in planner internal
   SNode*       pPrimKeyCond;
   SNode*       pColEqCond;
   SNode*       pTagEqCond;  

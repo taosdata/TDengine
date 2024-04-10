@@ -2648,7 +2648,12 @@ enum {
   PHY_HASH_JOIN_CODE_INPUT_ROW_NUM0,
   PHY_HASH_JOIN_CODE_INPUT_ROW_SIZE0,
   PHY_HASH_JOIN_CODE_INPUT_ROW_NUM1,
-  PHY_HASH_JOIN_CODE_INPUT_ROW_SIZE1
+  PHY_HASH_JOIN_CODE_INPUT_ROW_SIZE1,
+  PHY_HASH_JOIN_CODE_LEFT_ON_COND,
+  PHY_HASH_JOIN_CODE_RIGHT_ON_COND,
+  PHY_HASH_JOIN_CODE_TIME_RANGE_SKEY,
+  PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY,
+
 };
 
 static int32_t physiHashJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2665,7 +2670,7 @@ static int32_t physiHashJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_RIGHT_COLUMN, nodeListToMsg, pNode->pOnRight);
   }  
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_CONDITIONS, nodeToMsg, pNode->pFilterConditions);
+    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_CONDITIONS, nodeToMsg, pNode->pFullOnCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
@@ -2682,6 +2687,19 @@ static int32_t physiHashJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_HASH_JOIN_CODE_INPUT_ROW_SIZE1, pNode->inputStat[1].inputRowSize);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_LEFT_ON_COND, nodeToMsg, pNode->pLeftOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_RIGHT_ON_COND, nodeToMsg, pNode->pRightOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_HASH_JOIN_CODE_TIME_RANGE_SKEY, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY, pNode->timeRange.ekey);
+  }
+
   return code;
 }
 
@@ -2706,7 +2724,7 @@ static int32_t msgToPhysiHashJoinNode(STlvDecoder* pDecoder, void* pObj) {
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOnRight);
         break;
       case PHY_HASH_JOIN_CODE_ON_CONDITIONS:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFilterConditions);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFullOnCond);
         break;
       case PHY_HASH_JOIN_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
@@ -2722,6 +2740,18 @@ static int32_t msgToPhysiHashJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_HASH_JOIN_CODE_INPUT_ROW_SIZE1:
         code = tlvDecodeI32(pTlv, &pNode->inputStat[1].inputRowSize);
+        break;
+      case PHY_HASH_JOIN_CODE_LEFT_ON_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pLeftOnCond);
+        break;
+      case PHY_HASH_JOIN_CODE_RIGHT_ON_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRightOnCond);
+        break;
+      case PHY_HASH_JOIN_CODE_TIME_RANGE_SKEY:
+        code = tlvDecodeI64(pTlv, &pNode->timeRange.skey);
+        break;
+      case PHY_HASH_JOIN_CODE_TIME_RANGE_EKEY:
+        code = tlvDecodeI64(pTlv, &pNode->timeRange.ekey);
         break;
       default:
         break;

@@ -1296,6 +1296,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pFullOnCond);
       nodesDestroyList(pLogicNode->pLeftEqNodes);
       nodesDestroyList(pLogicNode->pRightEqNodes);
+      nodesDestroyNode(pLogicNode->pLeftOnCond);
+      nodesDestroyNode(pLogicNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -1457,12 +1459,15 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
-      nodesDestroyNode(pPhyNode->pFilterConditions);
+      nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
+
+      nodesDestroyNode(pPhyNode->pLeftOnCond);
+      nodesDestroyNode(pPhyNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {

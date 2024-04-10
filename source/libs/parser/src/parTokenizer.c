@@ -118,6 +118,7 @@ static SKeyword keywordTable[] = {
     {"LOGS",                 TK_LOGS},
     {"MACHINES",             TK_MACHINES},
     {"GROUP",                TK_GROUP},
+    {"HASH_JOIN",            TK_HASH_JOIN},    
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},

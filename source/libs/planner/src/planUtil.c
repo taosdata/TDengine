@@ -490,6 +490,19 @@ bool getSmallDataTsSortOptHint(SNodeList* pList) {
   return false;
 }
 
+bool getHashJoinOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_HASH_JOIN) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SLogicNode* pCurr = (SLogicNode*)pNode;
@@ -587,6 +600,16 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   }
   return pFunc;
+}
+
+int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict) {
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pNew;
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+  }
+  return code;
 }
 
 

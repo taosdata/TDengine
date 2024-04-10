@@ -49,6 +49,7 @@ bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
+bool        getHashJoinOptHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
 int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
@@ -58,6 +59,7 @@ bool        isPartTableWinodw(SWindowLogicNode* pWindow);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
+int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
 
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1

@@ -2185,6 +2185,10 @@ static const char* jkJoinPhysiPlanLeftInputRowSize = "LeftInputRowSize";
 static const char* jkJoinPhysiPlanRightInputRowSize = "RightInputRowSize";
 static const char* jkJoinPhysiPlanSeqWinGroup = "SeqWinGroup";
 static const char* jkJoinPhysiPlanGroupJoin = "GroupJoin";
+static const char* jkJoinPhysiPlanLeftOnCond = "LeftOnCond";
+static const char* jkJoinPhysiPlanRightOnCond = "RightOnCond";
+static const char* jkJoinPhysiPlanTimeRangeSKey = "TimeRangeSKey";
+static const char* jkJoinPhysiPlanTimeRangeEKey = "TimeRangeEKey";
 
 static int32_t physiMergeJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SSortMergeJoinPhysiNode* pNode = (const SSortMergeJoinPhysiNode*)pObj;
@@ -2336,7 +2340,7 @@ static int32_t physiHashJoinNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkJoinPhysiPlanOnRightCols, pNode->pOnRight);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkJoinPhysiPlanOnConditions, nodeToJson, pNode->pFilterConditions);
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanOnConditions, nodeToJson, pNode->pFullOnCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkJoinPhysiPlanTargets, pNode->pTargets);
@@ -2353,6 +2357,19 @@ static int32_t physiHashJoinNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanRightInputRowSize, pNode->inputStat[1].inputRowSize);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanLeftOnCond, nodeToJson, pNode->pLeftOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanRightOnCond, nodeToJson, pNode->pRightOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanTimeRangeSKey, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanTimeRangeEKey, pNode->timeRange.ekey);
+  }
+
   return code;
 }
 
@@ -2371,7 +2388,7 @@ static int32_t jsonToPhysiHashJoinNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkJoinPhysiPlanOnRightCols, &pNode->pOnRight);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkJoinPhysiPlanOnConditions, &pNode->pFilterConditions);
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanOnConditions, &pNode->pFullOnCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkJoinPhysiPlanTargets, &pNode->pTargets);
@@ -2388,6 +2405,19 @@ static int32_t jsonToPhysiHashJoinNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkJoinPhysiPlanRightInputRowSize, pNode->inputStat[1].inputRowSize, code);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanLeftOnCond, &pNode->pLeftOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanRightOnCond, &pNode->pRightOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkJoinPhysiPlanTimeRangeSKey, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkJoinPhysiPlanTimeRangeEKey, &pNode->timeRange.ekey);
+  }
+
   return code;
 }
 

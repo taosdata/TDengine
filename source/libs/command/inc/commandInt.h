@@ -121,6 +121,7 @@ extern "C" {
 #define EXPLAIN_JLIMIT_FORMAT "jlimit=%" PRId64
 #define EXPLAIN_SEQ_WIN_GRP_FORMAT "seq_win_grp=%d"
 #define EXPLAIN_GRP_JOIN_FORMAT "group_join=%d"
+#define EXPLAIN_JOIN_ALGO "algo=%s"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

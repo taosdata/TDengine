@@ -20,6 +20,10 @@ extern "C" {
 #endif
 
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
+#define HJOIN_DEFAULT_BLK_ROWS_NUM 4096
+#define HJOIN_BLK_SIZE_LIMIT 10485760
+#define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
+#define HJOIN_BLK_THRESHOLD_RATIO 0.9
 
 #pragma pack(push, 1) 
 typedef struct SBufRowInfo {
@@ -31,6 +35,7 @@ typedef struct SBufRowInfo {
 
 typedef struct SHJoinCtx {
   bool         rowRemains;
+  int64_t      limit;
   SBufRowInfo* pBuildRow;
   SSDataBlock* pProbeData;
   int32_t      probeIdx;
@@ -94,16 +99,39 @@ typedef struct SHJoinOperatorInfo {
   SHJoinTableInfo  tbs[2];
   SHJoinTableInfo* pBuild;
   SHJoinTableInfo* pProbe;
-  SSDataBlock*     pRes;
+  SFilterInfo*     pPreFilter;
+  SFilterInfo*     pFinFilter;  
+  SSDataBlock*     finBlk;
+  SSDataBlock*     midBlk;
   int32_t          pResColNum;
   int8_t*          pResColMap;
   SArray*          pRowBufs;
-  SNode*           pCond;
   SSHashObj*       pKeyHash;
   bool             keyHashBuilt;
   SHJoinCtx        ctx;
   SHJoinExecInfo   execInfo;
+  int32_t          blkThreshold;
 } SHJoinOperatorInfo;
+
+
+#define HJ_ERR_RET(c)                 \
+  do {                                \
+    int32_t _code = (c);              \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+
+#define HJ_ERR_JRET(c)               \
+  do {                               \
+    code = (c);                      \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 
 #ifdef __cplusplus
 }
