@@ -1282,11 +1282,11 @@ class TDTestCase:
         tdSql.error('drop table norm_tb', -2147471088)
 
         # drop no tsma table
-        tdSql.execute('drop table t2, t1')
+        tdSql.execute('drop table test.t2, test.t1')
 
         # test ttl drop table
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
-        tdSql.execute('alter table nsdb.t0 ttl 2', queryTimes=1)
+        tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
         tdSql.waitedQuery('show tables like "%t0"', 0, 10)
 
