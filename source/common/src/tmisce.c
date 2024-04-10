@@ -137,7 +137,6 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t bufLen) {
 
   for (int _i = 0; (_i < pEpSet->numOfEps) && (bufLen > len); _i++) {
     int32_t ret = 0;
-
     if (_i == pEpSet->numOfEps - 1) {
       ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     } else {
