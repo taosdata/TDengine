@@ -200,6 +200,13 @@ _end:
   return code;
 }
 
+int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen) {
+  SWinKey* pTmpkey = pKey;
+  ASSERT(keyLen == sizeof(SWinKey));
+  SSessionKey pWinKey = {.groupId = pTmpkey->groupId, .win.skey = pTmpkey->ts, .win.ekey = pTmpkey->ts};
+  return getSessionWinResultBuff(pFileState, &pWinKey, 0, pVal, pVLen);
+}
+
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   SSHashObj*   pSessionBuff = getRowStateBuff(pFileState);
   SSessionKey* pKey = pPos->pKey;

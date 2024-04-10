@@ -277,10 +277,10 @@ int32_t streamStateCommit(SStreamState* pState) {
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
   void*    pVal = NULL;
-  int32_t  len = 0;
-  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  int32_t  len = getRowStateRowSize(pState->pFileState);
+  int32_t  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
+  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
   return code;
 #else
@@ -290,10 +290,10 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   void*    pVal = NULL;
-  int32_t  len = 0;
-  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  int32_t  len = getRowStateRowSize(pState->pFileState);
+  int32_t  code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
-  uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
+  uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   return code;
 #else
