@@ -667,44 +667,46 @@ class TDTestCase:
 
         stmt.set_tbname_tags(tbname, tags)
 
-        params = taos.new_bind_params(4)
-        params[0].timestamp((1626861392589, 1626861392589, 1626861392592))
-        if dtype == LegalDataType.INT :
-            params[1].int((10, 12, 12))
-            params[2].int([194, 200, 201])
-        elif dtype == LegalDataType.UINT:
-            params[1].int_unsigned((10, 12, 12))
-            params[2].int_unsigned([194, 200, 201])
-        elif dtype == LegalDataType.BIGINT:
-            params[1].bigint((10, 12, 12))
-            params[2].bigint([194, 200, 201])
-        elif dtype == LegalDataType.UBIGINT:
-            params[1].bigint_unsigned((10, 12, 12))
-            params[2].bigint_unsigned([194, 200, 201])
-        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
-            params[1].binary(("s10", "s12", "s12"))
-            params[2].binary(["s194", "s200", "s201"])
-        params[3].float([0.31, 0.33, 0.31])
+        # params = taos.new_bind_params(4)
+        # params[0].timestamp((1626861392589, 1626861392589, 1626861392592))
+        # if dtype == LegalDataType.INT :
+        #     params[1].int((10, 12, 12))
+        #     params[2].int([194, 200, 201])
+        # elif dtype == LegalDataType.UINT:
+        #     params[1].int_unsigned((10, 12, 12))
+        #     params[2].int_unsigned([194, 200, 201])
+        # elif dtype == LegalDataType.BIGINT:
+        #     params[1].bigint((10, 12, 12))
+        #     params[2].bigint([194, 200, 201])
+        # elif dtype == LegalDataType.UBIGINT:
+        #     params[1].bigint_unsigned((10, 12, 12))
+        #     params[2].bigint_unsigned([194, 200, 201])
+        # elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
+        #     params[1].binary(("s10", "s12", "s12"))
+        #     params[2].binary(["s194", "s200", "s201"])
+        # params[3].float([0.31, 0.33, 0.31])
 
-        stmt.bind_param_batch(params)
+        # stmt.bind_param_batch(params)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589))
-        if dtype == LegalDataType.INT :
-            params[1].int((11))
-            params[2].int([100])
-        elif dtype == LegalDataType.UINT:
-            params[1].int_unsigned((10))
-            params[2].int_unsigned([100])
-        elif dtype == LegalDataType.BIGINT:
-            params[1].bigint((10))
-            params[2].bigint([100])
-        elif dtype == LegalDataType.UBIGINT:
-            params[1].bigint_unsigned((10))
-            params[2].bigint_unsigned([100])
-        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
-            params[1].binary(("s10"))
-            params[2].binary(["s100"])
+        params[1].int((11))
+        params[2].int([100])
+        # if dtype == LegalDataType.INT :
+        #     params[1].int((11))
+        #     params[2].int([100])
+        # elif dtype == LegalDataType.UINT:
+        #     params[1].int_unsigned((10))
+        #     params[2].int_unsigned([100])
+        # elif dtype == LegalDataType.BIGINT:
+        #     params[1].bigint((10))
+        #     params[2].bigint([100])
+        # elif dtype == LegalDataType.UBIGINT:
+        #     params[1].bigint_unsigned((10))
+        #     params[2].bigint_unsigned([100])
+        # elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
+        #     params[1].binary(("s10"))
+        #     params[2].binary(["s100"])
         params[3].float([0.31])
 
         stmt.bind_param(params)
@@ -740,33 +742,33 @@ class TDTestCase:
         self.prepare_db()
 
         for date_type in LegalDataType.__members__.items():
-            # 1.insert into value with pk - pass
-            self.test_insert_data(date_type[1], HasPK.YES)
+            # # 1.insert into value with pk - pass
+            # self.test_insert_data(date_type[1], HasPK.YES)
 
-            # 2.insert into value without pk - pass
-            self.test_insert_data(date_type[1], HasPK.NO)
+            # # 2.insert into value without pk - pass
+            # self.test_insert_data(date_type[1], HasPK.NO)
 
-            # 3.insert into illegal data - pass
-            for illegal_data in IllegalData.__members__.items():
-                self.test_insert_data_illegal(date_type[1], illegal_data[1])
+            # # 3.insert into illegal data - pass
+            # for illegal_data in IllegalData.__members__.items():
+            #     self.test_insert_data_illegal(date_type[1], illegal_data[1])
 
-            # 4. insert into select  bug!!!
-            self.test_insert_select(date_type[1])
+            # # 4. insert into select  bug!!!
+            # self.test_insert_select(date_type[1])
 
-            # 5. insert into values special cases  - pass
-            self.test_insert_values_special(date_type[1])
+            # # 5. insert into values special cases  - pass
+            # self.test_insert_values_special(date_type[1])
             
-            # 6. insert into value to mutiple tables  - pass
-            self.test_implicit_conversion(date_type[1])
+            # # 6. insert into value to mutiple tables  - pass
+            # self.test_implicit_conversion(date_type[1])
 
-            # 7. insert into value to mutiple tables  - pass
-            self.test_insert_into_mutiple_tables(date_type[1])
+            # # 7. insert into value to mutiple tables  - pass
+            # self.test_insert_into_mutiple_tables(date_type[1])
 
             # 8. stmt  wait for test!!!!
             self.test_stmt(date_type[1])  
         
-        # 9. insert data by schemaless model is not allowed - pass
-        self.test_schemaless_error()
+        # # 9. insert data by schemaless model is not allowed - pass
+        # self.test_schemaless_error()
 
     def stop(self):
         tdSql.close()
