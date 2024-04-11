@@ -1485,6 +1485,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 
   SSDataBlock* pBlock = createDataBlock();
   pBlock->info = pDataBlock->info;
+
   pBlock->info.rows = 0;
   pBlock->info.capacity = 0;
   pBlock->info.rowSize = 0;
@@ -1512,6 +1513,10 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     p->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
     p->nData = pDataBlock->info.pks[1].nData;
     memcpy(p->pData, pDataBlock->info.pks[1].pData, p->nData);
+    uInfo("===========clone block, with varchar, %p, 0---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[0].pData, pDataBlock, pDataBlock->info.pks[0].pData);
+    uInfo("===========clone block, with varchar, %p, 1---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[1].pData, pDataBlock, pDataBlock->info.pks[1].pData);
+  } else {
+    uInfo("===========clone block without varchar pk, %p, src:%p", pBlock, pDataBlock);
   }
 
   if (copyData) {

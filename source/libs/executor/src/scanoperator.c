@@ -4069,14 +4069,13 @@ static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeScanInfo) {
 }
 
 static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinished, bool* pSkipped) {
-  STableMergeScanInfo*            pInfo = pOperator->info;
-  SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
-
-  SSDataBlock*                    pBlock = pInfo->pReaderBlock;
-  int32_t                         code = 0;
-  bool hasNext = false;
-  STsdbReader* reader = pInfo->base.dataReader;
+  STableMergeScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
+  SSDataBlock*         pBlock = pInfo->pReaderBlock;
+  int32_t              code = 0;
+  bool                 hasNext = false;
+  STsdbReader*         reader = pInfo->base.dataReader;
 
   code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
   if (code != 0) {
@@ -4112,27 +4111,23 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
     *pSkipped = true;
     return;
   }
+
   return;
 }
 
 static SSDataBlock* getBlockForTableMergeScan(void* param) {
   STableMergeScanSortSourceParam* source = param;
-  SOperatorInfo*                  pOperator = source->pOperator;
-  STableMergeScanInfo*            pInfo = pOperator->info;
-  SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  SSDataBlock*                    pBlock = NULL;
-  int32_t                         code = 0;
+  SOperatorInfo*       pOperator = source->pOperator;
+  STableMergeScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*         pBlock = NULL;
+  int64_t              st = taosGetTimestampUs();
 
-  int64_t      st = taosGetTimestampUs();
-  bool         hasNext = false;
-
-  STsdbReader* reader = pInfo->base.dataReader;
   while (true) {
     if (pInfo->rtnNextDurationBlocks) {
-      qDebug("%s table merge scan return already fetched new duration blocks. index %d num of blocks %d", 
-              GET_TASKID(pTaskInfo), pInfo->nextDurationBlocksIdx, pInfo->numNextDurationBlocks);
+      qDebug("%s table merge scan return already fetched new duration blocks. index %d num of blocks %d",
+             GET_TASKID(pTaskInfo), pInfo->nextDurationBlocksIdx, pInfo->numNextDurationBlocks);
 
       if (pInfo->nextDurationBlocksIdx < pInfo->numNextDurationBlocks) {
         pBlock = pInfo->nextDurationBlocks[pInfo->nextDurationBlocksIdx];
@@ -4149,13 +4144,12 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
         continue;
       }
     } else {
-
       bool bFinished = false;
       bool bSkipped = false;
       doGetBlockForTableMergeScan(pOperator, &bFinished, &bSkipped);
       pBlock = pInfo->pReaderBlock;
-      qDebug("%s table merge scan fetch block. finished %d skipped %d next-duration-block %d new-fileset %d", 
-              GET_TASKID(pTaskInfo), bFinished, bSkipped, pInfo->bNextDurationBlockEvent, pInfo->bNewFilesetEvent);
+      qDebug("%s table merge scan fetch block. finished %d skipped %d next-duration-block %d new-fileset %d",
+             GET_TASKID(pTaskInfo), bFinished, bSkipped, pInfo->bNextDurationBlockEvent, pInfo->bNewFilesetEvent);
       if (bFinished) {
         pInfo->bNewFilesetEvent = false;
         break;
@@ -4166,15 +4160,18 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
           pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks] = createOneDataBlock(pBlock, true);
           ++pInfo->numNextDurationBlocks;
           if (pInfo->numNextDurationBlocks > 2) {
-            qError("%s table merge scan prefetch %d next duration blocks. end early.", GET_TASKID(pTaskInfo), pInfo->numNextDurationBlocks);
+            qError("%s table merge scan prefetch %d next duration blocks. end early.", GET_TASKID(pTaskInfo),
+                   pInfo->numNextDurationBlocks);
             pInfo->bNewFilesetEvent = false;
             break;
           }
         }
+
         if (pInfo->bNewFilesetEvent) {
           pInfo->rtnNextDurationBlocks = true;
           return NULL;
         }
+
         if (pInfo->bNextDurationBlockEvent) {
           pInfo->bNextDurationBlockEvent = false;
           continue;
@@ -4182,18 +4179,17 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
       }
       if (bSkipped) continue;
     }
+
     pBlock->info.id.groupId = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
-
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
-    
+
     return pBlock;
   }
 
   return NULL;
 }
-
 
 SArray* generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order) {
   SArray*         pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
