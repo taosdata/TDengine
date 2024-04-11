@@ -115,7 +115,7 @@ int32_t        syncLogBufferValidate(SyncLogBuffer* pBuf);
 int32_t        syncLogBufferRollback(SyncLogBuffer* pBuf, SyncNode* pNode, SyncIndex toIndex);
 
 int32_t syncFsmExecute(SyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SyncRaftEntry* pEntry,
-                       int32_t applyCode, bool force);
+                       int32_t applyCode);
 #ifdef __cplusplus
 }
 #endif
