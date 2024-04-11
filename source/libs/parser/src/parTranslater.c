@@ -3368,9 +3368,9 @@ static int32_t createMultiResFuncsParas(STranslateContext* pCxt, SNodeList* pSrc
   SNode*     pPara = NULL;
   FOREACH(pPara, pSrcParas) {
     if (nodesIsStar(pPara)) {
-      code = createAllColumns(pCxt, false, &pExprs);
+      code = createAllColumns(pCxt, !tsMultiResultFunctionStarReturnTags, &pExprs);
     } else if (nodesIsTableStar(pPara)) {
-      code = createTableAllCols(pCxt, (SColumnNode*)pPara, false, &pExprs);
+      code = createTableAllCols(pCxt, (SColumnNode*)pPara, !tsMultiResultFunctionStarReturnTags, &pExprs);
     } else {
       code = nodesListMakeStrictAppend(&pExprs, nodesCloneNode(pPara));
     }

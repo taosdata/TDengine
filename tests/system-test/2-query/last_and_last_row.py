@@ -152,8 +152,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts4)     
         tdSql.checkData(0, 1, 5 * maxRange - 1)  
-        tdSql.checkData(0, 3, last_ts4)    
-        tdSql.checkData(0, 4, 4 * maxRange + 1)
+        tdSql.checkData(0, 2, last_ts4)    
+        tdSql.checkData(0, 3, 4 * maxRange + 1)
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_no_row("Last Row Scan", explain_res, sql)
@@ -302,8 +302,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts4)     
         tdSql.checkData(0, 1, 5 * maxRange - 1)  
-        tdSql.checkData(0, 3, last_ts4)    
-        tdSql.checkData(0, 4, 4 * maxRange + 1)
+        tdSql.checkData(0, 2, last_ts4)    
+        tdSql.checkData(0, 3, 4 * maxRange + 1)
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
@@ -453,8 +453,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts4)     
         tdSql.checkData(0, 1, 5 * maxRange - 1)  
-        tdSql.checkData(0, 3, last_ts4)    
-        tdSql.checkData(0, 4, 4 * maxRange + 1)
+        tdSql.checkData(0, 2, last_ts4)    
+        tdSql.checkData(0, 3, 4 * maxRange + 1)
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
@@ -587,7 +587,7 @@ class TDTestCase:
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
-        self.check_explain_res_has_row("Table Scan", explain_res, sql)
+        self.check_explain_res_no_row("Table Scan", explain_res, sql)
         
         sql = f'select last_row(ts), last(ts), last_row(id), last(id) from last_test_both_model.st;'
         tdSql.query(sql)
@@ -607,7 +607,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, last_ts4)     
         tdSql.checkData(0, 1, 5 * maxRange - 1)  
         #tdSql.checkData(0, 2, last_ts4)   
-        tdSql.checkData(0, 4, 4 * maxRange + 1)
+        tdSql.checkData(0, 3, 4 * maxRange + 1)
 
         explain_res = self.explain_sql(sql)
         self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
