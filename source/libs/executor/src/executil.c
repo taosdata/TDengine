@@ -276,6 +276,8 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
         pBlockInfo->pks[0].nData = pInfoData->info.bytes;
         pBlockInfo->pks[1].nData = pInfoData->info.bytes;
       }
+
+      break;
     }
   }
 
