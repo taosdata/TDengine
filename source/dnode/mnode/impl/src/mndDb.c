@@ -2208,10 +2208,16 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
+
+    char keeplocalVstr[128] = {0};
+    len = sprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.s3KeepLocal);
+    varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3KeepLocal, false);
+    colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
   }
