@@ -1446,7 +1446,7 @@ class TDTestCase:
     def test_create_tsma_maxlist_function(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        os.system("taosBenchmark -f 0-others/compa4096.json -y ")
+        os.system("taosBenchmark -f 2-query/compa4096_tsma.json -y ")
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 
