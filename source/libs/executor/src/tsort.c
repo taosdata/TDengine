@@ -1649,8 +1649,8 @@ static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSH
 }
 
 static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
-  size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
-  SArray*          aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
+  size_t  nSrc = taosArrayGetSize(pHandle->pOrderedSource);
+  SArray* aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
 
   size_t maxBufSize = (pHandle->bSortByRowId) ? pHandle->extRowsMemSize : (pHandle->numOfPages * pHandle->pageSize);
 
