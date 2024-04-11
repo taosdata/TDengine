@@ -258,7 +258,7 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let data: Vec<OpcPoint> = reader
                     .records()
                     .into_iter()
-                    .skip(page * page_size + 1)
+                    .skip(page * page_size)
                     .take(page_size)
                     .map(|record| {
                         let record = record.unwrap();
