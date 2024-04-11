@@ -461,34 +461,38 @@ void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   }
 }
 
-static void freeItem(void* pItem) {
+static void freePkItem(void* pItem) {
   SFileDataBlockInfo* p = pItem;
-  if (p->firstPKLen > 0) {
-    taosMemoryFreeClear(p->firstPk.pData);
-  }
+  taosMemoryFreeClear(p->firstPk.pData);
+  taosMemoryFreeClear(p->lastPk.pData);
+}
 
-  if (p->lastPKLen > 0) {
-    taosMemoryFreeClear(p->lastPk.pData);
+void clearDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
+  pIter->index = -1;
+  pIter->numOfBlocks = 0;
+
+  if (hasPk) {
+    taosArrayClearEx(pIter->blockList, freePkItem);
+  } else {
+    taosArrayClear(pIter->blockList);
   }
 }
 
-void clearDataBlockIterator(SDataBlockIter* pIter) {
+void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
   pIter->index = -1;
   pIter->numOfBlocks = 0;
-  taosArrayClearEx(pIter->blockList, freeItem);
-}
-
-void cleanupDataBlockIterator(SDataBlockIter* pIter) {
-  pIter->index = -1;
-  pIter->numOfBlocks = 0;
-  taosArrayDestroyEx(pIter->blockList, freeItem);
+  if (hasPk) {
+    taosArrayDestroyEx(pIter->blockList, freePkItem);
+  } else {
+    taosArrayClear(pIter->blockList);
+  }
 }
 
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
   bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
   SBlockOrderSupporter sup = {0};
-  clearDataBlockIterator(pBlockIter);
+  clearDataBlockIterator(pBlockIter, pReader->suppInfo.numOfPks > 0);
 
   pBlockIter->numOfBlocks = numOfBlocks;
 
