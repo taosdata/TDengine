@@ -206,6 +206,7 @@ _exit:
 
 static int32_t dmReadVars(SEngineInfo *pInfo) {
   int32_t   code = 0;
+  TdFilePtr pFile = NULL;
   void     *buffer = NULL;
   void     *ptr;
   SDFHeader dHeader;
@@ -215,7 +216,12 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
   errno = 0;  // clear errno
 
-  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
+  if (!taosCheckExistFile(fname)) {
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
+
+  pFile = taosOpenFile(fname, TD_FILE_READ);
   if (!pFile) {
     if (errno == ENOENT) {
       code = TSDB_CODE_NOT_FOUND;
@@ -445,7 +451,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     taosThreadRwlockUnlock(&pDnode->data.lock);
     goto _exit;
   }
-  if (((code = dmReadVars(&eInfo)) != 0) && (errno != ENOENT)) {
+  if (((code = dmReadVars(&eInfo)) != 0) && (code != TSDB_CODE_NOT_FOUND)) {
     taosThreadRwlockUnlock(&pDnode->data.lock);
     goto _exit;
   }
