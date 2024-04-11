@@ -2188,7 +2188,7 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   STransConnCtx* pCtx = pMsg->ctx;
   STraceId*      trace = &pMsg->msg.info.traceId;
   char           tbuf[512] = {0};
-  EPSET_TO_STR(&pCtx->epSet, tbuf);
+  epsetToStr(&pCtx->epSet, tbuf, tListLen(tbuf));
   tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
           pCtx->retryNextInterval);
   return;
@@ -2421,7 +2421,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (hasEpSet) {
     if (rpcDebugFlag & DEBUG_TRACE) {
       char tbuf[512] = {0};
-      EPSET_TO_STR(&pCtx->epSet, tbuf);
+      epsetToStr(&pCtx->epSet, tbuf, tListLen(tbuf));
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
