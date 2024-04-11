@@ -843,7 +843,7 @@ class TDTestCase:
         tdSql.execute('use test')
 
     def test_alter_tag_val(self):
-        sql = 'alter table t1 set tag t1 = 999'
+        sql = 'alter table test.t1 set tag t1 = 999'
         tdSql.error(sql, -2147471088)
 
     def test_query_interval_sliding(self):
@@ -919,7 +919,7 @@ class TDTestCase:
         sql = 'select avg(c1) from test.meters interval(60m)'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()])
 
-        tdSql.execute(f'drop tsma {name}')
+        tdSql.execute(f'drop tsma test.{name}')
 
     def test_long_ctb_name(self):
         tb_name = self.generate_random_string(192)
