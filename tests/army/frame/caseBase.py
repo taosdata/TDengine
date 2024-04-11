@@ -269,7 +269,7 @@ class TBase:
 #
     
     # wait transactions count to zero , return False is translation not finished
-    def waitTransactionZero(self, seconds = 300, interval = 1):
+    def waitTransactionZero(self, seconds = 1200, interval = 1):
         # wait end
         for i in range(seconds):
             sql ="show transactions;"
