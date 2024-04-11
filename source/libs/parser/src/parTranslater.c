@@ -2472,7 +2472,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
           nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) == QUERY_NODE_REAL_TABLE) {
         SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
         if (strcmp(((SValueNode*)pParam)->literal, pRealTable->table.tableName) == 0) {
-          nodesClearList((*pFunc)->pParameterList);
+          NODES_DESTORY_LIST((*pFunc)->pParameterList);
           (*pFunc)->pParameterList = NULL;
         }
       }
@@ -2724,11 +2724,14 @@ static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   return false;
 }
 
-static bool fromSubtable(SNode* table) {
+static bool fromSingleTable(SNode* table) {
   if (NULL == table) return false;
-  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta &&
-      ((SRealTableNode*)table)->pMeta->tableType == TSDB_CHILD_TABLE) {
-    return true;
+  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta) {
+        int8_t type = ((SRealTableNode*)table)->pMeta->tableType;
+        if(type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE
+        || type == TSDB_SYSTEM_TABLE) {
+          return true;
+        }
   }
   return false;
 }
@@ -2827,7 +2830,7 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   }
   SNode* pPartKey = NULL;
   bool   partionByTbname = false;
-  if (fromSubtable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
+  if (fromSingleTable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
       hasTbnameFunction(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList)) {
     partionByTbname = true;
   }
