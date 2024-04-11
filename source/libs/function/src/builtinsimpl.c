@@ -2657,8 +2657,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
-  //  function.
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
@@ -2709,6 +2708,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
 #else
+
+// todo refactor
   if (!pInputCol->hasNull && !pCtx->hasPrimaryKey) {
     numOfElems = 1;
 
@@ -2790,7 +2791,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  //  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
