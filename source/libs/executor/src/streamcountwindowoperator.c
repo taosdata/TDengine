@@ -671,9 +671,10 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     goto _error;
   }
 
+  pInfo->primaryTsIndex = ((SColumnNode*)pCountNode->window.pTspk)->slotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0,
                                 pTaskInfo->streamInfo.pState, sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle,
-                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -688,8 +689,6 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
-
-  pInfo->primaryTsIndex = ((SColumnNode*)pCountNode->window.pTspk)->slotId;
 
   pInfo->binfo.pRes = pResBlock;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);

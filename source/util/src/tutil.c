@@ -496,3 +496,21 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
 
   return index;
 }
+
+int32_t parseCfgReal(const char* str, double* out) {
+  double val;
+  char  *endPtr;
+  errno = 0;
+  val = taosStr2Double(str, &endPtr);
+  if (str == endPtr || errno == ERANGE || isnan(val)) {
+    terrno = TSDB_CODE_INVALID_CFG_VALUE;
+    return -1;
+  }
+  while(isspace((unsigned char)*endPtr)) endPtr++;
+  if (*endPtr != '\0') {
+    terrno = TSDB_CODE_INVALID_CFG_VALUE;
+    return -1;
+  }
+  *out = val;
+  return TSDB_CODE_SUCCESS;
+}
