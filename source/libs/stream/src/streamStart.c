@@ -398,8 +398,7 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   if (pTask->status.taskStatus == TASK_STATUS__HALT) {
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
 
-    // halt it self for count window stream task until the related
-    // fill history task completd.
+    // halt it self for count window stream task until the related fill history task completed.
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);

@@ -70,6 +70,7 @@ void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
     tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
   }
 }
+
 void epAssign(SEp* pDst, SEp* pSrc) {
   if (pSrc == NULL || pDst == NULL) {
     return;
@@ -78,6 +79,7 @@ void epAssign(SEp* pDst, SEp* pSrc) {
   tstrncpy(pDst->fqdn, pSrc->fqdn, tListLen(pSrc->fqdn));
   pDst->port = pSrc->port;
 }
+
 void epsetSort(SEpSet* pDst) {
   if (pDst->numOfEps <= 1) {
     return;
@@ -125,6 +127,34 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   taosCorEndRead(&pEpSet->version);
 
   return ep;
+}
+
+int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t bufLen) {
+  int len = snprintf(pBuf, bufLen, "epset:{");
+  if (len < 0) {
+    return -1;
+  }
+
+  for (int _i = 0; (_i < pEpSet->numOfEps) && (bufLen > len); _i++) {
+    int32_t ret = 0;
+    if (_i == pEpSet->numOfEps - 1) {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    } else {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    }
+
+    if (ret < 0) {
+      return -1;
+    }
+
+    len += ret;
+  }
+
+  if (len < bufLen) {
+    /*len += */snprintf(pBuf + len, bufLen - len, "}, inUse:%d", pEpSet->inUse);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
