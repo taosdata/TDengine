@@ -1502,10 +1502,12 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 
     pVal->type = pDataBlock->info.pks[0].type;
     pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[0].nData);
+    pVal->nData = pDataBlock->info.pks[0].nData;
 
     pVal = &pBlock->info.pks[1];
     pVal->type = pDataBlock->info.pks[1].type;
     pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
+    pVal->nData = pDataBlock->info.pks[1].nData;
   }
 
   if (copyData) {
