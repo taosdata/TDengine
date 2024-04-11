@@ -295,6 +295,7 @@ int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVa
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
+  streamStateReleaseBuf(pState, pVal, false);
   return code;
 #else
   return tdbTbGet(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), ppVal, pVLen);
@@ -332,7 +333,7 @@ bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
   int32_t code = getRowBuffByPos(pState->pFileState, pos, pVal);
-  streamFileStateReleaseBuff(pState->pFileState, pos, false);
+  streamStateReleaseBuf(pState, pos, false);
   return code;
 }
 
