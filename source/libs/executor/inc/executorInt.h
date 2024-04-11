@@ -909,7 +909,7 @@ int32_t  initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo*
 int32_t  initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
                                 SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
                                 SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
-                                SStorageAPI* pApi);
+                                SStorageAPI* pApi, int32_t tsIndex);
 void     initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
                         STimeWindowAggSupp* pTwSup);
 void     getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);

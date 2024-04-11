@@ -1331,6 +1331,11 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
     return NULL;
   }
 
+  if (IS_VAR_DATA_TYPE(pBlock->info.pks[0].type)) {
+    taosMemoryFreeClear(pBlock->info.pks[0].pData);
+    taosMemoryFreeClear(pBlock->info.pks[1].pData);
+  }
+
   blockDataFreeRes(pBlock);
   taosMemoryFreeClear(pBlock);
   return NULL;

@@ -53,6 +53,13 @@ SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, 
   return pLoadInfo;
 }
 
+static void freeItem(void* pValue) {
+  SValue* p = (SValue*) pValue;
+  if (IS_VAR_DATA_TYPE(p->type)) {
+    taosMemoryFree(p->pData);
+  }
+}
+
 void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   if (pLoadInfo == NULL) {
     return NULL;
@@ -72,8 +79,8 @@ void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 
   if (pLoadInfo->info.pCount != NULL) {
     taosArrayDestroy(pLoadInfo->info.pUid);
-    taosArrayDestroy(pLoadInfo->info.pFirstKey);
-    taosArrayDestroy(pLoadInfo->info.pLastKey);
+    taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+    taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
     taosArrayDestroy(pLoadInfo->info.pCount);
     taosArrayDestroy(pLoadInfo->info.pFirstTs);
     taosArrayDestroy(pLoadInfo->info.pLastTs);
@@ -319,6 +326,21 @@ static int32_t extractSttBlockInfo(SLDataIter *pIter, const TSttBlkArray *pArray
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tValueDupPayload(SValue *pVal) {
+  if (IS_VAR_DATA_TYPE(pVal->type)) {
+    char *p = (char *)pVal->pData;
+    char *pBuf = taosMemoryMalloc(pVal->nData);
+    if (pBuf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    memcpy(pBuf, p, pVal->nData);
+    pVal->pData = (uint8_t *)pBuf;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo,
                                           TStatisBlkArray *pStatisBlkArray, uint64_t suid, const char *id) {
   int32_t numOfBlocks = TARRAY2_SIZE(pStatisBlkArray);
@@ -377,37 +399,31 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
                           rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
 
-        SValue vFirst = {0}, vLast = {0};
-        for (int32_t f = i; f < rows; ++f) {
-          int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
-          if (code) {
-            break;
-          }
+        if (block.numOfPKs > 0) {
+          SValue vFirst = {0}, vLast = {0};
+          for (int32_t f = i; f < rows; ++f) {
+            int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
+            if (code) {
+              break;
+            }
 
-          if (IS_VAR_DATA_TYPE(vFirst.type)) {
-            char *p = (char *)vFirst.pData;
-            char *pBuf = taosMemoryMalloc(vFirst.nData);
-            memcpy(pBuf, p, vFirst.nData);
-            vFirst.pData = (uint8_t *)pBuf;
-          }
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
+            tValueDupPayload(&vFirst);
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
 
-          code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
-          if (code) {
-            break;
-          }
+            // todo add api to clone the original data
+            code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
+            if (code) {
+              break;
+            }
 
-          if (IS_VAR_DATA_TYPE(vLast.type)) {
-            char *p = (char *)vLast.pData;
-            char *pBuf = taosMemoryMalloc(vLast.nData);
-            memcpy(pBuf, p, vLast.nData);
-            vLast.pData = (uint8_t *)pBuf;
+            tValueDupPayload(&vLast);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
           }
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
         }
 
       } else {
-        STbStatisRecord record;
+        STbStatisRecord record = {0};
+
         while (i < rows) {
           tStatisBlockGet(&block, i, &record);
           if (record.suid != suid) {
@@ -420,8 +436,18 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           taosArrayPush(pBlockLoadInfo->info.pFirstTs, &record.firstKey.ts);
           taosArrayPush(pBlockLoadInfo->info.pLastTs, &record.lastKey.ts);
 
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &record.firstKey.pks[0]);
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, &record.lastKey.pks[0]);
+          if (record.firstKey.numOfPKs > 0) {
+            SValue s = record.firstKey.pks[0];
+            tValueDupPayload(&s);
+
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &s);
+
+            s = record.lastKey.pks[0];
+            tValueDupPayload(&s);
+
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &s);
+          }
+
           i += 1;
         }
       }

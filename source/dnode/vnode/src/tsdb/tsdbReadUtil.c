@@ -167,6 +167,13 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
   return TSDB_CODE_SUCCESS;
 }
 
+void clearRowKey(SRowKey* pKey) {
+  if (pKey == NULL || pKey->numOfPKs == 0 || (!IS_VAR_DATA_TYPE(pKey->pks[0].type))) {
+    return;
+  }
+  taosMemoryFreeClear(pKey->pks[0].pData);
+}
+
 static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
   int32_t numOfPks = pReader->suppInfo.numOfPks;
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
@@ -293,6 +300,11 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->pBlockIdxList = taosArrayDestroy(p->pBlockIdxList);
   p->pMemDelData = taosArrayDestroy(p->pMemDelData);
   p->pFileDelData = taosArrayDestroy(p->pFileDelData);
+
+  clearRowKey(&p->lastProcKey);
+  clearRowKey(&p->sttRange.skey);
+  clearRowKey(&p->sttRange.ekey);
+  clearRowKey(&p->sttKeyInfo.nextProcKey);
 }
 
 void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
@@ -415,7 +427,7 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record, STsdbReader* pReader) {
+void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pBlockInfo->uid = record->uid;
   pBlockInfo->firstKey = record->firstKey.key.ts;
   pBlockInfo->lastKey = record->lastKey.key.ts;
@@ -449,12 +461,40 @@ static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* recor
   }
 }
 
+static void freePkItem(void* pItem) {
+  SFileDataBlockInfo* p = pItem;
+  taosMemoryFreeClear(p->firstPk.pData);
+  taosMemoryFreeClear(p->lastPk.pData);
+}
+
+void clearDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
+  pIter->index = -1;
+  pIter->numOfBlocks = 0;
+
+  if (hasPk) {
+    taosArrayClearEx(pIter->blockList, freePkItem);
+  } else {
+    taosArrayClear(pIter->blockList);
+  }
+}
+
+void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
+  pIter->index = -1;
+  pIter->numOfBlocks = 0;
+  if (hasPk) {
+    taosArrayDestroyEx(pIter->blockList, freePkItem);
+  } else {
+    taosArrayDestroy(pIter->blockList);
+  }
+}
+
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
   bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
   SBlockOrderSupporter sup = {0};
+  clearDataBlockIterator(pBlockIter, pReader->suppInfo.numOfPks > 0);
+
   pBlockIter->numOfBlocks = numOfBlocks;
-  taosArrayClear(pBlockIter->blockList);
 
   // access data blocks according to the offset of each block in asc/desc order.
   int32_t numOfTables = taosArrayGetSize(pTableList);
@@ -482,9 +522,9 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     sup.pDataBlockInfo[sup.numOfTables] = (SBlockOrderWrapper*)buf;
 
     for (int32_t k = 0; k < num; ++k) {
-      SBrinRecord* pRecord = taosArrayGet(pTableScanInfo->pBlockList, k);
+      SFileDataBlockInfo* pBlockInfo = taosArrayGet(pTableScanInfo->pBlockList, k);
       sup.pDataBlockInfo[sup.numOfTables][k] =
-          (SBlockOrderWrapper){.uid = pTableScanInfo->uid, .offset = pRecord->blockOffset, .pInfo = pTableScanInfo};
+          (SBlockOrderWrapper){.uid = pTableScanInfo->uid, .offset = pBlockInfo->blockOffset, .pInfo = pTableScanInfo};
       cnt++;
     }
 
@@ -499,20 +539,12 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
   // since there is only one table qualified, blocks are not sorted
   if (sup.numOfTables == 1) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, 0);
-    if (pTableScanInfo->pBlockIdxList == NULL) {
-      pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
-    }
-
     for (int32_t i = 0; i < numOfBlocks; ++i) {
-      SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
-      SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
-      recordToBlockInfo(&blockInfo, record, pReader);
-
-      taosArrayPush(pBlockIter->blockList, &blockInfo);
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
       taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     }
 
+    taosArrayAddAll(pBlockIter->blockList, pTableScanInfo->pBlockList);
     pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
 
     int64_t et = taosGetTimestampUs();
@@ -540,18 +572,13 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t pos = tMergeTreeGetChosenIndex(pTree);
     int32_t index = sup.indexPerTable[pos]++;
 
-    SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
-    SBrinRecord*       record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
-    recordToBlockInfo(&blockInfo, record, pReader);
+    SFileDataBlockInfo* pBlockInfo = taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    taosArrayPush(pBlockIter->blockList, pBlockInfo);
 
-    taosArrayPush(pBlockIter->blockList, &blockInfo);
     STableBlockScanInfo* pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
-    if (pTableScanInfo->pBlockIdxList == NULL) {
-      size_t szTableDataBlocks = taosArrayGetSize(pTableScanInfo->pBlockList);
-      pTableScanInfo->pBlockIdxList = taosArrayInit(szTableDataBlocks, sizeof(STableDataBlockIdx));
-    }
-    STableDataBlockIdx tableDataBlockIdx = {.globalIndex = numOfTotal};
+    STableDataBlockIdx   tableDataBlockIdx = {.globalIndex = numOfTotal};
     taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
+
     // set data block index overflow, in order to disable the offset comparator
     if (sup.indexPerTable[pos] >= sup.numOfBlocksPerTable[pos]) {
       sup.indexPerTable[pos] = sup.numOfBlocksPerTable[pos] + 1;
