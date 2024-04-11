@@ -435,8 +435,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
-    config.points = PointsConfig::from_dsn(&from);
+    let config = OPCConfig::from_dsn_point_mode(&from)?;
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
     let mut config_file = tempfile::NamedTempFile::new()?;

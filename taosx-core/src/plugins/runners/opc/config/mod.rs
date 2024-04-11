@@ -123,7 +123,7 @@ impl OPCConfig {
         })
     }
 
-    pub async fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
+    pub fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
             bail!("invalid opc driver");
         }
@@ -141,12 +141,8 @@ impl OPCConfig {
             opc_type: OpcType::from_dsn(&dsn)?,
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
-            points: None,
-            collect: if dsn.params.contains_key("csv_config_file") {
-                CollectConfig::from_dsn(&dsn, None).await?
-            } else {
-                CollectConfig::new_empty()
-            },
+            points: PointsConfig::from_dsn(&dsn),
+            collect: CollectConfig::new_empty(),
             report: ReportConfig::from_dsn(&dsn, 0)?,
             model_config: None,
         })
