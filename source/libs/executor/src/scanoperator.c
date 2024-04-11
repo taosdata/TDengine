@@ -2097,10 +2097,10 @@ static void doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal *offse
       void *tmq = taosMemoryMalloc(offset->primaryKey.nData + VARSTR_HEADER_SIZE);
       memcpy(varDataVal(tmq), offset->primaryKey.pData, offset->primaryKey.nData);
       varDataLen(tmq) = offset->primaryKey.nData;
-      p[i] = (*ts >= offset->ts) && (func(data, tmq) > 0);
+      p[i] = (*ts > offset->ts) || (func(data, tmq) > 0);
       taosMemoryFree(tmq);
     }else{
-      p[i] = (*ts >= offset->ts) && (func(data, &offset->primaryKey.val) > 0);
+      p[i] = (*ts > offset->ts) || (func(data, &offset->primaryKey.val) > 0);
     }
 
     if (!p[i]) {
