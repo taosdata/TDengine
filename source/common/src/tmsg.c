@@ -4053,10 +4053,10 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   if (tEncodeI8(encoder, pRsp->schemaless) < 0) return -1;
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
+  if (tEncodeI8(encoder, pRsp->withArbitrator) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->s3ChunkSize) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->s3KeepLocal) < 0) return -1;
   if (tEncodeI8(encoder, pRsp->s3Compact) < 0) return -1;
-  if (tEncodeI8(encoder, pRsp->withArbitrator) < 0) return -1;
 
   return 0;
 }
@@ -6664,9 +6664,7 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   return 0;
 }
 
-void tDestroySMqHbRsp(SMqHbRsp *pRsp) {
-  taosArrayDestroy(pRsp->topicPrivileges);
-}
+void tDestroySMqHbRsp(SMqHbRsp *pRsp) { taosArrayDestroy(pRsp->topicPrivileges); }
 
 int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
   SEncoder encoder = {0};
