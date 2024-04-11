@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
@@ -531,10 +530,6 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opcda only support windows".to_string(),
         );
     }
-
-    // set current dir to DATA_DIR
-    let path = get_data_dir();
-    let _ = std::env::set_current_dir(&path);
 
     let mut dsn = dsn.clone();
     let certificate = get_temp_file(&mut dsn, "certificate");

@@ -148,9 +148,10 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     let task_id = task.id;
     let (opts, task_rx) = task_opts_init(task).await?;
     tracing::info!("start worker");
-    // set current dir for upload files
-    let path = get_data_dir();
-    let _ = std::env::set_current_dir(&path);
+
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let instant = std::time::Instant::now();
     let global_sender = global.clone();
     tokio::spawn(async move {

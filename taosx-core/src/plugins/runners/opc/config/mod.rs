@@ -1,28 +1,18 @@
-use std::collections::HashMap;
-use std::io::{BufRead, Write};
-use std::str::FromStr;
+use std::io::BufRead;
 
-use anyhow::{bail, Context};
-use base64::engine::general_purpose;
-use base64::Engine;
+use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncQueryable, Dsn, Taos, Ty};
-use tokio_stream::StreamExt;
-
-use taosx_ipc::prelude::IpcDataType;
+use taos::{AsyncQueryable, Dsn, Taos};
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{
-    ColumnConfig, OpcModelConfig, PointConfig, TableConfig, TagConfig,
-};
+use crate::runners::opc::config::model::{OpcModelConfig, PointConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::generate_tbname_from_pattern;
 use crate::runners::opc::OpcType;
 
 mod collect;
@@ -151,7 +141,7 @@ impl OPCConfig {
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
             points: None,
-            collect: if dsn.get("csv_config_file").is_some() {
+            collect: if dsn.params.contains_key("csv_config_file") {
                 CollectConfig::from_dsn(&dsn, None).await?
             } else {
                 CollectConfig::new_empty()

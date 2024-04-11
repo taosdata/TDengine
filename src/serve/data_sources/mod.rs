@@ -19,9 +19,7 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::runners::historian;
-use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
-use taosx_core::{list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
 mod definition;
 
@@ -284,6 +282,9 @@ pub(super) async fn data_source_collection(
     controller: Data<TaskControllerRef>,
     data: Json<DataSetsReq>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let data = data.into_inner();
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
@@ -329,6 +330,9 @@ pub(super) async fn data_source_is_valid(
     controller: Data<TaskControllerRef>,
     query: Query<DsnAgentQuery>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
@@ -458,6 +462,9 @@ pub(super) async fn init_download_file_task(
     controller: Data<TaskControllerRef>,
     params: Query<DownloadAllPointsParams>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     match arrange_point_file_download_task(controller, params).await {
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
         Err(err) => Err(Failed {
