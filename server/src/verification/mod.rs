@@ -1,3 +1,5 @@
+use captcha::filters::{Dots, Noise, Wave};
+use captcha::Captcha;
 use lazy_static::lazy_static;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -76,6 +78,24 @@ pub fn generate_verification_code(key: String) -> String {
         code.push_str(&digit.to_string());
     }
     // 存储一份到缓存中
+    // let expire_time = std::time::SystemTime::now()
+    //     .duration_since(std::time::UNIX_EPOCH)
+    //     .unwrap()
+    //     .as_secs()
+    //     + 60 * 5;
+    // VERIFICATION_CODES.lock().unwrap().insert(
+    //     key,
+    //     VerificationCode {
+    //         code: code.clone(),
+    //         expire_time,
+    //     },
+    // );
+    save_to_cache(key, &code);
+
+    code
+}
+
+fn save_to_cache(key: String, code: &String) {
     let expire_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -88,24 +108,22 @@ pub fn generate_verification_code(key: String) -> String {
             expire_time,
         },
     );
-
-    code
 }
 
-pub fn check_verification_code(phone_email: &str, code: &str) -> String {
+pub fn check_security_code(key: &str, code: &str) -> String {
     let mut codes = VERIFICATION_CODES.lock().unwrap();
-    if let Some(verification_code) = codes.get(phone_email) {
+    if let Some(verification_code) = codes.get(key) {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
         if verification_code.expire_time < current_time {
-            codes.remove(phone_email);
+            codes.remove(key);
             return "none".to_string();
         }
 
         if verification_code.code == code {
-            codes.remove(phone_email);
+            codes.remove(key);
             return "pass".to_string();
         } else {
             return "error".to_string();
@@ -115,9 +133,32 @@ pub fn check_verification_code(phone_email: &str, code: &str) -> String {
     "none".to_string()
 }
 
+pub fn generate_captcha(key: String) -> Option<Vec<u8>> {
+    let captcha_chars = "123456789".chars().collect::<Vec<char>>();
+
+    let mut captcha = Captcha::new();
+    captcha
+        .set_chars(&captcha_chars)
+        .add_chars(4)
+        .apply_filter(Noise::new(0.1))
+        .apply_filter(Wave::new(2.0, 20.0).horizontal())
+        .apply_filter(Wave::new(2.0, 20.0).vertical())
+        .view(200, 80)
+        .apply_filter(Dots::new(10));
+
+    save_to_cache(key, &captcha.chars_as_string());
+
+    captcha.as_png()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_generate_captcha() {
+        generate_captcha("dddss".to_string());
+    }
 
     #[test]
     fn test_sign_string() {
@@ -203,10 +244,10 @@ mod tests {
         let code = generate_verification_code(phone_email.to_string());
         print!("code: {}\n", code);
 
-        assert_eq!(check_verification_code(phone_email, "1234"), "error");
-        assert_eq!(check_verification_code(phone_email, &code), "pass");
+        assert_eq!(check_security_code(phone_email, "1234"), "error");
+        assert_eq!(check_security_code(phone_email, &code), "pass");
 
         // 再次验证时，已经失效了，不能重复使用
-        assert_eq!(check_verification_code(phone_email, &code), "none");
+        assert_eq!(check_security_code(phone_email, &code), "none");
     }
 }
