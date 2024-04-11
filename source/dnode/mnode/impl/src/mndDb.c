@@ -2212,6 +2212,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3KeepLocal, false);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
   }
 
