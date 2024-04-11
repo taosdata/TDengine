@@ -276,7 +276,10 @@ async fn write_stable_with_sql(
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
-                tracing::warn!("flat message write sql encountered unrecoverable err: {err:#}");
+                tracing::warn!(
+                    sql,
+                    "flat message write sql encountered unrecoverable err: {err:#}"
+                );
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
                     break Err(err)
                         .context("Write flat stream with SQL error: Retries exceeded")

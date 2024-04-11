@@ -1138,6 +1138,22 @@ impl Parser {
             };
 
             let tables = (0..batch.num_rows())
+                .filter(|row| {
+                    let is_valid_primary_key = !columns.column(0).is_null(*row);
+                    if !is_valid_primary_key {
+                        let mut str = Vec::new();
+                        let mut cursor = std::io::Cursor::new(&mut str);
+                        let mut writer = arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
+                        let _ = writer.write(&columns.slice(*row, 1));
+
+                        tracing::warn!(
+                            lost = %String::from_utf8_lossy(&str),
+                            "Primary key is null, skip row {}",
+                            row,
+                        );
+                    }
+                    is_valid_primary_key
+                })
                 .map(|row| (template.render("name", &json[row]).unwrap(), row))
                 .into_group_map();
 
@@ -1571,6 +1587,20 @@ impl MessageArrowRecords {
     }
 
     pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
+        let primary_key_null_count = self.records.column(0).null_count();
+        if primary_key_null_count == self.records.num_rows() {
+            return None;
+        }
+        if primary_key_null_count > 0 {
+            tracing::warn!(
+                "Primary key column has null value, count: {}",
+                primary_key_null_count
+            );
+            let nulls = self.records.column(0).nulls().unwrap();
+            let indices = nulls.valid_indices().collect_vec();
+            // self.records
+            tracing::warn!(records = ?self.records,  "Null indices in records: {:?} ", indices);
+        }
         let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
             .expect("Sql values should be recognizable")?;
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
