@@ -29,6 +29,7 @@ struct SResultRowEntryInfo;
 
 struct SFunctionNode;
 typedef struct SScalarParam SScalarParam;
+typedef struct SStreamState SStreamState;
 
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
@@ -126,7 +127,7 @@ typedef struct SInputColumnInfoData {
 typedef struct SSerializeDataHandle {
   struct SDiskbasedBuf *pBuf;
   int32_t               currentPage;
-  void                 *pState;
+  SStreamState          *pState;
 } SSerializeDataHandle;
 
 // incremental state storage
@@ -164,7 +165,7 @@ typedef struct STdbState {
   void               *txn;
 } STdbState;
 
-typedef struct {
+struct SStreamState {
   STdbState               *pTdbState;
   struct SStreamFileState *pFileState;
   int32_t                  number;
@@ -173,7 +174,8 @@ typedef struct {
   int64_t                  streamId;
   int64_t                  streamBackendRid;
   int8_t                   dump;
-} SStreamState;
+  int32_t                  tsIndex;
+};
 
 typedef struct SFunctionStateStore {
   int32_t (*streamStateFuncPut)(SStreamState *pState, const SWinKey *key, const void *value, int32_t vLen);
