@@ -114,8 +114,246 @@ int metaDecodeEntry(SDecoder *decoder, SMetaEntry *entry) {
   return 0;
 }
 
+static int32_t metaEntryInit(const SMetaEntry *from, SMetaEntry **entry) {
+  // TODO
+  return 0;
+}
+
+static int32_t metaEntryDestroy(SMetaEntry *entry) {
+  // TODO
+  return 0;
+}
+
 // =======================
-/* table.db */
+
+static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int32_t columnId, int8_t type, const void *tagData,
+                                  int32_t tagDataSize, int64_t uid, STagIdxKey **key, int32_t *size) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    *size = sizeof(STagIdxKey) + tagDataSize + VARSTR_HEADER_SIZE + sizeof(tb_uid_t);
+  } else {
+    *size = sizeof(STagIdxKey) + tagDataSize + sizeof(tb_uid_t);
+  }
+
+  if ((*key = taosMemoryMalloc(*size)) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
+
+  (*key)->suid = suid;
+  (*key)->cid = columnId;
+  (*key)->isNull = (tagData == NULL) ? 1 : 0;
+  (*key)->type = type;
+
+  uint8_t *data = (*key)->data;
+  if (IS_VAR_DATA_TYPE(type)) {
+    *(uint16_t *)data = tagDataSize;
+    data += VARSTR_HEADER_SIZE;
+    memcpy(data, &tagDataSize, VARSTR_HEADER_SIZE);
+  }
+  if (tagData) {
+    memcpy(data, tagData, tagDataSize);
+    data += tagDataSize;
+  }
+  *(int64_t *)data = uid;
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaTagIdxKeyDestroy(STagIdxKey *key) {
+  taosMemoryFree(key);
+  return 0;
+}
+
+static int32_t metaUpsertNormalTagIndex(SMeta *meta, const SMetaEntry *childTableEntry,
+                                        const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  const SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+  const STag           *tags = (STag *)childTableEntry->ctbEntry.pTags;
+
+  for (int i = 0; i < tagSchema->nCols; i++) {
+    if (!IS_IDX_ON(&tagSchema->pSchema[i])) {
+      continue;
+    }
+
+    const SSchema *column = &tagSchema->pSchema[i];
+
+    void   *tagData = NULL;
+    int32_t tagDataSize;
+    STagVal tv = {.cid = column->colId};
+
+    if (tTagGet(tags, &tv)) {
+      if (IS_VAR_DATA_TYPE(column->type)) {
+        tagData = tv.pData;
+        tagDataSize = tv.nData;
+      } else {
+        tagData = &tv.i64;
+        tagDataSize = tDataTypes[column->type].bytes;
+      }
+    } else if (!IS_VAR_DATA_TYPE(column->type)) {
+      tagDataSize = tDataTypes[column->type].bytes;
+    }
+
+    STagIdxKey *key = NULL;
+    int32_t     size = 0;
+    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, column->colId, column->type, tagData, tagDataSize,
+                              childTableEntry->uid, &key, &size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (tdbTbUpsert(meta->pTagIdx, key, size, NULL, 0, meta->txn) != 0) {
+      metaTagIdxKeyDestroy(key);
+      TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+    }
+    metaTagIdxKeyDestroy(key);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaDropNormalTagIndex(SMeta *meta, const SMetaEntry *childTableEntry,
+                                      const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  const SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+  const STag           *tags = (STag *)childTableEntry->ctbEntry.pTags;
+
+  for (int i = 0; i < tagSchema->nCols; i++) {
+    if (!IS_IDX_ON(&tagSchema->pSchema[i])) {
+      continue;
+    }
+
+    const SSchema *column = &tagSchema->pSchema[i];
+
+    void   *tagData = NULL;
+    int32_t tagDataSize;
+    STagVal tv = {.cid = column->colId};
+
+    if (tTagGet(tags, &tv)) {
+      if (IS_VAR_DATA_TYPE(column->type)) {
+        tagData = tv.pData;
+        tagDataSize = tv.nData;
+      } else {
+        tagData = &tv.i64;
+        tagDataSize = tDataTypes[column->type].bytes;
+      }
+    } else if (!IS_VAR_DATA_TYPE(column->type)) {
+      tagDataSize = tDataTypes[column->type].bytes;
+    }
+
+    STagIdxKey *key = NULL;
+    int32_t     size = 0;
+    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, column->colId, column->type, tagData, tagDataSize,
+                              childTableEntry->uid, &key, &size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (tdbTbDelete(meta->pTagIdx, key, size, meta->txn) != 0) {
+      metaTagIdxKeyDestroy(key);
+      TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+    }
+    metaTagIdxKeyDestroy(key);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaUpsertJsonTagIndex(SMeta *meta, const SMetaEntry *childTableEntry,
+                                      const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+#ifdef USE_INVERTED_INDEX
+  if (meta->pTagIvtIdx == NULL || childTableEntry == NULL) {
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  void       *data = childTableEntry->ctbEntry.pTags;
+  const char *tagName = superTableEntry->stbEntry.schemaTag.pSchema->name;
+
+  tb_uid_t    suid = childTableEntry->ctbEntry.suid;
+  tb_uid_t    tuid = childTableEntry->uid;
+  const void *pTagData = childTableEntry->ctbEntry.pTags;
+  int32_t     nTagData = 0;
+
+  SArray *pTagVals = NULL;
+  code = tTagToValArray((const STag *)data, &pTagVals);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  SIndexMultiTerm *terms = indexMultiTermCreate();
+  int16_t          nCols = taosArrayGetSize(pTagVals);
+  for (int i = 0; i < nCols; i++) {
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+    char     type = pTagVal->type;
+
+    char   *key = pTagVal->pKey;
+    int32_t nKey = strlen(key);
+
+    SIndexTerm *term = NULL;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        char   *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
+        type = TSDB_DATA_TYPE_VARCHAR;
+        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
+      } else if (pTagVal->nData == 0) {
+        term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, (const char *)pTagVal->pData, 0);
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = sizeof(val);
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = sizeof(val);
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BOOL, key, nKey, (const char *)&val, len);
+    }
+    if (term != NULL) {
+      indexMultiTermAdd(terms, term);
+    }
+  }
+  indexJsonPut(meta->pTagIvtIdx, terms, tuid);
+  indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
+#endif
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaDropJsonTagIndex(SMeta *meta, const SMetaEntry *childEntry, const SMetaEntry *superEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 /* table.db */
 static int32_t metaUpsertTableEntry(SMeta *meta, const SMetaEntry *entry) {
   int32_t  code = 0;
@@ -431,6 +669,45 @@ _exit:
   return code;
 }
 
+/* tag.idx */
+static int32_t metaUpsertTagIdx(SMeta *meta, const SMetaEntry *childTableEntry) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SMetaEntry *superTableEntry = NULL;
+
+  // 1. TODO: get corresponding super table entry
+  // code = metaGetTableEntry(meta, childTableEntry->ctbEntry.suid, &superTableEntry);
+  // TSDB_CHECK_CODE(code, lino, _exit);
+
+  // 2. add index
+  SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+  if (tagSchema->nCols == 1 && tagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    code = metaUpsertJsonTagIndex(meta, childTableEntry, superTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = metaUpsertNormalTagIndex(meta, childTableEntry, superTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  metaEntryDestroy(superTableEntry);
+  return code;
+}
+
+static int32_t metaDropTagIdx(SMeta *meta, const SMetaEntry *childTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t metadHanleEntryDelete(SMeta *meta, const SMetaEntry *entry) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -507,7 +784,18 @@ static int32_t metaHandleChildTableInsert(SMeta *meta, const SMetaEntry *entry) 
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  /* ctb.idx */
+  code = metaUpsertCtbIdx(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  /* tag.idx */
+  code = metaUpsertTagIdx(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  /* btime.idx */
+  // code = metaUpsertBtimeIdx(meta, entry);
+  // TSDB_CHECK_CODE(code, lino, _exit);
+
   meta->pVnode->config.vndStats.numOfCTables++;
 
 _exit:
