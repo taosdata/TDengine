@@ -2087,7 +2087,7 @@ async fn consume_flat_record(
                         .opts
                         .canonical_table_name(records.table.name.as_str());
 
-                    let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
+                    let mut raw = RawBlock::from_views(&views, target_precision);
                     raw.with_field_names(&columns)
                         .with_table_name(table_name.clone());
 
@@ -2110,9 +2110,9 @@ async fn consume_flat_record(
                                     let res = taos.as_ref().unwrap().describe(&table_name).await;
                                     match res {
                                         Ok(desc) => {
-                                            if let Some(col) =
-                                                desc.iter().find(|f| f.field() == name.as_str())
-                                            {
+                                            if let Some(col) = desc.iter().find(|f| {
+                                                f.ty().is_var_type() && f.field() == name.as_str()
+                                            }) {
                                                 // debug_assert!(ty == col.ty());
                                                 if col.length() < length {
                                                     let table = records
@@ -2731,6 +2731,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     Ok(())
 }
 
+#[framed]
 #[instrument(skip_all)]
 async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
