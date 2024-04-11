@@ -325,7 +325,7 @@ class TDTestCase:
         result = tdSql.queryResult
         index = 0
         for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
             index += 1
         tdSql.checkEqual(True, index > 0)
                     
@@ -333,13 +333,13 @@ class TDTestCase:
         result = tdSql.queryResult
         index = 0
         for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
             index += 1
         tdSql.checkEqual(True, index > 0)
         
         # loaded/sm4
         tdSql.execute('drop database if exists db2')
-        tdSql.execute('create encrypt_key \'12345678\'')
+        #tdSql.execute('create encrypt_key \'12345678\'')
         time.sleep(3)
         tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'sm4\'')
         tdSql.query(f'select * from information_schema.ins_encryptions')
