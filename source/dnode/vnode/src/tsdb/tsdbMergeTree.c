@@ -399,28 +399,31 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
                           rows - i);
         taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
 
-        SValue vFirst = {0}, vLast = {0};
-        for (int32_t f = i; f < rows; ++f) {
-          int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
-          if (code) {
-            break;
+        if (block.numOfPKs > 0) {
+          SValue vFirst = {0}, vLast = {0};
+          for (int32_t f = i; f < rows; ++f) {
+            int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
+            if (code) {
+              break;
+            }
+
+            tValueDupPayload(&vFirst);
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
+
+            // todo add api to clone the original data
+            code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
+            if (code) {
+              break;
+            }
+
+            tValueDupPayload(&vLast);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
           }
-
-          tValueDupPayload(&vFirst);
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
-
-          // todo add api to clone the original data
-          code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
-          if (code) {
-            break;
-          }
-
-          tValueDupPayload(&vLast);
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
         }
 
       } else {
-        STbStatisRecord record;
+        STbStatisRecord record = {0};
+
         while (i < rows) {
           tStatisBlockGet(&block, i, &record);
           if (record.suid != suid) {
@@ -433,15 +436,18 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           taosArrayPush(pBlockLoadInfo->info.pFirstTs, &record.firstKey.ts);
           taosArrayPush(pBlockLoadInfo->info.pLastTs, &record.lastKey.ts);
 
-          SValue s = record.firstKey.pks[0];
-          tValueDupPayload(&s);
+          if (record.firstKey.numOfPKs > 0) {
+            SValue s = record.firstKey.pks[0];
+            tValueDupPayload(&s);
 
-          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &s);
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &s);
 
-          s = record.lastKey.pks[0];
-          tValueDupPayload(&s);
+            s = record.lastKey.pks[0];
+            tValueDupPayload(&s);
 
-          taosArrayPush(pBlockLoadInfo->info.pLastKey, &s);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &s);
+          }
+
           i += 1;
         }
       }
