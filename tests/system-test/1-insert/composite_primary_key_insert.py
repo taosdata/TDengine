@@ -652,6 +652,7 @@ class TDTestCase:
         tdSql.checkRows(2)
 
     def test_stmt(self, dtype: LegalDataType):
+        tdSql.execute(f"drop table if exists {self.stable_name}", show=SHOW_LOG)
         tdSql.execute(f"create table {self.stable_name} (ts timestamp, pk {dtype.value} primary key, c2 {dtype.value}, c3 float) tags (engine int)", show=SHOW_LOG)
 
         sql = f"INSERT INTO ? USING {self.stable_name} TAGS(?) VALUES (?,?,?,?)"
@@ -667,52 +668,146 @@ class TDTestCase:
 
         stmt.set_tbname_tags(tbname, tags)
 
-        # params = taos.new_bind_params(4)
-        # params[0].timestamp((1626861392589, 1626861392589, 1626861392592))
-        # if dtype == LegalDataType.INT :
-        #     params[1].int((10, 12, 12))
-        #     params[2].int([194, 200, 201])
-        # elif dtype == LegalDataType.UINT:
-        #     params[1].int_unsigned((10, 12, 12))
-        #     params[2].int_unsigned([194, 200, 201])
-        # elif dtype == LegalDataType.BIGINT:
-        #     params[1].bigint((10, 12, 12))
-        #     params[2].bigint([194, 200, 201])
-        # elif dtype == LegalDataType.UBIGINT:
-        #     params[1].bigint_unsigned((10, 12, 12))
-        #     params[2].bigint_unsigned([194, 200, 201])
-        # elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
-        #     params[1].binary(("s10", "s12", "s12"))
-        #     params[2].binary(["s194", "s200", "s201"])
-        # params[3].float([0.31, 0.33, 0.31])
+        params = taos.new_bind_params(4)
+        params[0].timestamp((1626861392589, 1626861392589, 1626861392592))
+        if dtype == LegalDataType.INT :
+            params[1].int((10, 12, 12))
+            params[2].int([194, 200, 201])
+        elif dtype == LegalDataType.UINT:
+            params[1].int_unsigned((10, 12, 12))
+            params[2].int_unsigned([194, 200, 201])
+        elif dtype == LegalDataType.BIGINT:
+            params[1].bigint((10, 12, 12))
+            params[2].bigint([194, 200, 201])
+        elif dtype == LegalDataType.UBIGINT:
+            params[1].bigint_unsigned((10, 12, 12))
+            params[2].bigint_unsigned([194, 200, 201])
+        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            params[1].binary(("s10", "s12", "s12"))
+            params[2].binary(["s194", "s200", "s201"])
+        params[3].float([0.31, 0.33, 0.31])
 
-        # stmt.bind_param_batch(params)
+        stmt.bind_param_batch(params)
+
+        stmt.execute()
+
+        tdSql.query(f'select * from {self.stable_name}')
+        tdSql.checkRows(3)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589))
-        params[1].int((11))
-        params[2].int([100])
-        # if dtype == LegalDataType.INT :
-        #     params[1].int((11))
-        #     params[2].int([100])
-        # elif dtype == LegalDataType.UINT:
-        #     params[1].int_unsigned((10))
-        #     params[2].int_unsigned([100])
-        # elif dtype == LegalDataType.BIGINT:
-        #     params[1].bigint((10))
-        #     params[2].bigint([100])
-        # elif dtype == LegalDataType.UBIGINT:
-        #     params[1].bigint_unsigned((10))
-        #     params[2].bigint_unsigned([100])
-        # elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BIGINT:
-        #     params[1].binary(("s10"))
-        #     params[2].binary(["s100"])
+        if dtype == LegalDataType.INT :
+            params[1].int((11))
+            params[2].int([199])
+        elif dtype == LegalDataType.UINT:
+            params[1].int_unsigned((11))
+            params[2].int_unsigned([199])
+        elif dtype == LegalDataType.BIGINT:
+            params[1].bigint((11))
+            params[2].bigint([199])
+        elif dtype == LegalDataType.UBIGINT:
+            params[1].bigint_unsigned((11))
+            params[2].bigint_unsigned([199])
+        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            params[1].binary(("s11"))
+            params[2].binary(["s199"])
         params[3].float([0.31])
 
         stmt.bind_param(params)
 
         stmt.execute()
 
+        tdSql.query(f'select * from {self.stable_name}')
+        tdSql.checkRows(4)
+
+        params = taos.new_bind_params(4)
+        params[0].timestamp((1626861392589))
+        if dtype == LegalDataType.INT :
+            params[1].int((11))
+            params[2].int([1000])
+        elif dtype == LegalDataType.UINT:
+            params[1].int_unsigned((11))
+            params[2].int_unsigned([1000])
+        elif dtype == LegalDataType.BIGINT:
+            params[1].bigint((11))
+            params[2].bigint([1000])
+        elif dtype == LegalDataType.UBIGINT:
+            params[1].bigint_unsigned((11))
+            params[2].bigint_unsigned([1000])
+        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            params[1].binary(("s11"))
+            params[2].binary(["1000"])
+        params[3].float([0.31])
+
+        stmt.bind_param(params)
+
+        stmt.execute()
+
+        tdSql.query(f'select * from {self.stable_name}')
+        tdSql.checkRows(4)
+
+        params = taos.new_bind_params(4)
+        params[0].timestamp((1626861392589))
+        if dtype == LegalDataType.INT :
+            params[1].int(None)
+            params[2].int([199])
+        elif dtype == LegalDataType.UINT:
+            params[1].int_unsigned(None)
+            params[2].int_unsigned([199])
+        elif dtype == LegalDataType.BIGINT:
+            params[1].bigint(None)
+            params[2].bigint([199])
+        elif dtype == LegalDataType.UBIGINT:
+            params[1].bigint_unsigned(None)
+            params[2].bigint_unsigned([199])
+        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            params[1].binary(None)
+            params[2].binary(["s199"])
+        params[3].float([0.31])
+
+        try:
+            stmt.bind_param(params)
+            tdSql.checkEqual(False, True)
+        except Exception as errMsg:
+            pass
+
+        tdSql.query(f'select * from {self.stable_name}')
+        tdSql.checkRows(4)
+
+        params = taos.new_bind_params(4)
+        params[0].timestamp((1626861392589, 1626861392589, ))
+        if dtype == LegalDataType.INT :
+            params[1].int((None, 18,))
+            params[2].int([194, 200])
+        elif dtype == LegalDataType.UINT:
+            params[1].int_unsigned((None, 18))
+            params[2].int_unsigned([194, 200])
+        elif dtype == LegalDataType.BIGINT:
+            params[1].bigint((None, 18))
+            params[2].bigint([194, 200])
+        elif dtype == LegalDataType.UBIGINT:
+            params[1].bigint_unsigned((None, 18))
+            params[2].bigint_unsigned([194, 200])
+        elif dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            params[1].binary((None, "s18"))
+            params[2].binary(["s194", "s200"])
+        params[3].float([0.31, 0.33, 0.31])
+        
+        try:
+            stmt.bind_param(params)
+            tdSql.checkEqual(False, True)
+        except Exception as errMsg:
+            pass
+        
+        tdSql.query(f'select * from {self.stable_name}')
+        tdSql.checkRows(4)
+
+        if dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
+            tdSql.query(f'select * from {self.stable_name} where pk="s11"')
+            tdSql.checkEqual(tdSql.queryResult[0][2] == '1000', True)
+        else:
+            tdSql.query(f'select * from {self.stable_name} where pk=11')
+            tdSql.checkEqual(tdSql.queryResult[0][2] == 1000, True)
         stmt.close()
 
     def test_implicit_conversion(self, dtype: LegalDataType):
@@ -752,7 +847,7 @@ class TDTestCase:
             # for illegal_data in IllegalData.__members__.items():
             #     self.test_insert_data_illegal(date_type[1], illegal_data[1])
 
-            # # 4. insert into select  bug!!!
+            # # 4. insert into select - pass
             # self.test_insert_select(date_type[1])
 
             # # 5. insert into values special cases  - pass
@@ -769,6 +864,8 @@ class TDTestCase:
         
         # # 9. insert data by schemaless model is not allowed - pass
         # self.test_schemaless_error()
+        # while(True):
+        #     self.test_stmt(LegalDataType.VARCHAR) 
 
     def stop(self):
         tdSql.close()
