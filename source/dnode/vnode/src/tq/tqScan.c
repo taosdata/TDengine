@@ -80,7 +80,7 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
 }
 
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest) {
-  const int32_t MAX_ROWS_TO_RETURN = 4096;
+  const int32_t MAX_ROWS_TO_RETURN = 1;
 
   int32_t vgId = TD_VID(pTq->pVnode);
   int32_t code = 0;
