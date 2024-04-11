@@ -133,13 +133,12 @@ pub fn check_security_code(key: &str, code: &str) -> String {
     "none".to_string()
 }
 
-
-
-pub fn generate_captcha(key: String) -> Option<Vec<u8>>{
+pub fn generate_captcha(key: String) -> Option<Vec<u8>> {
     let captcha_chars = "123456789".chars().collect::<Vec<char>>();
 
     let mut captcha = Captcha::new();
-    captcha.set_chars(&captcha_chars)
+    captcha
+        .set_chars(&captcha_chars)
         .add_chars(4)
         .apply_filter(Noise::new(0.1))
         .apply_filter(Wave::new(2.0, 20.0).horizontal())
@@ -245,10 +244,10 @@ mod tests {
         let code = generate_verification_code(phone_email.to_string());
         print!("code: {}\n", code);
 
-        assert_eq!(check_verification_code(phone_email, "1234"), "error");
-        assert_eq!(check_verification_code(phone_email, &code), "pass");
+        assert_eq!(check_security_code(phone_email, "1234"), "error");
+        assert_eq!(check_security_code(phone_email, &code), "pass");
 
         // 再次验证时，已经失效了，不能重复使用
-        assert_eq!(check_verification_code(phone_email, &code), "none");
+        assert_eq!(check_security_code(phone_email, &code), "none");
     }
 }

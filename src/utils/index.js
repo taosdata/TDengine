@@ -389,7 +389,7 @@ export function getDSN(driver = "tmq", subject = null) {
 
     let host = parsed_url.host;
     let user = localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";
     let subjectStr = subject ? "/" + subject : "";
     return (
@@ -407,7 +407,7 @@ export function getDSN(driver = "tmq", subject = null) {
   } else {
     let host = url;
     let user = localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";
     let subjectStr = subject ? "/" + subject : "";
     return driver + "://" + user + ":" + pass + "@" + host + subjectStr;

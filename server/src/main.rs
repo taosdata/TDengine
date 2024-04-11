@@ -141,10 +141,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
-            .route(
-                "/api/-/captcha",
-                web::get().to(generate_captcha_image),
-            )
+            .route("/api/-/captcha", web::get().to(generate_captcha_image))
             .route(
                 "/api/-/verification-code",
                 web::get().to(send_verification_code),
@@ -348,10 +345,16 @@ struct VerificationReqBody {
 }
 
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
-    let captcha_key = format!("captcha-{}-{}", params.phone_email.as_ref().unwrap(), params.ts.unwrap_or(0));
+    let captcha_key = format!(
+        "captcha-{}-{}",
+        params.phone_email.as_ref().unwrap(),
+        params.ts.unwrap_or(0)
+    );
     let img = verification::generate_captcha(captcha_key);
- 
-    HttpResponse::Ok().content_type("image/png").body(img.unwrap())
+
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(img.unwrap())
 }
 
 // phone_email=18600000000&captcha=1234
@@ -381,7 +384,11 @@ async fn send_verification_code(params: web::Query<VerificationReqBody>) -> impl
         });
     }
 
-    let verification_key = format!("verification-{}-{}", str_phone_email, params.ts.unwrap_or(0));
+    let verification_key = format!(
+        "verification-{}-{}",
+        str_phone_email,
+        params.ts.unwrap_or(0)
+    );
     let verification_code = verification::generate_verification_code(verification_key);
 
     // 调用云服务发送验证码
