@@ -1,6 +1,5 @@
 use std::io::BufRead;
 
-use crate::get_data_dir;
 use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
