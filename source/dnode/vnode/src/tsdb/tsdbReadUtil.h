@@ -212,8 +212,6 @@ typedef struct SFileDataBlockInfo {
     uint8_t* pData;
   } lastPk;
 
-  int32_t firstPKLen;
-  int32_t lastPKLen;
   int64_t minVer;
   int64_t maxVer;
   int64_t blockOffset;

@@ -446,17 +446,17 @@ void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
     if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
       pBlockInfo->firstPk.val = pFirstKey->pks[0].val;
       pBlockInfo->lastPk.val = record->lastKey.key.pks[0].val;
+    } else {
+      char* p = taosMemoryCalloc(1, pFirstKey->pks[0].nData + VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(p), pFirstKey->pks[0].pData, pFirstKey->pks[0].nData);
+      varDataSetLen(p, pFirstKey->pks[0].nData);
+      pBlockInfo->firstPk.pData = (uint8_t*)p;
 
-      pBlockInfo->firstPKLen = 0;
-      pBlockInfo->lastPKLen = 0;
-    } else {  // todo handle memory alloc error, opt memory alloc perf
-      pBlockInfo->firstPKLen = pFirstKey->pks[0].nData;
-      pBlockInfo->firstPk.pData = taosMemoryCalloc(1, pBlockInfo->firstPKLen);
-      memcpy(pBlockInfo->firstPk.pData, pFirstKey->pks[0].pData, pBlockInfo->firstPKLen);
-
-      pBlockInfo->lastPKLen = record->lastKey.key.pks[0].nData;
-      pBlockInfo->lastPk.pData = taosMemoryCalloc(1, pBlockInfo->lastPKLen);
-      memcpy(pBlockInfo->lastPk.pData, record->lastKey.key.pks[0].pData, pBlockInfo->lastPKLen);
+      int32_t keyLen = record->lastKey.key.pks[0].nData;
+      p = taosMemoryCalloc(1, keyLen + VARSTR_HEADER_SIZE);
+      memcpy(varDataVal(p), record->lastKey.key.pks[0].pData, keyLen);
+      varDataSetLen(p, keyLen);
+      pBlockInfo->lastPk.pData = (uint8_t*)p;
     }
   }
 }

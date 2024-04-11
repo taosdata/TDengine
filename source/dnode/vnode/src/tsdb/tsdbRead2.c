@@ -119,7 +119,7 @@ int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2) {
         return ret > 0 ? 1 : -1;
       }
     } else {
-      return comparFn(&p1->pks[0].val, &p2->pks[0].val);
+      return p1->pks[0].val - p2->pks[0].val;
     }
   }
 }
@@ -396,7 +396,7 @@ _err:
 }
 
 bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp) {
-  return pSupp->numOfPks > 0 && IS_VAR_DATA_TYPE(pSupp->pk.type);
+  return (pSupp->numOfPks > 0) && IS_VAR_DATA_TYPE(pSupp->pk.type);
 }
 
 void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool needFree) {
@@ -824,18 +824,13 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
   return TSDB_CODE_SUCCESS;
 }
 
-// todo keep the the last returned key
 static void setBlockAllDumped(SFileBlockDumpInfo* pDumpInfo, int64_t maxKey, int32_t order) {
-//  int32_t step = ASCENDING_TRAVERSE(order) ? 1 : -1;
   pDumpInfo->allDumped = true;
-//  ASSERT(0);
-//  pDumpInfo->lastKey.key.ts = maxKey + step;
 }
 
 static void updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, SDataBlockInfo* pInfo, int32_t numOfPks,
                               bool asc) {
   pKey->ts = asc ? pInfo->window.ekey : pInfo->window.skey;
-
   pKey->numOfPKs = numOfPks;
   if (pKey->numOfPKs <= 0) {
     return;
@@ -845,7 +840,7 @@ static void updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, SDa
     pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
   } else {
     uint8_t* p = asc ? pBlockInfo->lastPk.pData : pBlockInfo->firstPk.pData;
-    pKey->pks[0].nData = asc ? pBlockInfo->lastPKLen : pBlockInfo->firstPKLen;
+    pKey->pks[0].nData = asc ? varDataLen(pBlockInfo->lastPk.pData) : varDataLen(pBlockInfo->firstPk.pData);
     memcpy(pKey->pks[0].pData, p, pKey->pks[0].nData);
   }
 }
@@ -2841,11 +2836,11 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
       pInfo->pks[0].val = pBlockInfo->firstPk.val;
       pInfo->pks[1].val = pBlockInfo->lastPk.val;
     } else {
-      memcpy(pInfo->pks[0].pData, pBlockInfo->firstPk.pData, pBlockInfo->firstPKLen);
-      memcpy(pInfo->pks[1].pData, pBlockInfo->lastPk.pData, pBlockInfo->lastPKLen);
+      memcpy(pInfo->pks[0].pData, varDataVal(pBlockInfo->firstPk.pData), varDataLen(pBlockInfo->firstPk.pData));
+      memcpy(pInfo->pks[1].pData, varDataVal(pBlockInfo->lastPk.pData), varDataLen(pBlockInfo->lastPk.pData));
 
-      pInfo->pks[0].nData = pBlockInfo->firstPKLen;
-      pInfo->pks[1].nData = pBlockInfo->lastPKLen;
+      pInfo->pks[0].nData = varDataLen(pBlockInfo->firstPk.pData);
+      pInfo->pks[1].nData = varDataLen(pBlockInfo->lastPk.pData);
     }
   }
 

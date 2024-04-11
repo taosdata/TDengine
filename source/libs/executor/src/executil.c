@@ -261,6 +261,7 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
       pBlockInfo->pks[0].type = pInfoData->info.type;
       pBlockInfo->pks[1].type = pInfoData->info.type;
 
+      // allocate enough buffer size, which is pInfoData->info.bytes
       if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
         pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
         if (pBlockInfo->pks[0].pData == NULL) {
