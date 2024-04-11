@@ -925,15 +925,23 @@ pub async fn get_table_progress(
             )
         }
     };
-    tracing::debug!("from_sql:\n {from_sql}, to_sql:\n {to_sql}");
+    tracing::debug!("\nfrom_sql: {from_sql}\nto_sql: {to_sql}");
     let from_result = from_taos
         .query_one::<String, (Option<u64>, u64)>(from_sql)
-        .await?
-        .ok_or(anyhow!("No data found in source database"))?;
+        .await;
+    if let Err(err) = from_result {
+        tracing::error!("Query from source database error: {err}");
+        bail!(err);
+    }
     let to_result = to_taos
         .query_one::<String, (Option<u64>, u64)>(to_sql)
-        .await?
-        .ok_or(anyhow!("No data found in target database"))?;
+        .await;
+    if let Err(err) = to_result {
+        tracing::error!("Query to target database error: {err}");
+        bail!(err);
+    }
+    let from_result = from_result.unwrap().unwrap();
+    let to_result = to_result.unwrap().unwrap();
     Ok(TableProgress {
         table_name: table.to_string(),
         from_last_ts: from_result.0,
