@@ -502,6 +502,10 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
   }
 
   // extract the required source task for a given stream, identified by streamId
+  streamMetaRLock(pMeta);
+
+  numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     if (pId->streamId != streamId) {
@@ -552,6 +556,8 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
 
     walCloseReader(pReader);
   }
+
+  streamMetaRUnLock(pMeta);
 
   return TSDB_CODE_SUCCESS;
 }
