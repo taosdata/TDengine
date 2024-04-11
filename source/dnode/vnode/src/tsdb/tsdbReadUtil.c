@@ -171,7 +171,7 @@ void clearRowKey(SRowKey* pKey) {
   if (pKey == NULL || pKey->numOfPKs == 0 || (!IS_VAR_DATA_TYPE(pKey->pks[0].type))) {
     return;
   }
-  taosMemoryFree(pKey->pks[0].pData);
+  taosMemoryFreeClear(pKey->pks[0].pData);
 }
 
 static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader) {
