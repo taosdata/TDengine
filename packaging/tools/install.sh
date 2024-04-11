@@ -500,6 +500,20 @@ function local_fqdn_check() {
   set_hostname
 }
 
+function install_taosx_config() {
+  [ ! -z $1 ] && return 0 || : # only install client
+
+  fileName="${script_dir}/${xname}/etc/taos/${xname}.toml"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
+    
+    if [ -f "${configDir}/${xname}.toml" ]; then
+      ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/${xname}.toml
+    fi
+  fi
+}
 
 
 function install_explorer_config() {
@@ -575,8 +589,9 @@ function install_config() {
   fi
 
   if [ "$interactiveFqdn" == "no" ]; then
+    install_taosd_config
     return 0
-  fi  
+  fi
 
   local_fqdn_check
   install_taosd_config
@@ -870,6 +885,7 @@ function updateProduct() {
 
     if [ "${pagMode}" != "lite" ]; then
       install_adapter_config
+      install_taosx_config
       install_explorer_config
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
@@ -964,8 +980,9 @@ function installProduct() {
 
     if [ "${pagMode}" != "lite" ]; then      
       install_adapter_config
+      install_taosx_config
       install_explorer_config
-      if [ "${verMode}" != "cloud" ]; then        
+      if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
     fi
@@ -1049,8 +1066,10 @@ check_java_env() {
 
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
-check_java_env
 if [ "$verType" == "server" ]; then
+  if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
+    check_java_env
+  fi
   # Check default 2.x data file.
   if [ -x ${dataDir}/dnode/dnodeCfg.json ]; then
     echo -e "\033[44;31;5mThe default data directory ${dataDir} contains old data of ${productName} 2.x, please clear it before installing!\033[0m"
