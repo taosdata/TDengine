@@ -851,10 +851,10 @@ class TDTestCase:
 
     def test_union(self):
         ctxs = []
-        sql = 'select avg(c1) from meters union select avg(c1) from norm_tb'
+        sql = 'select avg(c1) from test.meters union select avg(c1) from test.norm_tb'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('test', 'tsma5', 'norm_tb').get_qc()
         ctxs.append(ctx)
-        sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000" union select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        sql = 'select avg(c1), avg(c2) from test.meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000" union select avg(c1), avg(c2) from  test.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', '2018-09-17 09:00:00', '2018-09-17 09:59:59:999')
                     .should_query_with_table("meters", '2018-09-17 10:00:00', '2018-09-17 10:00:00')
@@ -869,30 +869,30 @@ class TDTestCase:
         tdSql.execute('insert into db2.norm_tb values(now, 1)')
         tdSql.execute('insert into db2.norm_tb values(now, 2)')
         self.create_tsma('tsma_db2_norm_t', 'db2', 'norm_tb', ['avg(c2)', 'last(ts)'], '10m')
-        sql = 'select avg(c1) from test.meters union select avg(c2) from norm_tb'
+        sql = 'select avg(c1) as avg_c1 from test.meters union select avg(c2) from  db2.norm_tb order by avg_c1'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('db2', 'tsma_db2_norm_t', 'norm_tb').get_qc()])
         tdSql.execute('drop database db2')
         tdSql.execute('use test')
 
     def test_modify_col_name_value(self):
-        tdSql.execute('alter table norm_tb rename column c1 c1_new')
-        sql = 'select avg(c1_new) from norm_tb'
+        tdSql.execute('alter table  test.norm_tb rename column c1 c1_new')
+        sql = 'select avg(c1_new) from  test.norm_tb'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma5').ignore_query_table().get_qc()])
 
         ## modify tag name
-        tdSql.error('alter stable meters rename tag t1 t1_new;', -2147482637) ## stream must be dropped
+        tdSql.error('alter stable  test.meters rename tag t1 t1_new;', -2147482637) ## stream must be dropped
 
     def test_add_tag_col(self):
         ## query with newly add tag will skip all tsmas not have this tag
-        tdSql.execute('alter table meters add tag tag_new int', queryTimes=1)
-        sql = 'select avg(c1) from meters partition by tag_new'
+        tdSql.execute('alter table  test.meters add tag tag_new int', queryTimes=1)
+        sql = 'select avg(c1) from  test.meters partition by tag_new'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
-        sql = 'select avg(c1) from meters partition by abs(tag_new)'
+        sql = 'select avg(c1) from  test.meters partition by abs(tag_new)'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
-        sql = 'select avg(c1) from meters where abs(tag_new) > 100'
+        sql = 'select avg(c1) from  test.meters where abs(tag_new) > 100'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc()])
 
-        tdSql.execute('alter table meters drop tag tag_new', queryTimes=1)
+        tdSql.execute('alter table test.meters drop tag tag_new', queryTimes=1)
 
     def generate_random_string(self, length):
         letters_and_digits = string.ascii_lowercase
@@ -903,10 +903,10 @@ class TDTestCase:
         name = self.generate_random_string(178)
         tsma_func_list = ['avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)', 'stddev(c3)', 'hyperloglog(c5)', 'last(ts)']
         self.create_tsma(name, 'test', 'meters', tsma_func_list, '55m')
-        sql = 'select last(c5), spread(c2) from meters interval(55m)'
+        sql = 'select last(c5), spread(c2) from test.meters interval(55m)'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()
         self.check([ctx])
-        tdSql.execute(f'drop tsma {name}')
+        tdSql.execute(f'drop tsma test.{name}')
 
         name = self.generate_random_string(180)
         tdSql.error(f'create tsma {name} on test.meters function({",".join(tsma_func_list)}) interval(1h)', -2147471087)
@@ -916,7 +916,7 @@ class TDTestCase:
 
         name = self.generate_random_string(178)
         self.create_recursive_tsma('tsma1', name, 'test', '60m', 'meters', ['avg(c1)','avg(c2)'])
-        sql = 'select avg(c1) from meters interval(60m)'
+        sql = 'select avg(c1) from test.meters interval(60m)'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma(name).get_qc()])
 
         tdSql.execute(f'drop tsma {name}')
@@ -938,23 +938,23 @@ class TDTestCase:
 
     def test_skip_tsma_hint(self):
         ctxs = []
-        sql = 'select /*+ skip_tsma()*/avg(c1), avg(c2) from meters interval(5m)'
+        sql = 'select /*+ skip_tsma()*/avg(c1), avg(c2) from test.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
+        sql = 'select avg(c1), avg(c2) from test.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1').get_qc())
         self.check(ctxs)
 
     def test_query_child_table(self):
-        sql = 'select avg(c1) from t1'
+        sql = 'select avg(c1) from test.t1'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', 'tsma2', 't1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
-        sql = 'select avg(c1) from t3'
+        sql = 'select avg(c1) from test.t3'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', 'tsma2', 't3').get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
     def test_recursive_tsma(self):
-        tdSql.execute('drop tsma tsma2')
+        tdSql.execute('drop tsma test.tsma2')
         tsma_func_list = ['last(ts)', 'avg(c2)', 'avg(c3)', 'min(c4)', 'max(c3)', 'sum(c2)', 'count(ts)', 'count(c2)', 'first(c5)', 'last(c5)', 'spread(c2)', 'stddev(c3)', 'hyperloglog(c5)']
         select_func_list: List[str] = tsma_func_list.copy()
         select_func_list.append('count(*)')
@@ -962,7 +962,7 @@ class TDTestCase:
         self.create_recursive_tsma(
             'tsma3', 'tsma4', 'test', '20m', 'meters', tsma_func_list)
         # now we have 5m, 10m, 30m, 1h 4 tsmas
-        sql = 'select avg(c2), "recursive tsma4" from meters'
+        sql = 'select avg(c2), "recursive test.tsma4" from test.meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         #time.sleep(999999)
@@ -976,15 +976,15 @@ class TDTestCase:
 
         self.check(self.test_query_tsma_all(select_func_list))
 
-        tdSql.error('drop tsma tsma3', -2147482491)
-        tdSql.error('drop tsma tsma4', -2147482491)
-        tdSql.execute('drop tsma tsma6')
-        tdSql.execute('drop tsma tsma4')
-        tdSql.execute('drop tsma tsma3')
+        tdSql.error('drop tsma test.tsma3', -2147482491)
+        tdSql.error('drop tsma test.tsma4', -2147482491)
+        tdSql.execute('drop tsma test.tsma6')
+        tdSql.execute('drop tsma test.tsma4')
+        tdSql.execute('drop tsma test.tsma3')
         self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
 
         # test query with dropped tsma tsma4 and tsma6
-        sql = 'select avg(c2), "tsma2" from meters'
+        sql = 'select avg(c2), "test.tsma2" from test.meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.check([ctx])
@@ -992,9 +992,9 @@ class TDTestCase:
         # test recrusive tsma on norm_tb
         tsma_name = 'tsma_recursive_on_norm_tb'
         self.create_recursive_tsma('tsma5', tsma_name, 'test', '20m', 'norm_tb', ['avg(c1)', 'avg(c2)'])
-        sql = 'select avg(c1), avg(c2), tbname from norm_tb partition by tbname interval(20m)'
+        sql = 'select avg(c1), avg(c2), tbname from test.norm_tb partition by tbname interval(20m)'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('test', tsma_name, 'norm_tb').get_qc()])
-        tdSql.execute(f'drop tsma {tsma_name}')
+        tdSql.execute(f'drop tsma test.{tsma_name}')
 
     def test_query_with_tsma_interval(self):
         self.check(self.test_query_with_tsma_interval_possibly_partition())
@@ -1013,7 +1013,7 @@ class TDTestCase:
             opts.norm_tb = False
             sql_generator = TSMATestSQLGenerator(opts)
             sql = sql_generator.generate_one(
-                ','.join(func_list), ['meters', 'meters', 't1', 't9'], '', interval_list)
+                ','.join(func_list), ['test.meters', 'test.meters', 'test.t1', 'test.t9'], '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table(
             ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
 
@@ -1024,46 +1024,46 @@ class TDTestCase:
             opts.norm_tb = True
             sql_generator = TSMATestSQLGenerator(opts)
             sql = sql_generator.generate_one(
-                ','.join(func_list), ['norm_tb', 't5'], '', interval_list)
+                ','.join(func_list), ['test.norm_tb', 'test.t5'], '', interval_list)
             ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table(
             ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
-    def test_query_with_tsma_interval_possibly_partition(self):
+    def test_query_with_tsma_interval_possibly_partition(self,db_name: str = 'test'):
         ctxs: List[TSMAQueryContext] = []
-        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters interval(10m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(10m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(30m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(30m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(60m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(60m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(60m, 30m) SLIDING(30m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(60m, 30m) SLIDING(30m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
-        sql = 'select avg(c1), avg(c2) from meters interval(60m, 25m) SLIDING(25m)'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(60m, 25m) SLIDING(25m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 
-        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
+        sql = f"select avg(c1), avg(c2) from {db_name}.meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:29:59.999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.664').get_qc())
 
-        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m, 25m) SLIDING(10m)"
+        sql = f"select avg(c1), avg(c2) from {db_name}.meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m, 25m) SLIDING(10m)"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:04:59.999')
                     .should_query_with_tsma('tsma1', '2018-09-17 09:05:00', '2018-09-17 09:54:59.999')
                     .should_query_with_table('meters', '2018-09-17 09:55:00.000', '2018-09-17 10:23:19.664').get_qc())
 
-        sql = "SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
+        sql = f"SELECT avg(c1), avg(c2),_wstart, _wend,t3,t4,t5,t2 FROM {db_name}.meters WHERE ts >= '2018-09-17 8:00:00' AND ts < '2018-09-17 09:03:18.334' PARTITION BY t3,t4,t5,t2 INTERVAL(1d);"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 8:00:00', '2018-09-17 09:03:18.333').get_qc())
         ctxs.extend(self.test_query_tsma_all())
@@ -1077,121 +1077,121 @@ class TDTestCase:
         self.check(self.test_query_with_tsma_agg_group_by_tbname())
         self.check(self.test_query_with_tsma_with_having())
 
-    def test_query_with_tsma_agg_no_group_by(self):
+    def test_query_with_tsma_agg_no_group_by(self, db_name: str = 'test'):
         ctxs: List[TSMAQueryContext] = []
-        sql = 'select avg(c1), avg(c2) from meters'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000"'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', '2018-09-17 09:00:00', '2018-09-17 09:59:59:999')
                     .should_query_with_table("meters", '2018-09-17 10:00:00', '2018-09-17 10:00:00').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
-        sql = 'select avg(c1) + avg(c2), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        sql = f'select avg(c1) + avg(c2), avg(c2) from {db_name}.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
-        sql = 'select avg(c1) + avg(c2), avg(c2) + 1 from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        sql = f'select avg(c1) + avg(c2), avg(c2) + 1 from {db_name}.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
-        sql = "select avg(c1) + 1, avg(c2) from meters where ts >= '2018-09-17 9:30:00.118' and ts < '2018-09-17 10:50:00'"
+        sql = f"select avg(c1) + 1, avg(c2) from {db_name}.meters where ts >= '2018-09-17 9:30:00.118' and ts < '2018-09-17 10:50:00'"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 9:30:00.118', '2018-09-17 9:59:59.999')
                     .should_query_with_tsma('tsma2', '2018-09-17 10:00:00', '2018-09-17 10:29:59.999')
                     .should_query_with_tsma('tsma1', '2018-09-17 10:30:00.000', '2018-09-17 10:49:59.999').get_qc())
 
-        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 9:00:00' and ts < '2018-09-17 9:45:00' limit 2"
+        sql = f"select avg(c1), avg(c2) from {db_name}.meters where ts >= '2018-09-17 9:00:00' and ts < '2018-09-17 9:45:00' limit 2"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma2', '2018-09-17 9:00:00', '2018-09-17 9:29:59.999')
                     .should_query_with_tsma('tsma1', '2018-09-17 9:30:00', '2018-09-17 9:44:59.999').get_qc())
 
-        sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
+        sql = f'select avg(c1) + avg(c2) from {db_name}.meters where tbname like "%t1%"'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where c1 is not NULL'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where c1 is not NULL'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1), avg(c2), spread(c4) from meters'
+        sql = f'select avg(c1), avg(c2), spread(c4) from {db_name}.meters'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\''
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where tbname = \'t1\''
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where tbname = \'t1\' or tbname = \'t2\''
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where tbname = \'t1\' or tbname = \'t2\''
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = '''select avg(c1), avg(c2) from meters where tbname = 't1' and c1 is not NULL'''
+        sql = f'''select avg(c1), avg(c2) from {db_name}.meters where tbname = 't1' and c1 is not NULL'''
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1+c2) from meters'
+        sql = f'select avg(c1+c2) from {db_name}.meters'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1), avg(c2) from meters where ts >= "2018-09-17 9:25:00" and ts < "2018-09-17 10:00:00" limit 6'
+        sql = f'select avg(c1), avg(c2) from {db_name}.meters where ts >= "2018-09-17 9:25:00" and ts < "2018-09-17 10:00:00" limit 6'
         ctxs.append(TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma1', '2018-09-17 9:25:00', '2018-09-17 9:29:59.999')
                     .should_query_with_tsma('tsma2', '2018-09-17 9:30:00', '2018-09-17 9:59:59.999').get_qc())
 
         return ctxs
 
-    def test_query_with_tsma_agg_group_by_tbname(self):
+    def test_query_with_tsma_agg_group_by_tbname(self,  db_name: str = 'test'):
         ctxs: List[TSMAQueryContext] = []
-        sql = 'select avg(c1) as a, avg(c2) as b, tbname from meters group by tbname order by tbname, a, b'
+        sql = f'select avg(c1) as a, avg(c2) as b, tbname from {db_name}.meters group by tbname order by tbname, a, b'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1) as a, avg(c2) + 1 as b, tbname from meters where c1 > 10 group by tbname order by tbname, a, b'
+        sql = f'select avg(c1) as a, avg(c2) + 1 as b, tbname from {db_name}.meters where c1 > 10 group by tbname order by tbname, a, b'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_table('meters').get_qc())
 
-        sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, tbname from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by tbname order by tbname, a, b'
+        sql = f'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, tbname from {db_name}.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by tbname order by tbname, a, b'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
-        sql = 'select avg(c1) + avg(c2) + 3 as a, substr(tbname, 1) as c from meters group by substr(tbname, 1) order by c, a'
+        sql = f'select avg(c1) + avg(c2) + 3 as a, substr(tbname, 1) as c from {db_name}.meters group by substr(tbname, 1) order by c, a'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, substr(tbname, 1, 1) as c from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by substr(tbname, 1, 1) order by c, a, b'
+        sql = f'select avg(c1) + avg(c2) as a, avg(c2) + 1 as b, substr(tbname, 1, 1) as c from {db_name}.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800" group by substr(tbname, 1, 1) order by c, a, b'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.200', '2018-09-17 09:29:59:999')
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.800').get_qc())
 
-        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 order by tbname'
+        sql = f'select avg(c1), tbname from {db_name}.meters group by tbname having avg(c1) > 0 order by tbname'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
-        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1"'
-        ctxs.append(TSMAQCBuilder().with_sql(
-            sql).should_query_with_tsma('tsma2').get_qc())
-
-        sql = 'select avg(c1), tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        sql = f'select avg(c1), tbname from {db_name}.meters group by tbname having avg(c1) > 0 and tbname = "t1"'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
-        sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        sql = f'select avg(c1), tbname from {db_name}.meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
-        sql = 'select avg(c1) + 1, tbname from meters group by tbname having avg(c1) > 0 and tbname like "t%" order by tbname'
+
+        sql = f'select avg(c1) + 1, tbname from {db_name}.meters group by tbname having avg(c1) > 0 and tbname = "t1" order by tbname'
+        ctxs.append(TSMAQCBuilder().with_sql(
+            sql).should_query_with_tsma('tsma2').get_qc())
+        sql = f'select avg(c1) + 1, tbname from {db_name}.meters group by tbname having avg(c1) > 0 and tbname like "t%" order by tbname'
         ctxs.append(TSMAQCBuilder().with_sql(
             sql).should_query_with_tsma('tsma2').get_qc())
 
@@ -1232,9 +1232,9 @@ class TDTestCase:
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '15m', 'meters')
 
         # drop recursive tsma first
-        tdSql.error('drop tsma tsma1', -2147482491)
-        tdSql.execute('drop tsma tsma2', queryTimes=1)
-        tdSql.execute('drop tsma tsma1', queryTimes=1)
+        tdSql.error('drop tsma test.tsma1', -2147482491)
+        tdSql.execute('drop tsma test.tsma2', queryTimes=1)
+        tdSql.execute('drop tsma test.tsma1', queryTimes=1)
         tdSql.execute('drop database test', queryTimes=1)
 
         self.init_data()
@@ -1245,12 +1245,12 @@ class TDTestCase:
         tdSql.execute('create database nsdb precision "ns"', queryTimes=1)
         tdSql.execute('use nsdb', queryTimes=1)
         tdSql.execute(
-            'create table meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
+            'create table nsdb.meters(ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)', queryTimes=1)
         # TODO insert data
         self.create_tsma('tsma1', 'nsdb', 'meters', [
                          'avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'nsdb', '10m', 'meters')
-        tdSql.query('select avg(c1) from meters', queryTimes=1)
+        tdSql.query('select avg(c1) from nsdb.meters', queryTimes=1)
         tdSql.execute('drop database nsdb', queryTimes=1)
     
     def test_tb_ddl_with_created_tsma(self):
@@ -1279,7 +1279,7 @@ class TDTestCase:
 
         # drop norm table
         self.create_tsma('tsma_norm_tb', 'test', 'norm_tb', ['avg(c1)', 'avg(c2)'], '5m')
-        tdSql.error('drop table norm_tb', -2147471088)
+        tdSql.error('drop table test.norm_tb', -2147471088)
 
         # drop no tsma table
         tdSql.execute('drop table test.t2, test.t1')
@@ -1288,14 +1288,14 @@ class TDTestCase:
         self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         tdSql.execute('alter table test.t0 ttl 2', queryTimes=1)
         tdSql.execute('flush database test')
-        tdSql.waitedQuery('show tables like "%t0"', 0, 10)
+        tdSql.waitedQuery('show test.tables like "%t0"', 0, 10)
 
         # test drop multi tables
-        tdSql.execute('drop table t3, t4')
-        tdSql.waitedQuery('show tables like "%t3"', 0, 1)
-        tdSql.waitedQuery('show tables like "%t4"', 0, 1)
+        tdSql.execute('drop table test.t3, test.t4')
+        tdSql.waitedQuery('show test.tables like "%t3"', 0, 1)
+        tdSql.waitedQuery('show test.tables like "%t4"', 0, 1)
 
-        tdSql.query('show tables like "%tsma%"')
+        tdSql.query('show test.tables like "%tsma%"')
         tdSql.checkRows(0)
 
         # test drop stream
@@ -1367,7 +1367,7 @@ class TDTestCase:
         self.create_tsma('tsma7', 'nsdb', 'meters', ['avg(c1)', 'count(c2)'], '104s')
         self.create_tsma('tsma8', 'test', 'meters', ['avg(c1)', 'sum(c2)'], '105s')
         tdSql.error('create tsma tsma9 on nsdb.meters function(count(ts), count(c1), sum(c2)) interval(99s)', -2147482490)
-        tdSql.error('create recursive tsma tsma9 on tsma8 interval(210s)', -2147482490)
+        tdSql.error('create recursive tsma tsma9 on test.tsma8 interval(210s)', -2147482490)
         
         # modify  maxTsmaNum para
         tdSql.error('alter dnode 1  "maxTsmaNum" "13";')    
@@ -1420,28 +1420,28 @@ class TDTestCase:
         tdSql.execute('use test')
         self.create_tsma('tsma1', 'test', 'meters', [
                          'avg(c1)', 'avg(c2)'], '5m')
-        sql = 'create recursive tsma tsma2 on tsma1 function(avg(c1)) interval(1m)'
+        sql = 'create recursive tsma tsma2 on test.tsma1 function(avg(c1)) interval(1m)'
         tdSql.error(sql, -2147473920)  # syntax error 
 
-        sql = 'create recursive tsma tsma2 on tsma1 interval(1m)'
+        sql = 'create recursive tsma tsma2 on test.tsma1 interval(1m)'
         tdSql.error(sql, -2147471099)  # invalid tsma parameter
 
-        sql = 'create recursive tsma tsma2 on tsma1 interval(7m)'
+        sql = 'create recursive tsma tsma2 on test.tsma1 interval(7m)'
         tdSql.error(sql, -2147471099)  # invalid tsma parameter
 
-        sql = 'create recursive tsma tsma2 on tsma1 interval(11m)'
+        sql = 'create recursive tsma tsma2 on test.tsma1 interval(11m)'
         tdSql.error(sql, -2147471099)  # invalid tsma parameter
 
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '20m', 'meters')
 
-        sql = 'create recursive tsma tsma3 on tsma2 interval(30m)'
+        sql = 'create recursive tsma tsma3 on test.tsma2 interval(30m)'
         tdSql.error(sql, -2147471099)  # invalid tsma parameter    
 
         self.create_recursive_tsma('tsma2', 'tsma3', 'test', '40m', 'meters')
 
-        tdSql.execute('drop tsma tsma3', queryTimes=1)
-        tdSql.execute('drop tsma tsma2', queryTimes=1)
-        tdSql.execute('drop tsma tsma1', queryTimes=1)
+        tdSql.execute('drop tsma test.tsma3', queryTimes=1)
+        tdSql.execute('drop tsma test.tsma2', queryTimes=1)
+        tdSql.execute('drop tsma test.tsma1', queryTimes=1)
 
     def test_create_tsma_maxlist_function(self):
         function_name = sys._getframe().f_code.co_name
@@ -1496,9 +1496,9 @@ class TDTestCase:
         tdSql.execute("CREATE TSMA `129_tsma` ON test.meters FUNCTION(count(c3)) INTERVAL(5m); ")
         tdSql.execute("CREATE TSMA `129_Tsma` ON test.meters FUNCTION(count(c3)) INTERVAL(5m); ")
         tdSql.execute("CREATE TSMA `129_T*\-sma` ON test.meters FUNCTION(count(c3))  INTERVAL(5m); ")
-        tdSql.execute("drop tsma `129_tsma`")
-        tdSql.execute("drop tsma `129_Tsma`")
-        tdSql.execute("drop tsma `129_T*\-sma`")
+        tdSql.execute("drop tsma test.`129_tsma`")
+        tdSql.execute("drop tsma test.`129_Tsma`")
+        tdSql.execute("drop tsma test.`129_T*\-sma`")
 
         self.drop_tsma('tsma_repeat', 'test')
 

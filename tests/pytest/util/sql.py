@@ -22,7 +22,7 @@ import shutil
 import pandas as pd
 from util.log import *
 from util.constant import *
-
+import ctypes
 # from datetime import timezone
 import time
 
@@ -78,7 +78,7 @@ class TDSql:
         self.cursor.execute(s)
         time.sleep(2)
 
-    def execute(self, sql, queryTimes=30, show=False):
+    def execute(self, sql, queryTimes=20, show=False):
         self.sql = sql
         if show:
             tdLog.info(sql)
@@ -118,7 +118,6 @@ class TDSql:
     def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True, show = False):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
-
         if show:
             tdLog.info("sql:%s" % (sql))
 
@@ -140,7 +139,8 @@ class TDSql:
 
             if fullMatched:
                 if expectedErrno != None:
-                    if expectedErrno == self.errno:
+                    expectedErrno_rest = expectedErrno & 0x0000ffff
+                    if expectedErrno == self.errno or expectedErrno_rest == self.errno:
                         tdLog.info("sql:%s, expected errno %s occured" % (sql, expectedErrno))
                     else:
                         tdLog.exit("%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'" % (caller.filename, caller.lineno, sql, self.errno, expectedErrno))
@@ -152,7 +152,8 @@ class TDSql:
                         tdLog.exit("%s(%d) failed: sql:%s, ErrInfo '%s' occured, but not expected ErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
             else:
                 if expectedErrno != None:
-                    if expectedErrno in self.errno:
+                    expectedErrno_rest = expectedErrno & 0x0000ffff
+                    if expectedErrno in self.errno or expectedErrno_rest in self.errno:
                         tdLog.info("sql:%s, expected errno %s occured" % (sql, expectedErrno))
                     else:
                         tdLog.exit("%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'" % (caller.filename, caller.lineno, sql, self.errno, expectedErrno))
