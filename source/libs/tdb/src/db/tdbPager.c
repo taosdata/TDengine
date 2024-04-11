@@ -570,7 +570,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    char* buf = tdbEncryptPage(pPager, pPage->pData, pPage->pageSize, __FUNCTION__, offset);
+    char* buf = tdbEncryptPage(pPager, pageBuf, pPager->pageSize, __FUNCTION__, offset);
 
     ret = tdbOsWrite(pPager->fd, buf, pPager->pageSize);
     if (ret < 0) {
