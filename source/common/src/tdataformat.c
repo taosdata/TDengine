@@ -101,16 +101,18 @@ typedef struct {
   int32_t          kvRowSize;
 } SRowBuildScanInfo;
 
-static FORCE_INLINE void tRowBuildScanAddNone(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  ASSERT((pTColumn->flags & COL_IS_KEY) == 0);
+static FORCE_INLINE int32_t tRowBuildScanAddNone(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
+  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE;
   sinfo->numOfNone++;
+  return 0;
 }
 
-static FORCE_INLINE void tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  ASSERT((pTColumn->flags & COL_IS_KEY) == 0);
+static FORCE_INLINE int32_t tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
+  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
   sinfo->numOfNull++;
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   sinfo->kvPayloadSize += tPutI16v(NULL, -pTColumn->colId);
+  return 0;
 }
 
 static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal *colVal, const STColumn *pTColumn) {
@@ -142,6 +144,7 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
 }
 
 static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildScanInfo *sinfo) {
+  int32_t  code = 0;
   int32_t  colValIndex = 1;
   int32_t  numOfColVals = TARRAY_SIZE(colVals);
   SColVal *colValArray = (SColVal *)TARRAY_DATA(colVals);
@@ -158,7 +161,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
   for (int32_t i = 1; i < schema->numOfCols; i++) {
     for (;;) {
       if (colValIndex >= numOfColVals) {
-        tRowBuildScanAddNone(sinfo, schema->columns + i);
+        if ((code = tRowBuildScanAddNone(sinfo, schema->columns + i))) goto _exit;
         break;
       }
 
@@ -168,15 +171,15 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {
           tRowBuildScanAddValue(sinfo, &colValArray[colValIndex], schema->columns + i);
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {
-          tRowBuildScanAddNull(sinfo, schema->columns + i);
+          if ((code = tRowBuildScanAddNull(sinfo, schema->columns + i))) goto _exit;
         } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {
-          tRowBuildScanAddNone(sinfo, schema->columns + i);
+          if ((code = tRowBuildScanAddNone(sinfo, schema->columns + i))) goto _exit;
         }
 
         colValIndex++;
         break;
       } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {
-        tRowBuildScanAddNone(sinfo, schema->columns + i);
+        if ((code = tRowBuildScanAddNone(sinfo, schema->columns + i))) goto _exit;
         break;
       } else {  // skip useless value
         colValIndex++;
@@ -250,7 +253,8 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
                      + sinfo->kvIndexSize     // index array
                      + sinfo->kvPayloadSize;  // payload
 
-  return 0;
+_exit:
+  return code;
 }
 
 static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
