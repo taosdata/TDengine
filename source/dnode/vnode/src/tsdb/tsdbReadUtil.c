@@ -467,21 +467,21 @@ static void freePkItem(void* pItem) {
   taosMemoryFreeClear(p->lastPk.pData);
 }
 
-void clearDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
+void clearDataBlockIterator(SDataBlockIter* pIter, bool needFree) {
   pIter->index = -1;
   pIter->numOfBlocks = 0;
 
-  if (hasPk) {
+  if (needFree) {
     taosArrayClearEx(pIter->blockList, freePkItem);
   } else {
     taosArrayClear(pIter->blockList);
   }
 }
 
-void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
+void cleanupDataBlockIterator(SDataBlockIter* pIter, bool needFree) {
   pIter->index = -1;
   pIter->numOfBlocks = 0;
-  if (hasPk) {
+  if (needFree) {
     taosArrayDestroyEx(pIter->blockList, freePkItem);
   } else {
     taosArrayDestroy(pIter->blockList);
@@ -492,7 +492,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
   bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
   SBlockOrderSupporter sup = {0};
-  clearDataBlockIterator(pBlockIter, pReader->suppInfo.numOfPks > 0);
+  clearDataBlockIterator(pBlockIter, shouldFreePkBuf(&pReader->suppInfo));
 
   pBlockIter->numOfBlocks = numOfBlocks;
 

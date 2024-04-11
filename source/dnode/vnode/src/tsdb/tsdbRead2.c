@@ -395,14 +395,18 @@ _err:
   return code;
 }
 
-void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk) {
+bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp) {
+  return pSupp->numOfPks > 0 && IS_VAR_DATA_TYPE(pSupp->pk.type);
+}
+
+void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool needFree) {
   pIter->order = order;
   pIter->index = -1;
   pIter->numOfBlocks = 0;
   if (pIter->blockList == NULL) {
     pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
   } else {
-    clearDataBlockIterator(pIter, hasPk);
+    clearDataBlockIterator(pIter, needFree);
   }
 }
 
@@ -3202,7 +3206,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
     code = initBlockIterator(pReader, pBlockIter, num.numOfBlocks, pTableList);
   } else {  // no block data, only last block exists
     tBlockDataReset(&pReader->status.fileBlockData);
-    resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+    resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
     resetTableListIndex(&pReader->status);
   }
 
@@ -3312,7 +3316,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
           }
 
           tBlockDataReset(pBlockData);
-          resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+          resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
           resetTableListIndex(&pReader->status);
 
           ERetrieveType type = doReadDataFromSttFiles(pReader);
@@ -4157,7 +4161,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   }
 
   initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
-  resetDataBlockIterator(&pStatus->blockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+  resetDataBlockIterator(&pStatus->blockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStatus->fileIter.numOfFiles == 0) {
@@ -4361,7 +4365,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   taosMemoryFree(pSupInfo->colId);
   tBlockDataDestroy(&pReader->status.fileBlockData);
-  cleanupDataBlockIterator(&pReader->status.blockIter, pReader->suppInfo.numOfPks > 0);
+  cleanupDataBlockIterator(&pReader->status.blockIter, shouldFreePkBuf(&pReader->suppInfo));
 
   size_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (pReader->status.pTableMap != NULL) {
@@ -5037,7 +5041,7 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
 
   initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
-  resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+  resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
   resetTableListIndex(&pReader->status);
 
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
