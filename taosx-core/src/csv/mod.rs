@@ -6,12 +6,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use actix_web::http::header;
 use anyhow::{anyhow, bail, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use csv_lib::{Reader, ReaderBuilder, StringRecord};
+use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use futures_util::stream::FuturesUnordered;
 use futures_util::TryStreamExt;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
@@ -356,13 +357,24 @@ impl CsvSource {
         // if !has_header && headers.len() == 0 {
         //     return Err(anyhow!("csv header is null"));
         // }
-
-        CsvSource::validate(
-            &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
-        )?;
+        let skip_validate: bool = dsn
+            .remove("skip_validate")
+            .and_then(|v| {
+                if v.trim().is_empty() {
+                    Some(true)
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(false);
+        if !skip_validate {
+            CsvSource::validate(
+                &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
+            )?;
+        }
 
         let readers = CsvSource::csv_readers(
-            &paths, has_header, &headers, skip, delimiter, quote, comment,
+            &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
         )?;
 
         Ok(CsvSource {
@@ -570,7 +582,8 @@ impl CsvSource {
             let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
             let mut batches = 0usize;
             let mut errors = 0usize;
-            for record in reader.records() {
+
+            for record in reader.byte_records() {
                 let record = match record {
                     Ok(record) => record,
                     Err(err) => {
@@ -587,14 +600,19 @@ impl CsvSource {
                 if record.is_empty() {
                     continue;
                 }
-                // tracing::trace!("Reading: {}", record.iter().join(","));
-                for (i, s) in record.iter().enumerate() {
-                    let s = s.trim();
-                    records[i].push(if !s.is_empty() {
-                        Some(s.to_string())
-                    } else {
-                        None
-                    });
+                for i in 0..headers.len() {
+                    match record.get(i) {
+                        Some(s) => {
+                            let s = String::from_utf8_lossy(s);
+                            let s = s.trim();
+                            records[i].push(if !s.is_empty() {
+                                Some(s.replace('\0', "").to_string())
+                            } else {
+                                None
+                            });
+                        }
+                        None => records[i].push(None),
+                    }
                 }
                 if records[0].len() >= batch_size {
                     CsvSource::write_to_stream(&headers, &mut writer, &records)?;
@@ -715,6 +733,7 @@ impl CsvSource {
         delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
+        skip_error: bool,
     ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         for path in paths {
@@ -726,7 +745,7 @@ impl CsvSource {
                 })
                 .comment(comment)
                 .has_headers(true)
-                .flexible(false)
+                .flexible(skip_error)
                 .from_path(path)
                 .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
             // should first fetch headers record in case it has headers.
@@ -753,14 +772,16 @@ impl CsvSource {
             }
             let _ = reader.headers();
             if let Some(skip) = skip {
-                let mut record = StringRecord::new();
+                let mut record = ByteRecord::new();
                 for _ in 0..skip {
-                    let _ = reader.read_record(&mut record);
+                    let _ = reader.read_byte_record(&mut record);
                 }
+                let pos = reader.position();
                 info!(
                     skip,
-                    "Start reading csv from line {}",
-                    reader.position().line()
+                    "Start reading csv from line {}, byte: {}",
+                    pos.line(),
+                    pos.byte(),
                 );
             }
             readers.push(reader);
@@ -816,7 +837,7 @@ impl CsvSource {
                 reader.set_headers(StringRecord::from(column_names));
             }
             let _ = reader.headers();
-            info!(
+            debug!(
                 path = %path.display(),
                 "Using headers: \"{}\"",
                 reader.headers()?.iter().join(",")
@@ -826,7 +847,7 @@ impl CsvSource {
                 for _ in 0..skip {
                     let _ = reader.read_record(&mut record);
                 }
-                info!(
+                debug!(
                     skip,
                     "Start reading csv from line {}",
                     reader.position().line()
@@ -992,7 +1013,8 @@ mod tests {
 
         // has header
         let mut readers =
-            CsvSource::csv_readers(&paths, true, &[], None, b',', Some(b'"'), Some(b'#')).unwrap();
+            CsvSource::csv_readers(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
+                .unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -1013,8 +1035,17 @@ mod tests {
         }
 
         // does not has header
-        let mut readers =
-            CsvSource::csv_readers(&paths, false, &[], None, b',', Some(b'"'), Some(b'#')).unwrap();
+        let mut readers = CsvSource::csv_readers(
+            &paths,
+            false,
+            &[],
+            None,
+            b',',
+            Some(b'"'),
+            Some(b'#'),
+            false,
+        )
+        .unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -1045,6 +1076,7 @@ mod tests {
             b',',
             Some(b'"'),
             Some(b'#'),
+            false,
         )
         .unwrap();
         while let Some(mut reader) = readers.pop() {

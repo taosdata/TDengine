@@ -2009,6 +2009,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
+#[framed]
 #[instrument(skip_all, fields(writer.count = count, trace.id = trace_id_str))]
 async fn consume_flat_record(
     pool: &TaosPool,
@@ -2044,7 +2045,7 @@ async fn consume_flat_record(
                     .map(|message| message.records.num_rows())
                     .sum::<usize>()
                     / message.len();
-                if factor < 100 {
+                if factor < 200 {
                     *count += flat_write_with_sql(
                         pool,
                         taos,
@@ -2753,7 +2754,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
-        info!(
+        debug!(
             num.rows = record.num_rows(),
             "Writing batch {data_trace_id_str}"
         );
@@ -2788,10 +2789,9 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                 ),
             });
             if ipc_error_strategy.will_stop() {
-                bail!("write batch error: {err:#}")
-            }
-            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
-                bail!("write batch error: {err:#}");
+                Err(err).context("write batch error")?;
+            } else if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+                Err(err).context("write batch error")?;
             }
         } else {
             metrics.add_processed_batches(1);

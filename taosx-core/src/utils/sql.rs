@@ -111,6 +111,9 @@ pub fn sql_values_from_record_batch(
     let columns = batch.columns();
 
     for row in 0..batch.num_rows() {
+        if columns[0].is_null(row) {
+            continue;
+        }
         values.push('(');
         for col in 0..batch.num_columns() {
             let array = &columns[col];
