@@ -173,11 +173,16 @@ static void tRowGetKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
   for (int32_t i = 0; i < pRow->numOfPKs; i++) {
     pKey->pks[i].type = indices[i].type;
 
+    uint8_t *tdata = data + indices[i].offset;
+    if (pRow->flag >> 4) {
+      tdata += tGetI16v(tdata, NULL);
+    }
+
     if (IS_VAR_DATA_TYPE(indices[i].type)) {
       tGetU32v(pKey->pks[i].pData, &pKey->pks[i].nData);
-      pKey->pks[i].pData = memcpy(pKey->pks[i].pData, data + indices[i].offset, pKey->pks[i].nData);
+      pKey->pks[i].pData = memcpy(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
       pKey->pks[i].pData += pKey->pks[i].nData;
-    } else {
+    } else { // todo
       pKey->pks[i].val = *(int64_t*) (data + indices[i].offset);
     }
   }
@@ -4353,9 +4358,11 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   SReadCostSummary* pCost = &pReader->cost;
   SFilesetIter*     pFilesetIter = &pReader->status.fileIter;
   if (pFilesetIter->pSttBlockReader != NULL) {
-    SSttBlockReader* pLReader = pFilesetIter->pSttBlockReader;
-    tMergeTreeClose(&pLReader->mergeTree);
-    taosMemoryFree(pLReader);
+    SSttBlockReader* pSttBlockReader = pFilesetIter->pSttBlockReader;
+    tMergeTreeClose(&pSttBlockReader->mergeTree);
+
+    clearRowKey(&pSttBlockReader->currentKey);
+    taosMemoryFree(pSttBlockReader);
   }
 
   destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
