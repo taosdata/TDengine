@@ -2464,6 +2464,20 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
+  if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
+    pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
+    if(pParam && nodeType(pParam) == QUERY_NODE_VALUE) {
+      if (pCxt && pCxt->pCurrStmt && pCxt->pCurrStmt->type == QUERY_NODE_SELECT_STMT &&
+          ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+          nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) == QUERY_NODE_REAL_TABLE) {
+        SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+        if (strcmp(((SValueNode*)pParam)->literal, pRealTable->table.tableName) == 0) {
+          nodesClearList((*pFunc)->pParameterList);
+          (*pFunc)->pParameterList = NULL;
+        }
+      }
+    }
+  }
   FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
       pCxt->errCode = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
@@ -2822,7 +2836,9 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
-  if (partionByTbname && QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+  if (partionByTbname &&
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) ||
+       (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType))) {
     return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
