@@ -50,7 +50,6 @@ SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, Sy
 
   return pEntry;
 }
-#endif
 
 SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index) {
   SyncRaftEntry* pEntry = syncEntryBuild(pMsg->contLen);
@@ -66,6 +65,7 @@ SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Sync
 
   return pEntry;
 }
+#endif
 
 SyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
   SyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);

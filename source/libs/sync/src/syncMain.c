@@ -828,27 +828,27 @@ int32_t syncNodePropose(SyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t
     return -1;
   }
 
-  // optimized one replica
+  SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
+  uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
+  SRpcMsg   rpcMsg = {0};
+  int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
+  if (code != 0) {
+    sError("vgId:%d, failed to propose msg while build client req since %s", pSyncNode->vgId, terrstr());
+    (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
+    return -1;
+  }
+
   if (syncNodeIsOptimizedOneReplica(pSyncNode, pMsg)) {
+    syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
     SyncIndex retIndex;
-    int32_t   code = syncNodeOnClientRequest(pSyncNode, pMsg, &retIndex);
-    if (code >= 0) {
+    int32_t   code = syncNodeOnClientRequest(pSyncNode, &rpcMsg, &retIndex);
+    if (code == 0) {
       pMsg->info.conn.applyIndex = retIndex;
       pMsg->info.conn.applyTerm = raftStoreGetTerm(pSyncNode);
 
-      // after raft member change, need to handle 1->2 switching point
-      // at this point, need to switch entry handling thread
-      if (pSyncNode->replicaNum == 1) {
-        sTrace("vgId:%d, propose optimized msg, index:%" PRId64 " type:%s", pSyncNode->vgId, retIndex,
-               TMSG_INFO(pMsg->msgType));
-        return 1;
-      } else {
-        sTrace("vgId:%d, propose optimized msg, return to normal, index:%" PRId64
-               " type:%s, "
-               "handle:%p",
-               pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
-        return 0;
-      }
+      sTrace("vgId:%d, propose optimized msg, index:%" PRId64 " type:%s", pSyncNode->vgId, retIndex,
+             TMSG_INFO(pMsg->msgType));
+      return 1;
     } else {
       terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
       sError("vgId:%d, failed to propose optimized msg, index:%" PRId64 " type:%s", pSyncNode->vgId, retIndex,
@@ -856,16 +856,6 @@ int32_t syncNodePropose(SyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t
       return -1;
     }
   } else {
-    SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
-    uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
-    SRpcMsg   rpcMsg = {0};
-    int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
-    if (code != 0) {
-      sError("vgId:%d, failed to propose msg while build client req since %s", pSyncNode->vgId, terrstr());
-      (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
-      return -1;
-    }
-
     sNTrace(pSyncNode, "propose msg, type:%s", TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
@@ -2920,6 +2910,8 @@ int32_t syncNodeChangeConfig(SyncNode* ths, SyncRaftEntry* pEntry, char* str) {
     return -1;
   }
 
+  sInfo("vgId:%d, execute config change. index:%" PRId64 ", term:%" PRId64 "", ths->vgId, pEntry->index, pEntry->term);
+
   SMsgHead* head = (SMsgHead*)pEntry->data;
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
@@ -3101,7 +3093,7 @@ int32_t syncNodeAppend(SyncNode* ths, SyncRaftEntry* pEntry) {
   if (syncLogBufferAppend(ths->pLogBuf, ths, pEntry) < 0) {
     sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
     ASSERT(terrno != 0);
-    (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false);
+    (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno);
     syncEntryDestroy(pEntry);
     goto _out;
   }
@@ -3407,59 +3399,21 @@ int32_t syncNodeOnLocalCmd(SyncNode* ths, const SRpcMsg* pRpcMsg) {
 //
 
 int32_t syncNodeOnClientRequest(SyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
+  ASSERT(pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST);
   sNTrace(ths, "on client request");
 
-  int32_t code = 0;
-
+  int32_t         code = 0;
   SyncIndex       index = syncLogBufferGetEndIndex(ths->pLogBuf);
   SyncTerm        term = raftStoreGetTerm(ths);
-  SyncRaftEntry*  pEntry = NULL;
-  if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    pEntry = (void*)((SyncAppendEntries*)pMsg->pCont)->data;
-    pEntry->term = term;
-    pEntry->index = index;
-    pMsg->pCont = NULL;
-  } else {
-    pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
-  }
 
-  // 1->2, config change is add in write thread, and will continue in sync thread
-  // need save message for it
-  if (pMsg->msgType == TDMT_SYNC_CONFIG_CHANGE) {
-    SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
-    uint64_t  seqNum = syncRespMgrAdd(ths->pSyncRespMgr, &stub);
-    pEntry->seqNum = seqNum;
-  }
-
-  if (pEntry == NULL) {
-    sError("vgId:%d, failed to process client request since %s.", ths->vgId, terrstr());
-    return -1;
-  }
+  SyncRaftEntry* pEntry = (void*)((SyncAppendEntries*)pMsg->pCont)->data;
+  pEntry->term = term;
+  pEntry->index = index;
+  pMsg->pCont = NULL;
 
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pRetIndex) {
       (*pRetIndex) = index;
-    }
-
-    if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
-      int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
-      if (code < 0) {
-        sError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
-        syncEntryDestroy(pEntry);
-        pEntry = NULL;
-        return -1;
-      }
-
-      if (code > 0) {
-        SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
-        (void)syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
-        if (rsp.info.handle != NULL) {
-          tmsgSendRsp(&rsp);
-        }
-        syncEntryDestroy(pEntry);
-        pEntry = NULL;
-        return -1;
-      }
     }
 
     code = syncNodeAppend(ths, pEntry);
@@ -3508,9 +3462,7 @@ int32_t syncNodeUpdateNewConfigIndex(SyncNode* ths, SSyncCfg* pNewCfg) {
   return -1;
 }
 
-bool syncNodeIsOptimizedOneReplica(SyncNode* ths, SRpcMsg* pMsg) {
-  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
-}
+bool syncNodeIsOptimizedOneReplica(SyncNode* ths, SRpcMsg* pMsg) { return (ths->replicaNum == 1 && ths->vgId != 1); }
 
 bool syncNodeInRaftGroup(SyncNode* ths, SRaftId* pRaftId) {
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
