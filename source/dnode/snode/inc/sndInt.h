@@ -30,11 +30,11 @@
 extern "C" {
 #endif
 
-typedef struct SSnode {
+struct SSnode {
   char*        path;
   SStreamMeta* pMeta;
   SMsgCb       msgCb;
-} SSnode;
+};
 
 #if 0
 typedef struct {

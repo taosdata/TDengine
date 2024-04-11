@@ -372,17 +372,22 @@ print step4=============
 
 sql create database test6  vgroups 4;
 sql use test6;
-sql create stable st(ts timestamp,a int,b int,c int,d double) tags(ta int,tb int,tc int);
+sql create stable st(ts timestamp,a int,b int,c int,d int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams6 trigger at_once ignore expired 0 ignore update 0 into streamt6 as select  _wstart, b, c,min(c), ta, tb from st interval(1s);
+sql create stream streams7 trigger at_once ignore expired 0 ignore update 0 into streamt7 as select  ts, max(c) from st interval(1s);
+sql create stream streams8 trigger at_once ignore expired 0 ignore update 0 into streamt8 as select  ts, b, c, last(c), ta, tb from st session(ts, 1s);
+sql create stream streams9 trigger at_once ignore expired 0 ignore update 0 into streamt9 as select  ts, b, c, last_row(c), ta, tb from st partition by tbname state_window(a);
+sql create stream streams10 trigger at_once ignore expired 0 ignore update 0 into streamt10 as select  ts, b, c, last(c), ta, tb from st partition by tbname event_window start with d = 0 end with d = 9;
+sql create stream streams11 trigger at_once ignore expired 1 ignore update 0 watermark 100s into streamt11 as select  ts, b, c, last(c), ta, tb from st partition by tbname count_window(2);
 
 sleep 1000
 
-sql insert into t1 values(1648791211000,1,2,3,1.0);
-sql insert into t1 values(1648791213000,2,3,4,1.1);
-sql insert into t2 values(1648791215000,3,4,5,1.1);
-sql insert into t2 values(1648791217000,4,5,6,1.1);
+sql insert into t1 values(1648791211000,1,2,3,0);
+sql insert into t1 values(1648791213000,2,3,4,0);
+sql insert into t2 values(1648791215000,3,4,5,0);
+sql insert into t2 values(1648791217000,4,5,6,0);
 
 $loop_count = 0
 
