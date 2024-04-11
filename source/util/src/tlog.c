@@ -365,7 +365,6 @@ void taosResetLog() {
 
   if (tsLogObj.logHandle) {
     taosOpenNewLogFile();
-    (void)taosRemoveFile(lastName);
     uInfo("==================================");
     uInfo("   reset log file ");
   }
