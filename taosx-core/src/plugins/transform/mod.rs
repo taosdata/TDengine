@@ -1793,3 +1793,36 @@ fn test_indices_to_ranges() {
     dbg!(&ranges);
     assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
 }
+
+#[cfg(test)]
+mod parser_tests {
+    use crate::{plugins::transform::modeler::Modeler, runners::opc::config::model};
+
+    use super::Parser;
+
+    #[test]
+    fn test_parser_serde() {
+        let model = r#"{
+            "name": "{topic}",
+            "using": "mqtt",
+            "tags": ["topic"],
+            "columns": ["ts", "value", "qos"]
+        }"#;
+        let _: Modeler = serde_json::from_str(model).unwrap();
+        let parser = r#"{
+            "parse": {
+                "payload": { "json": ["value::double"] },
+                "ts": { "as": "timestamp(ns)", "with": "%F %T%.f", "tz": "UTC" }
+            },
+            "model": {
+                "name": "{topic}",
+                "using": "mqtt",
+                "tags": ["topic"],
+                "columns": ["ts", "value", "qos"]
+            }
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+        let json = serde_json::to_string_pretty(&parser).unwrap();
+        println!("{}", json);
+    }
+}
