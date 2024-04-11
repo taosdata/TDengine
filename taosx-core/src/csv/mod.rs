@@ -238,6 +238,7 @@ struct CsvSource {
     readers: Vec<Reader<File>>,
     concurrent: usize,
     batch_size: usize,
+    skip_error: bool,
     port: u16,
 }
 
@@ -341,12 +342,23 @@ impl CsvSource {
             concurrent = paths.len();
         }
 
+        let skip_error = dsn
+            .remove("skip_error")
+            .and_then(|v| {
+                if v.trim().is_empty() {
+                    Some(true)
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(false);
+
         // if !has_header && headers.len() == 0 {
         //     return Err(anyhow!("csv header is null"));
         // }
 
         CsvSource::validate(
-            &paths, has_header, &headers, skip, delimiter, quote, comment,
+            &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
         )?;
 
         let readers = CsvSource::csv_readers(
@@ -357,6 +369,7 @@ impl CsvSource {
             readers,
             concurrent,
             batch_size,
+            skip_error,
             port,
         })
     }
@@ -481,6 +494,7 @@ impl CsvSource {
     async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
         let port = self.port;
         let batch_size = self.batch_size;
+        let skip_error = self.skip_error;
         tracing::info!("reading csv files with batch size: {batch_size}");
         let futures = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
@@ -491,7 +505,7 @@ impl CsvSource {
             let future = tokio::spawn(
                 async move {
                     info!("Deal with csv reader");
-                    let res = CsvSource::deal_file(reader, port, batch_size).await?;
+                    let res = CsvSource::deal_file(reader, port, batch_size, skip_error).await?;
 
                     drop(permit);
                     Ok(res)
@@ -505,7 +519,12 @@ impl CsvSource {
         Ok(futures)
     }
 
-    async fn deal_file(mut reader: Reader<File>, port: u16, batch_size: usize) -> Result<()> {
+    async fn deal_file(
+        mut reader: Reader<File>,
+        port: u16,
+        batch_size: usize,
+        skip_error: bool,
+    ) -> Result<()> {
         debug!("Deal with file by IPC port: {port}");
         let stream = std::net::TcpStream::connect(format!("localhost:{}", port));
         debug!("Connected to IPC stream");
@@ -548,15 +567,27 @@ impl CsvSource {
 
             let mut writer: StreamWriter<_> = StreamWriter::try_new(&stream, &schema)?;
 
-            // let writer = writer;
-            let mut record = StringRecord::new();
             let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
             let mut batches = 0usize;
-            while reader.read_record(&mut record)? {
+            let mut errors = 0usize;
+            for record in reader.records() {
+                let record = match record {
+                    Ok(record) => record,
+                    Err(err) => {
+                        if !skip_error {
+                            Err(err).context("Reading csv records error")?;
+                        } else {
+                            warn!("skip error is enabled, ignore error: {:#}", err);
+                            errors += 1;
+                        }
+                        continue;
+                    }
+                };
+
                 if record.is_empty() {
                     continue;
                 }
-                tracing::trace!("Reading: {}", record.iter().join(","));
+                // tracing::trace!("Reading: {}", record.iter().join(","));
                 for (i, s) in record.iter().enumerate() {
                     let s = s.trim();
                     records[i].push(if !s.is_empty() {
@@ -580,7 +611,11 @@ impl CsvSource {
                 // metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
                 // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
             }
+            if errors > 0 {
+                warn!("There are {} errors while reading csv records", errors);
+            }
 
+            info!("CSV stream finished");
             let _ = writer.finish();
             anyhow::Ok(batches)
         });
@@ -741,10 +776,12 @@ impl CsvSource {
         delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
+        skip_error: bool,
     ) -> Result<()> {
         const MAX_VALIDATE_LINES: usize = 10;
         let mut cols = 0;
         for path in paths {
+            let path = path.as_ref();
             let mut reader = ReaderBuilder::new()
                 .delimiter(delimiter)
                 .quote(match quote {
@@ -755,7 +792,7 @@ impl CsvSource {
                 .has_headers(true)
                 .flexible(false)
                 .from_path(path)
-                .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
+                .with_context(|| format!("Open file {} error", path.display()))?;
             // should first fetch headers record in case it has headers.
             if !headers.is_empty() {
                 reader.set_headers(StringRecord::from(headers));
@@ -770,7 +807,7 @@ impl CsvSource {
                     .comment(comment)
                     .flexible(false)
                     .from_path(path)
-                    .with_context(|| format!("Open file {path:?} error"))?;
+                    .with_context(|| format!("Open file {} error", path.display()))?;
                 let headers = reader_tmp.headers()?;
                 let mut column_names = vec![];
                 for n in 0..(headers.len()) {
@@ -780,7 +817,7 @@ impl CsvSource {
             }
             let _ = reader.headers();
             info!(
-                path = %path.as_ref().display(),
+                path = %path.display(),
                 "Using headers: \"{}\"",
                 reader.headers()?.iter().join(",")
             );
@@ -800,14 +837,18 @@ impl CsvSource {
                 bail!("CSV fields number should greater than 1.")
             }
 
+            if skip_error {
+                continue;
+            }
+
             if cols == 0 {
                 cols = headers.len();
             }
             let mut record = StringRecord::new();
             for _ in 0..MAX_VALIDATE_LINES {
-                let ok = reader.read_record(&mut record).with_context(|| {
-                    format!("Reading file {} record error", path.as_ref().display())
-                })?;
+                let ok = reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {} record error", path.display()))?;
                 if !ok {
                     break;
                 }
@@ -819,7 +860,7 @@ impl CsvSource {
                 if cols != len {
                     bail!(
                         "CSV file {} line {line} expect {cols} columns but has {len}",
-                        path.as_ref().display()
+                        path.display()
                     );
                 }
             }
@@ -1038,7 +1079,8 @@ mod tests {
             let _ = create_csv_file(path).await.unwrap();
         }
 
-        let _ = CsvSource::validate(&paths, true, &[], None, b',', Some(b'"'), Some(b'#')).unwrap();
+        let _ = CsvSource::validate(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
+            .unwrap();
 
         for path in &paths {
             let _ = delete_csv_file(path);
