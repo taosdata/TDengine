@@ -484,7 +484,7 @@ void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk) {
   if (hasPk) {
     taosArrayDestroyEx(pIter->blockList, freePkItem);
   } else {
-    taosArrayClear(pIter->blockList);
+    taosArrayDestroy(pIter->blockList);
   }
 }
 
