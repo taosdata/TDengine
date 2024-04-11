@@ -745,8 +745,7 @@ impl TaskController {
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
-        let path = get_data_dir();
-        let _ = std::env::set_current_dir(&path);
+
         let not_start = task.not_start;
         tracing::info!("create new task");
         let mut from: Dsn = task

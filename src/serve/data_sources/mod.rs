@@ -285,6 +285,9 @@ pub(super) async fn data_source_collection(
     controller: Data<TaskControllerRef>,
     data: Json<DataSetsReq>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let data = data.into_inner();
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
@@ -330,6 +333,9 @@ pub(super) async fn data_source_is_valid(
     controller: Data<TaskControllerRef>,
     query: Query<DsnAgentQuery>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
@@ -434,9 +440,11 @@ mod point_loader;
 pub(super) async fn download_all_data_set_file(
     controller: Data<TaskControllerRef>,
     params: Query<DownloadAllPointsParams>,
-    // data: Query<DataSetsReq>,
     req: HttpRequest,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
@@ -459,6 +467,9 @@ pub(super) async fn init_download_file_task(
     controller: Data<TaskControllerRef>,
     params: Query<DownloadAllPointsParams>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     match arrange_point_file_download_task(controller, params).await {
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
         Err(err) => Err(Failed {
@@ -575,6 +586,9 @@ pub(super) async fn download_point_template_file(
 )]
 #[get("/ds/in/point/file/is_valid")]
 pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
@@ -601,10 +615,6 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 }
 
 async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
-    // set current dir to DATA_DIR
-    let path = get_data_dir();
-    let _ = std::env::set_current_dir(&path);
-
     let dsn = dsn.into_dsn()?;
     plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }

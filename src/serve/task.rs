@@ -162,6 +162,10 @@ pub(super) async fn create_task(
 ) -> impl Responder {
     let task = task.into_inner();
     tracing::info!(task.name, "create task with name");
+
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision
@@ -256,6 +260,9 @@ pub(super) async fn update_task(
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision

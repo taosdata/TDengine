@@ -1,5 +1,6 @@
 use std::io::BufRead;
 
+use crate::get_data_dir;
 use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
@@ -141,7 +142,7 @@ impl OPCConfig {
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
             points: None,
-            collect: if dsn.get("csv_config_file").is_some() {
+            collect: if dsn.params.contains_key("csv_config_file") {
                 CollectConfig::from_dsn(&dsn, None).await?
             } else {
                 CollectConfig::new_empty()

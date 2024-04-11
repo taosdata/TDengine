@@ -506,10 +506,6 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
-    // set current dir to DATA_DIR
-    let path = get_data_dir();
-    let _ = std::env::set_current_dir(&path);
-
     let mut dsn = dsn.clone();
     let certificate = get_temp_file(&mut dsn, "certificate");
     let private_key = get_temp_file(&mut dsn, "private_key");
