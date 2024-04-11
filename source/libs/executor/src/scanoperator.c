@@ -4133,6 +4133,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
     if (pInfo->rtnNextDurationBlocks) {
       qDebug("%s table merge scan return already fetched new duration blocks. index %d num of blocks %d", 
               GET_TASKID(pTaskInfo), pInfo->nextDurationBlocksIdx, pInfo->numNextDurationBlocks);
+
       if (pInfo->nextDurationBlocksIdx < pInfo->numNextDurationBlocks) {
         pBlock = pInfo->nextDurationBlocks[pInfo->nextDurationBlocksIdx];
         ++pInfo->nextDurationBlocksIdx;
@@ -4141,6 +4142,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
           blockDataDestroy(pInfo->nextDurationBlocks[i]);
           pInfo->nextDurationBlocks[i] = NULL;
         }
+
         pInfo->rtnNextDurationBlocks = false;
         pInfo->nextDurationBlocksIdx = 0;
         pInfo->numNextDurationBlocks = 0;

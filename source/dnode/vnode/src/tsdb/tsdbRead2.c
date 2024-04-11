@@ -179,9 +179,8 @@ static void tRowGetKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
     }
 
     if (IS_VAR_DATA_TYPE(indices[i].type)) {
-      tGetU32v(pKey->pks[i].pData, &pKey->pks[i].nData);
-      pKey->pks[i].pData = memcpy(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
-      pKey->pks[i].pData += pKey->pks[i].nData;
+      tdata += tGetU32v(tdata, &pKey->pks[i].nData);
+      memcpy(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
     } else {
       memcpy(&pKey->pks[i].val, data + indices[i].offset, tDataTypes[pKey->pks[i].type].bytes);
     }
