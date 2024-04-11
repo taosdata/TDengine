@@ -24,19 +24,6 @@ extern "C" {
 #include "syncMessage.h"
 #include "tskiplist.h"
 
-typedef struct SSyncRaftEntry {
-  uint32_t  bytes;
-  uint32_t  msgType;          // TDMT_SYNC_CLIENT_REQUEST
-  uint32_t  originalRpcType;  // origin RpcMsg msgType
-  uint64_t  seqNum;
-  bool      isWeak;
-  SyncTerm  term;
-  SyncIndex index;
-  int64_t   rid;
-  uint32_t  dataLen;  // origin RpcMsg.contLen
-  char      data[];   // origin RpcMsg.pCont
-} SyncRaftEntry;
-
 SyncRaftEntry* syncEntryBuild(int32_t dataLen);
 SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
 SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);

@@ -255,7 +255,7 @@ int32_t syncNodeOnTimeout(SyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnClientRequest(SyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
 int32_t syncNodeOnRequestVote(SyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnRequestVoteReply(SyncNode* pNode, const SRpcMsg* pMsg);
-int32_t syncNodeOnAppendEntries(SyncNode* pNode, const SRpcMsg* pMsg);
+int32_t syncNodeOnAppendEntries(SyncNode* pNode, SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshot(SyncNode* ths, SRpcMsg* pMsg);
 int32_t syncNodeOnSnapshotRsp(SyncNode* ths, SRpcMsg* pMsg);

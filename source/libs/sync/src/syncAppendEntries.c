@@ -89,14 +89,13 @@
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 
-int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
+int32_t syncNodeOnAppendEntries(SyncNode* ths, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   SRpcMsg            rpcRsp = {0};
   bool               accepted = false;
   SyncRaftEntry*     pEntry = NULL;
   bool               resetElect = false;
 
-  // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
     goto _IGNORE;
@@ -109,7 +108,6 @@ int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   SyncAppendEntriesReply* pReply = rpcRsp.pCont;
-  // prepare response msg
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = raftStoreGetTerm(ths);
@@ -117,6 +115,11 @@ int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
+
+  SyncIndex msgPrevLogIndex = pMsg->prevLogIndex;
+  SyncTerm  msgPrevLogTerm = pMsg->prevLogTerm;
+  SyncTerm  msgTerm = pMsg->term;
+  SyncIndex msgCommitIndex = pMsg->commitIndex;
 
   if (pMsg->term < raftStoreGetTerm(ths)) {
     goto _SEND_RESPONSE;
@@ -137,23 +140,20 @@ int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  pEntry = syncEntryBuildFromAppendEntries(pMsg);
-  if (pEntry == NULL) {
-    sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
-    goto _IGNORE;
-  }
+  pEntry = (void*)pMsg->data;
+  pRpcMsg->pCont = NULL;
+  pMsg = NULL;
 
-  if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
+  if (msgPrevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
     sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
            ", prevLogTerm:%" PRId64,
-           ths->vgId, pEntry->index, pEntry->term, pMsg->prevLogIndex, pMsg->prevLogTerm);
+           ths->vgId, pEntry->index, pEntry->term, msgPrevLogIndex, msgPrevLogTerm);
     goto _IGNORE;
   }
 
   sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
          ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
-         pEntry->term);
+         ths->vgId, msgPrevLogIndex + 1, msgTerm, msgPrevLogIndex, msgPrevLogTerm, msgCommitIndex, pEntry->term);
 
   if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     pReply->fsmState = ths->fsmState;
@@ -163,11 +163,10 @@ int32_t syncNodeOnAppendEntries(SyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   // accept
-  if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {
+  if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, msgPrevLogTerm) < 0) {
     goto _SEND_RESPONSE;
   }
   accepted = true;
-
 _SEND_RESPONSE:
   pEntry = NULL;
   pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn");
@@ -175,7 +174,7 @@ _SEND_RESPONSE:
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
-    (void)syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
+    (void)syncNodeUpdateCommitIndex(ths, TMIN(msgCommitIndex, pReply->lastSendIndex));
   }
 
   // ack, i.e. send response

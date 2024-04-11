@@ -191,7 +191,7 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
     int32_t         code = raftLogGetLastEntry(pLogStore, &pLastEntry);
     if (code == 0 && pLastEntry != NULL) {
       SyncTerm lastTerm = pLastEntry->term;
-      taosMemoryFree(pLastEntry);
+      syncEntryDestroy(pLastEntry);
       return lastTerm;
     } else {
       return SYNC_TERM_INVALID;

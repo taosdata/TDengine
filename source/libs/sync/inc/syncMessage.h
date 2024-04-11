@@ -39,6 +39,7 @@ typedef struct SSyncTimeout {
   void*            data;  // need optimized
 } SyncTimeout;
 
+#if 0
 typedef struct SSyncClientRequest {
   uint32_t bytes;
   int32_t  vgId;
@@ -50,15 +51,20 @@ typedef struct SSyncClientRequest {
   uint32_t dataLen;  // origin RpcMsg.contLen
   char     data[];   // origin RpcMsg.pCont
 } SyncClientRequest;
+#endif
 
-typedef struct SSyncClientRequestReply {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;
-  int32_t  errCode;
-  SRaftId  leaderHint;
-  int16_t  reserved;
-} SyncClientRequestReply;
+typedef struct SSyncRaftEntry {
+  uint32_t  bytes;
+  uint32_t  msgType;          // TDMT_SYNC_CLIENT_REQUEST
+  uint32_t  originalRpcType;  // origin RpcMsg msgType
+  uint64_t  seqNum;
+  bool      isWeak;
+  SyncTerm  term;
+  SyncIndex index;
+  int64_t   rid;
+  uint32_t  dataLen;  // origin RpcMsg.contLen
+  char      data[];   // origin RpcMsg.pCont
+} SyncRaftEntry;
 
 typedef struct SSyncRequestVote {
   uint32_t bytes;

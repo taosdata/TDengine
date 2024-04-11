@@ -19,20 +19,23 @@
 #include "tref.h"
 
 SyncRaftEntry* syncEntryBuild(int32_t dataLen) {
-  int32_t        bytes = sizeof(SyncRaftEntry) + dataLen;
-  SyncRaftEntry* pEntry = taosMemoryCalloc(1, bytes);
-  if (pEntry == NULL) {
+  int32_t            bytes = sizeof(SyncAppendEntries) + sizeof(SyncRaftEntry) + dataLen;
+  SyncAppendEntries* pAppend = rpcMallocCont(bytes);
+  if (pAppend == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  pAppend->bytes = bytes;
 
-  pEntry->bytes = bytes;
+  SyncRaftEntry* pEntry = (void*)pAppend->data;
+  pEntry->bytes = bytes - offsetof(SyncAppendEntries, data);
   pEntry->dataLen = dataLen;
   pEntry->rid = -1;
 
   return pEntry;
 }
 
+#if 0
 SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   if (pEntry == NULL) return NULL;
@@ -47,6 +50,7 @@ SyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, Sy
 
   return pEntry;
 }
+#endif
 
 SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index) {
   SyncRaftEntry* pEntry = syncEntryBuild(pMsg->contLen);
@@ -64,7 +68,7 @@ SyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Sync
 }
 
 SyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
+  SyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   if (pEntry == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -95,7 +99,7 @@ SyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId) 
 void syncEntryDestroy(SyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     sTrace("free entry:%p", pEntry);
-    taosMemoryFree(pEntry);
+    rpcFreeCont(container_of(pEntry, SyncAppendEntries, data));
   }
 }
 

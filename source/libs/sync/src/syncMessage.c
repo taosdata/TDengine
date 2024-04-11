@@ -42,18 +42,21 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
 }
 
 int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t seqNum, bool isWeak, int32_t vgId) {
-  int32_t bytes = sizeof(SyncClientRequest) + pOriginal->contLen;
-  pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pMsg->contLen = bytes;
-  if (pMsg->pCont == NULL) {
+  SyncRaftEntry* pClientRequest = syncEntryBuild(pOriginal->contLen);
+  if (pClientRequest == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  SyncClientRequest* pClientRequest = pMsg->pCont;
-  pClientRequest->bytes = bytes;
-  pClientRequest->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pMsg->contLen = pClientRequest->bytes + sizeof(SyncAppendEntries);
+  pMsg->pCont = (void*)container_of(pClientRequest, SyncAppendEntries, data);
+
+  SyncAppendEntries* pAppend = pMsg->pCont;
+  pAppend->bytes = pMsg->contLen;
+  pAppend->vgId = vgId;
+
+  pClientRequest->bytes = pMsg->contLen - offsetof(SyncAppendEntries, data);
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pClientRequest->originalRpcType = pOriginal->msgType;
   pClientRequest->seqNum = seqNum;
@@ -64,6 +67,7 @@ int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t
   return 0;
 }
 
+#if 0
 int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SyncRaftEntry* pEntry, int32_t vgId) {
   int32_t bytes = sizeof(SyncClientRequest) + pEntry->bytes;
   pMsg->pCont = rpcMallocCont(bytes);
@@ -84,6 +88,7 @@ int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SyncRaftEntry* 
 
   return 0;
 }
+#endif
 
 int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId) {
   int32_t bytes = sizeof(SyncRequestVote);

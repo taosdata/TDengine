@@ -120,6 +120,8 @@ void syslog(int unused, const char *format, ...);
 #define POINTER_SHIFT(p, b)      ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2))
 
+#define container_of(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
 #endif

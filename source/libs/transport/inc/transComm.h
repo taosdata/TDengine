@@ -210,7 +210,6 @@ typedef struct {
 typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
-#define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
 #define rpcIsReq(type) (type & 1U)

@@ -861,7 +861,7 @@ int32_t syncNodePropose(SyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t
     SRpcMsg   rpcMsg = {0};
     int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
     if (code != 0) {
-      sError("vgId:%d, failed to propose msg while serialize since %s", pSyncNode->vgId, terrstr());
+      sError("vgId:%d, failed to propose msg while build client req since %s", pSyncNode->vgId, terrstr());
       (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
       return -1;
     }
@@ -3415,7 +3415,10 @@ int32_t syncNodeOnClientRequest(SyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetInd
   SyncTerm        term = raftStoreGetTerm(ths);
   SyncRaftEntry*  pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index);
+    pEntry = (void*)((SyncAppendEntries*)pMsg->pCont)->data;
+    pEntry->term = term;
+    pEntry->index = index;
+    pMsg->pCont = NULL;
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
   }
