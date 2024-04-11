@@ -174,7 +174,9 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
 }
 
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  int32_t ival = taosStrHumanToInt32(value);
+  int32_t ival;
+  int32_t code = taosStrHumanToInt32(value, &ival);
+  if (code != TSDB_CODE_SUCCESS) return code;
   if (ival < pItem->imin || ival > pItem->imax) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
@@ -188,7 +190,9 @@ static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  int64_t ival = taosStrHumanToInt64(value);
+  int64_t ival;
+  int32_t code = taosStrHumanToInt64(value, &ival);
+  if (code != TSDB_CODE_SUCCESS) return code;
   if (ival < pItem->imin || ival > pItem->imax) {
     uError("cfg:%s, type:%s src:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
@@ -202,15 +206,16 @@ static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  float fval = (float)atof(value);
-  if (fval < pItem->fmin || fval > pItem->fmax) {
+  double dval;
+  int32_t code = parseCfgReal(value, &dval);
+  if (dval < pItem->fmin || dval > pItem->fmax) {
     uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), fval, pItem->fmin, pItem->fmax);
+           cfgStypeStr(stype), dval, pItem->fmin, pItem->fmax);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  pItem->fval = fval;
+  pItem->fval = (float)dval;
   pItem->stype = stype;
   return 0;
 }
@@ -408,7 +413,9 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_INT32: {
-      int32_t ival = (int32_t)taosStrHumanToInt32(pVal);
+      int32_t ival;
+      int32_t code = (int32_t)taosStrHumanToInt32(pVal, &ival);
+      if (code != TSDB_CODE_SUCCESS) return code;
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
@@ -417,7 +424,9 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_INT64: {
-      int64_t ival = (int64_t)taosStrHumanToInt64(pVal);
+      int64_t ival;
+      int32_t code = taosStrHumanToInt64(pVal, &ival);
+      if (code != TSDB_CODE_SUCCESS) return code;
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
@@ -427,9 +436,11 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     } break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE: {
-      float fval = (float)atof(pVal);
-      if (fval < pItem->fmin || fval > pItem->fmax) {
-        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), fval,
+      double dval;
+      int32_t code = parseCfgReal(pVal, &dval);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (dval < pItem->fmin || dval > pItem->fmax) {
+        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
         terrno = TSDB_CODE_OUT_OF_RANGE;
         return -1;

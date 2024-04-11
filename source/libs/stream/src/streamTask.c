@@ -35,7 +35,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
 
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
     epsetAssign(&pTask->info.epSet, pEpSet);
-    EPSET_TO_STR(pEpSet, buf)
+    epsetToStr(pEpSet, buf, tListLen(buf));
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
   }
 
@@ -380,12 +380,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
-    taosTmrStop(pTask->hTaskInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->hTaskInfo.pTimer);
     pTask->hTaskInfo.pTimer = NULL;
   }
 
   if (pTask->msgInfo.pTimer != NULL) {
-    taosTmrStop(pTask->msgInfo.pTimer);
+    /*bool ret = */taosTmrStop(pTask->msgInfo.pTimer);
     pTask->msgInfo.pTimer = NULL;
   }
 
@@ -592,7 +592,7 @@ int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstre
 
 void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
-  EPSET_TO_STR(pEpSet, buf);
+  epsetToStr(pEpSet, buf, tListLen(buf));
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < numOfUpstream; ++i) {
@@ -626,7 +626,7 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
 
 void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
   char buf[512] = {0};
-  EPSET_TO_STR(pEpSet, buf);
+  epsetToStr(pEpSet, buf, tListLen(buf));
   int32_t id = pTask->id.taskId;
 
   int8_t type = pTask->outputInfo.type;
@@ -733,15 +733,12 @@ bool streamTaskIsAllUpstreamClosed(SStreamTask* pTask) {
 bool streamTaskSetSchedStatusWait(SStreamTask* pTask) {
   bool ret = false;
 
-  // double check
+  taosThreadMutexLock(&pTask->lock);
   if (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-    taosThreadMutexLock(&pTask->lock);
-    if (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-      pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
-      ret = true;
-    }
-    taosThreadMutexUnlock(&pTask->lock);
+    pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
+    ret = true;
   }
+  taosThreadMutexUnlock(&pTask->lock);
 
   return ret;
 }
