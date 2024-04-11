@@ -8,6 +8,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
+use arrow_cast_guess_precision::cast;
 use chrono::{format, DateTime, ParseResult};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
@@ -117,26 +118,61 @@ impl Parse for Cast {
 
         let array = if let IpcDataType::Timestamp(unit) = &self.r#as {
             if let Some(with) = self.with.as_deref() {
-                let strings = arrow::compute::cast(array, &DataType::Utf8)?;
+                let strings = cast(array, &DataType::Utf8)?;
                 let strings = strings.as_any().downcast_ref::<StringArray>().unwrap();
 
                 let tz = self.tz.as_deref().unwrap_or("UTC");
-
-                let array = Int64Array::from_iter(strings.iter().map(|s| {
+                let iter = strings.iter().map(|s| {
                     s.and_then(|s| {
                         if with.contains("%z") {
                             chrono::DateTime::parse_from_str(s, with)
                                 .ok()
-                                .map(|ts| ts.timestamp_millis())
+                                .map(|ts| match unit {
+                                    arrow::datatypes::TimeUnit::Second => ts.timestamp(),
+                                    arrow::datatypes::TimeUnit::Millisecond => {
+                                        ts.timestamp_millis()
+                                    }
+                                    arrow::datatypes::TimeUnit::Microsecond => {
+                                        ts.timestamp_micros()
+                                    }
+                                    arrow::datatypes::TimeUnit::Nanosecond => {
+                                        ts.timestamp_nanos_opt().unwrap_or(0)
+                                    }
+                                })
                         } else {
                             let tz = chrono_tz::Tz::from_str(&tz).expect("Invalid tz");
                             parse_str_without_tz(s, with, &tz)
                                 .ok()
-                                .map(|ts| ts.timestamp_millis())
+                                .map(|ts| match unit {
+                                    arrow::datatypes::TimeUnit::Second => ts.timestamp(),
+                                    arrow::datatypes::TimeUnit::Millisecond => {
+                                        ts.timestamp_millis()
+                                    }
+                                    arrow::datatypes::TimeUnit::Microsecond => {
+                                        ts.timestamp_micros()
+                                    }
+                                    arrow::datatypes::TimeUnit::Nanosecond => {
+                                        ts.timestamp_nanos_opt().unwrap_or(0)
+                                    }
+                                })
                         }
                     })
-                }));
-                Arc::new(array)
+                });
+
+                match unit {
+                    arrow::datatypes::TimeUnit::Second => {
+                        Arc::new(TimestampSecondArray::from_iter(iter)) as ArrayRef
+                    }
+                    arrow::datatypes::TimeUnit::Millisecond => {
+                        Arc::new(TimestampMillisecondArray::from_iter(iter)) as ArrayRef
+                    }
+                    arrow::datatypes::TimeUnit::Microsecond => {
+                        Arc::new(TimestampMicrosecondArray::from_iter(iter)) as ArrayRef
+                    }
+                    arrow::datatypes::TimeUnit::Nanosecond => {
+                        Arc::new(TimestampNanosecondArray::from_iter(iter)) as ArrayRef
+                    }
+                }
             } else if matches!(array.data_type(), DataType::Utf8 | DataType::LargeUtf8) {
                 // check if it is timestamp.
                 let r = arrow::compute::cast(array, field.data_type())?;
@@ -171,10 +207,10 @@ impl Parse for Cast {
                     r
                 }
             } else {
-                arrow::compute::cast(array, field.data_type())?
+                cast(array, field.data_type())?
             }
         } else {
-            arrow::compute::cast(array, field.data_type())?
+            cast(array, field.data_type())?
         };
         Ok((field, array))
     }

@@ -85,7 +85,7 @@ mod datetime_format {
 
 mod option_datetime_format {
     use chrono::{DateTime, SecondsFormat, Utc};
-    use serde::{self, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     type Target = Option<DateTime<Utc>>;
 
