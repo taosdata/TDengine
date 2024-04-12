@@ -14,7 +14,7 @@ import time
 # Auto Gen class
 #
 class AutoGen:
-    def __init__(self, startTs = 1600000000000, step = 1000, batch = 100, fillOne=False):
+    def __init__(self, startTs = 1600000000000, step = 1000, batch = 500, fillOne=False):
         self.startTs    = startTs
         self.ts         = startTs
         self.step       = step
@@ -35,20 +35,23 @@ class AutoGen:
     #  _columns_sql
     def gen_columns_sql(self, pre, cnt, binary_len, nchar_len):
         types = [ 
-            'timestamp',
-            'tinyint',
+            'timestamp',  # 0
+            'tinyint',    
+            'tinyint unsigned', # 3
             'smallint',
-            'tinyint unsigned',
             'smallint unsigned',
-            'int',
-            'bigint',
+            'int', # 5
             'int unsigned',
+            'bigint',    # 7
             'bigint unsigned',
-            'float',
-            'double',
+            'float',     # 9
+            'double',    # 10
             'bool',
-            f'varchar({binary_len})',
-            f'nchar({nchar_len})'
+            f'binary({binary_len})',  # 12
+            f'varbinary({binary_len})',
+            f'nchar({nchar_len})',
+            f'varchar({nchar_len})',
+            f'geometry(64)'  #16
         ]
 
         sqls = ""
@@ -80,9 +83,11 @@ class AutoGen:
                 data = "%f"%(i+i/1000)
             elif c <= 11 : # bool
                 data = "%d"%(i%2)
-            elif c == 12 : # binary
+            elif c <= 13 : # binary
                 data = '"' + self.random_string(self.bin_len) + '"'
-            elif c == 13 : # binary
+            elif c == 16 : # geometry
+                data = f'"point({i} {i})"'
+            else : # nchar varchar 
                 data = '"' + self.random_string(self.nch_len) + '"'
 
             if datas != "":
@@ -142,7 +147,6 @@ class AutoGen:
 
     def insert_data_child(self, child_name, cnt, batch_size, step):        
         values = ""
-        print("insert child data")
         ts = self.ts
 
         # loop do
@@ -162,7 +166,6 @@ class AutoGen:
         if values != "":
             sql = f"insert into {self.dbname}.{child_name} values {values}"
             tdSql.execute(sql)
-            tdLog.info(f" insert data i={i}")
             values = ""
 
         tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")
