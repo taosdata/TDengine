@@ -291,7 +291,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         goto end;
       }
 
-      if (totalRows >= 4096 || (taosGetTimestampMs() - st > 1000)) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
         code = tqSendDataRsp(
             pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp,

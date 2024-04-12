@@ -80,8 +80,6 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
 }
 
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest) {
-  const int32_t MAX_ROWS_TO_RETURN = 1;
-
   int32_t vgId = TD_VID(pTq->pVnode);
   int32_t code = 0;
   int32_t totalRows = 0;
@@ -153,7 +151,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= MAX_ROWS_TO_RETURN) {
+      if (totalRows >= tmqRowSize) {
         break;
       }
     }
@@ -215,7 +213,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
         continue;
       } else {
         rowCnt += pDataBlock->info.rows;
-        if (rowCnt <= 1) continue;
+        if (rowCnt <= tmqRowSize) continue;
       }
     }
 
