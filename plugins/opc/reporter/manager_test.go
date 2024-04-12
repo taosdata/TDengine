@@ -39,7 +39,7 @@ func TestManager(t *testing.T) {
 	assert.NotNil(t, reporter)
 	reporter.Report([]*common.NodeValue{
 		{
-			Identifier: "test_id",
+			IDStr:      "test_id",
 			Name:       "test",
 			Timestamp:  time.Unix(1700791658, 0),
 			StartTime:  time.Unix(1700791658, 0),

@@ -11,6 +11,7 @@ replace github.com/gopcua/opcua => github.com/huskar-t/opcua v0.0.0-202402270315
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/apache/arrow/go/v14 v14.0.2
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gopcua/opcua v0.5.3
 	github.com/huskar-t/file-rotatelogs/v2 v2.4.1
 	github.com/konimarti/opc v0.4.0

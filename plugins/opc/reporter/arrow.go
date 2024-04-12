@@ -88,6 +88,11 @@ func (r *ArrowReporter) startReceiveMessage() {
 
 func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 	defer r.messageList.TryGet()
+	defer func() {
+		for _, value := range list {
+			common.PutNodeValue(value)
+		}
+	}()
 	r.logger.Debugf("upload data count %d", len(list))
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
@@ -104,7 +109,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 	statusField := recordBuilder.Field(5).(*array.Int64Builder) // status
 	defer statusField.Release()
 	for _, msg := range list {
-		idField.Append(msg.Identifier)
+		idField.Append(msg.IDStr)
 		nameField.Append(msg.Name)
 		tsField.Append(arrow.Timestamp(msg.Timestamp.UnixMilli()))
 		clientTsField.Append(arrow.Timestamp(msg.FinishTime.UnixMilli()))
@@ -113,7 +118,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 		} else {
 			err := r.appendFunc(valueField, msg.Value)
 			if err != nil {
-				r.logger.WithError(err).WithField("identifier", msg.Identifier).Error("append value error")
+				r.logger.WithError(err).WithField("identifier", msg.IDStr).Error("append value error")
 				return err
 			}
 		}

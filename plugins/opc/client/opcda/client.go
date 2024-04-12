@@ -15,18 +15,22 @@ import (
 type DAClient struct {
 }
 
-func NewDAClient(ctx context.Context, connConf config.DaConnectConfig, collectConf config.CollectConfig, index int, logger *logrus.Entry, onMessage client.OnMessage) (*DAClient, error) {
+func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, index int, logger *logrus.Entry) (*DAClient, error) {
 	panic("only support windows")
 }
 func (c *DAClient) Connect() error {
 	panic("only support windows")
 }
 
-func (c *DAClient) Collect() error {
+func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.OnMessage) error {
 	panic("only support windows")
 }
 
 func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
+	panic("only support windows")
+}
+
+func (c *DAClient) ChangeCollectConfig(conf config.CollectConfig) {
 	panic("only support windows")
 }
 

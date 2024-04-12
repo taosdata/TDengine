@@ -15,7 +15,7 @@ const (
 	OpcTypeUA          = "opcua"
 	OpcTypeDA          = "opcda"
 	OpcUaObserveType   = "observe"
-	OPcUaSubscribeType = "subscribe"
+	OpcUaSubscribeType = "subscribe"
 )
 
 type Config struct {
@@ -72,7 +72,6 @@ type DaPointsConfig struct {
 
 type CollectConfig struct {
 	Interval    int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
-	Limit       int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	ContainsBad bool            `json:"contains_bad,omitempty" yaml:"contains_bad" toml:"contains_bad"`
 	Dump        DumpConfig      `json:"dump,omitempty" yaml:"dump" toml:"dump"`
 	Ua          UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
