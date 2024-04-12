@@ -839,7 +839,6 @@ struct SLDataIter {
   SVersionRange          verRange;
   SSttBlockLoadInfo     *pBlockLoadInfo;
   SRowKey*               pStartRowKey;        // current row key
-  __compar_fn_t          comparFn;
   bool                   ignoreEarlierTs;
   struct SSttFileReader *pReader;
 };
@@ -865,7 +864,6 @@ typedef struct SMergeTreeConf {
   int32_t       numOfCols;
   SRowKey      *pCurRowKey;
   _load_tomb_fn loadTombFn;
-  __compar_fn_t comparFn;
   void         *pReader;
   void         *idstr;
   bool          rspRows;  // response the rows in stt-file, if possible

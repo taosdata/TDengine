@@ -228,7 +228,6 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->rowKey.numOfPKs = numOfPks;
   if (numOfPks > 0) {
-    p->pkComparFn = getComparFunc(pPkCol->type, 0);
     p->rowKey.pks[0].type = pPkCol->type;
     if (IS_VAR_DATA_TYPE(pPkCol->type)) {
       p->rowKey.pks[0].pData = taosMemoryCalloc(1, pPkCol->bytes);

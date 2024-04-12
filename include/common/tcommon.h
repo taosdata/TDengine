@@ -203,6 +203,19 @@ typedef struct SBlockID {
   uint64_t groupId;
 } SBlockID;
 
+typedef struct SPkInfo {
+  int8_t  type;
+  int32_t bytes;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } skey;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } ekey;
+} SPkInfo;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
