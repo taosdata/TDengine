@@ -8707,7 +8707,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
     if (offsetVersion >= TQ_OFFSET_VERSION) {
       if (tDecodeI8(pDecoder, &pOffsetVal->primaryKey.type) < 0) return -1;
       if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
-        if (tDecodeBinaryAlloc32(pDecoder, &pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData) < 0) return -1;
+        if (tDecodeBinaryAlloc32(pDecoder, (void**)&pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData) < 0) return -1;
       } else {
         if (tDecodeI64(pDecoder, &pOffsetVal->primaryKey.val) < 0) return -1;
       }

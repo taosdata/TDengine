@@ -432,7 +432,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, uint8_t** val, uint32_t* len) {
+static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, uint32_t* len) {
   uint32_t length = 0;
   if (tDecodeU32v(pCoder, &length) < 0) return -1;
   if (length) {
