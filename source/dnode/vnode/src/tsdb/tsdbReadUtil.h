@@ -212,8 +212,6 @@ typedef struct SFileDataBlockInfo {
     uint8_t* pData;
   } lastPk;
 
-  int32_t firstPKLen;
-  int32_t lastPKLen;
   int64_t minVer;
   int64_t maxVer;
   int64_t blockOffset;
@@ -349,8 +347,9 @@ int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
 void    clearRowKey(SRowKey* pKey);
 
+bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp);
 void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
-void clearDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
+void clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
 void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
 
 typedef struct {
