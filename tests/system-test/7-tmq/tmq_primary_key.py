@@ -20,7 +20,7 @@ from tmqCommon import *
 
 class TDTestCase:
     clientCfgDict = {'debugFlag': 135}
-    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'tmqRowSize':1}
     updatecfgDict["clientCfg"] = clientCfgDict
 
     def init(self, conn, logSql, replicaVar=1):
@@ -137,7 +137,7 @@ class TDTestCase:
             consumer.close()
 
     def primaryKeyTestIntStable(self):
-        print("==============Case 1: primary key test int for stable")
+        print("==============Case 2: primary key test int for stable")
         tdSql.execute(f'create database if not exists db_pk_stable vgroups 1 wal_retention_period 3600;')
         tdSql.execute(f'use db_pk_stable;')
         tdSql.execute(f'create table if not exists pks (ts timestamp, c1 int primary key, c2 int) tags (t int);')
@@ -246,7 +246,7 @@ class TDTestCase:
             consumer.close()
 
     def primaryKeyTestInt(self):
-        print("==============Case 1: primary key test int for db")
+        print("==============Case 3: primary key test int for db")
         tdSql.execute(f'create database if not exists abc1 vgroups 1 wal_retention_period 3600;')
         tdSql.execute(f'use abc1;')
         tdSql.execute(f'create table if not exists pk (ts timestamp, c1 int primary key, c2 int);')
@@ -354,7 +354,7 @@ class TDTestCase:
             consumer.close()
 
     def primaryKeyTestString(self):
-        print("==============Case 2: primary key test string for db")
+        print("==============Case 4: primary key test string for db")
         tdSql.execute(f'create database if not exists db_pk_string vgroups 1 wal_retention_period 3600;')
         tdSql.execute(f'use db_pk_string;')
         tdSql.execute(f'create table if not exists pk (ts timestamp, c1 varchar(64) primary key, c2 int);')
@@ -425,23 +425,17 @@ class TDTestCase:
         tdSql.execute(f'flush database db_pk_string')
 
         consumer = Consumer(consumer_dict)
-        print(1)
         try:
             consumer.subscribe(["topic_pk_string"])
         except TmqError:
             tdLog.exit(f"subscribe error")
-        time.sleep(5)
         index = 0
         try:
             while True:
-                print(consumer)
                 res = consumer.poll(1)
-                print(res)
                 if not res:
-                    print(11323)
                     break
                 val = res.value()
-                print(12)
                 if val is None:
                     continue
                 for block in val:
@@ -471,9 +465,9 @@ class TDTestCase:
             consumer.close()
 
     def run(self):
-        # self.primaryKeyTestIntQuery()
-        # self.primaryKeyTestIntStable()
-        # self.primaryKeyTestInt()
+        self.primaryKeyTestIntQuery()
+        self.primaryKeyTestIntStable()
+        self.primaryKeyTestInt()
         self.primaryKeyTestString()
 
     def stop(self):
@@ -483,3 +477,4 @@ class TDTestCase:
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
+
