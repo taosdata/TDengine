@@ -1339,11 +1339,13 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
       // The gap is less than the threshold, so it belongs to current session window that has been opened already.
       doKeepTuple(pRowSup, tsList[j], gid);
     } else {  // start a new session window
+      // start a new session window
       if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
         SResultRow* pResult = NULL;
 
         // keep the time window for the closed time window.
         STimeWindow window = pRowSup->win;
+
         int32_t ret =
             setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
                                    numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);

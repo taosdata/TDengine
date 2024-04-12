@@ -340,22 +340,21 @@ typedef struct STableMergeScanInfo {
   int32_t         scanTimes;
   int32_t         readIdx;
   SSDataBlock*    pResBlock;
-  SSampleExecInfo sample;  // sample execution info
-  SSHashObj*       mTableNumRows; // uid->num of table rows
-  SHashObj*        mSkipTables;
-  int64_t          mergeLimit;
+  SSampleExecInfo sample;         // sample execution info
+  SSHashObj*      mTableNumRows;  // uid->num of table rows
+  SHashObj*       mSkipTables;
+  int64_t         mergeLimit;
   SSortExecInfo   sortExecInfo;
-  bool             needCountEmptyTable;
-  bool             bGroupProcessed;    // the group return data means processed
-  bool             filesetDelimited;
-  bool             bNewFilesetEvent;
-  bool             bNextDurationBlockEvent;
-  int32_t          numNextDurationBlocks;
-  SSDataBlock*     nextDurationBlocks[2];
-  bool             rtnNextDurationBlocks;
-  int32_t          nextDurationBlocksIdx;
-  
-  bool             bSortRowId;
+  bool            needCountEmptyTable;
+  bool            bGroupProcessed;  // the group return data means processed
+  bool            filesetDelimited;
+  bool            bNewFilesetEvent;
+  bool            bNextDurationBlockEvent;
+  int32_t         numNextDurationBlocks;
+  SSDataBlock*    nextDurationBlocks[2];
+  bool            rtnNextDurationBlocks;
+  int32_t         nextDurationBlocksIdx;
+  bool            bSortRowId;
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
 } STableMergeScanInfo;

@@ -119,7 +119,7 @@ int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2) {
         return ret > 0 ? 1 : -1;
       }
     } else {
-      return comparFn(&p1->pks[0].val, &p2->pks[0].val);
+      return p1->pks[0].val - p2->pks[0].val;
     }
   }
 }
@@ -179,9 +179,8 @@ static void tRowGetKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
     }
 
     if (IS_VAR_DATA_TYPE(indices[i].type)) {
-      tGetU32v(pKey->pks[i].pData, &pKey->pks[i].nData);
-      pKey->pks[i].pData = memcpy(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
-      pKey->pks[i].pData += pKey->pks[i].nData;
+      tdata += tGetU32v(tdata, &pKey->pks[i].nData);
+      memcpy(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
     } else {
       memcpy(&pKey->pks[i].val, data + indices[i].offset, tDataTypes[pKey->pks[i].type].bytes);
     }
@@ -396,14 +395,18 @@ _err:
   return code;
 }
 
-void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk) {
+bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp) {
+  return (pSupp->numOfPks > 0) && IS_VAR_DATA_TYPE(pSupp->pk.type);
+}
+
+void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool needFree) {
   pIter->order = order;
   pIter->index = -1;
   pIter->numOfBlocks = 0;
   if (pIter->blockList == NULL) {
     pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
   } else {
-    clearDataBlockIterator(pIter, hasPk);
+    clearDataBlockIterator(pIter, needFree);
   }
 }
 
@@ -821,18 +824,13 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
   return TSDB_CODE_SUCCESS;
 }
 
-// todo keep the the last returned key
 static void setBlockAllDumped(SFileBlockDumpInfo* pDumpInfo, int64_t maxKey, int32_t order) {
-//  int32_t step = ASCENDING_TRAVERSE(order) ? 1 : -1;
   pDumpInfo->allDumped = true;
-//  ASSERT(0);
-//  pDumpInfo->lastKey.key.ts = maxKey + step;
 }
 
 static void updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, SDataBlockInfo* pInfo, int32_t numOfPks,
                               bool asc) {
   pKey->ts = asc ? pInfo->window.ekey : pInfo->window.skey;
-
   pKey->numOfPKs = numOfPks;
   if (pKey->numOfPKs <= 0) {
     return;
@@ -842,7 +840,7 @@ static void updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, SDa
     pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
   } else {
     uint8_t* p = asc ? pBlockInfo->lastPk.pData : pBlockInfo->firstPk.pData;
-    pKey->pks[0].nData = asc ? pBlockInfo->lastPKLen : pBlockInfo->firstPKLen;
+    pKey->pks[0].nData = asc ? varDataLen(pBlockInfo->lastPk.pData) : varDataLen(pBlockInfo->firstPk.pData);
     memcpy(pKey->pks[0].pData, p, pKey->pks[0].nData);
   }
 }
@@ -2838,11 +2836,11 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
       pInfo->pks[0].val = pBlockInfo->firstPk.val;
       pInfo->pks[1].val = pBlockInfo->lastPk.val;
     } else {
-      memcpy(pInfo->pks[0].pData, pBlockInfo->firstPk.pData, pBlockInfo->firstPKLen);
-      memcpy(pInfo->pks[1].pData, pBlockInfo->lastPk.pData, pBlockInfo->lastPKLen);
+      memcpy(pInfo->pks[0].pData, varDataVal(pBlockInfo->firstPk.pData), varDataLen(pBlockInfo->firstPk.pData));
+      memcpy(pInfo->pks[1].pData, varDataVal(pBlockInfo->lastPk.pData), varDataLen(pBlockInfo->lastPk.pData));
 
-      pInfo->pks[0].nData = pBlockInfo->firstPKLen;
-      pInfo->pks[1].nData = pBlockInfo->lastPKLen;
+      pInfo->pks[0].nData = varDataLen(pBlockInfo->firstPk.pData);
+      pInfo->pks[1].nData = varDataLen(pBlockInfo->lastPk.pData);
     }
   }
 
@@ -3203,7 +3201,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
     code = initBlockIterator(pReader, pBlockIter, num.numOfBlocks, pTableList);
   } else {  // no block data, only last block exists
     tBlockDataReset(&pReader->status.fileBlockData);
-    resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+    resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
     resetTableListIndex(&pReader->status);
   }
 
@@ -3313,7 +3311,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
           }
 
           tBlockDataReset(pBlockData);
-          resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+          resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
           resetTableListIndex(&pReader->status);
 
           ERetrieveType type = doReadDataFromSttFiles(pReader);
@@ -4158,7 +4156,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   }
 
   initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
-  resetDataBlockIterator(&pStatus->blockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+  resetDataBlockIterator(&pStatus->blockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStatus->fileIter.numOfFiles == 0) {
@@ -4362,7 +4360,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   taosMemoryFree(pSupInfo->colId);
   tBlockDataDestroy(&pReader->status.fileBlockData);
-  cleanupDataBlockIterator(&pReader->status.blockIter, pReader->suppInfo.numOfPks > 0);
+  cleanupDataBlockIterator(&pReader->status.blockIter, shouldFreePkBuf(&pReader->suppInfo));
 
   size_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (pReader->status.pTableMap != NULL) {
@@ -5038,7 +5036,7 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
 
   initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
-  resetDataBlockIterator(pBlockIter, pReader->info.order, pReader->suppInfo.numOfPks > 0);
+  resetDataBlockIterator(pBlockIter, pReader->info.order, shouldFreePkBuf(&pReader->suppInfo));
   resetTableListIndex(&pReader->status);
 
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
