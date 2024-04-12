@@ -699,22 +699,6 @@ end:
 
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
-static STaskId replaceStreamTaskId(SStreamTask* pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to expand task", pTask->id.taskId);
@@ -724,74 +708,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
     return code;
   }
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    STaskId taskId = {0};
-    if (pTask->info.fillHistory) {
-      taskId = replaceStreamTaskId(pTask);
-    }
-
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
-    if (pTask->pState == NULL) {
-      tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
-      return -1;
-    }
-
-    tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
-    if (pTask->info.fillHistory) {
-      restoreStreamTaskId(pTask, &taskId);
-    }
-
-    SReadHandle handle = {
-        .checkpointId = pTask->chkInfo.checkpointId,
-        .vnode = pTq->pVnode,
-        .initTqReader = 1,
-        .pStateBackend = pTask->pState,
-        .fillHistory = pTask->info.fillHistory,
-        .winRange = pTask->dataRange.window,
-    };
-
-    initStorageAPI(&handle.api);
-
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
-    if (pTask->exec.pExecutor == NULL) {
-      return -1;
-    }
-
-    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    STaskId taskId = {0};
-    if (pTask->info.fillHistory) {
-      taskId = replaceStreamTaskId(pTask);
-    }
-
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
-    if (pTask->pState == NULL) {
-      tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
-      return -1;
-    } else {
-      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
-    }
-
-    if (pTask->info.fillHistory) {
-      restoreStreamTaskId(pTask, &taskId);
-    }
-
-    SReadHandle handle = {
-        .checkpointId = pTask->chkInfo.checkpointId,
-        .vnode = NULL,
-        .numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList),
-        .pStateBackend = pTask->pState,
-        .fillHistory = pTask->info.fillHistory,
-        .winRange = pTask->dataRange.window,
-    };
-
-    initStorageAPI(&handle.api);
-
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
-    if (pTask->exec.pExecutor == NULL) {
-      return -1;
-    }
-    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
+  code = tqExpandStreamTask(pTask, pTq->pStreamMeta, pTq->pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   // sink
@@ -827,6 +746,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
+
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
   // checkpoint ver is the kept version, handled data should be the next version.

@@ -31,7 +31,6 @@ extern "C" {
 #endif
 
 struct SSnode {
-  char*        path;
   SStreamMeta* pMeta;
   SMsgCb       msgCb;
 };
