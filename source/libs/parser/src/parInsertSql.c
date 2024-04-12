@@ -1965,7 +1965,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
 
   clearStbRowsDataContext(pStbRowsCxt);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
