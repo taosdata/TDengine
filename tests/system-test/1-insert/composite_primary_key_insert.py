@@ -110,6 +110,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {self.stable_name} where engine = 1 and ts ={current_ts2} and pk = 2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(self.stable_name)
 
         # 2.insert into value through child table
         table_name = f'{self.ctable_name}_2'
@@ -130,6 +131,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {table_name} where engine = 2 and ts ={current_ts4} and pk = 2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(table_name)
 
         # 3.insert value into child table from csv file
         data = [
@@ -157,6 +159,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {table_name} where engine=3 and ts='2024-03-29 16:55:43.586' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(table_name)
 
         # 4.insert value into child table from csv file, create table automatically
         data = [
@@ -173,6 +176,7 @@ class TDTestCase:
         self.tdCsv.write(data)
 
         table_name = f'{self.ctable_name}_4'
+        self._check_select(self.stable_name)
         tdSql.execute(f"insert into {table_name} using {self.stable_name} tags(4) file '{self.tdCsv.file}'", show=SHOW_LOG)
 
         tdSql.query(f'select * from {table_name}')
@@ -183,6 +187,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {self.stable_name} where engine=4 and ts='2024-03-28 16:55:43.586' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(self.stable_name)
 
         # 5.insert value into normal table from csv file
         table_name = f'{self.ntable_name}_1'
@@ -201,6 +206,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {table_name} where ts='2024-03-28 16:55:43.586' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(table_name)
 
         # 6.insert value into normal table
         table_name = f'{self.ntable_name}_2'
@@ -226,6 +232,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {table_name} where ts ={current_ts2} and pk = 2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(table_name)
 
     def test_insert_data_illegal(self, dtype: LegalDataType, illegal_data: IllegalData):
         # drop tables
@@ -240,12 +247,14 @@ class TDTestCase:
         tdSql.error(f"insert into {self.stable_name} (tbname, engine, ts, pk, c2) values('{table_name}', 1, now, {illegal_data.value}, '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # 2.insert into value through child table
         table_name = f'{self.ctable_name}_2'
         tdSql.error(f"insert into {table_name} using {self.stable_name} tags(2) values(now, {illegal_data.value}, '7')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # 4.insert value into child table from csv file
         data = [
@@ -266,12 +275,14 @@ class TDTestCase:
         tdSql.error(f"insert into {table_name} file '{self.tdCsv.file}'", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(0)
+        self._check_select(table_name)
 
         # 5.insert value into child table from csv file, create table automatically
         table_name = f'{self.ctable_name}_4'
         tdSql.error(f"insert into {table_name} using {self.stable_name} tags(4) file '{self.tdCsv.file}'", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(table_name)
 
         # 6.insert value into normal table from csv file
         table_name = f'{self.ntable_name}_1'
@@ -279,6 +290,7 @@ class TDTestCase:
         tdSql.error(f"insert into {table_name} file '{self.tdCsv.file}'", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(0)
+        self._check_select(table_name)
 
         # 7.insert value into normal table
         table_name = f'{self.ntable_name}_2'
@@ -286,6 +298,7 @@ class TDTestCase:
         tdSql.error(f"insert into {table_name} values(now, {illegal_data.value}, '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(0)
+        self._check_select(table_name)
     
     def test_insert_select(self, dtype: LegalDataType):
         # # 1.pk table to non-pk table, throw error
@@ -329,13 +342,17 @@ class TDTestCase:
         tdSql.query(f'select * from dest_{self.ctable_name}')
         dest_data = tdSql.queryResult
         self._compare_table_data(source_data, dest_data, 3, 3)
+        self._check_select(f'dest_{self.ctable_name}')
         tdSql.execute(f"delete from dest_{self.ctable_name}", show=SHOW_LOG)
+        self._check_select(f'dest_{self.ctable_name}')
 
         tdSql.execute(f"insert into dest_{self.ntable_name} select * from source_{self.ntable_name}", show=SHOW_LOG)
         tdSql.query(f'select * from dest_{self.ntable_name}')
         dest_data = tdSql.queryResult
         self._compare_table_data(source_data, dest_data, 3, 3)
+        self._check_select(f'dest_{self.ntable_name}')
         tdSql.execute(f"delete from dest_{self.ntable_name}", show=SHOW_LOG)
+        self._check_select(f'dest_{self.ntable_name}')
 
         # TD-29363
         tdSql.execute(f"drop table if exists source_null")
@@ -378,7 +395,9 @@ class TDTestCase:
         else:
             tdSql.query(f'select * from dest_{self.ctable_name} where c2=5 or c2=6', show=SHOW_LOG)
         tdSql.checkRows(2)
+        self._check_select(f'dest_{self.ctable_name}')
         tdSql.execute(f"delete from dest_{self.ctable_name}", show=SHOW_LOG)
+        self._check_select(f'dest_{self.ctable_name}')
 
         tdSql.execute(f"insert into dest_{self.ntable_name} (ts, pk, c2) select ts, pk, c2 from source_{self.ntable_name}", show=SHOW_LOG)
         tdSql.query(f'select * from dest_{self.ntable_name}')
@@ -388,7 +407,9 @@ class TDTestCase:
         else:
             tdSql.query(f'select * from dest_{self.ntable_name} where c2=5 or c2=6')
         tdSql.checkRows(2)
+        self._check_select(f'dest_{self.ntable_name}')
         tdSql.execute(f"delete from dest_{self.ntable_name}", show=SHOW_LOG)
+        self._check_select(f'dest_{self.ntable_name}')
 
     def test_schemaless_error(self):
         # 5.1.insert into values via influxDB
@@ -462,17 +483,20 @@ class TDTestCase:
         tdSql.error(f"insert into {self.stable_name} (tbname, engine, pk, c2) values('{self.ctable_name}', 1, '1', '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # # 4.2.insert into value through child table
         tdSql.error(f"insert into {self.ctable_name} using {self.stable_name} tags(2) (pk, c2) values('1', '7')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # # 4.3.insert value into normal table
         tdSql.execute(f"create table {self.ntable_name} (ts timestamp, pk {dtype.value} primary key, c2 varchar(20))", show=SHOW_LOG)
         tdSql.error(f"insert into {self.ntable_name} (pk, c2) values('1', '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.ntable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.ntable_name)
 
         # 5.insert into values without pk column 
         # drop tables
@@ -485,17 +509,20 @@ class TDTestCase:
         tdSql.error(f"insert into {self.stable_name} (tbname, engine, ts, c2) values('{self.ctable_name}', 1, now, '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # # 5.2.insert into value through child table
         tdSql.error(f"insert into {self.ctable_name} using {self.stable_name} tags(2) (ts, c2) values(now, '7')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         # # 5.3.insert value into normal table
         tdSql.execute(f"create table {self.ntable_name} (ts timestamp, pk {dtype.value} primary key, c2 varchar(20))", show=SHOW_LOG)
         tdSql.error(f"insert into {self.ntable_name} (ts, c2) values(now, '1')", show=SHOW_LOG)
         tdSql.query(f'select * from {self.ntable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.ntable_name)
 
     def test_insert_into_mutiple_tables(self, dtype: LegalDataType):
         # drop super table and child table
@@ -514,7 +541,8 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
-
+        self._check_select(self.stable_name)
+        
         sql = f"insert into {self.stable_name} (tbname, engine, ts, pk, c2) " \
               f"values('{self.ctable_name}_1', 1, '2021-07-13 14:06:34.630', 1, 100) " \
               f"('{self.ctable_name}_1', 1, '2021-07-13 14:06:34.630', 2, 200) " \
@@ -530,6 +558,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {self.stable_name} where ts='2021-07-13 14:06:34.630' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(self.stable_name)
 
         # 2.insert into value and create table automatically
         tdSql.execute(f"drop table if exists {self.stable_name}")
@@ -542,6 +571,7 @@ class TDTestCase:
         tdSql.error(error_sql, show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         sql = f"insert into {self.ctable_name}_1 using {self.stable_name} tags(1) values('2021-07-13 14:06:34.630', 1, 100) ('2021-07-13 14:06:34.630', 2, 200) " \
                           f"{self.ctable_name}_2 using {self.stable_name} (engine) tags(2) values('2021-07-14 14:06:34.630', 1, 300) ('2021-07-14 14:06:34.630', 2, 400) " \
@@ -555,6 +585,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {self.stable_name} where ts='2021-07-13 14:06:34.630' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(self.stable_name)
 
         # 3.insert value into child table from csv file, create table automatically
         tdSql.execute(f"drop table if exists {self.stable_name}")
@@ -581,6 +612,7 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
+        self._check_select(self.stable_name)
 
         data = [
             ['ts','pk','c2'],
@@ -607,6 +639,7 @@ class TDTestCase:
         tdSql.checkRows(6)
         tdSql.query(f"select * from {self.stable_name} where ts='2024-03-29 16:55:42.572' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(3)
+        self._check_select(self.stable_name)
 
         # 6.insert value into normal table
         tdSql.execute(f"drop table if exists {self.ntable_name}_1")
@@ -623,6 +656,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"select * from {self.ntable_name}_2 where ts='2021-07-14 14:06:34.630' and pk=2", show=SHOW_LOG)
         tdSql.checkRows(1)
+        self._check_select(self.ntable_name)
 
         # 7. insert value into child and normal table
         tdSql.execute(f"drop table if exists {self.stable_name}")
@@ -650,6 +684,8 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f'select * from {self.ntable_name}')
         tdSql.checkRows(2)
+        self._check_select(self.stable_name)
+        self._check_select(self.ntable_name)
 
     def test_stmt(self, dtype: LegalDataType):
         tdSql.execute(f"drop table if exists {self.stable_name}", show=SHOW_LOG)
@@ -693,6 +729,7 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(3)
+        self._check_select(self.stable_name)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589))
@@ -719,6 +756,7 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(4)
+        self._check_select(self.stable_name)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589))
@@ -745,6 +783,7 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(4)
+        self._check_select(self.stable_name)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589))
@@ -773,6 +812,7 @@ class TDTestCase:
 
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(4)
+        self._check_select(self.stable_name)
 
         params = taos.new_bind_params(4)
         params[0].timestamp((1626861392589, 1626861392589, ))
@@ -801,6 +841,7 @@ class TDTestCase:
         
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(4)
+        self._check_select(self.stable_name)
 
         if dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
             tdSql.query(f'select * from {self.stable_name} where pk="s11"')
@@ -825,6 +866,7 @@ class TDTestCase:
             tdSql.query(f'select * from dest_table where c2=1000')
             tdSql.checkRows(1)
             tdSql.execute(f"delete from dest_table", show=SHOW_LOG)
+            self._check_select('dest_table')
 
     def _compare_table_data(self, result1, result2, row = 0, col = 0):
         for i in range(row):
@@ -832,38 +874,61 @@ class TDTestCase:
                 if result1[i][j] != result2[i][j]:
                     tdSql.checkEqual(False, True)
 
+    def _check_select(self, table_nam: str):
+        tdSql.query(f'select count(*) from {table_nam} ')
+        tdSql.query(f'select * from {table_nam}')
+        tdSql.query(f'select last_row(*) from {table_nam}')
+        tdSql.query(f'select first(*) from {table_nam}')
+        tdSql.query(f'select last(*) from {table_nam}')
+        tdSql.query(f'select * from {table_nam} order by ts asc')
+        tdSql.query(f'select * from {table_nam} order by ts desc')
+        tdSql.query(f'select * from {table_nam} order by pk asc')
+        tdSql.query(f'select * from {table_nam} order by pk desc')
+        tdSql.query(f'select * from {table_nam} order by ts asc, pk desc')
+        tdSql.query(f'select * from {table_nam} order by ts desc, pk asc')
+
     def run(self):  
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 
         for date_type in LegalDataType.__members__.items():
-            # # 1.insert into value with pk - pass
-            # self.test_insert_data(date_type[1], HasPK.YES)
+            tdLog.info(f'<dateType={date_type}>')
+            # 1.insert into value with pk - pass
+            tdLog.info('[1.insert into value with pk]')
+            self.test_insert_data(date_type[1], HasPK.YES)
 
-            # # 2.insert into value without pk - pass
-            # self.test_insert_data(date_type[1], HasPK.NO)
+            # 2.insert into value without pk - pass
+            tdLog.info('[2.insert into value without pk]')
+            self.test_insert_data(date_type[1], HasPK.NO)
 
-            # # 3.insert into illegal data - pass
+            # 3.insert into illegal data - pass
+            tdLog.info('[3.insert into illegal data]')
             # for illegal_data in IllegalData.__members__.items():
             #     self.test_insert_data_illegal(date_type[1], illegal_data[1])
 
-            # # 4. insert into select - pass
-            # self.test_insert_select(date_type[1])
+            # 4. insert into select - pass
+            tdLog.info('[4. insert into select]')
+            self.test_insert_select(date_type[1])
 
-            # # 5. insert into values special cases  - pass
-            # self.test_insert_values_special(date_type[1])
+            # 5. insert into values special cases  - pass
+            tdLog.info('[5. insert into values special cases]')
+            self.test_insert_values_special(date_type[1])
             
-            # # 6. insert into value to mutiple tables  - pass
-            # self.test_implicit_conversion(date_type[1])
+            # 6. test implicit conversion  - pass
+            tdLog.info('[6. test implicit conversion]')
+            self.test_implicit_conversion(date_type[1])
 
-            # # 7. insert into value to mutiple tables  - pass
-            # self.test_insert_into_mutiple_tables(date_type[1])
+            # 7. insert into value to mutiple tables  - pass
+            tdLog.info('[7. insert into value to mutiple tables]')
+            self.test_insert_into_mutiple_tables(date_type[1])
 
             # 8. stmt  wait for test!!!!
+            tdLog.info('[8. stmt  wait for test]')
             self.test_stmt(date_type[1])  
         
-        # # 9. insert data by schemaless model is not allowed - pass
-        # self.test_schemaless_error()
+        # 9. insert data by schemaless model is not allowed - pass
+        tdLog.info('[9. insert data by schemaless model is not allowed]')
+        self.test_schemaless_error()
         # while(True):
         #     self.test_stmt(LegalDataType.VARCHAR) 
 
