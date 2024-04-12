@@ -77,6 +77,32 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     }
 }
 
+fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
+    if num == 0 {
+        return level;
+    }
+    if num < 0 {
+        let level = match level {
+            LevelFilter::Off => return LevelFilter::Off,
+            LevelFilter::Error => LevelFilter::Off,
+            LevelFilter::Warn => LevelFilter::Error,
+            LevelFilter::Info => LevelFilter::Warn,
+            LevelFilter::Debug => LevelFilter::Info,
+            LevelFilter::Trace => LevelFilter::Debug,
+        };
+        return level_upgrade(level, num + 1);
+    }
+    let level = match level {
+        LevelFilter::Off => LevelFilter::Error,
+        LevelFilter::Error => LevelFilter::Warn,
+        LevelFilter::Warn => LevelFilter::Info,
+        LevelFilter::Info => LevelFilter::Debug,
+        LevelFilter::Debug => LevelFilter::Trace,
+        LevelFilter::Trace => LevelFilter::Trace,
+    };
+    return level_upgrade(level, num - 1);
+}
+
 #[derive(Debug)]
 pub struct Args {
     plugins_home: Option<String>,
@@ -122,11 +148,6 @@ pub struct ConfigArgs {
     #[clap(long)]
     compression: Option<bool>,
 
-    /// For verbosity logging.
-    #[clap(flatten)]
-    #[serde(skip)]
-    verbose: Option<Verbosity<InfoLevel>>,
-
     /// For environment variable wised log level.
     #[clap(hide = true, env = "LOG_LEVEL")]
     log_level: Option<LevelFilter>,
@@ -143,6 +164,10 @@ pub struct ArgsParser {
 
     #[clap(flatten)]
     config_args: ConfigArgs,
+
+    /// For verbosity logging.
+    #[clap(flatten)]
+    verbose: Option<Verbosity<InfoLevel>>,
 }
 
 #[derive(Debug, Error)]
@@ -154,33 +179,58 @@ pub enum ArgsError {
     #[error("Argument parsing error: {0}")]
     ParseError(#[from] twelf::Error),
 }
+
+#[inline]
+fn get_effective_config_path(args: &ArgsParser) -> PathBuf {
+    args.config
+        .clone()
+        .unwrap_or_else(|| get_default_config_path())
+}
+
+#[cfg(windows)]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("C:\\")
+        .join("TDengine")
+        .join("cfg")
+        .join("agent.toml")
+}
+
+#[cfg(not(windows))]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("/etc")
+        .join(build::CUS_PROMPT)
+        .join("agent.toml")
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let path = if let Ok(c) = ArgsParser::try_parse() {
-            c.config
-                .map(|p| {
-                    if p.exists() {
-                        Ok(p)
-                    } else {
-                        Err(ArgsError::ConfigNotFound(p.display().to_string()))
-                    }
-                })
-                .transpose()?
-        } else {
-            None
-        }
-        .unwrap_or_else(|| {
-            if cfg!(windows) {
-                std::path::Path::new("C:\\")
-                    .join("TDengine")
-                    .join("cfg")
-                    .join("agent.toml")
-            } else {
-                std::path::Path::new("/etc")
-                    .join(build::CUS_PROMPT)
-                    .join("agent.toml")
-            }
-        });
+        let mut args = ArgsParser::parse();
+        let path = get_effective_config_path(&args);
+        // let path = if let Ok(c) = ArgsParser::try_parse() {
+        //     c.config
+        //         .map(|p| {
+        //             if p.exists() {
+        //                 Ok(p)
+        //             } else {
+        //                 Err(ArgsError::ConfigNotFound(p.display().to_string()))
+        //             }
+        //         })
+        //         .transpose()?
+        // } else {
+        //     None
+        // }
+        // .unwrap_or_else(|| {
+        //     if cfg!(windows) {
+        //         std::path::Path::new("C:\\")
+        //             .join("TDengine")
+        //             .join("cfg")
+        //             .join("agent.toml")
+        //     } else {
+        //         std::path::Path::new("/etc")
+        //             .join(build::CUS_PROMPT)
+        //             .join("agent.toml")
+        //     }
+        // });
 
         let mut layers = vec![];
 
@@ -201,16 +251,30 @@ impl Args {
             token,
             compression,
             log_level,
-            verbose,
             log_keep_days,
             ..
         } = ConfigArgs::with_layers(&layers)?;
-        let log_level = log_level_to_tracing_level(
-            log_level
-                .clone()
-                .or(verbose.clone().map(|v| v.log_level_filter()))
-                .unwrap_or(log::LevelFilter::Info),
-        );
+
+        let mut level_filter = log_level.clone().unwrap_or(LevelFilter::Info);
+
+        dbg!(&level_filter);
+        dbg!(&args.verbose);
+
+        if let Some(_) = &args.verbose.as_ref() {
+            let matches = ArgsParser::command().get_matches();
+            let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
+            level_filter = level_upgrade(level_filter, level_num);
+        }
+
+        let log_level = log_level_to_tracing_level(level_filter);
+
+        // let log_level = log_level_to_tracing_level(
+        //     log_level
+        //         .clone()
+        //         .or(verbose.clone().map(|v| v.log_level_filter()))
+        //         .unwrap_or(log::LevelFilter::Info),
+        // );
+
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
         Ok(Args {
