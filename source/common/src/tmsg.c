@@ -6947,22 +6947,6 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   return 0;
 }
 
-int32_t tSerializeSTqOffsetVal(SEncoder *pEncoder, STqOffsetVal *pOffset) {
-  if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
-  if (tEncodeI64(pEncoder, pOffset->uid) < 0) return -1;
-  if (tEncodeI64(pEncoder, pOffset->ts) < 0) return -1;
-
-  return 0;
-}
-
-int32_t tDerializeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffset) {
-  if (tDecodeI8(pDecoder, &pOffset->type) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pOffset->uid) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pOffset->ts) < 0) return -1;
-
-  return 0;
-}
-
 int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   if (buf != NULL) {
@@ -6981,7 +6965,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tEncodeU64(&encoder, pReq->reqId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->timeout) < 0) return -1;
-  if (tSerializeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
+  if (tEncodeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->enableReplay) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->sourceExcluded) < 0) return -1;
 
@@ -7002,10 +6986,6 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
 int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
 
-  //  SMsgHead *pHead = buf;
-  //  pHead->vgId = pReq->head.vgId;
-  //  pHead->contLen = pReq->head.contLen;
-
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
 
@@ -7018,7 +6998,7 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tDecodeU64(&decoder, &pReq->reqId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
-  if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
+  if (tDecodeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
 
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->enableReplay) < 0) return -1;
@@ -7034,6 +7014,9 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   return 0;
 }
 
+void tDestroySMqPollReq(SMqPollReq *pReq){
+    tOffsetDestroy(&pReq->reqOffset);
+}
 int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   if (buf != NULL) {
@@ -8691,10 +8674,18 @@ void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
 }
 
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
-  if (tEncodeI8(pEncoder, pOffsetVal->type) < 0) return -1;
+  int8_t type = pOffsetVal->type < 0 ? pOffsetVal->type : (TQ_OFFSET_VERSION << 4) | pOffsetVal->type;
+  if (tEncodeI8(pEncoder, type) < 0) return -1;
   if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
+    if (tEncodeI8(pEncoder, pOffsetVal->primaryKey.type) < 0) return -1;
+    if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
+      if (tEncodeBinary(pEncoder, pOffsetVal->primaryKey.pData, pOffsetVal->primaryKey.nData) < 0) return -1;
+    } else {
+      if (tEncodeI64(pEncoder, pOffsetVal->primaryKey.val) < 0) return -1;
+    }
+
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tEncodeI64(pEncoder, pOffsetVal->version) < 0) return -1;
   } else {
@@ -8705,9 +8696,22 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
 
 int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
+  int8_t offsetVersion = 0;
+  if (pOffsetVal->type > 0){
+    offsetVersion = (pOffsetVal->type >> 4);
+    pOffsetVal->type = pOffsetVal->type & 0x0F;
+  }
   if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
+    if (offsetVersion >= TQ_OFFSET_VERSION) {
+      if (tDecodeI8(pDecoder, &pOffsetVal->primaryKey.type) < 0) return -1;
+      if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
+        if (tDecodeBinaryAlloc32(pDecoder, &pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData) < 0) return -1;
+      } else {
+        if (tDecodeI64(pDecoder, &pOffsetVal->primaryKey.val) < 0) return -1;
+      }
+    }
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tDecodeI64(pDecoder, &pOffsetVal->version) < 0) return -1;
   } else {
@@ -8726,7 +8730,15 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "wal:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64, pVal->uid, pVal->ts);
+    if(IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
+      char *tmp = taosMemoryCalloc(1, pVal->primaryKey.nData + 1);
+      if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+      memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
+      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts, pVal->primaryKey.type, tmp);
+      taosMemoryFree(tmp);
+    }else{
+      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts, pVal->primaryKey.type, pVal->primaryKey.val);
+    }
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -8739,6 +8751,10 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
     if (pLeft->type == TMQ_OFFSET__LOG) {
       return pLeft->version == pRight->version;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      if (pLeft->primaryKey.type != 0) {
+        if(pLeft->primaryKey.type != pRight->primaryKey.type) return false;
+        if(tValueCompare(&pLeft->primaryKey, &pRight->primaryKey) != 0) return false;
+      }
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
       return pLeft->uid == pRight->uid;
@@ -8750,6 +8766,21 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   return false;
 }
 
+void tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pRight){
+  tOffsetDestroy(pLeft);
+  *pLeft = *pRight;
+  if(IS_VAR_DATA_TYPE(pRight->primaryKey.type)){
+    pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
+    memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
+  }
+}
+
+void tOffsetDestroy(void* param){
+  STqOffsetVal* pVal = (STqOffsetVal*)param;
+  if(IS_VAR_DATA_TYPE(pVal->primaryKey.type)){
+    taosMemoryFreeClear(pVal->primaryKey.pData);
+  }
+}
 int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
   if (tEncodeSTqOffsetVal(pEncoder, &pOffset->val) < 0) return -1;
   if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
@@ -8862,6 +8893,10 @@ int32_t tDecodeMqMetaRsp(SDecoder *pDecoder, SMqMetaRsp *pRsp) {
   return 0;
 }
 
+void tDeleteMqMetaRsp(SMqMetaRsp *pRsp) {
+  taosMemoryFree(pRsp->metaRsp);
+}
+
 int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
@@ -8888,6 +8923,7 @@ int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
 }
 
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
+  if (tEncodeI8(pEncoder, MQ_DATA_RSP_VERSION) < 0) return -1;
   if (tEncodeMqDataRspCommon(pEncoder, pRsp) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->sleepTime) < 0) return -1;
   return 0;
@@ -8939,7 +8975,10 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   return 0;
 }
 
-int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
+int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp, int8_t dataVersion) {
+  if (dataVersion >= MQ_DATA_RSP_VERSION){
+    if (tDecodeI8(pDecoder, &dataVersion) < 0) return -1;
+  }
   if (tDecodeMqDataRspCommon(pDecoder, pRsp) < 0) return -1;
   if (!tDecodeIsEnd(pDecoder)) {
     if (tDecodeI64(pDecoder, &pRsp->sleepTime) < 0) return -1;
@@ -8956,9 +8995,12 @@ void tDeleteMqDataRsp(SMqDataRsp *pRsp) {
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
+  tOffsetDestroy(&pRsp->reqOffset);
+  tOffsetDestroy(&pRsp->rspOffset);
 }
 
 int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const STaosxRsp *pRsp) {
+  if (tEncodeI8(pEncoder, MQ_DATA_RSP_VERSION) < 0) return -1;
   if (tEncodeMqDataRspCommon(pEncoder, (const SMqDataRsp *)pRsp) < 0) return -1;
 
   if (tEncodeI32(pEncoder, pRsp->createTableNum) < 0) return -1;
@@ -8972,7 +9014,10 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const STaosxRsp *pRsp) {
   return 0;
 }
 
-int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
+int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp, int8_t dataVersion) {
+  if (dataVersion >= MQ_DATA_RSP_VERSION){
+    if (tDecodeI8(pDecoder, &dataVersion) < 0) return -1;
+  }
   if (tDecodeMqDataRspCommon(pDecoder, (SMqDataRsp*)pRsp) < 0) return -1;
 
   if (tDecodeI32(pDecoder, &pRsp->createTableNum) < 0) return -1;
@@ -9004,6 +9049,8 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
   pRsp->createTableLen = taosArrayDestroy(pRsp->createTableLen);
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
   pRsp->createTableReq = NULL;
+  tOffsetDestroy(&pRsp->reqOffset);
+  tOffsetDestroy(&pRsp->rspOffset);
 }
 
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
