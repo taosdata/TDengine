@@ -72,7 +72,7 @@ class TDTestCase:
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")
-        tdSql.execute(f"create database {self.database} CACHEMODEL 'none'")
+        tdSql.execute(f"create database {self.database}")
         tdSql.execute(f"use {self.database}")
 
     def get_latest_ts(self, table_name: str):
@@ -102,7 +102,7 @@ class TDTestCase:
         tdSql.execute(f"insert into {self.stable_name} (tbname, engine, ts, pk, c2) values('{table_name}', 1, {current_ts2}, 2, '5')", show=SHOW_LOG)
         tdSql.execute(f"insert into {self.stable_name} (tbname, engine, ts, pk) values('{table_name}', 1, now + 2s, 2)", show=SHOW_LOG)
 
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(6)
         tdSql.query(f"select * from {self.stable_name} where engine = 1 and ts ={current_ts1}", show=SHOW_LOG)
@@ -152,7 +152,7 @@ class TDTestCase:
         tdSql.execute(f"create table {table_name} using {self.stable_name} tags(3)", show=SHOW_LOG)
         tdSql.execute(f"insert into {table_name} file '{self.tdCsv.file}'", show=SHOW_LOG)
 
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(6)
         tdSql.query(f"select * from {table_name} where engine=3 and ts='2024-03-29 16:55:42.572'", show=SHOW_LOG)
@@ -226,7 +226,7 @@ class TDTestCase:
         tdSql.execute(f"insert into {table_name} (ts, pk, c2) values({current_ts2}, 2, '5')", show=SHOW_LOG)
         tdSql.execute(f"insert into {table_name} (ts, pk) values(now + 2s, 2)", show=SHOW_LOG)
 
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(6)
         tdSql.query(f"select * from {table_name} where ts ={current_ts1}", show=SHOW_LOG)
@@ -291,7 +291,7 @@ class TDTestCase:
         table_name = f'{self.ntable_name}_1'
         tdSql.execute(f"create table {table_name} using {self.stable_name} tags(3)", show=SHOW_LOG)
         tdSql.error(f"insert into {table_name} file '{self.tdCsv.file}'", show=SHOW_LOG)
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {table_name}')
         tdSql.checkRows(0)
         self._check_select(table_name)
@@ -343,7 +343,7 @@ class TDTestCase:
         source_data = tdSql.queryResult
         
         tdSql.execute(f"insert into dest_{self.ctable_name} select ts, pk, c2 from source_{self.ntable_name}", show=SHOW_LOG)
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from dest_{self.ctable_name}')
         dest_data = tdSql.queryResult
         self._compare_table_data(source_data, dest_data, 3, 3)
@@ -476,7 +476,7 @@ class TDTestCase:
         except SchemalessError as errMsg:
             tdSql.checkEqual(errMsg.msg == 'Can not insert data into table with primary key', True)
 
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
 
     def test_insert_values_special(self, dtype: LegalDataType):
         # 4.insert into values without ts column 
@@ -527,7 +527,7 @@ class TDTestCase:
         # # 5.3.insert value into normal table
         tdSql.execute(f"create table {self.ntable_name} (ts timestamp, pk {dtype.value} primary key, c2 varchar(20))", show=SHOW_LOG)
         tdSql.error(f"insert into {self.ntable_name} (ts, c2) values(now, '1')", show=SHOW_LOG)
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {self.ntable_name}')
         tdSql.checkRows(0)
         self._check_select(self.ntable_name)
@@ -577,7 +577,7 @@ class TDTestCase:
                           f"{self.ctable_name}_3 using {self.stable_name} (engine) tags(3) values('2021-07-15 14:06:34.630', null, 500)" 
               
         tdSql.error(error_sql, show=SHOW_LOG)
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
         self._check_select(self.stable_name)
@@ -683,7 +683,7 @@ class TDTestCase:
                           f"{self.ntable_name} values('2021-07-14 14:06:34.630', 1, 300) ('2021-07-14 14:06:34.630', 2, 400) " 
         
         tdSql.error(error_sql, show=SHOW_LOG)
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
         tdSql.query(f'select * from {self.ntable_name}')
@@ -737,7 +737,7 @@ class TDTestCase:
 
         stmt.execute()
 
-        tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(3)
         self._check_select(self.stable_name)
@@ -874,7 +874,7 @@ class TDTestCase:
             tdSql.execute(f"insert into source_table values(now, 100, 1000)", show=SHOW_LOG)
             tdSql.execute(f"insert into dest_table select * from source_table", show=SHOW_LOG)
 
-            tdSql.execute(f"flush database {table_name}", show=SHOW_LOG)
+            tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
             tdSql.query(f'select * from dest_table where c2=1000')
             tdSql.checkRows(1)
             tdSql.execute(f"delete from dest_table", show=SHOW_LOG)
@@ -890,8 +890,13 @@ class TDTestCase:
         tdSql.query(f'select count(*) from {table_nam} ')
         tdSql.query(f'select * from {table_nam}')
         tdSql.query(f'select last_row(*) from {table_nam}')
+        tdSql.query(f'select last_row(*) from {table_nam} group by tbname')
         tdSql.query(f'select first(*) from {table_nam}')
+        tdSql.query(f'select first(*) from {table_nam} group by tbname')
         tdSql.query(f'select last(*) from {table_nam}')
+        tdSql.query(f'select last(*) from {table_nam} group by tbname')
+        tdSql.query(f'select ts, last(pk) from {table_nam} order by ts')
+        
         tdSql.query(f'select * from {table_nam} order by ts asc')
         tdSql.query(f'select * from {table_nam} order by ts desc')
         tdSql.query(f'select * from {table_nam} order by pk asc')
@@ -904,14 +909,14 @@ class TDTestCase:
         self.prepare_db()
 
         for date_type in LegalDataType.__members__.items():
-            # tdLog.info(f'<dateType={date_type}>')
-            # # 1.insert into value with pk - pass
-            # tdLog.info('[1.insert into value with pk]')
-            # self.test_insert_data(date_type[1], HasPK.YES)
+            tdLog.info(f'<dateType={date_type}>')
+            # 1.insert into value with pk - pass
+            tdLog.info('[1.insert into value with pk]')
+            self.test_insert_data(date_type[1], HasPK.YES)
 
-            # # 2.insert into value without pk - pass
-            # tdLog.info('[2.insert into value without pk]')
-            # self.test_insert_data(date_type[1], HasPK.NO)
+            # 2.insert into value without pk - pass
+            tdLog.info('[2.insert into value without pk]')
+            self.test_insert_data(date_type[1], HasPK.NO)
 
             # 3.insert into illegal data - pass
             tdLog.info('[3.insert into illegal data]')
