@@ -2414,7 +2414,7 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode) {
   }
   
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pNode->pChildren->length != 2 || JOIN_ALGO_HASH == pJoin->joinAlgo || JOIN_TYPE_FULL == pJoin->joinType) {
+  if (pNode->pChildren->length != 2 || JOIN_STYPE_ASOF == pJoin->subType || JOIN_STYPE_WIN == pJoin->subType || JOIN_TYPE_FULL == pJoin->joinType) {
     return false;
   }
 
