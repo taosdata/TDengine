@@ -435,6 +435,10 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             break;
           }
 
+          tsdbInfo("before index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
+                   (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), record.firstKey.numOfPKs,
+                   (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey));
+
           taosArrayPush(pBlockLoadInfo->info.pUid, &record.uid);
           taosArrayPush(pBlockLoadInfo->info.pCount, &record.count);
 
@@ -454,7 +458,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           }
 
           i += 1;
-          tsdbInfo("index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
+          tsdbInfo("after index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
                    (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), record.firstKey.numOfPKs,
                    (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey));
 
