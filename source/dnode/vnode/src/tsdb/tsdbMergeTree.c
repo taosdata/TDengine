@@ -404,6 +404,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           for (int32_t f = i; f < rows; ++f) {
             int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
             if (code) {
+              ASSERT(0);
               break;
             }
 
@@ -413,16 +414,16 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             // todo add api to clone the original data
             code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
             if (code) {
+              ASSERT(0);
               break;
             }
 
             tValueDupPayload(&vLast);
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
           }
-
-          ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
         }
 
+        ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
       } else {
         STbStatisRecord record = {0};
 
