@@ -446,7 +446,7 @@ pipeline {
                                             returnStdout: true
                                         ).trim()
                                         if (timeout_param != "null" &&  timeout_param != "0") {
-                                            timeout_cmd = "timeout " + timeout_param
+                                            timeout_cmd = "timeout " + "12000"
                                         }
                                         if (log_server_enabled == "1") {
                                             def log_server = sh (
