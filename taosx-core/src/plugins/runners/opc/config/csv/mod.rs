@@ -97,6 +97,9 @@ impl CsvParser {
 
                 row_index += 1;
             }
+            if row_index == 1 {
+                return Err(anyhow::anyhow!("empty csv file"));
+            }
         }
 
         Ok(Self {
@@ -291,5 +294,20 @@ mod tests {
         let tables_to_drop = csv_parser.get_tables_to_drop();
         assert_eq!(tables_to_drop.len(), 1);
         assert_eq!(tables_to_drop.get(0).unwrap(), "t_pressure");
+    }
+
+    #[tokio::test]
+    async fn test_empty_csv_file() {
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@..\\tests\\opc\\opcua-empty.csv").unwrap();
+        // Dsn::from_str("opcua://?csv_config_file=@D:\\projects\\taosx\\tests\\opc\\opcua-empty.csv").unwrap();
+
+        match CsvParser::from_dsn(&dsn).await {
+            Ok(_) => panic!("empty csv file should fail"),
+            Err(e) => {
+                println!("error: {}", e.to_string());
+                assert_eq!(e.to_string(), "empty csv file")
+            }
+        }
     }
 }
