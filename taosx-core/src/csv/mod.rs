@@ -479,15 +479,20 @@ impl CsvSource {
                 );
             }
 
-            reader
-                .records()
-                .into_iter()
-                .take(sample)
-                .for_each(|record| {
-                    if let Ok(record) = record {
-                        samples.push(record.iter().map(String::from).collect::<Vec<String>>());
-                    }
-                });
+            loop {
+                let mut record = StringRecord::new();
+                let ok = reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {} record error", path))?;
+                if ok {
+                    samples.push(record.iter().map(String::from).collect::<Vec<String>>());
+                } else {
+                    break;
+                }
+                if samples.len() >= sample {
+                    break;
+                }
+            }
         }
 
         Ok(samples)
@@ -799,7 +804,7 @@ impl CsvSource {
         comment: Option<u8>,
         skip_error: bool,
     ) -> Result<()> {
-        const MAX_VALIDATE_LINES: usize = 10;
+        const MAX_VALIDATE_LINES: usize = 5;
         let mut cols = 0;
         for path in paths {
             let path = path.as_ref();
