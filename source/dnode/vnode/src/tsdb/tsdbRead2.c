@@ -728,7 +728,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
 
     STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
 
-    // todo: here we should find the first timestamp that is greater than the lastProcKey
+    // here we should find the first timestamp that is greater than the lastProcKey
     // the window is an open interval NOW.
     if (asc) {
       w.skey = pScanInfo->lastProcKey.ts;
@@ -736,9 +736,9 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       w.ekey = pScanInfo->lastProcKey.ts;
     }
 
-    if (/*isEmptyQueryTimeWindow(&w)*/ w.ekey - w.skey < 1) {  // NOTE: specialized for open interval
+    // NOTE: specialized for open interval
+    if (((w.skey < INT64_MAX) && ((w.skey + 1) > w.ekey)) || (w.skey == INT64_MAX)) {
       k += 1;
-
       if (k >= numOfTables) {
         break;
       } else {
