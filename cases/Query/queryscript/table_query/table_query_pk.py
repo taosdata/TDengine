@@ -1,0 +1,2104 @@
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
+
+# -*- coding: utf-8 -*-
+
+import os
+import time
+from Query.queryutil.createdata import *
+from taostest import TDCase
+
+class TDTestQuery(TDCase):
+    def init(self):
+        super(TDTestQuery, self).init()
+        self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
+
+    def tags(self) -> str:
+         
+        return ""
+    
+    def author(self) -> str:
+         
+        return "Guo Xiangyang"
+
+    def desc(self) -> str:
+        case_description = '''
+        case1<xyguo>:tabel_pk
+        ''' 
+        return case_description
+            
+    #basic_param
+    db = "table_pk4"
+    
+    testcasePath = os.path.split(__file__)[0]
+    testcaseFilename = os.path.split(__file__)[-1]
+
+    def data_create(self,db):
+        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        #self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'yes','yes') 
+        #self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'no','yes') 
+        self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 2 ,'no','yes') 
+        
+    def query_pk(self,db,num=1):
+        
+        # self.fun_pk_last(self.db,'last','')  #td-29571 29551
+        # self.fun_pk_last(self.db,'last_row','') 
+        # self.fun_pk_first(self.db,'first','') 
+        #self.query_pk_fun(self.db,'') 
+        
+        # self.touying_pk_1(self.db,1) #pass
+        # self.touying_pk_where(self.db,'') 
+        # self.touying_pk_where(self.db,'tags') 
+        # self.touying_pk_where(self.db,'distinct') 
+        #self.touying_pk_asc(self.db,'')  #TD-29551
+        # self.touying_pk_asc(self.db,'tags')  #TD-29536
+        # self.touying_pk_asc(self.db,'distinct')  #TD-29536
+        self.count_pk(self.db,1) #pass
+        
+    def query_pk_fun(self,db,num=1):
+        self.fun_pk_num_1(self.db,'','') 
+        self.fun_pk_num_agg(self.db,'count','') 
+        self.fun_pk_num_agg(self.db,'sum','') 
+        self.fun_pk_num_agg(self.db,'avg','') 
+        
+        self.fun_pk_num_1(self.db,'first','') 
+        self.fun_pk_num_1(self.db,'last','') 
+        self.fun_pk_num_1(self.db,'last_row','') 
+        self.fun_pk_num_1(self.db,'max','') 
+        self.fun_pk_num_1(self.db,'min','') 
+        self.fun_pk_num_1(self.db,'mode','') 
+        self.fun_pk_num_1(self.db,'unique','') 
+        self.fun_pk_num_1(self.db,'sample',',10') 
+        self.fun_pk_num_1(self.db,'top',',10') 
+        self.fun_pk_num_1(self.db,'bottom',',10') 
+        self.fun_pk_num_1(self.db,'tail',',10') 
+        
+        
+        #self.fun_pk_num_1(self.db,'csum','') 
+        self.fun_pk_num_1(self.db,'diff','') 
+        #self.fun_pk_num_1(self.db,'irate','') 
+        self.fun_pk_num_agg(self.db,'twa','') 
+        #self.fun_pk_num_1(self.db,'mavg',',10') 
+        #self.fun_pk_num_1(self.db,'statecount',',"LT",10') 
+        #self.fun_pk_num_1(self.db,'stateduration',',"LT",10,1b') 
+        
+        self.fun_pk_num_1(self.db,'abs','') 
+        self.fun_pk_num_1(self.db,'acos','') 
+        self.fun_pk_num_1(self.db,'asin','') 
+        self.fun_pk_num_1(self.db,'atan','') 
+        self.fun_pk_num_1(self.db,'ceil','') 
+        self.fun_pk_num_1(self.db,'cos','') 
+        self.fun_pk_num_1(self.db,'floor','') 
+        self.fun_pk_num_1(self.db,'log','') 
+        self.fun_pk_num_1(self.db,'pow',',2') 
+        self.fun_pk_num_1(self.db,'round','') 
+        self.fun_pk_num_1(self.db,'sin','') 
+        self.fun_pk_num_1(self.db,'sqrt','') 
+        self.fun_pk_num_1(self.db,'tan','') 
+        
+        self.fun_pk_str_1(self.db,'char_length','') 
+        self.fun_pk_str_1(self.db,'concat',',ts_pk') 
+        #self.fun_pk_str_1(self.db,'concat_ws',',ts_pk,ts_pk') 
+        self.fun_pk_str_1(self.db,'length','') 
+        self.fun_pk_str_1(self.db,'lower','') 
+        self.fun_pk_str_1(self.db,'ltrim','') 
+        self.fun_pk_str_1(self.db,'rtrim','') 
+        self.fun_pk_str_1(self.db,'substr',',1') 
+        self.fun_pk_str_1(self.db,'upper','') 
+        
+        
+    def fun_pk_first(self,db,replace_fun,replace_num):
+        num_table_list1 = ['stable_1','stable_3','regular_table_1','regular_table_3']
+        for i in num_table_list1:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,-24)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,-24)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,-24)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,-24)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,-24)
+            self.tdCreateData.explain_sql_pass(sql)
+        
+        num_table_list2 = ['stable_2','stable_4','regular_table_2','regular_table_4']
+        for i in num_table_list2:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,1)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,1)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,1)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,1)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,1)
+            self.tdCreateData.explain_sql_pass(sql)
+                
+        str_table_list1 = ['stable_5','regular_table_5']
+        for i in str_table_list1:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'-1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'-1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'-1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'-1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'-1')
+            self.tdCreateData.explain_sql_pass(sql)
+        
+        str_table_list2 = ['stable_6','regular_table_6']
+        for i in str_table_list2:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'1')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'1')
+            self.tdCreateData.explain_sql_pass(sql)
+            
+        table_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        for i in table_list:
+            #base_sql = "select ts,{}(ts_pk{}) from {}.{} order by ts limit 5".format(replace_fun,replace_num,db, i)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select _wstart,ts,{}(ts_pk{}) from {}.{} interval(1s)".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select _wstart,ts,{}(ts_pk{}) from {}.{} interval(1a)".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+
+        
+    def fun_pk_last(self,db,replace_fun,replace_num):
+        num_table_list1 = ['stable_1','stable_3','regular_table_1','regular_table_3']
+        for i in num_table_list1:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,25)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,25)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,25)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,25)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,25)
+            self.tdCreateData.explain_sql_pass(sql)
+        
+        num_table_list2 = ['stable_2','stable_4','regular_table_2','regular_table_4']
+        for i in num_table_list2:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,50)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,50)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,50)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,50)
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,50)
+            self.tdCreateData.explain_sql_pass(sql)
+                
+        str_table_list1 = ['stable_5','regular_table_5','stable_6','regular_table_6']
+        for i in str_table_list1:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'9')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'9')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'9')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'9')
+            self.tdCreateData.explain_sql_pass(sql)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'9')
+            self.tdCreateData.explain_sql_pass(sql)
+            
+        table_list = ['stable_1','regular_table_1','stable_2','regular_table_2','stable_3','regular_table_3','stable_4','regular_table_4','stable_5','regular_table_5','stable_6','regular_table_6']
+        for i in table_list:
+            sql = "select _wstart,ts,{}(ts_pk{}) from {}.{} interval(1s)".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20.000')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select _wstart,ts,{}(ts_pk{}) from {}.{} interval(1a)".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-08-28 05:33:20.000')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+        
+        table_list = ['stable_1','regular_table_1']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-10-23 22:40:00.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+        
+        table_list = ['stable_2','regular_table_2']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2021-12-20 19:33:20.012')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+        table_list = ['stable_3','regular_table_3']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2022-02-16 16:26:40.013')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+         
+        
+        table_list = ['stable_4','regular_table_4']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2024-10-27 11:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+        
+        table_list = ['stable_5','regular_table_5']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2053-05-05 03:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)    
+        
+        table_list = ['stable_6','regular_table_6']
+        for i in table_list:
+            sql = "select ts,{}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            sql = "select ts,{}(ts_pk{}) from {}.{} order by ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1)
+            
+            sql = "select ts,{}(ts_pk{}) from {}.{} group by tbname ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkData(0,0,'2338-07-17 19:33:20.011')
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.dataequal('%s' %sql ,1,1,'%s' %sql ,1,1) 
+        
+        # TO DO
+        # delete and insert        
+                    
+    def fun_pk_num_agg(self,db,replace_fun,replace_num):
+        num_table_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4']
+        for i in num_table_list:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+            # sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk".format(replace_fun,replace_num,db, i)
+            # self.tdSql.query(sql)
+            # self.tdCreateData.explain_sql_pass(sql)
+            # sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk desc".format(replace_fun,replace_num,db, i)
+            # self.tdSql.query(sql)
+            # self.tdCreateData.explain_sql_pass(sql)
+                
+    def fun_pk_num_1(self,db,replace_fun,replace_num):
+        num_table_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4']
+        for i in num_table_list:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+
+    def fun_pk_str_1(self,db,replace_fun,replace_num):
+        str_table_list = ['stable_5','stable_6','regular_table_5','regular_table_6']
+        for i in str_table_list:
+            sql = "select {}(ts_pk{}) from {}.{} ".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)
+            sql = "select {}(ts_pk{}) from {}.{} order by ts,ts_pk desc".format(replace_fun,replace_num,db, i)
+            self.tdSql.query(sql)
+            self.tdCreateData.explain_sql_pass(sql)
+            self.tdCreateData.check_rows_value(sql,'GT',0)     
+            
+            
+        
+    def count_pk(self,db,num=1):
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            self.tdSql.query("select count(*) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(ts) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(ts_pk) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(q_int) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_float) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_double) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*150*num)
+            self.tdSql.query("select count(q_int_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_bigint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_smallint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_tinyint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_float_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_double_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_bool_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_binary_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_nchar_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(q_ts_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*0*num)
+            self.tdSql.query("select count(tbname) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(loc) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_int) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_float) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_double) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            self.tdSql.query("select count(t_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,10*300*num)
+            
+            
+        table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        for i in table_list:
+            self.tdSql.query("select count(*) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(ts) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(ts_pk) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(q_int) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_float) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_double) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_int_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_bigint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_smallint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_tinyint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_float_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_double_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_bool_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_binary_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_nchar_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_ts_null) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(tbname) from {}.{} ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+    
+        
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            self.tdSql.query("select count(*) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.checkData(2,0,300*num)
+            self.tdSql.checkData(4,0,300*num)
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.checkData(8,0,300*num)   
+            
+            self.tdSql.query("select count(ts) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(ts_pk) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+            self.tdSql.query("select count(q_int) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,150*num)
+            self.tdSql.query("select count(q_bigint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,150*num)
+            self.tdSql.query("select count(q_smallint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,150*num)
+            self.tdSql.query("select count(q_tinyint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,150*num)
+            self.tdSql.query("select count(q_int_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,150*num)
+            self.tdSql.query("select count(q_bigint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,150*num)
+            self.tdSql.query("select count(q_smallint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,150*num)
+            self.tdSql.query("select count(q_tinyint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,150*num)
+            self.tdSql.query("select count(q_float) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_double) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,150*num)
+            self.tdSql.query("select count(q_bool) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,150*num)
+            self.tdSql.query("select count(q_binary) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,150*num)
+            self.tdSql.query("select count(q_nchar) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,150*num)
+            self.tdSql.query("select count(q_ts) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,150*num)
+            self.tdSql.query("select count(q_int_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,0*num)
+            self.tdSql.query("select count(q_bigint_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,0*num)
+            self.tdSql.query("select count(q_smallint_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,0*num)
+            self.tdSql.query("select count(q_tinyint_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,0*num)
+            self.tdSql.query("select count(q_float_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_double_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,0*num)
+            self.tdSql.query("select count(q_bool_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,0*num)
+            self.tdSql.query("select count(q_binary_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,0*num)
+            self.tdSql.query("select count(q_nchar_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,0*num)
+            self.tdSql.query("select count(q_ts_null) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,0*num)
+            self.tdSql.query("select count(tbname) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.query("select count(loc) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,300*num)
+            self.tdSql.query("select count(t_int) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,300*num)
+            self.tdSql.query("select count(t_bigint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,300*num)
+            self.tdSql.query("select count(t_smallint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(t_tinyint) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+            self.tdSql.query("select count(t_int_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,300*num)
+            self.tdSql.query("select count(t_bigint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,300*num)
+            self.tdSql.query("select count(t_smallint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,300*num)
+            self.tdSql.query("select count(t_tinyint_unsigned) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,300*num)
+            self.tdSql.query("select count(t_float) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.query("select count(t_double) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,300*num)
+            self.tdSql.query("select count(t_bool) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,300*num)
+            self.tdSql.query("select count(t_binary) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,300*num)
+            self.tdSql.query("select count(t_nchar) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(t_ts) from {}.{} group by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            self.tdSql.query("select count(*) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.checkData(2,0,300*num)
+            self.tdSql.checkData(4,0,300*num)
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.checkData(8,0,300*num)   
+            
+            self.tdSql.query("select count(ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(ts_pk) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+            self.tdSql.query("select count(q_int) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,150*num)
+            self.tdSql.query("select count(q_bigint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,150*num)
+            self.tdSql.query("select count(q_smallint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,150*num)
+            self.tdSql.query("select count(q_tinyint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,150*num)
+            self.tdSql.query("select count(q_int_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,150*num)
+            self.tdSql.query("select count(q_bigint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,150*num)
+            self.tdSql.query("select count(q_smallint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,150*num)
+            self.tdSql.query("select count(q_tinyint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,150*num)
+            self.tdSql.query("select count(q_float) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,150*num)
+            self.tdSql.query("select count(q_double) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,150*num)
+            self.tdSql.query("select count(q_bool) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,150*num)
+            self.tdSql.query("select count(q_binary) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,150*num)
+            self.tdSql.query("select count(q_nchar) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,150*num)
+            self.tdSql.query("select count(q_ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,150*num)
+            self.tdSql.query("select count(q_int_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,0*num)
+            self.tdSql.query("select count(q_bigint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,0*num)
+            self.tdSql.query("select count(q_smallint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,0*num)
+            self.tdSql.query("select count(q_tinyint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,0*num)
+            self.tdSql.query("select count(q_float_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,0*num)
+            self.tdSql.query("select count(q_double_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,0*num)
+            self.tdSql.query("select count(q_bool_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,0*num)
+            self.tdSql.query("select count(q_binary_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,0*num)
+            self.tdSql.query("select count(q_nchar_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,0*num)
+            self.tdSql.query("select count(q_ts_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,0*num)
+            self.tdSql.query("select count(tbname) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.query("select count(loc) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,300*num)
+            self.tdSql.query("select count(t_int) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,300*num)
+            self.tdSql.query("select count(t_bigint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,300*num)
+            self.tdSql.query("select count(t_smallint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(t_tinyint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+            self.tdSql.query("select count(t_int_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(2,0,300*num)
+            self.tdSql.query("select count(t_bigint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(3,0,300*num)
+            self.tdSql.query("select count(t_smallint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(4,0,300*num)
+            self.tdSql.query("select count(t_tinyint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(5,0,300*num)
+            self.tdSql.query("select count(t_float) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(6,0,300*num)
+            self.tdSql.query("select count(t_double) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(7,0,300*num)
+            self.tdSql.query("select count(t_bool) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(8,0,300*num)
+            self.tdSql.query("select count(t_binary) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(9,0,300*num)
+            self.tdSql.query("select count(t_nchar) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(0,0,300*num)
+            self.tdSql.query("select count(t_ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkData(1,0,300*num)
+    
+    def touying_pk_where(self,db,replace_fun,num=1):
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk = 1 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*6*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk != 1 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-6)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk in (1,11,111) order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*12*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk not in (1,11,111) order by ts desc".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-12)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk between 1 and 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*60*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk not between 1 and 10 order by ts desc".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-60)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')   
+                 
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk ) where cc != 60 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)           
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk order by cc ) where cc != 60 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)           
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk order by cc desc ) where cc != 60 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)
+        
+        stable_list = ['stable_1','stable_3','stable_5']
+        for i in stable_list:   
+            sql = "select {} * from {}.{} where ts_pk < 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*204*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk >= 10 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-204)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk <= 20 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*270*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk > 20 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-270)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')   
+            
+        stable_list = ['stable_2','stable_4','stable_6']
+        for i in stable_list:   
+            sql = "select {} * from {}.{} where ts_pk < 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*54*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk >= 10 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-54)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk <= 20 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*120*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk > 20 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(10*(300-120)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')   
+            
+        table_list = ['regular_table_1','regular_table_3','regular_table_5']
+        for i in table_list:   
+            sql = "select {} * from {}.{} where ts_pk < 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(204*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk >= 10 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow((300-204)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk <= 20 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(270*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk > 20 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow((300-270)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')   
+            
+        table_list = ['regular_table_2','regular_table_4','regular_table_6']
+        for i in table_list:   
+            sql = "select {} * from {}.{} where ts_pk < 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(54*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk >= 10 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow((300-54)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk <= 20 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(120*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk > 20 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow((300-120)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')   
+        
+        table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        for i in table_list:
+            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk is not null order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk is not null order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(300*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk = 1 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(6*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk != 1 order by ts desc ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(294*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk in (1,11,111) order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(12*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk not in (1,11,111) order by ts desc ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(288*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql = "select {} * from {}.{} where ts_pk between 1 and 10 order by ts ".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(60*num)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql = "select {} * from {}.{} where ts_pk not between 1 and 10 order by ts desc".format(replace_fun,db, i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow((300-60)*num)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+                   
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk ) where cc != 6 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)           
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk order by cc ) where cc != 6 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)           
+            sql = "select cc from (select {} count(*) cc from {}.{} group by ts_pk order by cc desc ) where cc != 6 ".format(replace_fun, db,i)
+            self.tdSql.query(sql)
+            self.tdSql.checkRow(0)
+            
+            
+            
+                
+    def touying_pk_asc(self,db,replace_fun):
+        #stable_list = ['stable_1','stable_2','stable_3','stable_4','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        for i in stable_list:
+            sql = "select {} * from {}.{} order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'  + ' order by ts '         
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +' desc )'+' union ' + '(' + sql  +')'  + ' order by ts '         
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} order by ts desc ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} * from {}.{} order by ts limit 10 ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'  + ' order by ts '         
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} order by ts desc limit 10 ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} * from {}.{} order by ts limit 10,10 ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'  + ' order by ts '         
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} order by ts desc limit 10,10  ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            
+            sql = "select {} ts from {}.{} order by ts ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} order by ts desc ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'    + ' order by ts desc'            
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} order by ts ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} order by ts desc ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'    + ' order by _c0 desc'            
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 desc'            
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} order by ts ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} order by ts desc ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            sql = "select {} ts from {}.{} order by ts limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} order by ts desc limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} order by ts  limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} order by ts desc  limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 desc'            
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} order by ts  limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} order by ts desc  limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts from {}.{} order by ts limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} order by ts desc limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} order by ts  limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} order by ts desc  limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 desc'            
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} order by ts  limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} order by ts desc  limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            sql = "select {} ts,ts_pk from {}.{} order by ts ".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            sql = "select {} ts,ts_pk from {}.{} order by ts  limit 10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} order by ts desc  limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} order by ts  limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} order by ts desc  limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts  limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts desc  limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts,ts_pk from {}.{} order by ts  limit 10,10".format(replace_fun, db,i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} order by ts desc  limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} order by ts  limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} order by ts desc  limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts  limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} order by ts desc  limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            sql = "select {} ts_pk from {}.{} order by ts_pk ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} order by ts_pk desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+                        
+            sql = "select {} ts_pk from {}.{} order by ts_pk limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} order by ts_pk desc limit 10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts_pk from {}.{} order by ts_pk limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} order by ts_pk desc limit 10,10".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            # partition by tbname
+            sql = "select {} * from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +'desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts,ts_pk from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by tbname order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by tbname order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts_pk from {}.{} partition by tbname order by ts_pk ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} partition by tbname order by ts_pk desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            # partition by ts
+            sql = "select {} * from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts,ts_pk from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by ts order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by ts order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts_pk from {}.{} partition by ts order by ts_pk ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} partition by ts order by ts_pk desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            
+            # partition by ts\ts_pk
+            sql = "select {} * from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} * from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0 from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0 from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts,ts_pk from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts,ts_pk from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _c0,ts_pk from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _c0 '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _c0 '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _C0,ts_pk from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _c0 desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _c0 desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by ts,ts_pk order by ts ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by _rowts '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by _rowts '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} _rowts,ts_pk from {}.{} partition by ts,ts_pk order by ts desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by _rowts desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by _rowts desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+            sql = "select {} ts_pk from {}.{} partition by ts,ts_pk order by ts_pk ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +' desc )'   + ' order by ts_pk '              
+            self.tdCreateData.orderby_check('%s' %sql_union,'asc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql_union_all = '(' + sql  +' desc )'+' union all ' + '(' + sql  +')'    + ' order by ts_pk '             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'asc')
+            sql = "select {} ts_pk from {}.{} partition by ts,ts_pk order by ts_pk desc ".format(replace_fun,db, i)
+            self.tdCreateData.orderby_check('%s' %sql,'desc')
+            sql_union = '(' + sql  +')'+' union ' + '(' + sql  +')'   + ' order by ts_pk desc'              
+            self.tdCreateData.orderby_check('%s' %sql_union,'desc')
+            sql_union_all = '(' + sql  +')'+' union all ' + '(' + sql  +')'   + ' order by ts_pk desc'             
+            self.tdCreateData.orderby_check('%s' %sql_union_all,'desc')
+            
+    def touying_pk_1(self,db,num=1):
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            self.tdSql.query("select * from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (ts) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (ts_pk) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_float) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_double) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_float_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_double_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bool_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_binary_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_nchar_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_ts_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (tbname) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (loc) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_int) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_float) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_double) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            
+            
+        table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+        for i in table_list:
+            self.tdSql.query("select * from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (ts) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (ts_pk) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_int) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_bigint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_smallint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_tinyint) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_int_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_bigint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_smallint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_tinyint_unsigned) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_float) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_double) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_bool) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_binary) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_nchar) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_ts) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_int_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_bigint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_smallint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_tinyint_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_float_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_double_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_bool_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_binary_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_nchar_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (q_ts_null) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+            self.tdSql.query("select (tbname) from {}.{} ".format(db, i))
+            self.tdSql.checkRow(300*num)
+    
+        
+        stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
+        for i in stable_list:
+            self.tdSql.query("select * from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num) 
+            
+            self.tdSql.query("select (ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num) 
+            self.tdSql.query("select (ts_pk) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_float) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_double) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bool) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_binary) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_nchar) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_int_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bigint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_smallint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_tinyint_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_float_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_double_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_bool_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_binary_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_nchar_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (q_ts_null) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (tbname) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (loc) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_int) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bigint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_smallint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_tinyint) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_int_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bigint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_smallint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_tinyint_unsigned) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_float) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_double) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_bool) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_binary) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_nchar) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+            self.tdSql.query("select (t_ts) from {}.{} partition by tbname ".format(db, i))
+            self.tdSql.checkRow(10*300*num)
+       
+                      
+    def run(self)-> bool:
+        startTime = time.time() 
+        
+        self.data_create(self.db) 
+        
+        
+        self.query_pk(self.db,1) 
+        
+        
+        endTime = time.time()
+        
+        self.logger.info("total time %ds" % (endTime - startTime))
