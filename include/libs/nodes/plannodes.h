@@ -151,9 +151,10 @@ typedef struct SJoinLogicNode {
   bool           hashJoinHint;
 
   // FOR HASH JOIN
-  STimeWindow    timeRange;     //table onCond filter
-  SNode*         pLeftOnCond;   //table onCond filter
-  SNode*         pRightOnCond;  //table onCond filter
+  int32_t        timeRangeTarget;  //table onCond filter
+  STimeWindow    timeRange;        //table onCond filter
+  SNode*         pLeftOnCond;      //table onCond filter
+  SNode*         pRightOnCond;     //table onCond filter
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -527,10 +528,15 @@ typedef struct SHashJoinPhysiNode {
   SNode*       pJLimit;  
   SNodeList*   pOnLeft;
   SNodeList*   pOnRight;
-  STimeWindow  timeRange;     //table onCond filter
-  SNode*       pLeftOnCond;   //table onCond filter
-  SNode*       pRightOnCond;  //table onCond filter
-  SNode*       pFullOnCond;   //preFilter
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  int32_t      timeRangeTarget; //table onCond filter
+  STimeWindow  timeRange;       //table onCond filter
+  SNode*       pLeftOnCond;     //table onCond filter
+  SNode*       pRightOnCond;    //table onCond filter
+  SNode*       pFullOnCond;     //preFilter
   SNodeList*   pTargets;
   SQueryStat   inputStat[2];
 

@@ -2160,6 +2160,11 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       }
       return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     }
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      *keepSort = true;
+      NODES_CLEAR_LIST(*pSequencingNodes);      
+      return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       return sortPriKeyOptHandleJoinSort(pNode, groupSort, pSort, pNotOptimize, pSequencingNodes, keepSort);
     }
@@ -2423,7 +2428,7 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode) {
   SScanLogicNode* pLScan = (SScanLogicNode*)pLeft;
   SScanLogicNode* pRScan = (SScanLogicNode*)pRight;
 
-  if (!IS_TSWINDOW_SPECIFIED(pLScan->scanRange) && !IS_TSWINDOW_SPECIFIED(pLScan->scanRange)) {
+  if (!IS_TSWINDOW_SPECIFIED(pLScan->scanRange) && !IS_TSWINDOW_SPECIFIED(pRScan->scanRange)) {
     return false;
   }
   
@@ -4744,7 +4749,7 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode) {
     goto _return;
   }
 
-  if ((JOIN_STYPE_NONE != pJoin->subType && JOIN_STYPE_OUTER != pJoin->subType) || NULL != pJoin->pTagOnCond || NULL != pJoin->pColOnCond || pNode->pChildren->length != 2 ) {
+  if ((JOIN_STYPE_NONE != pJoin->subType && JOIN_STYPE_OUTER != pJoin->subType) || JOIN_TYPE_FULL == pJoin->joinType || pNode->pChildren->length != 2 ) {
     goto _return;
   }
 
@@ -4766,8 +4771,9 @@ static int32_t hashJoinOptSplitPrimFromLogicCond(SNode **pCondition, SNode **pPr
   SNodeList *pPrimaryKeyConds = NULL;
   SNode     *pCond = NULL;
   WHERE_EACH(pCond, pLogicCond->pParameterList) {
-    if (isCondColumnsFromMultiTable(pCond) || COND_TYPE_PRIMARY_KEY != classifyCondition(pCond)) {
+    if (filterIsMultiTableColsCond(pCond) || COND_TYPE_PRIMARY_KEY != filterClassifyCondition(pCond)) {
       WHERE_NEXT;
+      continue;
     }
 
     code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
@@ -4809,11 +4815,11 @@ int32_t hashJoinOptSplitPrimCond(SNode **pCondition, SNode **pPrimaryKeyCond) {
   }
 
   bool needOutput = false;
-  if (isCondColumnsFromMultiTable(*pCondition)) {
+  if (filterIsMultiTableColsCond(*pCondition)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  EConditionType type = classifyCondition(*pCondition);
+  EConditionType type = filterClassifyCondition(*pCondition);
   if (COND_TYPE_PRIMARY_KEY == type) {
     *pPrimaryKeyCond = *pCondition;
     *pCondition = NULL;
@@ -4830,6 +4836,7 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
   pJoin->joinAlgo = JOIN_ALGO_HASH;
 
   if (NULL != pJoin->pColOnCond) {
+#if 0  
     EJoinType t = pJoin->joinType;
     EJoinSubType s = pJoin->subType;
 
@@ -4887,8 +4894,20 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
       pJoin->timeRange.skey = TMAX(ltimeRange.skey, rtimeRange.skey);
       pJoin->timeRange.ekey = TMIN(ltimeRange.ekey, rtimeRange.ekey);
     }
+#else 
+    SNode* pPrimaryKeyCond = NULL;
+    hashJoinOptSplitPrimCond(&pJoin->pColOnCond, &pPrimaryKeyCond);
+    if (NULL != pPrimaryKeyCond) {
+      bool isStrict = false;
+      code = getTimeRangeFromNode(&pPrimaryKeyCond, &pJoin->timeRange, &isStrict);
+      nodesDestroyNode(pPrimaryKeyCond);
+    }
+#endif
+  } else {
+    pJoin->timeRange = TSWINDOW_INITIALIZER;
   }
 
+#if 0
   if (NULL != pJoin->pTagOnCond && !TSWINDOW_IS_EQUAL(pJoin->timeRange, TSWINDOW_DESC_INITIALIZER)) {
     EJoinType t = pJoin->joinType;
     EJoinSubType s = pJoin->subType;
@@ -4917,14 +4936,16 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
       return code;
     }
   }
+#endif
 
   if (!TSWINDOW_IS_EQUAL(pJoin->timeRange, TSWINDOW_DESC_INITIALIZER)) {
-    FOREACH(pNode, pJoin->node.pChildren) {
-      if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pJoin->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
         continue;
       }
 
-      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+      SScanLogicNode* pScan = (SScanLogicNode*)pChild;
       if (TSWINDOW_IS_EQUAL(pScan->scanRange, TSWINDOW_INITIALIZER)) {
         continue;
       } else if (pJoin->timeRange.ekey < pScan->scanRange.skey || pJoin->timeRange.skey > pScan->scanRange.ekey) {
@@ -4936,7 +4957,59 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
       }
     }
   }
-  
+
+  pJoin->timeRangeTarget = 0;
+
+  if (!TSWINDOW_IS_EQUAL(pJoin->timeRange, TSWINDOW_INITIALIZER)) {
+    SNode* pChild = NULL;
+    int32_t timeRangeTarget = 1;
+    FOREACH(pChild, pJoin->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+        timeRangeTarget++;
+        continue;
+      }
+    
+      SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+      if (TSWINDOW_IS_EQUAL(pScan->scanRange, pJoin->timeRange)) {
+        timeRangeTarget++;
+        continue;
+      }
+
+      bool replaced = false;
+      switch (pJoin->joinType) {
+        case JOIN_TYPE_INNER:
+          pScan->scanRange.skey = pJoin->timeRange.skey;
+          pScan->scanRange.ekey = pJoin->timeRange.ekey;
+          replaced = true;
+          break;
+        case JOIN_TYPE_LEFT:
+          if (2 == timeRangeTarget) {
+            pScan->scanRange.skey = pJoin->timeRange.skey;
+            pScan->scanRange.ekey = pJoin->timeRange.ekey;
+            replaced = true;
+          }
+          break;
+        case JOIN_TYPE_RIGHT:
+          if (1 == timeRangeTarget) {
+            pScan->scanRange.skey = pJoin->timeRange.skey;
+            pScan->scanRange.ekey = pJoin->timeRange.ekey;
+            replaced = true;
+          }
+          break;
+        default:
+          break;
+      }
+
+      if (replaced) {
+        timeRangeTarget++;
+        continue;
+      }
+      
+      pJoin->timeRangeTarget += timeRangeTarget;
+      timeRangeTarget++;
+    }
+  }
+
   pCxt->optimized = true;
   OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_STB_JOIN);
   

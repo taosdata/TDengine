@@ -496,6 +496,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(hashJoinHint);
   CLONE_NODE_FIELD(pLeftOnCond);
   CLONE_NODE_FIELD(pRightOnCond);
+  COPY_SCALAR_FIELD(timeRangeTarget);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));  
   return TSDB_CODE_SUCCESS;
 }

@@ -1459,6 +1459,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
+      nodesDestroyNode(pPhyNode->leftPrimExpr);
+      nodesDestroyNode(pPhyNode->rightPrimExpr);
       nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 

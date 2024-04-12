@@ -4802,14 +4802,8 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-typedef enum EConditionType {
-  COND_TYPE_PRIMARY_KEY = 1,
-  COND_TYPE_TAG_INDEX,
-  COND_TYPE_TAG,
-  COND_TYPE_NORMAL
-} EConditionType;
 
-static EConditionType classifyCondition(SNode *pNode) {
+EConditionType filterClassifyCondition(SNode *pNode) {
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
   return cxt.hasOtherCol ? COND_TYPE_NORMAL
@@ -4819,7 +4813,7 @@ static EConditionType classifyCondition(SNode *pNode) {
                                                      : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
 }
 
-static bool isCondColumnsFromMultiTable(SNode *pCond) {
+bool filterIsMultiTableColsCond(SNode *pCond) {
   SNodeList *pCondCols = nodesMakeList();
   int32_t    code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   if (code == TSDB_CODE_SUCCESS) {
@@ -4851,12 +4845,12 @@ static int32_t partitionLogicCond(SNode **pCondition, SNode **pPrimaryKeyCond, S
   SNodeList *pOtherConds = NULL;
   SNode     *pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    if (isCondColumnsFromMultiTable(pCond)) {
+    if (filterIsMultiTableColsCond(pCond)) {
       if (NULL != pOtherCond) {
         code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
       }
     } else {
-      switch (classifyCondition(pCond)) {
+      switch (filterClassifyCondition(pCond)) {
         case COND_TYPE_PRIMARY_KEY:
           if (NULL != pPrimaryKeyCond) {
             code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
@@ -4942,13 +4936,13 @@ int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode *
   }
 
   bool needOutput = false;
-  if (isCondColumnsFromMultiTable(*pCondition)) {
+  if (filterIsMultiTableColsCond(*pCondition)) {
     if (NULL != pOtherCond) {
       *pOtherCond = *pCondition;
       needOutput = true;
     }
   } else {
-    switch (classifyCondition(*pCondition)) {
+    switch (filterClassifyCondition(*pCondition)) {
       case COND_TYPE_PRIMARY_KEY:
         if (NULL != pPrimaryKeyCond) {
           *pPrimaryKeyCond = *pCondition;

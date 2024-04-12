@@ -78,6 +78,7 @@ extern "C" {
 #define EXPLAIN_JOIN_EQ_RIGHT_FORMAT "Right Equal Cond: "
 #define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%" PRId64
 #define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%" PRId64
+#define EXPLAIN_TABLE_TIMERANGE_FORMAT "%s Table Time Range: [%" PRId64 ", %" PRId64 "]"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"

@@ -31,7 +31,11 @@ static uint32_t mJoinGetFinBlkCapacity(SMJoinOperatorInfo* pJoin, SSortMergeJoin
   uint32_t maxRows = TMAX(MJOIN_DEFAULT_BLK_ROWS_NUM, MJOIN_BLK_SIZE_LIMIT/pJoinNode->node.pOutputDataBlockDesc->totalRowSize);
   if (INT64_MAX != pJoin->ctx.mergeCtx.limit && NULL == pJoin->pFinFilter) {
     uint32_t limitMaxRows = pJoin->ctx.mergeCtx.limit / MJOIN_BLK_THRESHOLD_RATIO + 1;
-    return (maxRows > limitMaxRows) ? limitMaxRows : maxRows;
+    maxRows = TMIN(maxRows, limitMaxRows);
+  }
+
+  if (JOIN_STYPE_SEMI == pJoinNode->subType || JOIN_STYPE_ANTI == pJoinNode->subType) {
+    maxRows = TMIN(MJOIN_SEMI_ANTI_BLK_ROWS_NUM, maxRows);
   }
 
   return maxRows;
@@ -257,7 +261,7 @@ static int32_t mOuterJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
   int32_t startGrpIdx = 0;
   int32_t startRowIdx = -1;
 
-  blockDataCleanup(pCtx->midBlk);
+  //blockDataCleanup(pCtx->midBlk);
 
   do {
     for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); 
@@ -350,7 +354,7 @@ static int32_t mOuterJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, bool* contLoop)
   SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, probe->grpIdx);
   int32_t startRowIdx = 0;
   
-  blockDataCleanup(pCtx->midBlk);
+  //blockDataCleanup(pCtx->midBlk);
 
   do {
     startRowIdx = build->grpRowIdx;

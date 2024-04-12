@@ -30,6 +30,7 @@ extern "C" {
 #define MJOIN_BLK_SIZE_LIMIT 10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #endif
+#define MJOIN_SEMI_ANTI_BLK_ROWS_NUM 64
 #define MJOIN_BLK_THRESHOLD_RATIO 0.9
 
 struct SMJoinOperatorInfo;

@@ -61,6 +61,15 @@ char* qExplainGetAsofOpStr(int32_t opType) {
   }
 }
 
+char* qExplainGetTimerangeTargetStr(int32_t target) {
+  static char* targetName[] = {"", "Left", "Right", "Left/Right"};
+  if (target <= 0 || target > 3) {
+    return "Unknown";
+  }
+
+  return targetName[target];
+}
+
 
 void qExplainFreeResNode(SExplainResNode *resNode) {
   if (NULL == resNode) {
@@ -1700,19 +1709,11 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        if (pJoinNode->node.pConditions || pJoinNode->pFullOnCond) {
+        if (pJoinNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
-          if (pJoinNode->node.pConditions) {
-            QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
-                                       TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
-          if (pJoinNode->pFullOnCond) {
-            if (pJoinNode->node.pConditions) {
-              EXPLAIN_ROW_APPEND(" AND ");
-            }
-            QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pFullOnCond, tbuf + VARSTR_HEADER_SIZE,
-                                       TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -1740,8 +1741,21 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
               nodesNodeToSQL(pJoinNode->pTagEqCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
           conditionsGot = true;  
         }
+        if (pJoinNode->pFullOnCond) {
+          if (conditionsGot) {
+            EXPLAIN_ROW_APPEND(" AND ");
+          }
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pFullOnCond, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        }        
         EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));    
+
+        if (pJoinNode->timeRangeTarget) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TABLE_TIMERANGE_FORMAT, qExplainGetTimerangeTargetStr(pJoinNode->timeRangeTarget), pJoinNode->timeRange.skey, pJoinNode->timeRange.ekey);
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));    
+        }
       }
       break;
     }

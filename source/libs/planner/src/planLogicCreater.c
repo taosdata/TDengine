@@ -54,18 +54,18 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
       }
       break;
     case FUNCTION_TYPE_WSTART:
-      if (!isPartitionBy) {
-        pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      }
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      pCol->isPrimTs = true;
+      if (!isPartitionBy) {
+        pCol->isPrimTs = true;
+      }
       break;
     case FUNCTION_TYPE_WEND:
-      if (!isPartitionBy) {
-        pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      }
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      pCol->isPrimTs = true;
+      if (!isPartitionBy) {
+        pCol->isPrimTs = true;
+      }
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;

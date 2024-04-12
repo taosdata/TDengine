@@ -15,6 +15,8 @@
 
 #include "functionMgt.h"
 #include "planInt.h"
+#include "scalar.h"
+#include "filter.h"
 
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
