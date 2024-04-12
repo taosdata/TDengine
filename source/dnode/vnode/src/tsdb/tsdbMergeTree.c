@@ -451,9 +451,8 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           }
 
           i += 1;
+          ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
         }
-
-        ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
       }
     }
   }
