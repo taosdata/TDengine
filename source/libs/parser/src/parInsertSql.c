@@ -1945,10 +1945,14 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
     code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
   }
-
-  code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
-  initTableColSubmitData(*ppTableDataCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    code =
+        insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
+                           pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = initTableColSubmitData(*ppTableDataCxt);
+  }
   if (code == TSDB_CODE_SUCCESS) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
     code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
@@ -1965,7 +1969,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
 
   clearStbRowsDataContext(pStbRowsCxt);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
