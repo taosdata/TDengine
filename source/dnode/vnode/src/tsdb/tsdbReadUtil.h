@@ -212,8 +212,6 @@ typedef struct SFileDataBlockInfo {
     uint8_t* pData;
   } lastPk;
 
-  int32_t firstPKLen;
-  int32_t lastPKLen;
   int64_t minVer;
   int64_t maxVer;
   int64_t blockOffset;
@@ -237,7 +235,6 @@ typedef struct SDataBlockIter {
 typedef struct SFileBlockDumpInfo {
   int32_t totalRows;
   int32_t rowIndex;
-//  int64_t lastKey;
 //  STsdbRowKey lastKey;  // this key should be removed
   bool    allDumped;
 } SFileBlockDumpInfo;
@@ -338,6 +335,7 @@ int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileRead
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
                                TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
                                int32_t numOfTables);
+void    recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
 
 void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
@@ -347,6 +345,12 @@ bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STab
 bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
+void    clearRowKey(SRowKey* pKey);
+
+bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp);
+void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
+void clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
+void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
 
 typedef struct {
   SArray* pTombData;
@@ -382,6 +386,7 @@ typedef struct SCacheRowsReader {
   SArray*                 pFuncTypeList;
   __compar_fn_t           pkComparFn;
   SRowKey                 rowKey;
+  SColumnInfo             pkColumn;
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);

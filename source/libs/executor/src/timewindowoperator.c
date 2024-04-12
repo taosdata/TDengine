@@ -1339,22 +1339,25 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
       // The gap is less than the threshold, so it belongs to current session window that has been opened already.
       doKeepTuple(pRowSup, tsList[j], gid);
     } else {  // start a new session window
-      SResultRow* pResult = NULL;
+      // start a new session window
+      if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
+        SResultRow* pResult = NULL;
 
-      // keep the time window for the closed time window.
-      STimeWindow window = pRowSup->win;
+        // keep the time window for the closed time window.
+        STimeWindow window = pRowSup->win;
 
-      pRowSup->win.ekey = pRowSup->win.skey;
-      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
-                                           numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
-      if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+        int32_t ret =
+            setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
+                                   numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+        if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
+          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+        }
+
+        // pInfo->numOfRows data belong to the current session window
+        updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
+        applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+                                        pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
       }
-
-      // pInfo->numOfRows data belong to the current session window
-      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
-      applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                      pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
 
       // here we start a new session window
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);

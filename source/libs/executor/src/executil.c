@@ -255,11 +255,13 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
 
   for (int32_t i = 0; i < taosArrayGetSize(pMatchInfo->pList); ++i) {
     SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
+
     if (pItem->isPk) {
       SColumnInfoData* pInfoData = taosArrayGet(pDataBlock->pDataBlock, pItem->dstSlotId);
       pBlockInfo->pks[0].type = pInfoData->info.type;
       pBlockInfo->pks[1].type = pInfoData->info.type;
 
+      // allocate enough buffer size, which is pInfoData->info.bytes
       if (IS_VAR_DATA_TYPE(pItem->dataType.type)) {
         pBlockInfo->pks[0].pData = taosMemoryCalloc(1, pInfoData->info.bytes);
         if (pBlockInfo->pks[0].pData == NULL) {
@@ -271,7 +273,12 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
           taosMemoryFreeClear(pBlockInfo->pks[0].pData);
           return TSDB_CODE_OUT_OF_MEMORY;
         }
+
+        pBlockInfo->pks[0].nData = pInfoData->info.bytes;
+        pBlockInfo->pks[1].nData = pInfoData->info.bytes;
       }
+
+      break;
     }
   }
 

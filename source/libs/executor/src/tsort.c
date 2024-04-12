@@ -1649,8 +1649,8 @@ static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSH
 }
 
 static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
-  size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
-  SArray*          aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
+  size_t  nSrc = taosArrayGetSize(pHandle->pOrderedSource);
+  SArray* aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
 
   size_t maxBufSize = (pHandle->bSortByRowId) ? pHandle->extRowsMemSize : (pHandle->numOfPages * pHandle->pageSize);
 
@@ -1688,12 +1688,12 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
     if (pBlk != NULL) {
       SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrigTsOrder->slotId);
-      int64_t firstRowTs = *(int64_t*)tsCol->pData;
-      if ((pOrigTsOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs)  ||
+      int64_t          firstRowTs = *(int64_t*)tsCol->pData;
+      if ((pOrigTsOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs) ||
           (pOrigTsOrder->order == TSDB_ORDER_DESC && firstRowTs < pHandle->currMergeLimitTs)) {
         if (bExtractedBlock) {
           blockDataDestroy(pBlk);
-	      }
+        }
         continue;
       }
     }

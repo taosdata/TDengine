@@ -1331,6 +1331,13 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
     return NULL;
   }
 
+  if (IS_VAR_DATA_TYPE(pBlock->info.pks[0].type)) {
+    uInfo("1====free pk:%p, %p pBlock", pBlock->info.pks[0].pData, pBlock);
+    uInfo("2====free pk:%p, %p pBlock", pBlock->info.pks[1].pData, pBlock);
+    taosMemoryFreeClear(pBlock->info.pks[0].pData);
+    taosMemoryFreeClear(pBlock->info.pks[1].pData);
+  }
+
   blockDataFreeRes(pBlock);
   taosMemoryFreeClear(pBlock);
   return NULL;
@@ -1478,6 +1485,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 
   SSDataBlock* pBlock = createDataBlock();
   pBlock->info = pDataBlock->info;
+
   pBlock->info.rows = 0;
   pBlock->info.capacity = 0;
   pBlock->info.rowSize = 0;
@@ -1497,10 +1505,18 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 
     pVal->type = pDataBlock->info.pks[0].type;
     pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[0].nData);
+    pVal->nData = pDataBlock->info.pks[0].nData;
+    memcpy(pVal->pData, pDataBlock->info.pks[0].pData, pVal->nData);
 
-    pVal = &pBlock->info.pks[1];
-    pVal->type = pDataBlock->info.pks[1].type;
-    pVal->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
+    SValue* p = &pBlock->info.pks[1];
+    p->type = pDataBlock->info.pks[1].type;
+    p->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
+    p->nData = pDataBlock->info.pks[1].nData;
+    memcpy(p->pData, pDataBlock->info.pks[1].pData, p->nData);
+    uInfo("===========clone block, with varchar, %p, 0---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[0].pData, pDataBlock, pDataBlock->info.pks[0].pData);
+    uInfo("===========clone block, with varchar, %p, 1---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[1].pData, pDataBlock, pDataBlock->info.pks[1].pData);
+  } else {
+    uInfo("===========clone block without varchar pk, %p, src:%p", pBlock, pDataBlock);
   }
 
   if (copyData) {
