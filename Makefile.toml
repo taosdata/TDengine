@@ -10,10 +10,14 @@ VER_NUMBER = { script = [
 ], condition = { env_not_set = [
   "VER_NUMBER",
 ] } }
+UPX_DIR = "./target/deploy/upx/"
+BUILD_PROFILE = { value = "release", condition = { env_not_set = [
+  "BUILD_PROFILE",
+] } }
 
 [tasks.build]
 command = "cargo"
-args = ["build"]
+args = ["build", "--profile", "${BUILD_PROFILE}"]
 
 [tasks.dump-env]
 script = """
@@ -22,7 +26,7 @@ echo $VER_NUMBER
 
 [tasks.taosx]
 command = "cargo"
-args = ["build", "--release"]
+args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
 
 [tasks.taosx-agent]
 command = "cargo"
@@ -188,12 +192,12 @@ dependencies = ["build-all", "docker-cloud", "docker-push"]
 
 [tasks.build-docker]
 run_task = [
-  { name = "build-docker-serve-source", condition = { env = { "mode" = "serve", "type" = "source"} } },
-  { name = "build-docker-serve-bin", condition = { env = { "mode" = "serve", "type" = "bin"} } },
-  { name = "build-docker-agent-source", condition = { env = { "mode" = "agent", "type" = "source"} } },
-  { name = "build-docker-agent-bin", condition = { env = { "mode" = "agent", "type" = "bin"} } },
-  { name = "build-docker-integrated-bin", condition = { env = { "mode" = "integrated"} } },
-  { name = "build-docker-integrated-bin" }
+  { name = "build-docker-serve-source", condition = { env = { "mode" = "serve", "type" = "source" } } },
+  { name = "build-docker-serve-bin", condition = { env = { "mode" = "serve", "type" = "bin" } } },
+  { name = "build-docker-agent-source", condition = { env = { "mode" = "agent", "type" = "source" } } },
+  { name = "build-docker-agent-bin", condition = { env = { "mode" = "agent", "type" = "bin" } } },
+  { name = "build-docker-integrated-bin", condition = { env = { "mode" = "integrated" } } },
+  { name = "build-docker-integrated-bin" },
 ]
 
 [tasks.build-docker-serve-source]
@@ -334,4 +338,124 @@ echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
 docker-compose run build \
   cargo build --profile production -p taosx -p taosx-agent
+"""
+
+[tasks.upx-local]
+script_runner = "@duckscript"
+script = """
+!print "* Use local UPX binary"
+os = os_family
+echo "Detect OS ${os}"
+
+upx_dir = get_env "UPX_DIR"
+echo "Use upx dir ${upx_dir}"
+
+version = set "3.96"
+
+if eq ${os} "windows"
+  if is_path_exists "${upx_dir}/upx.exe"
+    echo "UPX binary already exists"
+    exit 0
+  end
+  echo "Donwload UPX binary in windows"
+
+  file = set ${upx_dir}/upx.zip
+
+  if is_path_exists ${file}
+    echo "UPX already downloaded as ${file}"
+  else
+    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
+    echo ${url}
+    response_size = wget -O ${file} ${url}
+    echo Got response size: ${reponse_size}
+  end
+
+  exec powershell -command "Expand-Archive -Force '${file}' '${upx_dir}/'"
+	exec powershell -command "Move-Item '${upx_dir}/upx-${version}-win64/upx.exe' '${upx_dir}/'"
+else
+  
+  if is_path_exists "${upx_dir}/upx"
+    echo "* UPX binary already exists"
+    exit 0
+  end
+
+  echo "* Donwloading UPX binary in windows..."
+
+  file = set ${upx_dir}/upx.tar.xz
+
+  if is_path_exists ${file}
+    echo "UPX already downloaded"
+  else
+
+    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-amd64_linux.tar.xz"
+    echo ${url}
+    response_size = wget -O ${file} ${url}
+    echo Got response size: ${reponse_size}
+  end
+
+  exec tar -xvf ${file} --strip-components=1 -C ${upx_dir}
+end
+"""
+
+[tasks.upx]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+upx_run ${1} ${2}
+"""
+
+[tasks.deploy-taosx]
+# dependencies = ["taosx"]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx target/deploy/taosx
+else
+  upx_run "target/${profile}/taosx" "target/deploy/taosx"
+end
+"""
+
+
+[tasks.deploy-taosx.windows]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx.exe target/deploy/taosx.exe
+else
+  upx_run "target/${profile}/taosx.exe" "target/deploy/taosx.exe"
+end
+"""
+
+[tasks.deploy-taosx-agent]
+dependencies = ["taosx-agent"]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx-agent target/deploy/taosx-agent
+else
+  upx_run "target/${profile}/taosx-agent" "target/deploy/taosx-agent"
+end
+"""
+
+[tasks.deploy-taosx-agent.windows]
+dependencies = ["taosx-agent"]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx-agent.exe target/deploy/taosx-agent.exe
+else
+  upx_run "target/${profile}/taosx-agent.exe" "target/deploy/taosx-agent.exe"
+end
 """
