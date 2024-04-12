@@ -9781,6 +9781,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
     if (nodeType(pQuery->pRoot) == QUERY_NODE_SELECT_STMT) {
       pQuery->precision = extractResultTsPrecision((SSelectStmt*)pQuery->pRoot);
+    } else if (nodeType(pQuery->pRoot) == QUERY_NODE_SET_OPERATOR) {
+      pQuery->precision = ((SSetOperator*)pQuery->pRoot)->precision;
     }
   }
 
