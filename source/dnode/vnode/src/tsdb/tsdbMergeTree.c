@@ -549,7 +549,6 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   pIter->verRange.maxVer = pConf->verRange.maxVer;
   pIter->timeWindow.skey = pConf->timewindow.skey;
   pIter->timeWindow.ekey = pConf->timewindow.ekey;
-  pIter->comparFn = pConf->comparFn;
 
   pIter->pStartRowKey = pConf->pCurRowKey;
   pIter->pReader = pSttFileReader;
@@ -702,7 +701,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
         if (ts == pIter->timeWindow.skey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
+          int32_t ret = pkCompEx(&key, pIter->pStartRowKey);
           if (ret < 0) {
             continue;
           }
@@ -719,7 +718,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
         if (ts == pIter->timeWindow.ekey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
+          int32_t ret = pkCompEx(&key, pIter->pStartRowKey);
           if (ret > 0) {
             continue;
           }
