@@ -75,84 +75,44 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   return 0;
 }
 
-int32_t tqMetaOpen(STQ* pTq) {
-  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
-    return -1;
+int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen){
+  SDecoder     decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+  int32_t code = tDecodeSTqCheckInfo(&decoder, info);
+  if (code != 0) {
+    tDeleteSTqCheckInfo(info);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0) < 0) {
-    return -1;
-  }
-
-  if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
-    return -1;
-  }
-
-  if (tqMetaRestoreCheckInfo(pTq) < 0) {
-    return -1;
-  }
-
-  return 0;
+  tDecoderClear(&decoder);
+  return code;
 }
 
-int32_t tqMetaClose(STQ* pTq) {
-  if (pTq->pExecStore) {
-    tdbTbClose(pTq->pExecStore);
+void* tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid){
+  void* data = taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
+  if (data == NULL) {
+    int      vLen = 0;
+    if (tdbTbGet(pTq->pCheckStore, &tbUid, sizeof(tbUid), &data, &vLen) < 0) {
+      tdbFree(data);
+      return NULL;
+    }
+    STqCheckInfo info= {0};
+    if(tqMetaDecodeCheckInfo(&info, data, vLen) != 0) {
+      tdbFree(data);
+      return NULL;
+    }
+    tdbFree(data);
+
+    if(taosHashPut(pTq->pCheckInfo, &tbUid, sizeof(tbUid), &info, sizeof(STqCheckInfo)) != 0){
+      tDeleteSTqCheckInfo(&info);
+      return NULL;
+    }
+    return taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
+  } else {
+    return data;
   }
-  if (pTq->pCheckStore) {
-    tdbTbClose(pTq->pCheckStore);
-  }
-  tdbClose(pTq->pMetaDB);
-  return 0;
 }
 
-int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen) {
-  TXN* txn;
-
-  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    return -1;
-  }
-
-  if (tdbTbUpsert(pTq->pCheckStore, key, strlen(key), value, vLen, txn) < 0) {
-    return -1;
-  }
-
-  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key) {
-  TXN* txn;
-
-  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    return -1;
-  }
-
-  if (tdbTbDelete(pTq->pCheckStore, key, (int)strlen(key), txn) < 0) {
-    tqWarn("vgId:%d, tq try delete checkinfo failed %s", pTq->pVnode->config.vgId, key);
-  }
-
-  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
+static int32_t tqMetaReadCheckInfo(STQ* pTq){
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pCheckStore, &pCur, NULL) < 0) {
     return -1;
@@ -162,31 +122,191 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
   int      kLen = 0;
   void*    pVal = NULL;
   int      vLen = 0;
-  SDecoder decoder;
   int32_t  code = 0;
 
   tdbTbcMoveToFirst(pCur);
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqCheckInfo info;
-    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    code = tDecodeSTqCheckInfo(&decoder, &info);
-    if (code != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    STqCheckInfo info= {0};
+    code = tqMetaDecodeCheckInfo(&info, pVal, vLen);
+    if(code != 0) {
       goto END;
     }
-    tDecoderClear(&decoder);
-    code = taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo));
+    code = taosHashPut(pTq->pCheckInfo, &info.ntbUid, sizeof(info.ntbUid), &info, sizeof(STqCheckInfo));
     if (code != 0) {
+      tDeleteSTqCheckInfo(&info);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
   }
+
 END:
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
   return code;
+}
+
+static int32_t tqMetaTransformCheckInfo(STQ* pTq) {
+  if(tqMetaReadCheckInfo(pTq) < 0) {
+    return -1;
+  }
+
+  void*    pIter = NULL;
+  int32_t  code  = 0;
+  void    *abuf  = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
+    int32_t len;
+    tEncodeSize(tEncodeSTqCheckInfo, pCheck, len, code);
+    if (code != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    abuf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
+    if(abuf == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      goto END;
+    }
+    SEncoder encoder;
+    tEncoderInit(&encoder, abuf, len);
+    code = tEncodeSTqCheckInfo(&encoder, pCheck);
+    if (code < 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    tEncoderClear(&encoder);
+
+    code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &pCheck->ntbUid, sizeof(pCheck->ntbUid), abuf, len);
+    if(code != 0){
+      goto END;
+    }
+    taosMemoryFree(abuf);
+    abuf = NULL;
+  }
+
+  END:
+  taosHashCancelIterate(pTq->pCheckInfo, pIter);
+  taosMemoryFree(abuf);
+  return code;
+}
+
+static int32_t tqMetaProcessHistoryCheckInfo(STQ* pTq) {
+  char key[] = "__check_info_history__";
+  if (tdbTbGet(pTq->pCheckStore, key, (int)strlen(key), NULL, NULL) < 0) {
+    if(tqMetaTransformCheckInfo(pTq) != 0){
+      return -1;
+    }
+    int32_t data = 0;
+    return tqMetaSaveInfo(pTq, pTq->pCheckStore, key, strlen(key), &data, sizeof(data));
+  }
+  return 0;
+}
+
+int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen) {
+  TXN* txn;
+
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+
+  if (tdbTbUpsert(ttb, key, kLen, value, vLen, txn) < 0) {
+    return -1;
+  }
+
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
+    return -1;
+  }
+
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
+  TXN* txn;
+
+  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+
+  if (tdbTbDelete(ttb, key, kLen, txn) < 0) {
+    tqWarn("vgId:%d, tq try delete checkinfo failed %s", pTq->pVnode->config.vgId, (const char*)key);
+  }
+
+  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
+    return -1;
+  }
+
+  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t tqMetaTransformOffsetInfo(STQ* pTq) {
+  if (tqOffsetRestoreFromFile(pTq) < 0) {
+    return -1;
+  }
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->pOffset, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqOffset* offset = (STqOffset*)pIter;
+    int32_t code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, offset->subKey, strlen(offset->subKey), offset, sizeof(STqOffset));
+    if(code != 0){
+      taosHashCancelIterate(pTq->pCheckInfo, pIter);
+      return code;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t tqMetaProcessHistoryOffsetInfo(STQ* pTq) {
+  char key[] = "__offset_info_history__";
+  if (tdbTbGet(pTq->pOffsetStore, key, (int)strlen(key), NULL, NULL) < 0) {
+    if(tqMetaTransformOffsetInfo(pTq) != 0){
+      return -1;
+    }
+    int32_t data = 0;
+    return tqMetaSaveInfo(pTq, pTq->pOffsetStore, key, strlen(key), &data, sizeof(data));
+  }
+  return 0;
+}
+
+void* tqMetaGetOffset(STQ* pTq, const char* subkey){
+  void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
+  if (data == NULL) {
+    int      vLen = 0;
+    if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
+      tdbFree(data);
+      return NULL;
+    }
+    tdbFree(data);
+
+    if(taosHashPut(pTq->pOffset, subkey, strlen(subkey), data, sizeof(STqOffset)) != 0){
+      return NULL;
+    }
+    return taosHashGet(pTq->pOffset, subkey, strlen(subkey));
+  } else {
+    return data;
+  }
 }
 
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
@@ -208,60 +328,24 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     goto end;
   }
 
-
   tEncoderInit(&encoder, buf, vlen);
-
   code = tEncodeSTqHandle(&encoder, pHandle);
   if (code < 0) {
     goto end;
   }
 
-  TXN* txn = NULL;
-  code = tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  code = tqMetaSaveInfo(pTq, pTq->pExecStore, key, (int)strlen(key), buf, vlen);
   if (code < 0) {
     goto end;
   }
 
-  code = tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn);
-  if (code < 0) {
-    goto end;
-  }
-
-  code = tdbCommit(pTq->pMetaDB, txn);
-  if (code < 0) {
-    goto end;
-  }
-
-  code = tdbPostCommit(pTq->pMetaDB, txn);
 end:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
   return code;
 }
 
-int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
-  TXN* txn;
-
-  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    return -1;
-  }
-
-  if (tdbTbDelete(pTq->pExecStore, key, (int)strlen(key), txn) < 0) {
-  }
-
-  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-static int buildHandle(STQ* pTq, STqHandle* handle){
+static int tqMetaInitHandle(STQ* pTq, STqHandle* handle){
   SVnode* pVnode = pTq->pVnode;
   int32_t vgId = TD_VID(pVnode);
 
@@ -333,16 +417,16 @@ static int buildHandle(STQ* pTq, STqHandle* handle){
   return 0;
 }
 
-static int restoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle){
+static int tqMetaRestoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle){
   int32_t  vgId = TD_VID(pTq->pVnode);
   SDecoder decoder;
   int32_t code = 0;
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   code = tDecodeSTqHandle(&decoder, handle);
   if (code) goto end;
-  code = buildHandle(pTq, handle);
+  code = tqMetaInitHandle(pTq, handle);
   if (code) goto end;
-  tqInfo("restoreHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
+  tqInfo("tqMetaRestoreHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
   code = taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 
 end:
@@ -350,7 +434,7 @@ end:
   return code;
 }
 
-int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
+int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   int32_t  vgId = TD_VID(pTq->pVnode);
 
   memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
@@ -371,54 +455,76 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
 
   handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
 
-  if(buildHandle(pTq, handle) < 0){
+  if(tqMetaInitHandle(pTq, handle) < 0){
     return -1;
   }
-  tqInfo("tqCreateHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
+  tqInfo("tqMetaCreateHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
-//int32_t tqMetaRestoreHandle(STQ* pTq) {
-//  int  code = 0;
-//  TBC* pCur = NULL;
-//  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
-//    return -1;
-//  }
-//
-//  void*    pKey = NULL;
-//  int      kLen = 0;
-//  void*    pVal = NULL;
-//  int      vLen = 0;
-//
-//  tdbTbcMoveToFirst(pCur);
-//
-//  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-//    STqHandle handle = {0};
-//    code = restoreHandle(pTq, pVal, vLen, &handle);
-//    if (code < 0) {
-//      tqDestroyTqHandle(&handle);
-//      break;
-//    }
-//  }
-//
-//  tdbFree(pKey);
-//  tdbFree(pVal);
-//  tdbTbcClose(pCur);
-//  return code;
-//}
+void* tqMetaGetHandle(STQ* pTq, const char* key) {
+  void* data = taosHashGet(pTq->pHandle, key, strlen(key));
+  if(data == NULL){
+    int      vLen = 0;
+    if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &data, &vLen) < 0) {
+      tdbFree(data);
+      return NULL;
+    }
+    STqHandle handle = {0};
+    if (tqMetaRestoreHandle(pTq, data, vLen, &handle) != 0){
+      tdbFree(data);
+      tqDestroyTqHandle(&handle);
+      return NULL;
+    }
+    tdbFree(data);
+    if(taosHashPut(pTq->pHandle, key, strlen(key), &handle, sizeof(STqHandle)) != 0){
+      tqDestroyTqHandle(&handle);
+      return NULL;
+    }
+    return taosHashGet(pTq->pCheckInfo, key, strlen(key));
+  }else{
+    return data;
+  }
+}
 
-int32_t tqMetaGetHandle(STQ* pTq, const char* key) {
-  void*    pVal = NULL;
-  int      vLen = 0;
-
-  if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &pVal, &vLen) < 0) {
+int32_t tqMetaOpen(STQ* pTq) {
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
     return -1;
   }
-  STqHandle handle = {0};
-  int code = restoreHandle(pTq, pVal, vLen, &handle);
-  if (code < 0){
-    tqDestroyTqHandle(&handle);
+
+  if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0) < 0) {
+    return -1;
   }
-  tdbFree(pVal);
-  return code;
+
+  if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
+    return -1;
+  }
+
+  if (tdbTbOpen("tq.offset.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pOffsetStore, 0) < 0) {
+    return -1;
+  }
+
+  if (tqMetaProcessHistoryCheckInfo(pTq) < 0) {
+    return -1;
+  }
+
+  if (tqMetaProcessHistoryOffsetInfo(pTq) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t tqMetaClose(STQ* pTq) {
+  if (pTq->pExecStore) {
+    tdbTbClose(pTq->pExecStore);
+  }
+  if (pTq->pCheckStore) {
+    tdbTbClose(pTq->pCheckStore);
+  }
+  if (pTq->pOffsetStore) {
+    tdbTbClose(pTq->pOffsetStore);
+  }
+  tdbClose(pTq->pMetaDB);
+  return 0;
 }
