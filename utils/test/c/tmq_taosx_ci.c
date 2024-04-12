@@ -653,8 +653,8 @@ void initLogFile() {
     if (g_conf.subTable) {
       char* result[] = {
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-          "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
-          "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
+          "wstart\",\"type\":9,\"isPrimarykey\":false},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false},{\"name\":"
+          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
           "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
           "19}],\"createList\":[]}"};
@@ -665,10 +665,10 @@ void initLogFile() {
     } else {
       char* result[] = {
           "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":64},{"
-          "\"name\":\"c4\",\"type\":5}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":"
+          "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[]}",
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":64,\"isPrimarykey\":false},{"
+          "\"name\":\"c4\",\"type\":5,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":"
           "8},{\"name\":\"t4\",\"type\":1},{\"name\":\"t2\",\"type\":8,\"length\":64}]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
           "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
@@ -679,20 +679,20 @@ void initLogFile() {
           "],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
           "{\"name\":\"t1\",\"type\":4,\"value\":5000}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c2\",\"type\":10,\"length\":8},{\"name\":\"cc3\",\"type\":5}],\"tags\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-          "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+          ",{\"name\":\"c2\",\"type\":10,\"length\":8,\"isPrimarykey\":false},{\"name\":\"cc3\",\"type\":5,\"isPrimarykey\":false}],\"tags\":[]}",
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false},"
+          "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
           "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
           ",\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
           "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
           "1}]}",
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+          "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
           "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
           "1}]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
@@ -731,9 +731,9 @@ void initLogFile() {
       }else{
         char* result[] = {
             "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
@@ -755,8 +755,8 @@ void initLogFile() {
             "\"colValue\":\"5000\",\"colValueNull\":false}",
             "{\"type\":\"drop\",\"tableNameList\":[\"ct3\",\"ct1\"]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":10,\"length\":4,\"isPrimarykey\":false}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -766,22 +766,22 @@ void initLogFile() {
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
             "{\"type\":\"drop\",\"tableNameList\":[\"n1\"]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false},"
+            "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
             "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
             ",\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false},"
+            "{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":1}]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
@@ -816,8 +816,8 @@ void initLogFile() {
       if (g_conf.subTable) {
         char* result[] = {
             "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-            "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
-            "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
+            "wstart\",\"type\":9,\"isPrimarykey\":false},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false},{\"name\":"
+            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
             "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
             "19}],\"createList\":[]}"};
@@ -830,9 +830,9 @@ void initLogFile() {
       else {
         char* result[] = {
             "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
@@ -853,8 +853,8 @@ void initLogFile() {
             "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
             "\"colValue\":\"5000\",\"colValueNull\":false}",
             "{\"type\":\"delete\",\"sql\":\"delete from `ct3` where `ts` >= 1626006833600 and `ts` <= 1626006833605\"}",
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":10,\"length\":4,\"isPrimarykey\":false}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -863,18 +863,18 @@ void initLogFile() {
             "\"colNewName\":\"cc3\"}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false},"
+            "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
             "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
             ",\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
+            "9,\"isPrimarykey\":false},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false},{\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],"
             "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
             "1}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
