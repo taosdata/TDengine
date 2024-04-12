@@ -392,24 +392,19 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
+        int32_t size = rows - i;
+        int32_t offset = i * sizeof(int64_t);
 
-        tsdbInfo("-----before index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d, rows:%d", i, suid,
-                 (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), block.numOfPKs,
-                 (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey), rows-i);
-
-        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pFirstTs,
-                          tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pLastTs, tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)),
-                          rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pFirstTs, tBufferGetDataAt(&block.firstKeyTimestamps, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pLastTs, tBufferGetDataAt(&block.lastKeyTimestamps, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, offset), size);
 
         if (block.numOfPKs > 0) {
           SValue vFirst = {0}, vLast = {0};
           for (int32_t f = i; f < rows; ++f) {
             int32_t code = tValueColumnGet(&block.firstKeyPKs[0], f, &vFirst);
             if (code) {
-              ASSERT(0);
               break;
             }
 
@@ -419,21 +414,18 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             // todo add api to clone the original data
             code = tValueColumnGet(&block.lastKeyPKs[0], f, &vLast);
             if (code) {
-              ASSERT(0);
               break;
             }
 
             tValueDupPayload(&vLast);
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
           }
-        }
-
-        tsdbInfo("-----after index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
-                 (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), block.numOfPKs,
-                 (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey));
-
-        if (block.numOfPKs > 0) {
-          ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
+        } else {
+          SValue vFirst = {0};
+          for(int32_t j = 0; j < size; ++j) {
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &vFirst);
+          }
         }
       } else {
         STbStatisRecord record = {0};
@@ -444,10 +436,6 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             break;
           }
 
-          tsdbInfo("before index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
-                   (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), record.firstKey.numOfPKs,
-                   (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey));
-
           taosArrayPush(pBlockLoadInfo->info.pUid, &record.uid);
           taosArrayPush(pBlockLoadInfo->info.pCount, &record.count);
 
@@ -457,23 +445,18 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           if (record.firstKey.numOfPKs > 0) {
             SValue s = record.firstKey.pks[0];
             tValueDupPayload(&s);
-
             taosArrayPush(pBlockLoadInfo->info.pFirstKey, &s);
 
             s = record.lastKey.pks[0];
             tValueDupPayload(&s);
-
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &s);
+          } else {
+            SValue v = {0};
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &v);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &v);
           }
 
           i += 1;
-          tsdbInfo("after index:%d, uid:%" PRId64 " add record, numInUid:%d, hasPk:%d, numInPk:%d", i, suid,
-                   (int)taosArrayGetSize(pBlockLoadInfo->info.pUid), record.firstKey.numOfPKs,
-                   (int)taosArrayGetSize(pBlockLoadInfo->info.pFirstKey));
-
-          if (record.firstKey.numOfPKs > 0) {
-            ASSERT(taosArrayGetSize(pBlockLoadInfo->info.pLastKey) == taosArrayGetSize(pBlockLoadInfo->info.pFirstTs));
-          }
         }
       }
     }
