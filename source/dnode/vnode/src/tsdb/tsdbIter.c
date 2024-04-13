@@ -45,7 +45,7 @@ struct STsdbIter {
     } dataData[1];
     struct {
       SMemTable  *memt;
-      TSDBKEY     from[1];
+      STsdbRowKey from[1];
       SRBTreeIter iter[1];
       STbData    *tbData;
       STbDataIter tbIter[1];
@@ -147,12 +147,11 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
       }
 
       // SBrinBlock
-      if (iter->dataData->brinBlockIdx >= BRIN_BLOCK_SIZE(iter->dataData->brinBlock)) {
+      if (iter->dataData->brinBlockIdx >= iter->dataData->brinBlock->numOfRecords) {
         break;
       }
 
-      for (; iter->dataData->brinBlockIdx < BRIN_BLOCK_SIZE(iter->dataData->brinBlock);
-           iter->dataData->brinBlockIdx++) {
+      for (; iter->dataData->brinBlockIdx < iter->dataData->brinBlock->numOfRecords; iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
         tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
 
@@ -255,9 +254,7 @@ _exit:
 static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->noMoreData) {
     for (; iter->dataTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->dataTomb->tombBlock); iter->dataTomb->tombBlockIdx++) {
-      iter->record->suid = TARRAY2_GET(iter->dataTomb->tombBlock->suid, iter->dataTomb->tombBlockIdx);
-      iter->record->uid = TARRAY2_GET(iter->dataTomb->tombBlock->uid, iter->dataTomb->tombBlockIdx);
-      iter->record->version = TARRAY2_GET(iter->dataTomb->tombBlock->version, iter->dataTomb->tombBlockIdx);
+      tTombBlockGet(iter->dataTomb->tombBlock, iter->dataTomb->tombBlockIdx, iter->record);
 
       if (iter->filterByVersion && (iter->record->version < iter->range[0] || iter->record->version > iter->range[1])) {
         continue;
@@ -266,9 +263,6 @@ static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
       if (tbid && iter->record->suid == tbid->suid && iter->record->uid == tbid->uid) {
         continue;
       }
-
-      iter->record->skey = TARRAY2_GET(iter->dataTomb->tombBlock->skey, iter->dataTomb->tombBlockIdx);
-      iter->record->ekey = TARRAY2_GET(iter->dataTomb->tombBlock->ekey, iter->dataTomb->tombBlockIdx);
       iter->dataTomb->tombBlockIdx++;
       goto _exit;
     }
@@ -445,9 +439,7 @@ static int32_t tsdbMemTableIterClose(STsdbIter *iter) { return 0; }
 static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->noMoreData) {
     for (; iter->sttTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->sttTomb->tombBlock); iter->sttTomb->tombBlockIdx++) {
-      iter->record->suid = TARRAY2_GET(iter->sttTomb->tombBlock->suid, iter->sttTomb->tombBlockIdx);
-      iter->record->uid = TARRAY2_GET(iter->sttTomb->tombBlock->uid, iter->sttTomb->tombBlockIdx);
-      iter->record->version = TARRAY2_GET(iter->sttTomb->tombBlock->version, iter->sttTomb->tombBlockIdx);
+      tTombBlockGet(iter->sttTomb->tombBlock, iter->sttTomb->tombBlockIdx, iter->record);
 
       if (iter->filterByVersion && (iter->record->version < iter->range[0] || iter->record->version > iter->range[1])) {
         continue;
@@ -457,8 +449,6 @@ static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
         continue;
       }
 
-      iter->record->skey = TARRAY2_GET(iter->sttTomb->tombBlock->skey, iter->sttTomb->tombBlockIdx);
-      iter->record->ekey = TARRAY2_GET(iter->sttTomb->tombBlock->ekey, iter->sttTomb->tombBlockIdx);
       iter->sttTomb->tombBlockIdx++;
       goto _exit;
     }

@@ -25,18 +25,16 @@
 extern "C" {
 #endif
 
-typedef TARRAY2(SBlockIdx) TBlockIdxArray;
-typedef TARRAY2(SDataBlk) TDataBlkArray;
 typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 
 typedef struct {
   SFDataPtr brinBlkPtr[1];
-  SFDataPtr rsrvd[2];
+  char      rsrvd[32];
 } SHeadFooter;
 
 typedef struct {
   SFDataPtr tombBlkPtr[1];
-  SFDataPtr rsrvd[2];
+  char      rsrvd[32];
 } STombFooter;
 
 // SDataFileReader =============================================
@@ -48,7 +46,7 @@ typedef struct SDataFileReaderConfig {
     bool   exist;
     STFile file;
   } files[TSDB_FTYPE_MAX];
-  uint8_t **bufArr;
+  SBuffer *buffers;
 } SDataFileReaderConfig;
 
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
@@ -85,7 +83,7 @@ typedef struct SDataFileWriterConfig {
   } files[TSDB_FTYPE_MAX];
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **bufArr;
+  SBuffer  *buffers;
 } SDataFileWriterConfig;
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
@@ -97,14 +95,14 @@ int32_t tsdbDataFileFlush(SDataFileWriter *writer);
 
 // head
 int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TBrinBlkArray *brinBlkArray, uint8_t **bufArr, SVersionRange *range);
+                               TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range);
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
 
 // tomb
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                               TTombBlkArray *tombBlkArray, uint8_t **bufArr, SVersionRange *range);
+                               TTombBlkArray *tombBlkArray, SBuffer *buffers, SVersionRange *range);
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
 

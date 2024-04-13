@@ -115,6 +115,8 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderSeek = tqReaderSeek;
   pTq->tqRetrieveBlock = tqRetrieveDataBlock;
 
+  pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
+  pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
 
   pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
@@ -258,6 +260,8 @@ void initCacheFn(SStoreCacheReader* pCache) {
 }
 
 void initSnapshotFn(SStoreSnapshotFn* pSnapshot) {
+  pSnapshot->taosXGetTablePrimaryKey = taosXGetTablePrimaryKey;
+  pSnapshot->taosXSetTablePrimaryKey = taosXSetTablePrimaryKey;
   pSnapshot->setForSnapShot = setForSnapShot;
   pSnapshot->destroySnapshot = destroySnapContext;
   pSnapshot->getMetaTableInfoFromSnapshot = getMetaTableInfoFromSnapshot;

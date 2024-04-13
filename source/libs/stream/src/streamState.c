@@ -282,7 +282,7 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
-  return code;
+  return TSDB_CODE_SUCCESS;
 #else
   return tdbTbUpsert(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, pState->pTdbState->txn);
 #endif

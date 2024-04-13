@@ -31,7 +31,7 @@ int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
     return 1;
   }
 
-  return tsdbRowCmprFn(&pInfo1->row, &pInfo2->row);
+  return tsdbRowCompare(&pInfo1->row, &pInfo2->row);
 }
 
 int32_t tsdbBegin(STsdb *pTsdb) {
