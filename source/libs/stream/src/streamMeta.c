@@ -591,19 +591,16 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
   taosArrayPush(pMeta->pTaskList, &pTask->id);
 
   if (streamMetaSaveTask(pMeta, pTask) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
   if (streamMetaCommit(pMeta) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
