@@ -1789,8 +1789,11 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
 
 void taosSetGlobalDebugFlag(int32_t flag) { taosSetAllDebugFlag(tsCfg, flag); }
 
+// NOTE: set all command does not change the tmrDebugFlag
 static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
-  if (flag <= 0) return;
+  if (flag <= 0) {
+    return;
+  }
 
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
@@ -1800,7 +1803,6 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   }
 
   taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
-  taosCheckAndSetDebugFlag(&tmrDebugFlag, "tmrDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
