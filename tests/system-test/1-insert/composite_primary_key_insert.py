@@ -285,7 +285,7 @@ class TDTestCase:
         tdSql.error(f"insert into {table_name} using {self.stable_name} tags(4) file '{self.tdCsv.file}'", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
         tdSql.checkRows(0)
-        self._check_select(table_name)
+        self._check_select(self.stable_name)
 
         # 6.insert value into normal table from csv file
         table_name = f'{self.ntable_name}_1'
