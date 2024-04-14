@@ -1205,11 +1205,20 @@ class TDTestCase:
         self.test_drop_tsma()
         self.test_tb_ddl_with_created_tsma()
 
+    
     def run(self):
         self.init_data()
         self.test_ddl()
         self.test_query_with_tsma()
-
+        # bug to fix
+        # self.test_flush_query()
+        
+        #cluster test
+        cluster_dnode_list = tdSql.get_cluseter_dnodes()
+        clust_dnode_nums = len(cluster_dnode_list)
+        if clust_dnode_nums > 1:
+            self.test_redistribute_vgroups()
+            
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
@@ -1446,7 +1455,9 @@ class TDTestCase:
     def test_create_tsma_maxlist_function(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        os.system("taosBenchmark -f 2-query/compa4096_tsma.json -y ")
+        json_file = "2-query/compa4096_tsma.json"
+        tdCom.update_json_file_replica(json_file, self.replicaVar)
+        os.system(f"taosBenchmark -f {json_file} -y ")
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 
@@ -1541,6 +1552,28 @@ class TDTestCase:
 
         #  Invalid function para type 
         tdSql.error('create tsma tsma_illegal on test.meters function(avg(c8)) interval(5m)',-2147473406)  
+
+    def test_flush_query(self):
+        tdSql.execute('insert into test.norm_tb (ts,c1_new,c2) values (now,1,2)(now+1s,2,3)(now+2s,2,3)(now+3s,2,3) (now+4s,1,2)(now+5s,2,3)(now+6s,2,3)(now+7s,2,3); select  /*+ skip_tsma()*/  avg(c1_new),avg(c2) from  test.norm_tb interval(10m);select  avg(c1_new),avg(c2) from  test.norm_tb interval(10m);select * from information_schema.ins_stream_tasks;', queryTimes=1)
+        tdSql.execute('flush database test', queryTimes=1)
+        tdSql.query('select count(*) from test.meters', queryTimes=1)
+        tdSql.checkData(0,0,100000)
+        tdSql.query('select count(*) from test.norm_tb', queryTimes=1)
+        tdSql.checkData(0,0,10008)
+        tdSql.execute('flush database test', queryTimes=1)
+        tdSql.query('select count(*) from test.meters', queryTimes=1)
+        tdSql.checkData(0,0,100000)
+        tdSql.query('select count(*) from test.norm_tb', queryTimes=1)
+        tdSql.checkData(0,0,10008)
+
+    def test_redistribute_vgroups(self):
+        tdSql.redistribute_db_all_vgroups('test', self.replicaVar)
+        tdSql.redistribute_db_all_vgroups('db4096', self.replicaVar)
+
+    # def test_replica_dnode(self):
+        
+    # def test_split_dnode(self):
+
 
     def stop(self):
         tdSql.close()

@@ -23,6 +23,7 @@ import pandas as pd
 from util.log import *
 from util.constant import *
 import ctypes
+import random
 # from datetime import timezone
 import time
 
@@ -744,5 +745,59 @@ class TDSql:
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
         pass
+    
+
+
+    def get_db_vgroups(self, db_name:str = "test") -> list:
+        db_vgroups_list = []
+        tdSql.query(f"show {db_name}.vgroups")
+        for result in tdSql.queryResult:
+            db_vgroups_list.append(result[0])
+        vgroup_nums = len(db_vgroups_list)
+        tdLog.debug(f"{db_name} has {vgroup_nums} vgroups :{db_vgroups_list}")
+        tdSql.query("select * from information_schema.ins_vnodes")
+        return db_vgroups_list
+
+    def get_cluseter_dnodes(self) -> list:
+        cluset_dnodes_list = []
+        tdSql.query("show dnodes")
+        for result in tdSql.queryResult:
+            cluset_dnodes_list.append(result[0])
+        self.clust_dnode_nums = len(cluset_dnodes_list)
+        tdLog.debug(f"cluster has {len(cluset_dnodes_list)} dnodes :{cluset_dnodes_list}")
+        return cluset_dnodes_list
+    
+    def redistribute_one_vgroup(self, db_name:str = "test", replica:int = 1, vgroup_id:int = 1, useful_trans_dnodes_list:list = [] ):
+        # redisutribute vgroup {vgroup_id} dnode {dnode_id}
+        if replica == 1:
+            dnode_id = random.choice(useful_trans_dnodes_list)
+            redistribute_sql = f"redistribute vgroup {vgroup_id} dnode {dnode_id}"
+        elif replica ==3:
+            selected_dnodes = random.sample(useful_trans_dnodes_list, replica)
+            redistribute_sql_parts = [f"dnode {dnode}" for dnode in selected_dnodes]
+            redistribute_sql = f"redistribute vgroup {vgroup_id} " + " ".join(redistribute_sql_parts)
+        else:
+            raise ValueError(f"Replica count must be 1 or 3,but got {replica}")    
+        tdLog.debug(f"redistributeSql:{redistribute_sql}")
+        tdSql.query(redistribute_sql)
+        tdLog.debug("redistributeSql ok")
+
+    def redistribute_db_all_vgroups(self, db_name:str = "test", replica:int = 1):
+        db_vgroups_list = self.get_db_vgroups(db_name)
+        cluset_dnodes_list = self.get_cluseter_dnodes()
+        useful_trans_dnodes_list = cluset_dnodes_list.copy()
+        tdSql.query("select * from information_schema.ins_vnodes")
+        #result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|
+
+        for vnode_group_id in db_vgroups_list:
+            print(tdSql.queryResult)
+            for result in tdSql.queryResult:
+                if result[2] == db_name and result[1] == vnode_group_id:
+                    tdLog.debug(f"dbname: {db_name}, vgroup :{vnode_group_id}, dnode is {result[0]}")
+                    print(useful_trans_dnodes_list)
+                    useful_trans_dnodes_list.remove(result[0])
+            tdLog.debug(f"vgroup :{vnode_group_id},redis_dnode list:{useful_trans_dnodes_list}")            
+            self.redistribute_one_vgroup(db_name, replica, vnode_group_id, useful_trans_dnodes_list)
+            useful_trans_dnodes_list = cluset_dnodes_list.copy()
 
 tdSql = TDSql()
