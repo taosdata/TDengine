@@ -17,6 +17,9 @@
 #include "tcompression.h"
 #include "tutil.h"
 
+#define TSDB_COLVAL_COMPRESS_DEFAULT TSDB_COLUMN_COMPRESS_XZ
+#define TSDB_COLVAL_LEVEL_DEFAULT    TSDB_COLVAL_LEVEL_MEDIUM
+
 const char* supportedEncode[5] = {TSDB_COLUMN_ENCODE_SIMPLE8B, TSDB_COLUMN_ENCODE_XOR, TSDB_COLUMN_ENCODE_RLE,
                                   TSDB_COLUMN_ENCODE_DELTAD, TSDB_COLUMN_ENCODE_DISABLED};
 
@@ -100,14 +103,14 @@ uint16_t getDefaultCompress(uint8_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_MAX:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_DEFAULT;
     default:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_DEFAULT;
   }
 }
 const char* getDefaultCompressStr(uint8_t type) { return columnCompressStr(getDefaultCompress(type)); }
 
-uint8_t     getDefaultLevel(uint8_t type) { return TSDB_COLVAL_LEVEL_MEDIUM; }
+uint8_t     getDefaultLevel(uint8_t type) { return TSDB_COLVAL_LEVEL_DEFAULT; }
 const char* getDefaultLevelStr(uint8_t type) { return columnLevelStr(getDefaultLevel(type)); }
 
 const char* columnEncodeStr(uint8_t type) {
