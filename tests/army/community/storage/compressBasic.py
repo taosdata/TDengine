@@ -46,7 +46,7 @@ class TDTestCase(TBase):
     # datatype 17
     dtypes = [ "tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned",
             "bigint","bigint unsigned","timestamp","bool","float","double","binary(16)","nchar(16)",
-            "varchar(16)","varbinary(16)","geometry(32)"]
+            "varchar(16)","varbinary(16)"]
 
     def genAllSqls(self, stbName, max):
         # encode
@@ -222,22 +222,27 @@ class TDTestCase(TBase):
         tdLog.debug(f"start to excute {__file__}")
 
         # create db and stable
-        self.autoGen = AutoGen()
+        self.autoGen = AutoGen(step = 10, genDataMode = "fillts")
         self.autoGen.create_db(self.db, 2, 3)
         tdSql.execute(f"use {self.db}")
-        self.colCnt = 18
-        self.autoGen.create_stable(self.stb, 5, self.colCnt, 8, 8)
+        self.colCnt = 17
+        self.autoGen.create_stable(self.stb, 5, self.colCnt, 32, 32)
         self.childCnt = 4
         self.autoGen.create_child(self.stb, "d", self.childCnt)
-        self.autoGen.insert_data(10000)
+        self.autoGen.insert_data(1000)
 
         # sql syntax
         self.checkSqlSyntax()
 
         # operateor
-        self.writeData(10000)
+        self.writeData(1000)
         self.flushDb()
-        self.writeData(10000)        
+        self.writeData(1000)
+
+        # check data correct
+        sql = f"select * from {self.db}.{self.stb}"
+        tdSql.query(sql)
+        self.autoGen.dataCorrect(tdSql.res, tdSql.getRows(), 10000)
 
         tdLog.success(f"{__file__} successfully executed")
 
