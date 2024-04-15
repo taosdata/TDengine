@@ -854,7 +854,8 @@ impl Cli {
         let profile = config.profile().await?;
         tracing::debug!(
             "taosx version: {} built {}",
-            profile.version, profile.build_time
+            profile.version,
+            profile.build_time
         );
         match self.command {
             ReplicaCommands::Start {
