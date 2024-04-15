@@ -471,16 +471,10 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
       char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
      // load from file
       tBufferClear(buffer1);
-<<<<<<< HEAD
-      code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA],
-                                  record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
-                                  blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0,
-                                 encryptAlgorithm, encryptKey);
-=======
       code = tsdbReadFileToBuffer(
           reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
-          blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, firstRead ? szHint : 0);
->>>>>>> 3.0
+          blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, firstRead ? szHint : 0,
+          encryptAlgorithm, encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       firstRead = false;
