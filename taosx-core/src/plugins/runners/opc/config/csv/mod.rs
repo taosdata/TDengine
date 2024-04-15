@@ -281,8 +281,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tables_to_drop() {
+        // let dsn =
         let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let tables_to_drop = csv_parser.get_tables_to_drop();
         assert_eq!(tables_to_drop.len(), 1);
@@ -300,7 +301,6 @@ mod tests {
     async fn test_empty_csv_file() {
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@..\\tests\\opc\\opcua-empty.csv").unwrap();
-        // Dsn::from_str("opcua://?csv_config_file=@D:\\projects\\taosx\\tests\\opc\\opcua-empty.csv").unwrap();
 
         match CsvParser::from_dsn(&dsn).await {
             Ok(_) => panic!("empty csv file should fail"),
@@ -309,5 +309,13 @@ mod tests {
                 assert_eq!(e.to_string(), "empty csv file")
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_csv_file_with_transform_error() {
+        let dsn =
+            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).await;
+        assert!(csv_parser.is_err());
     }
 }
