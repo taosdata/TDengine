@@ -1082,7 +1082,7 @@ SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  memcpy(pOffset, &pTaskInfo->streamInfo.currentOffset, sizeof(STqOffsetVal));
+  tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1109,6 +1109,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     pColInfo->type = pMtInfo->schema->pSchema[i].type;
     pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
     pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
+    pColInfo->pk = pMtInfo->schema->pSchema[i].flags & COL_IS_KEY;
 
     pCond->pSlotList[i] = i;
   }
@@ -1161,7 +1162,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
-      // todo refactor: move away
       pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
@@ -1196,6 +1196,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           return -1;
         }
       }
+      pTaskInfo->storageAPI.tqReaderFn.tqSetTablePrimaryKey(pInfo->tqReader, uid);
 
       qDebug("switch to table uid:%" PRId64 " ts:%" PRId64 "% " PRId64 " rows returned", uid, ts,
              pInfo->pTableScanOp->resultInfo.totalRows);
@@ -1220,7 +1221,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       int64_t       oldSkey = pScanBaseInfo->cond.twindows.skey;
 
       // let's start from the next ts that returned to consumer.
-      pScanBaseInfo->cond.twindows.skey = ts + 1;
+      if(pTaskInfo->storageAPI.tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader)){
+        pScanBaseInfo->cond.twindows.skey = ts;
+      }else{
+        pScanBaseInfo->cond.twindows.skey = ts + 1;
+      }
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
@@ -1251,7 +1256,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     }
 
   } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
-
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
@@ -1276,8 +1280,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         goto end;  // no data
       }
 
+      pAPI->snapshotFn.taosXSetTablePrimaryKey(sContext, mtInfo.uid);
       initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
-      pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
+      if(pAPI->snapshotFn.taosXGetTablePrimaryKey(sContext)){
+        pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
+      }else{
+        pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts + 1;
+      }
 
       tableListAddTableInfo(pTableListInfo, mtInfo.uid, 0);
 
@@ -1312,7 +1321,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
 end:
-  pTaskInfo->streamInfo.currentOffset = *pOffset;
+  tOffsetCopy(&pTaskInfo->streamInfo.currentOffset, pOffset);
 
   return 0;
 }

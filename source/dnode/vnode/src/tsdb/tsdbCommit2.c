@@ -46,7 +46,6 @@ typedef struct {
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
-    bool       skipTsRow;
   } ctx[1];
 
   // reader
@@ -128,21 +127,8 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
         continue;
       }
     }
-    /*
-    extern int8_t tsS3Enabled;
 
-    int32_t nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
-    committer->ctx->skipTsRow = false;
-    if (tsS3Enabled && nlevel > 1 && committer->ctx->did.level == nlevel - 1) {
-      committer->ctx->skipTsRow = true;
-    }
-    */
     int64_t ts = TSDBROW_TS(&row->row);
-
-    if (committer->ctx->skipTsRow && ts <= committer->ctx->maxKey) {
-      ts = committer->ctx->maxKey + 1;
-    }
-
     if (ts > committer->ctx->maxKey) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
       code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
@@ -298,8 +284,11 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   // mem data iter
   config.type = TSDB_ITER_TYPE_MEMT;
   config.memt = committer->tsdb->imem;
-  config.from->ts = committer->ctx->minKey;
   config.from->version = VERSION_MIN;
+  config.from->key = (SRowKey){
+      .ts = committer->ctx->minKey,
+      .numOfPKs = 0,  // TODO: support multiple primary keys
+  };
 
   code = tsdbIterOpen(&config, &iter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -402,31 +391,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
 
   // reset nextKey
   committer->ctx->nextKey = TSKEY_MAX;
-
-  committer->ctx->skipTsRow = false;
-
-  extern int8_t  tsS3Enabled;
-  extern int32_t tsS3UploadDelaySec;
-  long           s3Size(const char *object_name);
-  int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
-  if (tsS3Enabled && nlevel > 1 && committer->ctx->fset) {
-    STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
-    if (fobj && fobj->f->did.level == nlevel - 1) {
-      // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
-      const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
-
-      if (taosCheckExistFile(fobj->fname)) {
-        int32_t mtime = 0;
-        taosStatFile(fobj->fname, NULL, &mtime, NULL);
-        if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
-          committer->ctx->skipTsRow = true;
-        }
-      } else /*if (s3Size(object_name) > 0) */ {
-        committer->ctx->skipTsRow = true;
-      }
-    }
-    // new fset can be written with ts data
-  }
 
 _exit:
   if (code) {

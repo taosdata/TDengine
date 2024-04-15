@@ -54,10 +54,10 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *delBlk, STombBlock *dData);
 
 struct SSttFileReaderConfig {
-  STsdb    *tsdb;
-  int32_t   szPage;
-  STFile    file[1];
-  uint8_t **bufArr;
+  STsdb   *tsdb;
+  int32_t  szPage;
+  STFile   file[1];
+  SBuffer *buffers;
 };
 
 // SSttFileWriter ==========================================
@@ -86,7 +86,7 @@ struct SSttFileWriterConfig {
   int32_t   level;
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **bufArr;
+  SBuffer  *buffers;
 };
 
 #ifdef __cplusplus

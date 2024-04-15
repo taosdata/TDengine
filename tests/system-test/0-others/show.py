@@ -240,6 +240,49 @@ class TDTestCase:
         self.show_create_sysdb_sql()
         self.show_create_systb_sql()
         self.show_column_name()
+        self.test_show_variables()
+
+    def get_variable(self, name: str, local: bool = True):
+        if local:
+            sql = 'show local variables'
+        else:
+            sql = f'select `value` from information_schema.ins_dnode_variables where name like "{name}"'
+        tdSql.query(sql, queryTimes=1)
+        res = tdSql.queryResult
+        if local:
+            for row in res:
+                if row[0] == name:
+                    return row[1]
+        else:
+            if len(res) > 0:
+                return res[0][0]
+        raise Exception(f"variable {name} not found")
+
+    def test_show_variables(self):
+        epsion = 0.0000001
+        var = 'minimalTmpDirGB'
+        expect_val: float = 10.11
+        sql = f'ALTER LOCAL "{var}" "{expect_val}"'
+        tdSql.execute(sql)
+        val: float = float(self.get_variable(var))
+        if val != expect_val:
+            tdLog.exit(f'failed to set local {var} to {expect_val} actually {val}')
+
+        error_vals = ['a', '10a', '', '1.100r', '1.12  r']
+        for error_val in error_vals:
+            tdSql.error(f'ALTER LOCAL "{var}" "{error_val}"')
+
+        var = 'supportVnodes'
+        expect_val = 1240 ## 1.211111 * 1024
+        sql = f'ALTER DNODE 1 "{var}" "1.211111k"'
+        tdSql.execute(sql, queryTimes=1)
+        val = int(self.get_variable(var, False))
+        if val != expect_val:
+            tdLog.exit(f'failed to set dnode {var} to {expect_val} actually {val}')
+
+        error_vals = ['a', '10a', '', '1.100r', '1.12  r', '5k']
+        for error_val in error_vals:
+            tdSql.error(f'ALTER DNODE 1 "{var}" "{error_val}"')
 
     def stop(self):
         tdSql.close()
