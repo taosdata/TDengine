@@ -1,4 +1,5 @@
-use rhai::{Engine, Scope};
+use rhai::{Engine, EvalAltResult, Scope};
+use regex::Regex;
 
 /**
  * 数学表达式.
@@ -10,7 +11,10 @@ pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), S
     let engine = Engine::new();
     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
         Ok(_) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(mut e) => {
+           e.clear_position();
+           Err(e.to_string())
+        },
     } 
 }
 
@@ -43,10 +47,12 @@ mod tests {
 
         let expression = "x.lgs() + 1";
         let result = check_math_expression(field_name, expression);
+        println!("{:?}", result);
         assert!(result.is_err());
 
         let expression = "x + 1 + y";
         let result = check_math_expression(field_name, expression);
+        println!("{:?}", result);
         assert!(result.is_err());
     }
 

@@ -89,8 +89,8 @@ impl CsvParser {
                     .await
                     .map_err(|err| {
                         anyhow::anyhow!(
-                            "failed to parse csv in file: {}, error: {}",
-                            file.clone(),
+                            "failed to parse csv at line {}, error: {}",
+                            row_index,
                             err.to_string()
                         )
                     })?;
