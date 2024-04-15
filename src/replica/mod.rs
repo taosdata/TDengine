@@ -950,8 +950,7 @@ impl Cli {
 
                 let mut table = prettytable::Table::new();
                 table.set_titles(prettytable::row![
-                    "replica", "task", "source", "sink", "database", "topic", "group", "status",
-                    "note",
+                    "id", "task", "source", "sink", "database", "topic", "group", "status", "note",
                 ]);
                 for (replica, tasks) in replicas {
                     for task in tasks {
