@@ -308,6 +308,10 @@ static SKeyword keywordTable[] = {
     {"_WSTART",              TK_WSTART},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
+    {"S3_CHUNKSIZE",         TK_S3_CHUNKSIZE},
+    {"S3_KEEPLOCAL",         TK_S3_KEEPLOCAL},
+    {"S3_COMPACT",           TK_S3_COMPACT},
+    {"S3MIGRATE",            TK_S3MIGRATE},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
     {"ARBGROUPS",            TK_ARBGROUPS},
 };

@@ -107,7 +107,8 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
   if (fname) {
     for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
       if (fname[i]) {
-        code = tsdbOpenFile(fname[i], config->tsdb, TD_FILE_READ, &reader[0]->fd[i]);
+        int32_t lcn = config->files[i].file.lcn;
+        code = tsdbOpenFile(fname[i], config->tsdb, TD_FILE_READ, &reader[0]->fd[i], lcn);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -116,7 +117,8 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
       if (config->files[i].exist) {
         char fname1[TSDB_FILENAME_LEN];
         tsdbTFileName(config->tsdb, &config->files[i].file, fname1);
-        code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd[i]);
+        int32_t lcn = config->files[i].file.lcn;
+        code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd[i], lcn);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -340,15 +342,15 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   TSDB_CHECK_CODE(code, lino, _exit);
   ASSERT(br.offset == buffer0->size);
 
-  bool loadExtra = false;
+  int extraColIdx = -1;
   for (int i = 0; i < ncid; i++) {
     if (tBlockDataGetColData(bData, cids[i]) == NULL) {
-      loadExtra = true;
+      extraColIdx = i;
       break;
     }
   }
 
-  if (!loadExtra) {
+  if (extraColIdx < 0) {
     goto _exit;
   }
   
@@ -358,10 +360,78 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
                               buffer0, 0, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // calc szHint
+  int64_t szHint = 0;
+  int     extraCols = 1;
+  for (int i = extraColIdx + 1; i < ncid; ++i) {
+    if (tBlockDataGetColData(bData, cids[i]) == NULL) {
+      ++extraCols;
+      break;
+    }
+  }
+
+  if (extraCols >= 2) {
+    br = BUFFER_READER_INITIALIZER(0, buffer0);
+
+    SBlockCol blockCol = {.cid = 0};
+    for (int32_t i = extraColIdx; i < ncid; ++i) {
+      int16_t extraColCid = cids[i];
+
+      while (extraColCid > blockCol.cid) {
+        if (br.offset >= buffer0->size) {
+          blockCol.cid = INT16_MAX;
+          break;
+        }
+
+        code = tGetBlockCol(&br, &blockCol);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      if (extraColCid == blockCol.cid || blockCol.cid == INT16_MAX) {
+        extraColIdx = i;
+        break;
+      }
+    }
+
+    if (blockCol.cid > 0 && blockCol.cid < INT16_MAX /*&& blockCol->flag == HAS_VALUE*/) {
+      int64_t   offset = blockCol.offset;
+      SBlockCol lastNonNoneBlockCol = {.cid = 0};
+
+      for (int32_t i = extraColIdx; i < ncid; ++i) {
+        int16_t extraColCid = cids[i];
+
+        while (extraColCid > blockCol.cid) {
+          if (br.offset >= buffer0->size) {
+            blockCol.cid = INT16_MAX;
+            break;
+          }
+
+          code = tGetBlockCol(&br, &blockCol);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+
+        if (extraColCid == blockCol.cid) {
+          lastNonNoneBlockCol = blockCol;
+          continue;
+        }
+
+        if (blockCol.cid == INT16_MAX) {
+          break;
+        }
+      }
+
+      if (lastNonNoneBlockCol.cid > 0) {
+        szHint = lastNonNoneBlockCol.offset + lastNonNoneBlockCol.szBitmap + lastNonNoneBlockCol.szOffset +
+                 lastNonNoneBlockCol.szValue - offset;
+      }
+    }
+  }
+
   // load each column
   SBlockCol blockCol = {
       .cid = 0,
   };
+  bool firstRead = true;
   br = BUFFER_READER_INITIALIZER(0, buffer0);
   for (int32_t i = 0; i < ncid; i++) {
     int16_t cid = cids[i];
@@ -401,11 +471,19 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
       char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
      // load from file
       tBufferClear(buffer1);
+<<<<<<< HEAD
       code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA],
                                   record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
                                   blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0,
                                  encryptAlgorithm, encryptKey);
+=======
+      code = tsdbReadFileToBuffer(
+          reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
+          blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, firstRead ? szHint : 0);
+>>>>>>> 3.0
       TSDB_CHECK_CODE(code, lino, _exit);
+
+      firstRead = false;
 
       // decode the buffer
       SBufferReader br1 = BUFFER_READER_INITIALIZER(0, buffer1);
@@ -683,6 +761,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
+        .lcn = writer->config->lcn == -1 ? 0 : -1,
         .minVer = VERSION_MAX,
         .maxVer = VERSION_MIN,
     };
@@ -1698,8 +1777,9 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
       flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
     }
 
+    int32_t lcn = writer->files[ftype].lcn;
     tsdbTFileName(writer->config->tsdb, &writer->files[ftype], fname);
-    code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype]);
+    code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype], lcn);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (writer->files[ftype].size == 0) {
@@ -1868,8 +1948,9 @@ static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
 
   int32_t flag = (TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
 
+  int32_t lcn = writer->files[ftype].lcn;
   tsdbTFileName(writer->config->tsdb, writer->files + ftype, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype]);
+  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype], lcn);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};

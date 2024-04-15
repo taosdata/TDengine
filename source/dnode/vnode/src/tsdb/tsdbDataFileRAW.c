@@ -29,15 +29,16 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   reader[0]->config[0] = config[0];
 
+  int32_t lcn = config->file.lcn;
   if (fname) {
     if (fname) {
-      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
     tsdbTFileName(config->tsdb, &config->file, fname1);
-    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -115,8 +116,8 @@ static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
 static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return 0; }
 
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
   ASSERT(writer->ctx->offset <= writer->file.size);
   ASSERT(writer->config->fid == writer->file.fid);
 
@@ -156,7 +157,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   }
 
   tsdbTFileName(writer->config->tsdb, &writer->file, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd);
+  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

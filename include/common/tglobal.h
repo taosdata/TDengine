@@ -136,9 +136,9 @@ extern int32_t  tsMonitorIntervalForBasic;
 extern bool     tsMonitorForceV2;
 
 // audit
-extern bool     tsEnableAudit;
-extern bool     tsEnableAuditCreateTable;
-extern int32_t  tsAuditInterval;
+extern bool    tsEnableAudit;
+extern bool    tsEnableAuditCreateTable;
+extern int32_t tsAuditInterval;
 
 // telem
 extern bool     tsEnableTelem;
@@ -146,9 +146,9 @@ extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
 extern bool     tsEnableCrashReport;
-extern char *   tsTelemUri;
-extern char *   tsClientCrashReportUri;
-extern char *   tsSvrCrashReportUri;
+extern char    *tsTelemUri;
+extern char    *tsClientCrashReportUri;
+extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -235,6 +235,8 @@ extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
+extern int32_t tsS3MigrateIntervalSec;
+extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
