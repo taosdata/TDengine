@@ -11,6 +11,7 @@ use taosx_ipc::prelude::IpcDataType;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
+use crate::utils::rhai_syntax_validator::check_math_expression;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcModelConfig {
@@ -260,7 +261,7 @@ impl TableConfig {
             None
         };
         let enabled = parse_enabled(header, row)?;
-        let column_configs = parse_columns(header, row);
+        let column_configs = parse_columns(header, row)?;
         let tag_configs = parse_tags(header);
         let tag_configs = if tag_configs.is_empty() {
             None
@@ -296,11 +297,23 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
     Ok(enabled)
 }
 
-fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> Vec<ColumnConfig> {
+fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<Vec<ColumnConfig>> {
     let mut columns = Vec::new();
 
     // value => value_col
     let value = parse_value_col(header, row);
+    if value.transform.is_some() {
+        // 校验表达式
+        let value_name = value.alias.as_ref().unwrap();
+        let value_transform = value.transform.as_ref().unwrap();
+        check_math_expression(value_name, value_transform).map_err(|e| {
+            anyhow::anyhow!(
+                "invalid value_transform: {}, cause: {}",
+                value_transform,
+                e.to_string()
+            )
+        })?;
+    }
     columns.push(value);
 
     // quality => quality_col
@@ -311,16 +324,7 @@ fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> Vec<Colum
 
     // received_ts => received_ts_col/received_time_col
     let received_ts = parse_received_ts_col(header, row);
-    if received_ts.is_some() {
-        columns.push(received_ts.clone().unwrap());
-    }
-
-    // original_ts => ts_col
     let original_ts = parse_original_ts_col(header, row);
-    if original_ts.is_some() {
-        columns.push(original_ts.clone().unwrap());
-    }
-
     // when received_ts and original_ts are both none, add original_ts
     if received_ts.is_none() && original_ts.is_none() {
         columns.push(ColumnConfig {
@@ -332,7 +336,41 @@ fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> Vec<Colum
         });
     }
 
-    columns
+    if received_ts.is_some() {
+        let received_ts_column = received_ts.unwrap();
+        if received_ts_column.transform.is_some() {
+            // 校验表达式
+            let ts_name = received_ts_column.alias.as_ref().unwrap();
+            let ts_transform = received_ts_column.transform.as_ref().unwrap();
+            check_math_expression(ts_name, ts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid received_ts_transform: {}, cause: {}",
+                    ts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+        columns.push(received_ts_column);
+    }
+
+    if original_ts.is_some() {
+        let original_ts_column = original_ts.unwrap();
+        if original_ts_column.transform.is_some() {
+            // 校验表达式
+            let ts_name = original_ts_column.alias.as_ref().unwrap();
+            let ts_transform = original_ts_column.transform.as_ref().unwrap();
+            check_math_expression(ts_name, ts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid original_ts_transform: {}, cause: {}",
+                    ts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+        columns.push(original_ts_column);
+    }
+
+    Ok(columns)
 }
 
 fn parse_tags(header: &CsvHeader) -> Vec<TagConfig> {
