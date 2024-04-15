@@ -370,7 +370,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
           break;
         }
 
-        code = tGetBlockCol(&br, &blockCol);
+        code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -393,7 +393,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
             break;
           }
 
-          code = tGetBlockCol(&br, &blockCol);
+          code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
