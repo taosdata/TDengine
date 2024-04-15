@@ -3851,8 +3851,11 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
       return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join", getFullJoinTypeString(type, *pSType));
     }
     SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
-    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE) {
+    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit < 0) {
       return buildInvalidOperationMsg(&pCxt->msgBuf, "JLIMIT value is out of valid range [0, 1024]");
+    }
+    if (0 == pJLimit->limit) {
+      pCurrSmt->isEmptyResult = true;
     }
   }
 

@@ -46,6 +46,10 @@ sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h
 if $rows != 8 then
   return -1
 endi
+sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 0;
+if $rows != 0 then
+  return -1
+endi
 sql select a.ts, b.col1 from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) jlimit 2;
 if $rows != 16 then
   return -1
@@ -1134,6 +1138,10 @@ if $data60 != 1 then
   return -1
 endi
 if $data70 != 1 then
+  return -1
+endi
+sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) jlimit 0 order by a.tbname, a.ts;
+if $rows != 0 then
   return -1
 endi
 sql select count(b.col1) from sta a left window join tba2 b on a.t1 = b.t1 window_offset(-1s, 1s) order by b.tbname, a.ts;

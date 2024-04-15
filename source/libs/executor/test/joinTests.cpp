@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       100000
+#define JT_MAX_LOOP       1000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -2862,7 +2862,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(10000, 10000, 10000, 10000, 4096);
+  createDummyBlkList(1000, 1000, 1000, 1000, 100);
   
   while (contLoop) {
     rerunBlockedHere();

@@ -2591,6 +2591,7 @@ SSDataBlock* mAsofForwardJoinDo(struct SOperatorInfo* pOperator) {
 
       if (PROBE_TS_NMATCH(pCtx->ascTs, probeTs, buildTs)) {
         MJ_ERR_JRET(mAsofForwardHandleProbeGrp(pCtx, pJoin, pProbeCol, &probeTs, &buildTs));
+        MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);        
       } else {
         MJ_ERR_JRET(mAsofForwardSkipBuildGrp(pCtx, pJoin, &pBuildCol, &probeTs, &buildTs));
       }
