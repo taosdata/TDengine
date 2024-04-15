@@ -299,6 +299,7 @@ int32_t tsS3UploadDelaySec = 60;
 bool tsExperimental = true;
 
 int32_t tsMaxTsmaNum = 8;
+int32_t tsMaxTsmaCalcDelay = 600;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {

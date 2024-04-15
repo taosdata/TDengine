@@ -68,13 +68,14 @@ typedef struct SCreateTSMACxt {
     const SMDropSmaReq *  pDropSmaReq;
   };
   SDbObj             *pDb;
-  SStbObj *           pSrcStb;
-  SSmaObj *           pSma;
-  const SSmaObj *     pBaseSma;
+  SStbObj            *pSrcStb;
+  SSmaObj            *pSma;
+  const SSmaObj      *pBaseSma;
   SCMCreateStreamReq *pCreateStreamReq;
-  SMDropStreamReq *   pDropStreamReq;
-  const char *        streamName;
-  const char *        targetStbFullName;
+  SMDropStreamReq    *pDropStreamReq;
+  const char         *streamName;
+  const char         *targetStbFullName;
+  SNodeList          *pProjects;
 } SCreateTSMACxt;
 
 int32_t mndInitSma(SMnode *pMnode) {
@@ -1477,6 +1478,17 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "tbname", strlen("tbname") + 1);
   taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
+
+  // construct output cols
+  SNode* pNode;
+  FOREACH(pNode, pCxt->pProjects) {
+    SExprNode* pExprNode = (SExprNode*)pNode;
+    f.bytes = pExprNode->resType.bytes;
+    f.type = pExprNode->resType.type;
+    f.flags = COL_SMA_ON;
+    strcpy(f.name, pExprNode->aliasName);
+    taosArrayPush(pCxt->pCreateStreamReq->pCols, &f);
+  }
 }
 
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
@@ -1584,11 +1596,28 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
 
   pCxt->pSma = &sma;
   initSMAObj(pCxt);
+
+  SNodeList* pProjects = NULL;
+  terrno = nodesStringToList(pCxt->pCreateSmaReq->expr, &pProjects);
+  if (TSDB_CODE_SUCCESS != terrno) {
+    code = -1;
+    goto _OVER;
+  }
+  pCxt->pProjects = pProjects;
+
   pCxt->pCreateStreamReq = &createStreamReq;
   if (pCxt->pCreateSmaReq->pVgroupVerList) {
     pCxt->pCreateStreamReq->pVgroupVerList = taosArrayDup(pCxt->pCreateSmaReq->pVgroupVerList, NULL);
     if (!pCxt->pCreateStreamReq->pVgroupVerList) {
-      errno = TSDB_CODE_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      goto _OVER;
+    }
+  }
+  if (LIST_LENGTH(pProjects) > 0) {
+    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SField));
+    if (!createStreamReq.pCols) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       code = -1;
       goto _OVER;
     }
@@ -1610,6 +1639,8 @@ _OVER:
   tFreeSCMCreateStreamReq(pCxt->pCreateStreamReq);
   if (pCxt->pDropStreamReq) tFreeMDropStreamReq(pCxt->pDropStreamReq);
   pCxt->pCreateStreamReq = NULL;
+  if (pProjects) nodesDestroyList(pProjects);
+  pCxt->pProjects = NULL;
   return code;
 }
 
