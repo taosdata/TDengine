@@ -145,7 +145,7 @@ static int64_t hJoinGetRowsNumOfKeyHash(SSHashObj* pHash) {
   while (NULL != (pGroup = tSimpleHashIterate(pHash, pGroup, &iter))) {
     int32_t* pKey = tSimpleHashGetKey(pGroup, NULL);
     int64_t rows = hJoinGetSingleKeyRowsNum(pGroup->rows);
-    qTrace("build_key:%d, rows:%" PRId64, *pKey, rows);
+    //qTrace("build_key:%d, rows:%" PRId64, *pKey, rows);
     rowsNum += rows;
   }
 
@@ -906,7 +906,7 @@ static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) 
     *queryDone = true;
   }
   
-  qTrace("build table rows:%" PRId64, hJoinGetRowsNumOfKeyHash(pJoin->pKeyHash));
+  //qTrace("build table rows:%" PRId64, hJoinGetRowsNumOfKeyHash(pJoin->pKeyHash));
 
   return TSDB_CODE_SUCCESS;
 }
