@@ -63,6 +63,9 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   if (pChkInfo->checkpointId != 0) {
     pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
     pChkInfo->processedVer = pChkInfo->checkpointVer;
+    pTask->execInfo.startCheckpointVer = pChkInfo->nextProcessVer;
+    pTask->execInfo.startCheckpointId = pChkInfo->checkpointId;
+
     sndInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64,
             pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
