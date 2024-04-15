@@ -101,6 +101,10 @@ typedef struct SDatabaseOptions {
   int32_t     sstTrigger;
   int32_t     tablePrefix;
   int32_t     tableSuffix;
+  int32_t     s3ChunkSize;
+  int32_t     s3KeepLocal;
+  SValueNode* s3KeepLocalStr;
+  int8_t      s3Compact;
   int8_t      withArbitrator;
 } SDatabaseOptions;
 
@@ -138,6 +142,11 @@ typedef struct STrimDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
+
+typedef struct SS3MigrateDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SS3MigrateDatabaseStmt;
 
 typedef struct SCompactDatabaseStmt {
   ENodeType type;

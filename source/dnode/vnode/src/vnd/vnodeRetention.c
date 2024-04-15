@@ -24,3 +24,11 @@ int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
 
   return code;
 }
+
+int32_t vnodeDoS3Migrate(SVnode *pVnode, int64_t now) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = tsdbS3Migrate(pVnode->pTsdb, now, pVnode->config.sttTrigger == 1);
+
+  return code;
+}

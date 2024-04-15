@@ -57,7 +57,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
                             int32_t diskPrimary, STfs *pTfs);
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
                              int32_t diskPrimary, STfs *pTfs);
-void    vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs);
+void    vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId);
 SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
@@ -319,6 +319,9 @@ struct SVnodeCfg {
   int16_t     hashPrefix;
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
+  int32_t     s3ChunkSize;
+  int32_t     s3KeepLocal;
+  int8_t      s3Compact;
 };
 
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)

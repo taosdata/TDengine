@@ -304,7 +304,8 @@ typedef enum ENodeType {
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
   QUERY_NODE_ALTER_CLUSTER_STMT,
-  // placeholder for [153, 180]
+  QUERY_NODE_S3MIGRATE_DATABASE_STMT,
+  // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -1231,6 +1232,9 @@ typedef struct {
   int32_t sstTrigger;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
@@ -1261,6 +1265,8 @@ typedef struct {
   int32_t minRows;
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
@@ -1342,6 +1348,20 @@ int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
+  char db[TSDB_DB_FNAME_LEN];
+} SS3MigrateDbReq;
+
+int32_t tSerializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+int32_t tDeserializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+
+typedef struct {
+  int32_t timestamp;
+} SVS3MigrateDbReq;
+
+int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+
+typedef struct {
   int32_t timestampSec;
   int32_t ttlDropMaxCount;
   int32_t nUids;
@@ -1377,6 +1397,9 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;
@@ -1778,7 +1801,10 @@ typedef struct {
   int16_t  hashPrefix;
   int16_t  hashSuffix;
   int32_t  tsdbPageSize;
-  int64_t  reserved[8];
+  int32_t  s3ChunkSize;
+  int32_t  s3KeepLocal;
+  int8_t   s3Compact;
+  int64_t  reserved[6];
   int8_t   learnerReplica;
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
@@ -1866,13 +1892,15 @@ typedef struct {
   int8_t  walLevel;
   int8_t  strict;
   int8_t  cacheLast;
-  int64_t reserved[8];
+  int64_t reserved[7];
   // 1st modification
   int16_t sttTrigger;
   int32_t minRows;
   // 2nd modification
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);

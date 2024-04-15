@@ -228,7 +228,6 @@ static bool checkViewName(SAstCreateContext* pCxt, SToken* pViewName) {
   return true;
 }
 
-
 static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
   trimEscape(pStreamName);
   if (pStreamName->n >= TSDB_STREAM_NAME_LEN) {
@@ -918,7 +917,6 @@ SNode* createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pViewNam
   return (SNode*)pView;
 }
 
-
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   CHECK_PARSER_STATUS(pCxt);
   SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
@@ -1263,6 +1261,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
+  pOptions->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
+  pOptions->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
+  pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   return (SNode*)pOptions;
 }
@@ -1299,6 +1300,9 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = -1;
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
+  pOptions->s3ChunkSize = -1;
+  pOptions->s3KeepLocal = -1;
+  pOptions->s3Compact = -1;
   pOptions->withArbitrator = -1;
   return (SNode*)pOptions;
 }
@@ -1415,6 +1419,21 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
+    case DB_OPTION_S3_CHUNKSIZE:
+      pDbOptions->s3ChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_S3_KEEPLOCAL: {
+      SToken* pToken = pVal;
+      if (TK_NK_INTEGER == pToken->type) {
+        pDbOptions->s3KeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
+      } else {
+        pDbOptions->s3KeepLocalStr = (SValueNode*)createDurationValueNode(pCxt, pToken);
+      }
+      break;
+    }
+    case DB_OPTION_S3_COMPACT:
+      pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
     case DB_OPTION_KEEP_TIME_OFFSET: {
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
@@ -1498,6 +1517,17 @@ SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t 
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->maxSpeed = maxSpeed;
+  return (SNode*)pStmt;
+}
+
+SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
+  SS3MigrateDatabaseStmt* pStmt = (SS3MigrateDatabaseStmt*)nodesMakeNode(QUERY_NODE_S3MIGRATE_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
 }
 
@@ -1864,7 +1894,8 @@ SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pD
   return (SNode*)pStmt;
 }
 
-SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName, EOperatorType tableCondType) {
+SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
+                            EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
   SNode* pDbName = NULL;
   if (option.dbName.type == TK_NK_NIL) {
@@ -1939,7 +1970,6 @@ SNode* createShowCreateViewStmt(SAstCreateContext* pCxt, ENodeType type, SNode* 
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 }
-
 
 SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);

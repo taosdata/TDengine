@@ -153,6 +153,7 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
         .compactVersion = config->compactVersion,
         .skmTb = writer[0]->skmTb,
         .skmRow = writer[0]->skmRow,
+        .lcn = config->lcn,
         .buffers = writer[0]->buffers,
     };
     for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
