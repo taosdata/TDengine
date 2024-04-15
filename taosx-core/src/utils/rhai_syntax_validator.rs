@@ -24,7 +24,7 @@ pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), S
 //     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
 //         Ok(_) => Ok(()),
 //         Err(e) => Err(e.to_string()),
-//     } 
+//     }
 // }
 
 #[cfg(test)]
