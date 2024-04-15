@@ -33,10 +33,12 @@ typedef struct SFDataPtr {
 
 extern int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppFD);
 extern void    tsdbCloseFile(STsdbFD **ppFD);
-extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm, 
-                              char* encryptKey);
+extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, 
+                            int32_t encryptAlgorithm, char* encryptKey);
 extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
                             int32_t encryptAlgorithm, char* encryptKey);
+extern int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, SBuffer *buffer, int64_t szHint,
+                                    int32_t encryptAlgorithm, char* encryptKey);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char* encryptKey);
 
 #ifdef __cplusplus
