@@ -1630,7 +1630,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   CHECK_OUT_OF_MEM(pCol);
   COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   pCol->dataType = dataType;
-  pCol->pOptions = (SColumnOptions*)pNode;
+  pCol->pOptions = pNode;
   pCol->sma = true;
   return (SNode*)pCol;
 }

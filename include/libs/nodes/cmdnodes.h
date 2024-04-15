@@ -174,12 +174,11 @@ typedef struct SColumnOptions {
   bool      bPrimaryKey;
 } SColumnOptions;
 typedef struct SColumnDefNode {
-  ENodeType       type;
-  char            colName[TSDB_COL_NAME_LEN];
-  SDataType       dataType;
-  SColumnOptions* pOptions;
-  bool            sma;
-  bool            is_pk;
+  ENodeType type;
+  char      colName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pOptions;
+  bool      sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
