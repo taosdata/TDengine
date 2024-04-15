@@ -566,6 +566,7 @@ if __name__ == "__main__":
                     if res[i][0] == "queryPolicy" :
                         if int(res[i][1]) == int(queryPolicy):
                             tdLog.info(f'alter queryPolicy to {queryPolicy} successfully')
+                            cursor.close()
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
