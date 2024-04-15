@@ -2296,5 +2296,5 @@ _OVER:
 int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   return 0;
 }
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync);
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) { return 0; }
 #endif
