@@ -142,7 +142,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
-      return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased";
+      return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be "
+             "increased, not decreased";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
     case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
@@ -273,16 +274,15 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
-int32_t getTableTypeFromTableNode(SNode *pTable) {
+int32_t getTableTypeFromTableNode(SNode* pTable) {
   if (NULL == pTable) {
     return -1;
   }
   if (QUERY_NODE_REAL_TABLE != nodeType(pTable)) {
     return -1;
   }
-  return ((SRealTableNode *)pTable)->pMeta->tableType;
+  return ((SRealTableNode*)pTable)->pMeta->tableType;
 }
-
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
@@ -290,9 +290,23 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     return NULL;
   }
 
+  bool   hasSchemaExt = pTableMeta->schemaExt == NULL ? false : true;
+  size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
-  STableMeta* p = taosMemoryMalloc(size);
-  memcpy(p, pTableMeta, size);
+  int32_t     cpSize = sizeof(STableMeta) - sizeof(void*);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
+
+  if (NULL == p) return NULL;
+
+  memcpy(p, pTableMeta, cpSize);
+  if (hasSchemaExt) {
+    p->schemaExt = (SSchemaExt*)(((char*)p) + size);
+    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
+  } else {
+    p->schemaExt = NULL;
+  }
+  memcpy(p->schema, pTableMeta->schema, numOfFields * sizeof(SSchema));
   return p;
 }
 
@@ -709,12 +723,11 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
-  }  
-#endif  
+  }
+#endif
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
-
 
 SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint) {
   SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
@@ -850,7 +863,7 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
   }
-#endif  
+#endif
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
@@ -932,10 +945,10 @@ int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
   (*pMeta)->tableInfo.precision = pViewMeta->precision;
   (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
   memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);
-  
+
   for (int32_t i = 0; i < pViewMeta->numOfCols; ++i) {
     (*pMeta)->tableInfo.rowSize += (*pMeta)->schema[i].bytes;
-  }    
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -943,13 +956,12 @@ int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
   SViewMeta* pViewMeta = NULL;
-  int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
+  int32_t    code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableMetaFromViewMeta(pMeta, pViewMeta);
   }
   return code;
 }
-
 
 static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** pDbs) {
   if (NULL == *pDbs) {
@@ -1046,14 +1058,12 @@ int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pD
   return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
 
-int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
-                              SParseMetaCache* pMetaCache) {
- char    key[USER_AUTH_KEY_MAX_LEN] = {0};
- int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, true);
- return reserveUserAuthInCacheImpl(key, len, pMetaCache);
+int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
+                                   AUTH_TYPE type, SParseMetaCache* pMetaCache) {
+  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
+  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, true);
+  return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
-
-
 
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes) {
   char          key[USER_AUTH_KEY_MAX_LEN] = {0};
@@ -1150,8 +1160,15 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
+  SSchemaExt* pSchemaExt = NULL;
+  if (useCompress(pCfg->tableType)) {
+    int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
+    pSchemaExt = taosMemoryMalloc(schemaExtSize);
+    memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);
+  }
 
   pNew->pSchemas = pSchema;
+  pNew->pSchemaExt = pSchemaExt;
 
   return pNew;
 }
@@ -1230,5 +1247,3 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
   }
   return res;
 }
-
-

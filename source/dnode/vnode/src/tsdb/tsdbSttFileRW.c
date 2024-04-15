@@ -14,6 +14,7 @@
  */
 
 #include "tsdbSttFileRW.h"
+#include "meta.h"
 #include "tsdbDataFileRW.h"
 
 // SSttFReader ============================================================
@@ -264,7 +265,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
         break;
       }
 
-      code = tGetBlockCol(&br, &blockCol);
+      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -436,10 +437,12 @@ struct SSttFileWriter {
   SSkmInfo skmRow[1];
   SBuffer  local[10];
   SBuffer *buffers;
+  // SColCompressInfo2 pInfo;
 };
 
-static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
-                                           TSttBlkArray *sttBlkArray, SBuffer *buffers, SVersionRange *range) {
+static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
+                                           int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
+                                           SVersionRange *range) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -463,13 +466,12 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, i
   }
 
   tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
-
-  code = tBlockDataCompress(blockData, cmprAlg, buffers, buffers + 4);
+  code = tBlockDataCompress(blockData, info, buffers, buffers + 4);
   if (code) return code;
+
   sttBlk->bInfo.offset = *fileSize;
   sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
-
   for (int i = 0; i < 4; i++) {
     if (buffers[i].size) {
       code = tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size);
@@ -492,14 +494,19 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
-                                     writer->sttBlkArray, writer->buffers, &writer->ctx->range);
+  tb_uid_t         uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
+  SColCompressInfo info = {.defaultCmprAlg = writer->config->cmprAlg, .pColCmpr = NULL};
+  code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
+
+  code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size, writer->sttBlkArray,
+                                     writer->buffers, &writer->ctx->range);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
+  taosHashCleanup(info.pColCmpr);
   return code;
 }
 

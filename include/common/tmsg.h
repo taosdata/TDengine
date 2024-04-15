@@ -20,6 +20,7 @@
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcoding.h"
+#include "tcol.h"
 #include "tencode.h"
 #include "thash.h"
 #include "tlist.h"
@@ -154,18 +155,19 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG             1
-#define TSDB_ALTER_TABLE_DROP_TAG            2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME     3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL      4
-#define TSDB_ALTER_TABLE_ADD_COLUMN          5
-#define TSDB_ALTER_TABLE_DROP_COLUMN         6
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
-#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES    8
-#define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
-#define TSDB_ALTER_TABLE_ADD_TAG_INDEX       11
-#define TSDB_ALTER_TABLE_DROP_TAG_INDEX      12
+#define TSDB_ALTER_TABLE_ADD_TAG                1
+#define TSDB_ALTER_TABLE_DROP_TAG               2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME        3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL         4
+#define TSDB_ALTER_TABLE_ADD_COLUMN             5
+#define TSDB_ALTER_TABLE_DROP_COLUMN            6
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES    7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES       8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS         9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME     10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -246,6 +248,7 @@ typedef enum ENodeType {
   QUERY_NODE_HINT,
   QUERY_NODE_VIEW,
   QUERY_NODE_COUNT_WINDOW,
+  QUERY_NODE_COLUMN_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -457,6 +460,13 @@ typedef struct SField {
   int8_t  flags;
   int32_t bytes;
 } SField;
+typedef struct SFieldWithOptions {
+  char     name[TSDB_COL_NAME_LEN];
+  uint8_t  type;
+  int8_t   flags;
+  int32_t  bytes;
+  uint32_t compress;
+} SFieldWithOptions;
 
 typedef struct SRetention {
   int64_t freq;
@@ -535,6 +545,12 @@ struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 };
+struct SSchemaExt {
+  col_id_t colId;
+  uint32_t compress;
+};
+
+//
 
 struct SSchema2 {
   int8_t   type;
@@ -542,25 +558,26 @@ struct SSchema2 {
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-  char     alias[TSDB_COL_NAME_LEN];
+  uint32_t compress;
 };
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int64_t  dbId;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   precision;
-  int8_t   tableType;
-  int32_t  sversion;
-  int32_t  tversion;
-  uint64_t suid;
-  uint64_t tuid;
-  int32_t  vgId;
-  int8_t   sysInfo;
-  SSchema* pSchemas;
+  char        tbName[TSDB_TABLE_NAME_LEN];
+  char        stbName[TSDB_TABLE_NAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  int64_t     dbId;
+  int32_t     numOfTags;
+  int32_t     numOfColumns;
+  int8_t      precision;
+  int8_t      tableType;
+  int32_t     sversion;
+  int32_t     tversion;
+  uint64_t    suid;
+  uint64_t    tuid;
+  int32_t     vgId;
+  int8_t      sysInfo;
+  SSchema*    pSchemas;
+  SSchemaExt* pSchemaExt;
 } STableMetaRsp;
 
 typedef struct {
@@ -586,7 +603,7 @@ typedef struct {
 // int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 // int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 // void    tFreeSSubmitBlkRsp(void* param);
-void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
+void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
@@ -624,6 +641,54 @@ typedef struct {
   SSchema* pSchema;
 } SSchemaWrapper;
 
+typedef struct {
+  col_id_t id;
+  uint32_t alg;
+} SColCmpr;
+
+typedef struct {
+  int32_t   nCols;
+  int32_t   version;
+  SColCmpr* pColCmpr;
+} SColCmprWrapper;
+
+static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper* pSrcWrapper) {
+  if (pSrcWrapper->pColCmpr == NULL || pSrcWrapper->nCols == 0) return NULL;
+
+  SColCmprWrapper* pDstWrapper = (SColCmprWrapper*)taosMemoryMalloc(sizeof(SColCmprWrapper));
+  pDstWrapper->nCols = pSrcWrapper->nCols;
+  pDstWrapper->version = pSrcWrapper->version;
+
+  int32_t size = sizeof(SColCmpr) * pDstWrapper->nCols;
+  pDstWrapper->pColCmpr = (SColCmpr*)taosMemoryCalloc(1, size);
+  memcpy(pDstWrapper->pColCmpr, pSrcWrapper->pColCmpr, size);
+
+  return pDstWrapper;
+}
+
+static FORCE_INLINE void tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* pCmpr, int32_t nCols) {
+  assert(!pCmpr->pColCmpr);
+  pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(nCols, sizeof(SColCmpr));
+  pCmpr->nCols = nCols;
+}
+
+static FORCE_INLINE void tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, SSchemaWrapper* pSchema) {
+  pCmpr->nCols = pSchema->nCols;
+  assert(!pCmpr->pColCmpr);
+  pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
+  for (int32_t i = 0; i < pCmpr->nCols; i++) {
+    SColCmpr* pColCmpr = &pCmpr->pColCmpr[i];
+    SSchema*  pColSchema = &pSchema->pSchema[i];
+    pColCmpr->id = pColSchema->colId;
+    pColCmpr->alg = 0;
+  }
+}
+static FORCE_INLINE void tDeleteSColCmprWrapper(SColCmprWrapper* pWrapper) {
+  if (pWrapper == NULL) return;
+
+  taosMemoryFreeClear(pWrapper->pColCmpr);
+  taosMemoryFreeClear(pWrapper);
+}
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper->pSchema == NULL) return NULL;
 
@@ -689,6 +754,18 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   if (tDecodeI32v(pDecoder, &pSchema->bytes) < 0) return -1;
   if (tDecodeI16v(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
+  if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
+  if (tEncodeU32(pEncoder, pSchemaExt->compress) < 0) return -1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pSchemaExt) {
+  if (tDecodeI16v(pDecoder, &pSchemaExt->colId) < 0) return -1;
+  if (tDecodeU32(pDecoder, &pSchemaExt->compress) < 0) return -1;
   return 0;
 }
 
@@ -775,7 +852,7 @@ typedef struct {
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
-  SArray*  pColumns;  // array of SField
+  SArray*  pColumns;  // array of SFieldWithOptions
   SArray*  pTags;     // array of SField
   SArray*  pFuncs;
   char*    pComment;
@@ -1092,23 +1169,24 @@ typedef struct {
 } STableCfgReq;
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   tableType;
-  int64_t  delay1;
-  int64_t  delay2;
-  int64_t  watermark1;
-  int64_t  watermark2;
-  int32_t  ttl;
-  SArray*  pFuncs;
-  int32_t  commentLen;
-  char*    pComment;
-  SSchema* pSchemas;
-  int32_t  tagsLen;
-  char*    pTags;
+  char        tbName[TSDB_TABLE_NAME_LEN];
+  char        stbName[TSDB_TABLE_NAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  int32_t     numOfTags;
+  int32_t     numOfColumns;
+  int8_t      tableType;
+  int64_t     delay1;
+  int64_t     delay2;
+  int64_t     watermark1;
+  int64_t     watermark2;
+  int32_t     ttl;
+  SArray*     pFuncs;
+  int32_t     commentLen;
+  char*       pComment;
+  SSchema*    pSchemas;
+  int32_t     tagsLen;
+  char*       pTags;
+  SSchemaExt* pSchemaExt;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -1589,13 +1667,13 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
-  int32_t     contLen;
-  char*       pCont;
+  int32_t contLen;
+  char*   pCont;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
-void tFreeSStatisReq(SStatisReq *pReq);
+void    tFreeSStatisReq(SStatisReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -1953,7 +2031,7 @@ typedef struct {
 
 int32_t tSerializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
 // int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
-void    tFreeSShowReq(SShowReq* pReq);
+void tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
   int64_t       showId;
@@ -2759,15 +2837,17 @@ int32_t tDecodeSRSmaParam(SDecoder* pCoder, SRSmaParam* pRSmaParam);
 
 // TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
-  char*          name;
-  tb_uid_t       suid;
-  int8_t         rollup;
-  SSchemaWrapper schemaRow;
-  SSchemaWrapper schemaTag;
-  SRSmaParam     rsmaParam;
-  int32_t        alterOriDataLen;
-  void*          alterOriData;
-  int8_t         source;
+  char*           name;
+  tb_uid_t        suid;
+  int8_t          rollup;
+  SSchemaWrapper  schemaRow;
+  SSchemaWrapper  schemaTag;
+  SRSmaParam      rsmaParam;
+  int32_t         alterOriDataLen;
+  void*           alterOriData;
+  int8_t          source;
+  int8_t          colCmpred;
+  SColCmprWrapper colCmpr;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -2805,8 +2885,9 @@ typedef struct SVCreateTbReq {
       SSchemaWrapper schemaRow;
     } ntb;
   };
-  int32_t sqlLen;
-  char*   sql;
+  int32_t         sqlLen;
+  char*           sql;
+  SColCmprWrapper colCmpr;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -2829,6 +2910,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   } else if (req->type == TSDB_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
+  taosMemoryFreeClear(req->colCmpr.pColCmpr);
 }
 
 typedef struct {
@@ -2837,7 +2919,7 @@ typedef struct {
     SVCreateTbReq* pReqs;
     SArray*        pArray;
   };
-  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVCreateTbBatchReq;
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
@@ -2914,12 +2996,10 @@ typedef struct {
   int32_t bytes;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
-  int8_t  colModType;
-  int32_t colModBytes;
-  // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
-  char* colNewName;
-  // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
-  char*    tagName;
+  int8_t   colModType;
+  int32_t  colModBytes;
+  char*    colNewName;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
+  char*    tagName;     // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
   int8_t   isNull;
   int8_t   tagType;
   int8_t   tagFree;
@@ -2927,12 +3007,13 @@ typedef struct {
   uint8_t* pTagVal;
   SArray*  pTagArray;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
-  int8_t  updateTTL;
-  int32_t newTTL;
-  int32_t newCommentLen;
-  char*   newComment;
-  int64_t ctimeMs;  // fill by vnode
-  int8_t  source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t   updateTTL;
+  int32_t  newTTL;
+  int32_t  newCommentLen;
+  char*    newComment;
+  int64_t  ctimeMs;   // fill by vnode
+  int8_t   source;    // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  uint32_t compress;  // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -4051,7 +4132,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define TD_REQ_FROM_TAOX              0x8
 #define SUBMIT_REQUEST_VERSION        (1)
 
-#define TD_REQ_FROM_TAOX_OLD          0x1     // for compatibility
+#define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 
 typedef struct {
   int32_t        flags;
@@ -4155,6 +4236,9 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+
+void setDefaultOptionsForField(SFieldWithOptions* field);
+void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 #pragma pack(pop)
 

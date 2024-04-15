@@ -63,6 +63,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
     goto _err;
   }
+  // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
 
@@ -363,6 +364,7 @@ _query:
   version = ((SUidIdxVal *)pData)[0].version;
 
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
   metaDecodeEntry(&dc, &me);
@@ -410,9 +412,8 @@ _err:
   return NULL;
 }
 
-
-SMCtbCursor *metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock) {
+  SMeta       *pMeta = ((SVnode *)pVnode)->pMeta;
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
   int          ret = 0;
@@ -449,9 +450,9 @@ void metaCloseCtbCursor(SMCtbCursor *pCtbCur) {
   taosMemoryFree(pCtbCur);
 }
 
-void metaPauseCtbCursor(SMCtbCursor* pCtbCur) {
+void metaPauseCtbCursor(SMCtbCursor *pCtbCur) {
   if (!pCtbCur->paused) {
-    tdbTbcClose((TBC*)pCtbCur->pCur);
+    tdbTbcClose((TBC *)pCtbCur->pCur);
     if (pCtbCur->lock) {
       metaULock(pCtbCur->pMeta);
     }
@@ -459,7 +460,7 @@ void metaPauseCtbCursor(SMCtbCursor* pCtbCur) {
   }
 }
 
-int32_t metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first) {
+int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
   if (pCtbCur->paused) {
     pCtbCur->paused = 0;
 
@@ -467,14 +468,14 @@ int32_t metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first) {
       metaRLock(pCtbCur->pMeta);
     }
     int ret = 0;
-    ret = tdbTbcOpen(pCtbCur->pMeta->pCtbIdx, (TBC**)&pCtbCur->pCur, NULL);
+    ret = tdbTbcOpen(pCtbCur->pMeta->pCtbIdx, (TBC **)&pCtbCur->pCur, NULL);
     if (ret < 0) {
       metaCloseCtbCursor(pCtbCur);
       return -1;
     }
 
     if (first) {
-      SCtbIdxKey   ctbIdxKey;
+      SCtbIdxKey ctbIdxKey;
       // move to the suid
       ctbIdxKey.suid = pCtbCur->suid;
       ctbIdxKey.uid = INT64_MIN;
@@ -1478,23 +1479,23 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pR
     lock = 1;
   }
 
-  if(!lock) metaRLock(pMeta);
+  if (!lock) metaRLock(pMeta);
 
   // search cache
   if (metaCacheGet(pMeta, uid, pInfo) == 0) {
-    if(!lock) metaULock(pMeta);
+    if (!lock) metaULock(pMeta);
     goto _exit;
   }
 
   // search TDB
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
     // not found
-    if(!lock) metaULock(pMeta);
+    if (!lock) metaULock(pMeta);
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 
-  if(!lock) metaULock(pMeta);
+  if (!lock) metaULock(pMeta);
 
   pInfo->uid = uid;
   pInfo->suid = ((SUidIdxVal *)pData)->suid;

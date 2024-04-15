@@ -19,12 +19,19 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
+    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
+)
+
+target_link_directories(
+    util
+    PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
 )
 target_link_libraries(
     util
-    PUBLIC os
-    PUBLIC lz4_static
-    PUBLIC api cjson geos_c TSZ
+    PUBLIC os common
+    PUBLIC lz4_static fast-lzma2 
+    PUBLIC api cjson geos_c TSZ 
 )
 
 if(${BUILD_TEST})

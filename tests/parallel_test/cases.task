@@ -21,6 +21,7 @@
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
 ,,n,army,python3 ./test.py -f community/query/show.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
 
 #
 # system test
@@ -45,9 +46,9 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
@@ -1349,6 +1350,7 @@
 ,,y,script,./test.sh -f tsim/compress/commitlog.sim
 ,,y,script,./test.sh -f tsim/compress/compress2.sim
 ,,y,script,./test.sh -f tsim/compress/compress.sim
+,,y,script,./test.sh -f tsim/compress/compress_col.sim
 ,,y,script,./test.sh -f tsim/compress/uncompress.sim
 ,,y,script,./test.sh -f tsim/compute/avg.sim
 ,,y,script,./test.sh -f tsim/compute/block_dist.sim

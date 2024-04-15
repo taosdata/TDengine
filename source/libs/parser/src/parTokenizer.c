@@ -306,6 +306,9 @@ static SKeyword keywordTable[] = {
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
+    {"ENCODE",               TK_ENCODE},
+    {"COMPRESS",             TK_COMPRESS},
+    {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
 };
 // clang-format on

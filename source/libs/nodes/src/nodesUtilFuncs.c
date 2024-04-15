@@ -286,6 +286,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDatabaseOptions));
     case QUERY_NODE_TABLE_OPTIONS:
       return makeNode(type, sizeof(STableOptions));
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return makeNode(type, sizeof(SColumnOptions));
     case QUERY_NODE_INDEX_OPTIONS:
       return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_EXPLAIN_OPTIONS:
@@ -682,6 +684,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosArrayDestroy(pCfg->pFuncs);
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);
+  taosMemoryFree(pCfg->pSchemaExt);
   taosMemoryFree(pCfg->pTags);
   taosMemoryFree(pCfg);
 }
@@ -814,6 +817,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pOptions->pRollupFuncs);
       nodesDestroyList(pOptions->pSma);
       nodesDestroyList(pOptions->pDeleteMark);
+      break;
+    }
+    case QUERY_NODE_COLUMN_OPTIONS: {
+      SColumnOptions* pOptions = (SColumnOptions*)pNode;
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {

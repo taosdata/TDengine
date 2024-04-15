@@ -345,6 +345,8 @@ alter_table_clause(A) ::= full_table_name(B) DROP COLUMN column_name(C).        
 alter_table_clause(A) ::=
   full_table_name(B) MODIFY COLUMN column_name(C) type_name(D).                   { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, &C, D); }
 alter_table_clause(A) ::=
+  full_table_name(B) MODIFY COLUMN column_name(C) column_options(D).              { A = createAlterTableAddModifyColOptions(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS, &C, D); }
+alter_table_clause(A) ::=
   full_table_name(B) RENAME COLUMN column_name(C) column_name(D).                 { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, &C, &D); }
 alter_table_clause(A) ::=
   full_table_name(B) ADD TAG column_name(C) type_name(D).                         { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_TAG, &C, D); }
@@ -380,14 +382,19 @@ specific_cols_opt(A) ::= NK_LP col_name_list(B) NK_RP.                          
 full_table_name(A) ::= table_name(B).                                             { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
 
+%type tag_def_list                                                                { SNodeList* }
+%destructor tag_def_list                                                          { nodesDestroyList($$); }
+tag_def_list(A) ::= tag_def(B).                                                   { A = createNodeList(pCxt, B); }
+tag_def_list(A) ::= tag_def_list(B) NK_COMMA tag_def(C).                          { A = addNodeToList(pCxt, B, C); }
+tag_def(A) ::= column_name(B) type_name(C).                                       { A = createColumnDefNode(pCxt, &B, C, NULL); }
+
 %type column_def_list                                                             { SNodeList* }
 %destructor column_def_list                                                       { nodesDestroyList($$); }
 column_def_list(A) ::= column_def(B).                                             { A = createNodeList(pCxt, B); }
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
-column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL, false); }
-column_def(A) ::= column_name(B) type_name(C) PRIMARY KEY.                        { A = createColumnDefNode(pCxt, &B, C, NULL, true); }
-//column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
+// column_def(A) ::= column_name(B) type_name(C).                                 { A = createColumnDefNode(pCxt, &B, C, NULL); }
+column_def(A) ::= column_name(B) type_name(C) column_options(D).                  { A = createColumnDefNode(pCxt, &B, C, D); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -430,7 +437,7 @@ tags_def_opt(A) ::= tags_def(B).                                                
 
 %type tags_def                                                                    { SNodeList* }
 %destructor tags_def                                                              { nodesDestroyList($$); }
-tags_def(A) ::= TAGS NK_LP column_def_list(B) NK_RP.                              { A = B; }
+tags_def(A) ::= TAGS NK_LP tag_def_list(B) NK_RP.                              { A = B; }
 
 table_options(A) ::= .                                                            { A = createDefaultTableOptions(pCxt); }
 table_options(A) ::= table_options(B) COMMENT NK_STRING(C).                       { A = setTableOption(pCxt, B, TABLE_OPTION_COMMENT, &C); }
@@ -1489,3 +1496,9 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
+
+column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
+column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptions(pCxt, B, COLUMN_OPTION_PRIMARYKEY, NULL); }
+column_options(A) ::= column_options(B) ENCODE NK_STRING(C).                      { A = setColumnOptions(pCxt, B, COLUMN_OPTION_ENCODE, &C); }
+column_options(A) ::= column_options(B) COMPRESS NK_STRING(C).                    { A = setColumnOptions(pCxt, B, COLUMN_OPTION_COMPRESS, &C); }
+column_options(A) ::= column_options(B) LEVEL NK_STRING(C).                       { A = setColumnOptions(pCxt, B, COLUMN_OPTION_LEVEL, &C); }
