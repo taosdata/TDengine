@@ -119,7 +119,8 @@ namespace TDPIConnector.TDEngine
         {
             return taosxCommonClient.GetFirstPIValue(database, pointName);
         }
-        public virtual Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTableName, string tdColumnType)
+        public virtual Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTableName, string tdColumnType,
+            List<KeyValuePair<string, string>> tags)
         {
             lock (taosxClientsLock)
             {
@@ -127,7 +128,7 @@ namespace TDPIConnector.TDEngine
                 if (!taosxClients.ContainsKey(superTableName))
                 {
                     var taosxClient = new TDEngineTaosxClient(hostname, port, database, stableName,
-                        tdColumnType, maxWaitLength);
+                        tdColumnType, tags, maxWaitLength);
                     taosxClients.Add(stableName, taosxClient);
                     taosxClient.Connect();
                     log.Info($"create PIPoint superTable {stableName}:{tdColumnType}");

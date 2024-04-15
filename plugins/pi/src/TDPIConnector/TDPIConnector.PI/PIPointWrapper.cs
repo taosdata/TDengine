@@ -1,5 +1,6 @@
 ﻿using OSIsoft.AF.PI;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TDPIConnector.PI
 {
@@ -47,7 +48,29 @@ namespace TDPIConnector.PI
         {
             this.AFSDKObject.SaveAttributes(piPointAttributes);
         }
-
-
+        static public Dictionary<string, string> getPointSavedAttrsType()
+        {
+            Dictionary<string, string> tags = new Dictionary<string, string> { };
+            tags.Add("tag", "string");
+            tags.Add("descriptor", "string");
+            tags.Add("exdesc", "string");
+            tags.Add("engunits", "string");
+            tags.Add("pointsource", "string");
+            tags.Add("step", "string");
+            tags.Add("future", "string");
+            return tags;
+        }
+        public Dictionary<string, string> getPointSavedAttrsValue() {
+            var all = this.AFSDKObject.FindAttributeNames("*");
+            string[] needSaveAttr = {"tag", "descriptor", "exdesc", "engunits", "pointsource", "step", "future"};
+            IDictionary<string, object> res = this.AFSDKObject.GetAttributes(all.ToArray());
+            Dictionary<string, string> tags = new Dictionary<string, string> { };
+            foreach (var r in res) {
+                var k = r.Key;
+                var v = r.Value.GetType();
+                tags.Add(r.Key, r.Value.ToString());
+            }
+            return tags;
+        }
     }
 }

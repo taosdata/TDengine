@@ -10,7 +10,14 @@ namespace TDPIConnector.TDEngine.Models
             Id = id;
             STableName = sTableName;
         }
-        
+        public TDTable(string name, int pointId, string sTableName, string columnType, List<TDColumn> columns)
+        {
+            Name = name;
+            PointId = pointId;
+            STableName = sTableName;
+            Columns = columns;
+        }
+
         public TDTable(string name, int pointId, string sTableName, string columnType = null)
         {
             Name = name;

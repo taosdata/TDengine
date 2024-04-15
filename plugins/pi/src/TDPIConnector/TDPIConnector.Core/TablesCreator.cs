@@ -29,6 +29,17 @@ namespace TDPIConnector.Core
         {
             await tdEngineProxy.CreateDatabase(databaseName);
         }
+        public List<TDColumn> GetPiPointTags(PIPointWrapper point) {
+            var pointTags = new List<TDColumn>();
+            var tagVals = point.getPointSavedAttrsValue();
+            var tagTypes = PIPointWrapper.getPointSavedAttrsType();
+            foreach (var tag in tagVals) {
+                TDColumn column = new TDColumn(tag.Key, tagTypes[tag.Key], "", null);
+                column.TagValue = tag.Value;
+                pointTags.Add(column);
+            }
+            return pointTags;
+        }
         public async Task<List<TDTable>> CreatePIPointTables(string tdDatabaseName, string afDatabaseName, bool dropTableFirst = false)
         {
             var piPoints = new List<TDTable>();
@@ -69,10 +80,10 @@ namespace TDPIConnector.Core
             {
                 string tdColumnType = PointTypeConverter.Convert(point.PointType);
                 string superTableName = TableNameConvert.GetPIPointSuperTableName(point);
-                var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType);
+                var tags = GetPiPointTags(point);
+                var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tags);
                 piPoints.Add(table);
                 log.Info($"Add new table {table.STableName} {table.Name}");
-
             }
             //drop tables first if requried
             if (dropTableFirst)
@@ -89,7 +100,7 @@ namespace TDPIConnector.Core
             foreach (string STableName in STableNames)
             {
                 var piPoint = piPoints.Where(p => p.STableName.ToLower() == STableName.ToLower()).First();
-                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType);
+                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType, null);
             }
 
             await tdEngineProxy.CreateTablesForPIPoints(tdDatabaseName, piPoints);
@@ -159,8 +170,6 @@ namespace TDPIConnector.Core
 
             //get all AF Templates based on settings
             Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
-
-            List<TDTable> tables = new List<TDTable>();
 
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {

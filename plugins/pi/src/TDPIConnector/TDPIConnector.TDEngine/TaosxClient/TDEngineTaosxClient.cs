@@ -33,13 +33,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
-            string colomnType, int maxWaitLength) {
+            string colomnType, List<KeyValuePair<string, string>> tags, int maxWaitLength) {
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
+            // builder.tagNames = tags;
             builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>("pointid", "INT") };
 
             builder.tableNameArrowArray = new StringArray.Builder();
