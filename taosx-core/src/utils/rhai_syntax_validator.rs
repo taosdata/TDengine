@@ -1,5 +1,5 @@
-use rhai::{Engine, EvalAltResult, Scope};
 use regex::Regex;
+use rhai::{Engine, EvalAltResult, Scope};
 
 /**
  * 数学表达式.
@@ -12,23 +12,22 @@ pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), S
     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
         Ok(_) => Ok(()),
         Err(mut e) => {
-           e.clear_position();
-           Err(e.to_string())
-        },
-    } 
+            e.clear_position();
+            Err(e.to_string())
+        }
+    }
 }
 
 // async fn check_bool_expression(params: HashMap<String, String>, expression: &str) -> Result<(), String> {
 //     let mut scope = Scope::new();
 //     scope.push(field_name, true);
-    
+
 //     let engine = Engine::new();
 //     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
 //         Ok(_) => Ok(()),
 //         Err(e) => Err(e.to_string()),
-//     } 
+//     }
 // }
-
 
 #[cfg(test)]
 mod tests {

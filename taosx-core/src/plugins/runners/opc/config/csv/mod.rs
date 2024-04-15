@@ -283,7 +283,7 @@ mod tests {
     async fn test_get_tables_to_drop() {
         // let dsn =
         let dsn =
-             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let tables_to_drop = csv_parser.get_tables_to_drop();
         assert_eq!(tables_to_drop.len(), 1);
@@ -313,8 +313,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_csv_file_with_transform_error() {
-        let dsn =
-            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv").unwrap();
+        let dsn = Dsn::from_str(
+            "opcda://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv",
+        )
+        .unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await;
         assert!(csv_parser.is_err());
     }
