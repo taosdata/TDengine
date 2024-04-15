@@ -3,8 +3,8 @@ use std::pin::Pin;
 
 use futures::stream::IntoStream;
 use futures::{StreamExt, TryStreamExt};
-use sqlx::mysql::{MySqlPoolOptions, MySqlRow};
-use sqlx::{Error, Executor, MySql, Pool, Row};
+use sqlx::mysql::{MySqlConnectOptions, MySqlRow};
+use sqlx::{Error, Executor, MySql, MySqlPool, Pool, Row};
 
 use crate::runners::mysql::config::connect::ConnectConfig;
 
@@ -20,6 +20,11 @@ impl MySqlQuery {
             &config.subject,
             &config.username,
             &config.password,
+            &config.charset,
+            &config.ssl_mode,
+            &config.ssl_ca,
+            &config.ssl_client_cert,
+            &config.ssl_client_key,
         )
         .await
         .map_err(|err| anyhow::anyhow!("failed to connect to mysql, cause: {}", err.to_string()))?;
@@ -32,13 +37,54 @@ impl MySqlQuery {
         subject: &String,
         username: &String,
         password: &String,
+        charset: &String,
+        ssl_mode: &String,
+        ssl_ca: &Option<String>,
+        ssl_client_cert: &Option<String>,
+        ssl_client_key: &Option<String>,
     ) -> anyhow::Result<Pool<MySql>> {
-        let db_url = format!(
-            "mysql://{}:{}@{}:{}/{}",
-            username, password, host, port, subject
-        );
-        let pool = MySqlPoolOptions::new().connect(&db_url.as_str()).await?;
-        Ok(pool)
+        let mut options = MySqlConnectOptions::new()
+            .host(host)
+            .port(port)
+            .username(username)
+            .password(password)
+            .database(subject)
+            .charset(charset);
+        match ssl_mode.as_str() {
+            "DISABLED" => {
+                options = options.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
+                Ok(MySqlPool::connect_with(options).await?)
+            }
+            "PREFERRED" => {
+                options = options.ssl_mode(sqlx::mysql::MySqlSslMode::Preferred);
+                Ok(MySqlPool::connect_with(options).await?)
+            }
+            "REQUIRED" => {
+                options = options.ssl_mode(sqlx::mysql::MySqlSslMode::Required);
+                Ok(MySqlPool::connect_with(options).await?)
+            }
+            "VERIFY_CA" => {
+                options = options.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa);
+                if let Some(ca) = ssl_ca {
+                    options = options.ssl_ca(ca.as_str());
+                }
+                Ok(MySqlPool::connect_with(options).await?)
+            }
+            "VERIFY_IDENTITY" => {
+                options = options.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyIdentity);
+                if let Some(ca) = ssl_ca {
+                    options = options.ssl_ca(ca.as_str());
+                }
+                if let Some(cert) = ssl_client_cert {
+                    options = options.ssl_client_cert(cert.as_str());
+                }
+                if let Some(key) = ssl_client_key {
+                    options = options.ssl_client_key(key.as_str());
+                }
+                Ok(MySqlPool::connect_with(options).await?)
+            }
+            _ => Err(anyhow::anyhow!("unsupported ssl mode: {}", ssl_mode)),
+        }
     }
 
     pub async fn show_tables(&mut self) -> anyhow::Result<Vec<String>> {
@@ -127,6 +173,16 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    async fn test_connect() {
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector");
+        let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
+        dbg!(&config);
+
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+    }
+
+    #[tokio::test]
     async fn test_show_tables() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -210,5 +266,149 @@ mod tests {
             .unwrap();
         dbg!(&rows);
         assert_eq!(rows.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_charset() {
+        // gbk, not match the charset in mysql
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?charset=gbk")
+            .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut query = MySqlQuery::try_new(config).await.unwrap();
+
+        let row = query
+            .select_one_for_schema("select description from t_metric")
+            .await
+            .unwrap();
+        match row {
+            Some(row) => {
+                let val = row.try_get::<String, _>(0);
+                assert!(val.is_err());
+                assert!(val.err().unwrap().to_string().contains("mismatched types"));
+            }
+            None => {
+                println!("no data");
+            }
+        }
+
+        // utf8, match the charset in mysql
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?charset=utf8")
+                .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut query = MySqlQuery::try_new(config).await.unwrap();
+
+        let row = query
+            .select_one_for_schema("select description from t_metric")
+            .await
+            .unwrap();
+        match row {
+            Some(row) => {
+                let val = row.try_get::<String, _>(0);
+                assert!(val.is_ok());
+                println!("description: {}", val.unwrap());
+            }
+            None => {
+                println!("no data");
+            }
+        }
+    }
+
+    /// mysql> show variables like 'require_secure_transport'; ---OFF
+    #[tokio::test]
+    async fn test_ssl_require_secure_off() {
+        // test: ssl_mode=DISABLED
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=DISABLED")
+                .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // dbg!(&config);
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+
+        // test: ssl_mode=PREFERRED
+        let dsn = Dsn::from_str(
+            "mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=PREFERRED",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // dbg!(&config);
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+
+        // test: ssl_mode=REQUIRED
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=REQUIRED")
+                .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // dbg!(&config);
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+
+        // test: ssl_mode=VERIFY_CA
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_CA&ssl_ca=/tmp/mysql/ca.pem")
+                .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // dbg!(&config);
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+
+        // test: ssl_mode=VERIFY_IDENTITY
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_IDENTITY&ssl_ca=/tmp/mysql/ca.pem&ssl_client_cert=/tmp/mysql/client-cert.pem&ssl_client_key=/tmp/mysql/client-key.pem")
+            .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // dbg!(&config);
+        let query = MySqlQuery::try_new(config).await.unwrap();
+        assert!(!query.pool.is_closed());
+    }
+
+    /// mysql> show variables like 'require_secure_transport'; ---OFF
+    #[tokio::test]
+    async fn test_ssl_require_secure_on() {
+        // // test: ssl_mode=DISABLED
+        // let dsn =
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=DISABLED")
+        //         .unwrap();
+        // let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // // dbg!(&config);
+        // let query = MySqlQuery::try_new(config).await.unwrap();
+        // assert!(!query.pool.is_closed());
+
+        // // test: ssl_mode=PREFERRED
+        // let dsn = Dsn::from_str(
+        //     "mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=PREFERRED",
+        // )
+        // .unwrap();
+        // let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // // dbg!(&config);
+        // let query = MySqlQuery::try_new(config).await.unwrap();
+        // assert!(!query.pool.is_closed());
+
+        // // test: ssl_mode=REQUIRED
+        // let dsn =
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=REQUIRED")
+        //         .unwrap();
+        // let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // // dbg!(&config);
+        // let query = MySqlQuery::try_new(config).await.unwrap();
+        // assert!(!query.pool.is_closed());
+
+        // // test: ssl_mode=VERIFY_CA
+        // let dsn =
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_CA")
+        //         .unwrap();
+        // let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // // dbg!(&config);
+        // let query = MySqlQuery::try_new(config).await.unwrap();
+        // assert!(!query.pool.is_closed());
+
+        // // test: ssl_mode=VERIFY_IDENTITY
+        // let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_IDENTITY")
+        //     .unwrap();
+        // let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        // // dbg!(&config);
+        // let query = MySqlQuery::try_new(config).await.unwrap();
+        // assert!(!query.pool.is_closed());
     }
 }

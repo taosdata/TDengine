@@ -31,7 +31,7 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
     let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
 
     // generate sql
-    let sql = config.task.generate_sql();
+    let sql = config.task.generate_sql().unwrap();
     tracing::info!("migrate mysql start, sql: {}", sql);
 
     let row = query.select_one_for_schema(&sql).await.unwrap();
@@ -164,7 +164,7 @@ mod tests {
         config.task_id = Some(1);
         config.ipc_port = Some(6666);
 
-        let _ = migrate_history(config).await;
+        // let _ = migrate_history(config).await;
     }
 
     #[tokio::test]

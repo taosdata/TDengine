@@ -191,22 +191,52 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_sql(&self) -> String {
+    pub fn generate_sql(&self) -> Result<String, anyhow::Error> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
         let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
-        let query_start = format!(
-            "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-            start.format("%Y-%m-%d %H:%M:%S")
-        );
-        let query_end = format!(
-            "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-            end.format("%Y-%m-%d %H:%M:%S")
-        );
-        let mut sql = self
-            .sql
-            .replace("${start}", &query_start)
-            .replace("${end}", &query_end);
+
+        let mut sql = self.sql.clone();
+
+        if sql.contains("${start}") && sql.contains("${end}") {
+            let query_start = format!(
+                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                start.format("%Y-%m-%d %H:%M:%S")
+            );
+            let query_end = format!(
+                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                end.format("%Y-%m-%d %H:%M:%S")
+            );
+            sql = sql
+                .replace("${start}", &query_start)
+                .replace("${end}", &query_end);
+        } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
+            let query_start = format!(
+                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                start.format("%Y-%m-%d %H:%M:%S")
+            );
+            let query_end = format!(
+                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                end.format("%Y-%m-%d %H:%M:%S")
+            );
+            sql = sql
+                .replace("${start_no_tz}", &query_start)
+                .replace("${end_no_tz}", &query_end);
+        } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
+            let query_start = format!("STR_TO_DATE('{}','%Y-%m-%d')", start.format("%Y-%m-%d"));
+            let query_end = format!("STR_TO_DATE('{}','%Y-%m-%d')", end.format("%Y-%m-%d"));
+            sql = sql
+                .replace("${start_date}", &query_start)
+                .replace("${end_date}", &query_end);
+        } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
+            let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start.format("%H:%M:%S"));
+            let query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            sql = sql
+                .replace("${start_time}", &query_start)
+                .replace("${end_time}", &query_end);
+        } else {
+            anyhow::bail!("invalid sql template, missing start and end");
+        }
 
         // sharding by time
         sql = sql.replace("${Y}", start.format("%Y").to_string().as_str());
@@ -223,7 +253,7 @@ impl TaskConfig {
         sql = sql.replace("${dm}", start.format("%d%m").to_string().as_str());
         sql = sql.replace("${Yj}", start.format("%Y%j").to_string().as_str());
         sql = sql.replace("${yj}", start.format("%y%j").to_string().as_str());
-        sql
+        Ok(sql)
     }
 }
 
@@ -263,5 +293,16 @@ mod tests {
         );
         assert_eq!(config.task.interval, Duration::try_days(1).unwrap());
         assert_eq!(config.task.delay, Duration::try_seconds(5).unwrap());
+    }
+
+    #[test]
+    fn test_generate_sql() {
+        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("STR_TO_DATE('2021-01-02 00:00:00','%Y-%m-%d %H:%i:%s')"));
     }
 }
