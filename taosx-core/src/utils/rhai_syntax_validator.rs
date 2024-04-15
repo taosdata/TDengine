@@ -1,4 +1,3 @@
-use regex::Regex;
 use rhai::{Engine, EvalAltResult, Scope};
 
 /**
@@ -21,12 +20,11 @@ pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), S
 // async fn check_bool_expression(params: HashMap<String, String>, expression: &str) -> Result<(), String> {
 //     let mut scope = Scope::new();
 //     scope.push(field_name, true);
-
 //     let engine = Engine::new();
 //     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
 //         Ok(_) => Ok(()),
 //         Err(e) => Err(e.to_string()),
-//     }
+//     } 
 // }
 
 #[cfg(test)]
@@ -46,12 +44,10 @@ mod tests {
 
         let expression = "x.lgs() + 1";
         let result = check_math_expression(field_name, expression);
-        println!("{:?}", result);
         assert!(result.is_err());
 
         let expression = "x + 1 + y";
         let result = check_math_expression(field_name, expression);
-        println!("{:?}", result);
         assert!(result.is_err());
     }
 

@@ -19,7 +19,7 @@ func TestMessageList(t *testing.T) {
 
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test1",
+			IDStr:      "test1",
 			Name:       "test1",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -31,7 +31,7 @@ func TestMessageList(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test2",
+			IDStr:      "test2",
 			Name:       "test2",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -41,7 +41,7 @@ func TestMessageList(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test3",
+			IDStr:      "test3",
 			Name:       "test3",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -51,7 +51,7 @@ func TestMessageList(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test4",
+			IDStr:      "test4",
 			Name:       "test4",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -63,7 +63,7 @@ func TestMessageList(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test5",
+			IDStr:      "test5",
 			Name:       "test5",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -75,7 +75,7 @@ func TestMessageList(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test6",
+			IDStr:      "test6",
 			Name:       "test6",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -87,7 +87,7 @@ func TestMessageList(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test7",
+			IDStr:      "test7",
 			Name:       "test7",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -97,7 +97,7 @@ func TestMessageList(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test8",
+			IDStr:      "test8",
 			Name:       "test8",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -107,7 +107,7 @@ func TestMessageList(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test9",
+			IDStr:      "test9",
 			Name:       "test9",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -125,7 +125,7 @@ func TestMessageList(t *testing.T) {
 		assert.Equal(t, 6, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+1), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+1), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+1), values[i].Value)
 		}
 	case <-timer.C:
@@ -138,7 +138,7 @@ func TestMessageList(t *testing.T) {
 		assert.Equal(t, 3, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+4), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+4), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+4), values[i].Value)
 		}
 	case <-timer.C:
@@ -152,7 +152,7 @@ func TestMessageList(t *testing.T) {
 		assert.Equal(t, 0, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+7), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+7), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+7), values[i].Value)
 		}
 	case <-timer.C:
@@ -161,7 +161,7 @@ func TestMessageList(t *testing.T) {
 
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test10",
+			IDStr:      "test10",
 			Name:       "test10",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -171,7 +171,7 @@ func TestMessageList(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test11",
+			IDStr:      "test11",
 			Name:       "test11",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -194,7 +194,7 @@ func TestMessageListHungry(t *testing.T) {
 
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test1",
+			IDStr:      "test1",
 			Name:       "test1",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -206,7 +206,7 @@ func TestMessageListHungry(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test2",
+			IDStr:      "test2",
 			Name:       "test2",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -216,7 +216,7 @@ func TestMessageListHungry(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test3",
+			IDStr:      "test3",
 			Name:       "test3",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -226,7 +226,7 @@ func TestMessageListHungry(t *testing.T) {
 			Status:     0,
 		},
 		{
-			Identifier: "test4",
+			IDStr:      "test4",
 			Name:       "test4",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -238,7 +238,7 @@ func TestMessageListHungry(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test5",
+			IDStr:      "test5",
 			Name:       "test5",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -250,7 +250,7 @@ func TestMessageListHungry(t *testing.T) {
 	})
 	messages.Add([]*common.NodeValue{
 		{
-			Identifier: "test6",
+			IDStr:      "test6",
 			Name:       "test6",
 			Timestamp:  time.Now(),
 			StartTime:  time.Now(),
@@ -271,7 +271,7 @@ func TestMessageListHungry(t *testing.T) {
 	go func() {
 		messages.Add([]*common.NodeValue{
 			{
-				Identifier: "test7",
+				IDStr:      "test7",
 				Name:       "test7",
 				Timestamp:  time.Now(),
 				StartTime:  time.Now(),
@@ -281,7 +281,7 @@ func TestMessageListHungry(t *testing.T) {
 				Status:     0,
 			},
 			{
-				Identifier: "test8",
+				IDStr:      "test8",
 				Name:       "test8",
 				Timestamp:  time.Now(),
 				StartTime:  time.Now(),
@@ -291,7 +291,7 @@ func TestMessageListHungry(t *testing.T) {
 				Status:     0,
 			},
 			{
-				Identifier: "test9",
+				IDStr:      "test9",
 				Name:       "test9",
 				Timestamp:  time.Now(),
 				StartTime:  time.Now(),
@@ -309,7 +309,7 @@ func TestMessageListHungry(t *testing.T) {
 		assert.Equal(t, 6, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+1), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+1), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+1), values[i].Value)
 		}
 	case <-timer.C:
@@ -327,7 +327,7 @@ func TestMessageListHungry(t *testing.T) {
 		assert.Equal(t, 3, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+4), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+4), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+4), values[i].Value)
 		}
 	case <-timer.C:
@@ -352,7 +352,7 @@ func TestMessageListHungry(t *testing.T) {
 		assert.Equal(t, 0, messages.Length())
 		assert.Equal(t, 3, len(values))
 		for i := 0; i < 3; i++ {
-			assert.Equal(t, "test"+strconv.FormatInt(int64(i+7), 10), values[i].Identifier)
+			assert.Equal(t, "test"+strconv.FormatInt(int64(i+7), 10), values[i].IDStr)
 			assert.Equal(t, int32(i+7), values[i].Value)
 		}
 	case <-timer.C:

@@ -16,7 +16,7 @@ import (
 
 var uaValues = []*common.NodeValue{
 	{
-		Identifier: "test_id",
+		IDStr:      "test_id",
 		Name:       "test",
 		Timestamp:  time.Unix(1700791658, 0),
 		StartTime:  time.Unix(1700791658, 0),
@@ -26,7 +26,7 @@ var uaValues = []*common.NodeValue{
 		Status:     int64(ua.StatusOK),
 	},
 	{
-		Identifier: "test_id2",
+		IDStr:      "test_id2",
 		Name:       "test2",
 		Timestamp:  time.Unix(1700791658, 0),
 		StartTime:  time.Unix(1700791658, 0),
@@ -39,7 +39,7 @@ var uaValues = []*common.NodeValue{
 
 var daValues = []*common.NodeValue{
 	{
-		Identifier: "test_id",
+		IDStr:      "test_id",
 		Name:       "test",
 		Timestamp:  time.Unix(1700791658, 0),
 		StartTime:  time.Unix(1700791658, 0),
@@ -49,7 +49,7 @@ var daValues = []*common.NodeValue{
 		Status:     192,
 	},
 	{
-		Identifier: "test_id2",
+		IDStr:      "test_id2",
 		Name:       "test2",
 		Timestamp:  time.Unix(1700791658, 0),
 		StartTime:  time.Unix(1700791658, 0),

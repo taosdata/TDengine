@@ -66,9 +66,9 @@ func check() CheckResp {
 	var opcClient client.OPCClient
 	switch conf.OpcType {
 	case config.OpcTypeUA:
-		opcClient, err = opcua.NewUAClient(ctx, conf.Connect.Ua, conf.Collect, 0, logger, nil)
+		opcClient, err = opcua.NewUAClient(ctx, conf.Connect.Ua, 0, logger)
 	case config.OpcTypeDA:
-		opcClient, err = opcda.NewDAClient(ctx, conf.Connect.Da, conf.Collect, 0, logger, nil)
+		opcClient, err = opcda.NewDAClient(ctx, conf.Connect.Da, 0, logger)
 	default:
 		return CheckResp{
 			Valid:      false,
