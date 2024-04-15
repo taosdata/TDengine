@@ -246,6 +246,8 @@ impl Replica {
         tmq.subject.replace(database.to_string());
         tmq.set("replica", "");
         tmq.set("timeout", "never");
+        tmq.set("with.meta.drop", "true");
+        tmq.set("with.meta.delete", "true");
         if let Some(topic) = topic {
             tmq.set("use.topic.name", topic);
         }
