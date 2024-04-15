@@ -703,8 +703,9 @@ column_stream_def_list(A) ::= column_stream_def(B).                             
 column_stream_def_list(A) ::= column_stream_def_list(B)
  NK_COMMA column_stream_def(C).                                                   { A = addNodeToList(pCxt, B, C); }
 
-column_stream_def(A) ::= column_name(B).                                          { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), NULL, false); }
-column_stream_def(A) ::= column_name(B) PRIMARY KEY.                              { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), NULL, true); }
+column_stream_def(A) ::= column_name(B) stream_col_options(C).                    { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), C); }
+stream_col_options(A) ::= .                                                       { A = createDefaultColumnOptions(pCxt); }
+stream_col_options(A) ::= stream_col_options(B) PRIMARY KEY.                      { A = setColumnOptions(pCxt, B, COLUMN_OPTION_PRIMARYKEY, NULL); }
 //column_stream_def(A) ::= column_def(B).                                         { A = B; }
 
 %type tag_def_or_ref_opt                                                          { SNodeList* }

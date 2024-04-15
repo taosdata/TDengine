@@ -129,7 +129,6 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
-  COPY_CHAR_ARRAY_FIELD(comments);
   COPY_SCALAR_FIELD(sma);
   COPY_SCALAR_FIELD(is_pk);
   return TSDB_CODE_SUCCESS;
