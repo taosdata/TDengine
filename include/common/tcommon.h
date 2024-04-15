@@ -107,6 +107,9 @@ typedef struct SFirstLastRes {
   bool      isNull;
   int32_t   bytes;
   int64_t   ts;
+  char*     pkData;
+  int32_t   pkBytes;
+  int8_t    pkType;
   STuplePos pos;
   char      buf[];
 } SFirstLastRes;
@@ -200,6 +203,19 @@ typedef struct SBlockID {
   uint64_t groupId;
 } SBlockID;
 
+typedef struct SPkInfo {
+  int8_t  type;
+  int32_t bytes;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } skey;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } ekey;
+} SPkInfo;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -210,6 +226,7 @@ typedef struct SDataBlockInfo {
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
   bool        blankFill;
+  SValue      pks[2];
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -388,6 +405,7 @@ typedef struct STUidTagInfo {
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
+#define PRIMARY_KEY_COLUMN_INDEX        7
 
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0

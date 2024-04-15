@@ -45,6 +45,9 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
@@ -120,6 +123,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_primary_key.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
@@ -1167,6 +1171,7 @@
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
 ,,y,script,./test.sh -f tsim/query/query_count0.sim
 ,,y,script,./test.sh -f tsim/query/query_count_sliding0.sim
+,,y,script,./test.sh -f tsim/query/union_precision.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1219,6 +1224,7 @@
 ,,y,script,./test.sh -f tsim/stream/countSliding1.sim
 ,,y,script,./test.sh -f tsim/stream/countSliding2.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
+,,y,script,./test.sh -f tsim/stream/deleteScalar.sim
 ,,y,script,./test.sh -f tsim/stream/deleteSession.sim
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
@@ -1244,6 +1250,7 @@
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
@@ -1254,8 +1261,13 @@
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/state1.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim

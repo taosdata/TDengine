@@ -449,18 +449,20 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type);
     } else if (deltaCol == -1) {
       int16_t cid = -1;
-      int8_t  col_type = -1;
+      bool    hasPrimaryKey = false;
+      if (onCols >= 2) {
+        hasPrimaryKey = (oStbEntry.stbEntry.schemaRow.pSchema[1].flags & COL_IS_KEY) ? true : false;
+      }
       for (int i = 0, j = 0; i < nCols && j < onCols; ++i, ++j) {
         if (pReq->schemaRow.pSchema[i].colId != oStbEntry.stbEntry.schemaRow.pSchema[j].colId) {
           cid = oStbEntry.stbEntry.schemaRow.pSchema[j].colId;
-          col_type = oStbEntry.stbEntry.schemaRow.pSchema[j].type;
           break;
         }
       }
 
       if (cid != -1) {
         metaGetSubtables(pMeta, pReq->suid, uids);
-        tsdbCacheDropSTableColumn(pTsdb, uids, cid, col_type);
+        tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey);
       }
     }
     if (uids) taosArrayDestroy(uids);
@@ -1478,6 +1480,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
         goto _err;
       }
+      bool hasPrimayKey = false;
+      if (pSchema->nCols >= 2) {
+        hasPrimayKey = pSchema->pSchema[1].flags & COL_IS_KEY ? true : false;
+      }
+
       pSchema->version++;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
       if (tlen) {
@@ -1489,9 +1496,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
       if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
         int16_t cid = pColumn->colId;
-        int8_t  col_type = pColumn->type;
 
-        (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
+        (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, hasPrimayKey);
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:

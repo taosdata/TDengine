@@ -1581,7 +1581,7 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   return pOptions;
 }
 
-SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment) {
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment, bool bPrimaryKey) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pColName) || !checkComment(pCxt, pComment, false)) {
     return NULL;
@@ -1598,6 +1598,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
     trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
   }
   pCol->sma = true;
+  pCol->is_pk = bPrimaryKey;
   return (SNode*)pCol;
 }
 

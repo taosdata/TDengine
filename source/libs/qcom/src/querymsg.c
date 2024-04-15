@@ -421,8 +421,16 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
 
   memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
 
+  bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
+    if (hasPK && (i > 0)) {
+      if ((pTableMeta->schema[i].flags & COL_IS_KEY)) {
+        ++pTableMeta->tableInfo.numOfPKs;
+      } else {
+        hasPK = false;
+      }
+    }
   }
 
   qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64 " sver %d tver %d"

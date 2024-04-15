@@ -247,6 +247,20 @@ END:
   return code;
 }
 
+bool tqGetTablePrimaryKey(STqReader* pReader){
+  return pReader->hasPrimaryKey;
+}
+
+void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid){
+  bool ret = false;
+  SSchemaWrapper *schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+    ret = true;
+  }
+  tDeleteSchemaWrapper(schema);
+  pReader->hasPrimaryKey = ret;
+}
+
 STqReader* tqReaderOpen(SVnode* pVnode) {
   STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
@@ -578,7 +592,7 @@ static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, 
 static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (IS_STR_DATA_TYPE(pColVal->type)) {
+  if (IS_STR_DATA_TYPE(pColVal->value.type)) {
     char val[65535 + 2] = {0};
     if (COL_VAL_IS_VALUE(pColVal)) {
       if (pColVal->value.pData != NULL) {

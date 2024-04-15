@@ -29,7 +29,8 @@ struct SSttFileReader {
   TSttBlkArray    sttBlkArray[1];
   TStatisBlkArray statisBlkArray[1];
   TTombBlkArray   tombBlkArray[1];
-  uint8_t        *bufArr[5];
+  SBuffer         local[10];
+  SBuffer        *buffers;
 };
 
 // SSttFileReader
@@ -41,8 +42,9 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   reader[0]->config[0] = config[0];
-  if (reader[0]->config->bufArr == NULL) {
-    reader[0]->config->bufArr = reader[0]->bufArr;
+  reader[0]->buffers = config->buffers;
+  if (reader[0]->buffers == NULL) {
+    reader[0]->buffers = reader[0]->local;
   }
 
   // open file
@@ -76,8 +78,8 @@ _exit:
 
 int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
   if (reader[0]) {
-    for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->bufArr); ++i) {
-      tFree(reader[0]->bufArr[i]);
+    for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); ++i) {
+      tBufferDestroy(reader[0]->local + i);
     }
     tsdbCloseFile(&reader[0]->fd);
     TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
@@ -187,16 +189,19 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szBlock);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  SBuffer *buffer0 = reader->buffers + 0;
+  SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szBlock, 0, 
-                      encryptAlgorithm, encryptKey);
+  // load data
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0,
+                             encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tDecmprBlockData(reader->config->bufArr[0], sttBlk->bInfo.szBlock, bData, &reader->config->bufArr[1]);
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  code = tBlockDataDecompress(&br, bData, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -211,122 +216,108 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   int32_t code = 0;
   int32_t lino = 0;
 
-  TABLEID tbid = {.suid = sttBlk->suid};
-  if (tbid.suid == 0) {
-    tbid.uid = sttBlk->minUid;
-  } else {
-    tbid.uid = 0;
-  }
-
-  code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // uid + version + tskey
-  code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szKey);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  SDiskDataHdr hdr;
+  SBuffer     *buffer0 = reader->buffers + 0;
+  SBuffer     *buffer1 = reader->buffers + 1;
+  SBuffer     *assist = reader->buffers + 2;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szKey, 0,
-                      encryptAlgorithm, encryptKey);
+  // load key part
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0,
+                             encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // hdr
-  SDiskDataHdr hdr[1];
-  int32_t      size = 0;
+  // decode header
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  code = tGetDiskDataHdr(&br, &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  size += tGetDiskDataHdr(reader->config->bufArr[0] + size, hdr);
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
 
-  ASSERT(hdr->delimiter == TSDB_FILE_DLMT);
+  // set data container
+  tBlockDataReset(bData);
+  bData->suid = hdr.suid;
+  bData->uid = (sttBlk->suid == 0) ? sttBlk->minUid : 0;
+  bData->nRow = hdr.nRow;
 
-  bData->nRow = hdr->nRow;
-  bData->uid = hdr->uid;
+  // key part
+  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  ASSERT(br.offset == buffer0->size);
 
-  // uid
-  if (hdr->uid == 0) {
-    ASSERT(hdr->szUid);
-    code = tsdbDecmprData(reader->config->bufArr[0] + size, hdr->szUid, TSDB_DATA_TYPE_BIGINT, hdr->cmprAlg,
-                          (uint8_t **)&bData->aUid, sizeof(int64_t) * hdr->nRow, &reader->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    ASSERT(hdr->szUid == 0);
+  bool loadExtra = false;
+  for (int i = 0; i < ncid; i++) {
+    if (tBlockDataGetColData(bData, cids[i]) == NULL) {
+      loadExtra = true;
+      break;
+    }
   }
-  size += hdr->szUid;
 
-  // version
-  code = tsdbDecmprData(reader->config->bufArr[0] + size, hdr->szVer, TSDB_DATA_TYPE_BIGINT, hdr->cmprAlg,
-                        (uint8_t **)&bData->aVersion, sizeof(int64_t) * hdr->nRow, &reader->config->bufArr[1]);
+  if (!loadExtra) {
+    goto _exit;
+  }
+
+  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  // load SBlockCol part
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
+                             encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
-  size += hdr->szVer;
 
-  // ts
-  code = tsdbDecmprData(reader->config->bufArr[0] + size, hdr->szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr->cmprAlg,
-                        (uint8_t **)&bData->aTSKEY, sizeof(TSKEY) * hdr->nRow, &reader->config->bufArr[1]);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  size += hdr->szKey;
+  // load each column
+  SBlockCol blockCol = {
+      .cid = 0,
+  };
+  br = BUFFER_READER_INITIALIZER(0, buffer0);
+  for (int32_t i = 0; i < ncid; i++) {
+    int16_t cid = cids[i];
 
-  ASSERT(size == sttBlk->bInfo.szKey);
+    if (tBlockDataGetColData(bData, cid)) {  // already loaded
+      continue;
+    }
 
-  // other columns
-  if (bData->nColData > 0) {
-    if (hdr->szBlkCol > 0) {
-      code = tRealloc(&reader->config->bufArr[0], hdr->szBlkCol);
-      TSDB_CHECK_CODE(code, lino, _exit);
+    while (cid > blockCol.cid) {
+      if (br.offset >= buffer0->size) {
+        blockCol.cid = INT16_MAX;
+        break;
+      }
 
-      int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, reader->config->bufArr[0],
-                          hdr->szBlkCol, 0, encryptAlgorithm, encryptKey);
+      code = tGetBlockCol(&br, &blockCol);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    SBlockCol  bc[1] = {{.cid = 0}};
-    SBlockCol *blockCol = bc;
+    if (cid < blockCol.cid) {
+      const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
+      ASSERT(tcol);
+      SBlockCol none = {
+          .cid = cid,
+          .type = tcol->type,
+          .cflag = tcol->flags,
+          .flag = HAS_NONE,
+          .szOrigin = 0,
+          .szBitmap = 0,
+          .szOffset = 0,
+          .szValue = 0,
+          .offset = 0,
+      };
+      code = tBlockDataDecompressColData(&hdr, &none, &br, bData, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else if (cid == blockCol.cid) {
+      // load from file
+      tBufferClear(buffer1);
+      code =
+          tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
+                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0,
+                              encryptAlgorithm, encryptKey);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-    size = 0;
-    for (int32_t i = 0; i < bData->nColData; i++) {
-      SColData *colData = tBlockDataGetColDataByIdx(bData, i);
-
-      while (blockCol && blockCol->cid < colData->cid) {
-        if (size < hdr->szBlkCol) {
-          size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
-        } else {
-          ASSERT(size == hdr->szBlkCol);
-          blockCol = NULL;
-        }
-      }
-
-      if (blockCol == NULL || blockCol->cid > colData->cid) {
-        for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
-          code = tColDataAppendValue(colData, &COL_VAL_NONE(colData->cid, colData->type));
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      } else {
-        ASSERT(blockCol->type == colData->type);
-        ASSERT(blockCol->flag && blockCol->flag != HAS_NONE);
-
-        if (blockCol->flag == HAS_NULL) {
-          for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
-            code = tColDataAppendValue(colData, &COL_VAL_NULL(blockCol->cid, blockCol->type));
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-        } else {
-          int32_t size1 = blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
-
-          code = tRealloc(&reader->config->bufArr[1], size1);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-          char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-          code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr->szBlkCol + blockCol->offset,
-                              reader->config->bufArr[1], size1, 0, encryptAlgorithm, encryptKey);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          code = tsdbDecmprColData(reader->config->bufArr[1], blockCol, hdr->cmprAlg, hdr->nRow, colData,
-                                   &reader->config->bufArr[2]);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
+      // decode the buffer
+      SBufferReader br1 = BUFFER_READER_INITIALIZER(0, buffer1);
+      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
@@ -341,29 +332,35 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], tombBlk->dp->size);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  SBuffer *buffer0 = reader->buffers + 0;
+  SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(reader->fd, tombBlk->dp->offset, reader->config->bufArr[0], tombBlk->dp->size, 0, 
-                      encryptAlgorithm, encryptKey);
-  if (code) TSDB_CHECK_CODE(code, lino, _exit);
+  // load
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0,
+                             encryptAlgorithm, encryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  int64_t size = 0;
+  // decode
+  int32_t       size = 0;
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
   tTombBlockClear(tombBlock);
-  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->dataArr); ++i) {
-    code = tsdbDecmprData(reader->config->bufArr[0] + size, tombBlk->size[i], TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg,
-                          &reader->config->bufArr[1], sizeof(int64_t) * tombBlk->numRec, &reader->config->bufArr[2]);
+  tombBlock->numOfRecords = tombBlk->numRec;
+  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->buffers); ++i) {
+    SCompressInfo cinfo = {
+        .cmprAlg = tombBlk->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .originalSize = tombBlk->numRec * sizeof(int64_t),
+        .compressedSize = tombBlk->size[i],
+    };
+    code = tDecompressDataToBuffer(BR_PTR(&br), &cinfo, tombBlock->buffers + i, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND_BATCH(&tombBlock->dataArr[i], reader->config->bufArr[1], tombBlk->numRec);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    size += tombBlk->size[i];
+    br.offset += tombBlk->size[i];
   }
 
-  ASSERT(size == tombBlk->dp->size);
+  ASSERT(br.offset == tombBlk->dp->size);
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
@@ -375,30 +372,65 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tRealloc(&reader->config->bufArr[0], statisBlk->dp->size);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  SBuffer *buffer0 = reader->buffers + 0;
+  SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(reader->fd, statisBlk->dp->offset, reader->config->bufArr[0], statisBlk->dp->size, 0,
-                      encryptAlgorithm, encryptKey);
+  // load data
+  tBufferClear(buffer0);
+  code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0,
+                             encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  int64_t size = 0;
+  // decode data
   tStatisBlockClear(statisBlock);
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
-    code =
-        tsdbDecmprData(reader->config->bufArr[0] + size, statisBlk->size[i], TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
-                       &reader->config->bufArr[1], sizeof(int64_t) * statisBlk->numRec, &reader->config->bufArr[2]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  statisBlock->numOfPKs = statisBlk->numOfPKs;
+  statisBlock->numOfRecords = statisBlk->numRec;
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
+    SCompressInfo info = {
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .cmprAlg = statisBlk->cmprAlg,
+        .compressedSize = statisBlk->size[i],
+        .originalSize = statisBlk->numRec * sizeof(int64_t),
+    };
 
-    code = TARRAY2_APPEND_BATCH(statisBlock->dataArr + i, reader->config->bufArr[1], statisBlk->numRec);
+    code = tDecompressDataToBuffer(BR_PTR(&br), &info, &statisBlock->buffers[i], assist);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    size += statisBlk->size[i];
+    br.offset += statisBlk->size[i];
   }
 
-  ASSERT(size == statisBlk->dp->size);
+  if (statisBlk->numOfPKs > 0) {
+    SValueColumnCompressInfo firstKeyInfos[TD_MAX_PK_COLS];
+    SValueColumnCompressInfo lastKeyInfos[TD_MAX_PK_COLS];
+
+    // decode compress info
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    // decode value columns
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnDecompress(BR_PTR(&br), firstKeyInfos + i, &statisBlock->firstKeyPKs[i], assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      br.offset += (firstKeyInfos[i].dataCompressedSize + firstKeyInfos[i].offsetCompressedSize);
+    }
+
+    for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+      code = tValueColumnDecompress(BR_PTR(&br), &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      br.offset += (lastKeyInfos[i].dataCompressedSize + lastKeyInfos[i].offsetCompressedSize);
+    }
+  }
+
+  ASSERT(br.offset == buffer0->size);
 
 _exit:
   if (code) {
@@ -430,11 +462,12 @@ struct SSttFileWriter {
   // helper data
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
-  uint8_t *bufArr[5];
+  SBuffer  local[10];
+  SBuffer *buffers;
 };
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
-                                            TSttBlkArray *sttBlkArray, uint8_t **bufArr, SVersionRange *range,
+                                           TSttBlkArray *sttBlkArray, SBuffer *buffers, SVersionRange *range,
                                             int32_t encryptAlgorithm, char* encryptKey) {
   if (blockData->nRow == 0) return 0;
 
@@ -460,19 +493,17 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, i
 
   tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
 
-  int32_t sizeArr[5] = {0};
-  code = tCmprBlockData(blockData, cmprAlg, NULL, NULL, bufArr, sizeArr);
+  code = tBlockDataCompress(blockData, cmprAlg, buffers, buffers + 4);
   if (code) return code;
-
   sttBlk->bInfo.offset = *fileSize;
-  sttBlk->bInfo.szKey = sizeArr[2] + sizeArr[3];
-  sttBlk->bInfo.szBlock = sizeArr[0] + sizeArr[1] + sttBlk->bInfo.szKey;
+  sttBlk->bInfo.szKey = buffers[0].size + buffers[1].size;
+  sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
 
-  for (int32_t i = 3; i >= 0; i--) {
-    if (sizeArr[i]) {
-      code = tsdbWriteFile(fd, *fileSize, bufArr[i], sizeArr[i], encryptAlgorithm, encryptKey);
+  for (int i = 0; i < 4; i++) {
+    if (buffers[i].size) {
+      code = tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size, encryptAlgorithm, encryptKey);
       if (code) return code;
-      *fileSize += sizeArr[i];
+      *fileSize += buffers[i].size;
     }
   }
 
@@ -494,8 +525,8 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, writer->config->cmprAlg, &writer->file->size,
-                                      writer->sttBlkArray, writer->config->bufArr, &writer->ctx->range, encryptAlgorithm,
-                                      encryptKey);
+                                     writer->sttBlkArray, writer->buffers, &writer->ctx->range,
+                                      encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -506,49 +537,91 @@ _exit:
 }
 
 static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
-  if (STATIS_BLOCK_SIZE(writer->staticBlock) == 0) return 0;
+  if (writer->staticBlock->numOfRecords == 0) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;
 
-  SStatisBlk statisBlk[1] = {{
-      .dp[0] =
-          {
-              .offset = writer->file->size,
-              .size = 0,
-          },
-      .minTbid =
-          {
-              .suid = TARRAY2_FIRST(writer->staticBlock->suid),
-              .uid = TARRAY2_FIRST(writer->staticBlock->uid),
-          },
-      .maxTbid =
-          {
-              .suid = TARRAY2_LAST(writer->staticBlock->suid),
-              .uid = TARRAY2_LAST(writer->staticBlock->uid),
-          },
-      .numRec = STATIS_BLOCK_SIZE(writer->staticBlock),
-      .cmprAlg = writer->config->cmprAlg,
-  }};
+  SBuffer *buffer0 = writer->buffers + 0;
+  SBuffer *buffer1 = writer->buffers + 1;
+  SBuffer *assist = writer->buffers + 2;
+
+  STbStatisRecord record;
+  STbStatisBlock *statisBlock = writer->staticBlock;
+  SStatisBlk      statisBlk = {0};
+
+  statisBlk.dp->offset = writer->file->size;
+  statisBlk.dp->size = 0;
+  statisBlk.numRec = statisBlock->numOfRecords;
+  statisBlk.cmprAlg = writer->config->cmprAlg;
+  statisBlk.numOfPKs = statisBlock->numOfPKs;
+
+  tStatisBlockGet(statisBlock, 0, &record);
+  statisBlk.minTbid.suid = record.suid;
+  statisBlk.minTbid.uid = record.uid;
+
+  tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
+  statisBlk.maxTbid.suid = record.suid;
+  statisBlk.maxTbid.uid = record.uid;
+
+  // compress each column
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlk.size); i++) {
+    SCompressInfo info = {
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .cmprAlg = statisBlk.cmprAlg,
+        .originalSize = statisBlock->buffers[i].size,
+    };
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; i++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->staticBlock->dataArr + i),
-                        TARRAY2_DATA_LEN(&writer->staticBlock->dataArr[i]), TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &statisBlk->size[i], &writer->config->bufArr[1]);
+    tBufferClear(buffer0);
+    code = tCompressDataToBuffer(statisBlock->buffers[i].data, &info, buffer0, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], statisBlk->size[i], 
-                          encryptAlgorithm, encryptKey);
+    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, info.compressedSize,
+                        encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    statisBlk->dp->size += statisBlk->size[i];
-    writer->file->size += statisBlk->size[i];
+    statisBlk.size[i] = info.compressedSize;
+    statisBlk.dp->size += info.compressedSize;
+    writer->file->size += info.compressedSize;
   }
 
-  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, statisBlk);
+  // compress primary keys
+  if (statisBlk.numOfPKs > 0) {
+    SValueColumnCompressInfo compressInfo = {.cmprAlg = statisBlk.cmprAlg};
+
+    tBufferClear(buffer0);
+    tBufferClear(buffer1);
+
+    for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
+      code = tValueColumnCompress(&statisBlock->firstKeyPKs[i], &compressInfo, buffer1, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      code = tValueColumnCompressInfoEncode(&compressInfo, buffer0);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    for (int32_t i = 0; i < statisBlk.numOfPKs; i++) {
+      code = tValueColumnCompress(&statisBlock->lastKeyPKs[i], &compressInfo, buffer1, assist);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      code = tValueColumnCompressInfoEncode(&compressInfo, buffer0);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, buffer0->size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->file->size += buffer0->size;
+    statisBlk.dp->size += buffer0->size;
+
+    code = tsdbWriteFile(writer->fd, writer->file->size, buffer1->data, buffer1->size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->file->size += buffer1->size;
+    statisBlk.dp->size += buffer1->size;
+  }
+
+  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   tStatisBlockClear(writer->staticBlock);
@@ -570,8 +643,8 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
-                                writer->tombBlkArray, writer->config->bufArr, &writer->ctx->range, encryptAlgorithm,
-                                encryptKey);
+                                writer->tombBlkArray, writer->buffers, &writer->ctx->range,
+                                encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -678,7 +751,10 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   // set
   if (!writer->config->skmTb) writer->config->skmTb = writer->skmTb;
   if (!writer->config->skmRow) writer->config->skmRow = writer->skmRow;
-  if (!writer->config->bufArr) writer->config->bufArr = writer->bufArr;
+  writer->buffers = writer->config->buffers;
+  if (writer->buffers == NULL) {
+    writer->buffers = writer->local;
+  }
 
   writer->file[0] = (STFile){
       .type = TSDB_FTYPE_STT,
@@ -725,8 +801,8 @@ _exit:
 static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   ASSERT(writer->fd == NULL);
 
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->bufArr); ++i) {
-    tFree(writer->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->local); ++i) {
+    tBufferDestroy(writer->local + i);
   }
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
@@ -858,40 +934,24 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDBKEY key[1];
-  if (row->row.type == TSDBROW_ROW_FMT) {
-    key->ts = row->row.pTSRow->ts;
-    key->version = row->row.version;
-  } else {
-    key->ts = row->row.pBlockData->aTSKEY[row->row.iRow];
-    key->version = row->row.pBlockData->aVersion[row->row.iRow];
-  }
-
   if (writer->ctx->tbid->uid != row->uid) {
     writer->ctx->tbid->suid = row->suid;
     writer->ctx->tbid->uid = row->uid;
+  }
 
-    if (STATIS_BLOCK_SIZE(writer->staticBlock) >= writer->config->maxRow) {
+  STsdbRowKey key;
+  tsdbRowGetKey(&row->row, &key);
+
+  for (;;) {
+    code = tStatisBlockPut(writer->staticBlock, row, writer->config->maxRow);
+    if (code == TSDB_CODE_INVALID_PARA) {
       code = tsdbSttFileDoWriteStatisBlock(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
+      continue;
+    } else {
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-
-    STbStatisRecord record = {
-        .suid = row->suid,
-        .uid = row->uid,
-        .firstKey = key->ts,
-        .lastKey = key->ts,
-        .count = 1,
-    };
-    code = tStatisBlockPut(writer->staticBlock, &record);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    ASSERT(key->ts >= TARRAY2_LAST(writer->staticBlock->lastKey));
-
-    if (key->ts > TARRAY2_LAST(writer->staticBlock->lastKey)) {
-      TARRAY2_LAST(writer->staticBlock->count)++;
-      TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;
-    }
+    break;
   }
 
   if (row->row.type == TSDBROW_ROW_FMT) {
@@ -901,12 +961,13 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   // row to col conversion
-  if (key->version <= writer->config->compactVersion                               //
+  if (key.version <= writer->config->compactVersion                                //
       && writer->blockData->nRow > 0                                               //
-      && writer->blockData->aTSKEY[writer->blockData->nRow - 1] == key->ts         //
       && (writer->blockData->uid                                                   //
               ? writer->blockData->uid                                             //
               : writer->blockData->aUid[writer->blockData->nRow - 1]) == row->uid  //
+      && tsdbRowCompareWithoutVersion(&row->row,
+                                      &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
   ) {
     code = tBlockDataUpdateRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);

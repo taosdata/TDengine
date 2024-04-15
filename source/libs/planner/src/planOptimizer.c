@@ -1322,8 +1322,56 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
+static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sortOrder) {
+  if (sortOrder == ORDER_ASC) {
+    return false;
+  }
+
+  SNodeList* pFuncList = NULL;
+  switch (nodeType(pLogicNode)) {
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      pFuncList = ((SAggLogicNode*)pLogicNode)->pAggFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      pFuncList = ((SWindowLogicNode*)pLogicNode)->pFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      pFuncList = ((SPartitionLogicNode*)pLogicNode)->pAggFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      pFuncList = ((SIndefRowsFuncLogicNode*)pLogicNode)->pFuncs;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      pFuncList = ((SInterpFuncLogicNode*)pLogicNode)->pFuncs;
+      break;
+    default:
+      break;
+  }
+  
+  SNode* pNode = 0;
+  FOREACH(pNode, pFuncList) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    SFunctionNode* pFuncNode = (SFunctionNode*)pLogicNode;
+    if (pFuncNode->hasPk && 
+        (pFuncNode->funcType == FUNCTION_TYPE_DIFF || 
+         pFuncNode->funcType == FUNCTION_TYPE_DERIVATIVE || 
+         pFuncNode->funcType == FUNCTION_TYPE_IRATE ||
+         pFuncNode->funcType == FUNCTION_TYPE_TWA)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, EOrder sortOrder,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes) {
+  if (sortPriKeyOptHasUnsupportedPkFunc(pNode, sortOrder)) {
+    *pNotOptimize = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (NULL != pNode->pLimit || NULL != pNode->pSlimit) {
     *pNotOptimize = false;
     return TSDB_CODE_SUCCESS;
@@ -2754,6 +2802,7 @@ typedef struct SLastRowScanOptSetColDataTypeCxt {
   SNodeList* pLastCols;
   SNodeList* pOtherCols;
   int32_t    funcType;
+  int32_t    pkBytes;
 } SLastRowScanOptSetColDataTypeCxt;
 
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
@@ -2761,12 +2810,12 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
     SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
     if (pCxt->doAgg) {
       nodesListMakeAppend(&pCxt->pLastCols, pNode);
-      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
     } else {
       SNode* pCol = NULL;
       FOREACH(pCol, pCxt->pLastCols) {
         if (nodesEqualNode(pCol, pNode)) {
-          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType), pCxt->pkBytes);
           break;
         }
       }
@@ -2776,14 +2825,14 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase) {
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, SNodeList* pLastRowCols, bool erase, int32_t pkBytes) {
   SNode* pTarget = NULL;
   WHERE_EACH(pTarget, pTargets) {
     bool   found = false;
     SNode* pCol = NULL;
     FOREACH(pCol, pLastCols) {
       if (nodesEqualNode(pCol, pTarget)) {
-        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType));
+        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType), pkBytes);
         found = true;
         break;
       }
@@ -2890,6 +2939,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         return code;
       }
       cxt.funcType = pFunc->funcType;
+      cxt.pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
       // add duplicate cols which be removed for both last_row, last
       if (pAgg->hasLast && pAgg->hasLastRow) {
         if (QUERY_NODE_COLUMN == nodeType(pParamNode)) {
@@ -2947,6 +2997,15 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
       if (FUNCTION_TYPE_LAST == funcType) {
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
+        if (pFunc->hasPk) {
+          if (LIST_LENGTH(pFunc->pParameterList) != 2) {
+            planError("last func which has pk but its parameter list length is not %d", 2);
+            nodesClearList(cxt.pLastCols);
+            taosArrayDestroy(isDuplicateCol);
+            return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          }
+          nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 1), lastRowScanOptSetColDataType, &cxt);
+        }
       }
     } else {
       pNode = nodesListGetNode(pFunc->pParameterList, 0);
@@ -2968,9 +3027,9 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     cxt.funcType = FUNCTION_TYPE_CACHE_LAST;
-    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, pLastRowCols, true);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, pLastRowCols, true, cxt.pkBytes);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
-    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
     if (pPKTsCol && pScan->node.pTargets->length == 1) {
       // when select last(ts),ts from ..., we add another ts to targets

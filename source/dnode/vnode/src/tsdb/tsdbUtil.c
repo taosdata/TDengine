@@ -16,6 +16,8 @@
 #include "tdataformat.h"
 #include "tsdb.h"
 
+static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist);
+
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
   pMapData->nItem = 0;
@@ -380,47 +382,44 @@ int32_t tGetSttBlk(uint8_t *p, void *ph) {
 }
 
 // SBlockCol ======================================================
-int32_t tPutBlockCol(uint8_t *p, void *ph) {
-  int32_t    n = 0;
-  SBlockCol *pBlockCol = (SBlockCol *)ph;
+int32_t tPutBlockCol(SBuffer *buffer, const SBlockCol *pBlockCol) {
+  int32_t code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
-  n += tPutI16v(p ? p + n : p, pBlockCol->cid);
-  n += tPutI8(p ? p + n : p, pBlockCol->type);
-  n += tPutI8(p ? p + n : p, pBlockCol->smaOn);
-  n += tPutI8(p ? p + n : p, pBlockCol->flag);
-  n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
+  if ((code = tBufferPutI16v(buffer, pBlockCol->cid))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->type))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->cflag))) return code;
+  if ((code = tBufferPutI8(buffer, pBlockCol->flag))) return code;
+  if ((code = tBufferPutI32v(buffer, pBlockCol->szOrigin))) return code;
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szBitmap))) return code;
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szOffset);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szOffset))) return code;
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tPutI32v(p ? p + n : p, pBlockCol->szValue);
+      if ((code = tBufferPutI32v(buffer, pBlockCol->szValue))) return code;
     }
 
-    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
+    if ((code = tBufferPutI32v(buffer, pBlockCol->offset))) return code;
   }
 
-_exit:
-  return n;
+  return 0;
 }
 
-int32_t tGetBlockCol(uint8_t *p, void *ph) {
-  int32_t    n = 0;
-  SBlockCol *pBlockCol = (SBlockCol *)ph;
+int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol) {
+  int32_t code;
 
-  n += tGetI16v(p + n, &pBlockCol->cid);
-  n += tGetI8(p + n, &pBlockCol->type);
-  n += tGetI8(p + n, &pBlockCol->smaOn);
-  n += tGetI8(p + n, &pBlockCol->flag);
-  n += tGetI32v(p + n, &pBlockCol->szOrigin);
+  if ((code = tBufferGetI16v(br, &pBlockCol->cid))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->type))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->cflag))) return code;
+  if ((code = tBufferGetI8(br, &pBlockCol->flag))) return code;
+  if ((code = tBufferGetI32v(br, &pBlockCol->szOrigin))) return code;
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
@@ -431,21 +430,21 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 
   if (pBlockCol->flag != HAS_NULL) {
     if (pBlockCol->flag != HAS_VALUE) {
-      n += tGetI32v(p + n, &pBlockCol->szBitmap);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szBitmap))) return code;
     }
 
     if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tGetI32v(p + n, &pBlockCol->szOffset);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szOffset))) return code;
     }
 
     if (pBlockCol->flag != (HAS_NULL | HAS_NONE)) {
-      n += tGetI32v(p + n, &pBlockCol->szValue);
+      if ((code = tBufferGetI32v(br, &pBlockCol->szValue))) return code;
     }
 
-    n += tGetI32v(p + n, &pBlockCol->offset);
+    if ((code = tBufferGetI32v(br, &pBlockCol->offset))) return code;
   }
 
-  return n;
+  return 0;
 }
 
 #ifdef BUILD_NO_CALL
@@ -589,9 +588,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   if (pRow->type == TSDBROW_ROW_FMT) {
     tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    SColData *pColData;
-
-    tBlockDataGetColData(pRow->pBlockData, pTColumn->colId, &pColData);
+    SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
 
     if (pColData) {
       tColDataGetValue(pColData, pRow->iRow, pColVal);
@@ -603,8 +600,63 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 }
 
-int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
-  return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
+void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
+  if (row->type == TSDBROW_ROW_FMT) {
+    key->version = row->version;
+    tRowGetKey(row->pTSRow, &key->key);
+  } else {
+    key->version = row->pBlockData->aVersion[row->iRow];
+    tColRowGetKey(row->pBlockData, row->iRow, &key->key);
+  }
+}
+
+void tColRowGetKey(SBlockData* pBlock, int32_t irow, SRowKey* key) {
+  key->ts = pBlock->aTSKEY[irow];
+  key->numOfPKs = 0;
+
+  for (int32_t i = 0; i < pBlock->nColData; i++) {
+    SColData *pColData = &pBlock->aColData[i];
+    if (pColData->cflag & COL_IS_KEY) {
+      SColVal cv;
+      tColDataGetValue(pColData, irow, &cv);
+      ASSERT(COL_VAL_IS_VALUE(&cv));
+      key->pks[key->numOfPKs] = cv.value;
+      key->numOfPKs++;
+    } else {
+      break;
+    }
+  }
+}
+
+int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
+  int32_t c = tRowKeyCompare(&key1->key, &key2->key);
+
+  if (c) {
+    return c;
+  }
+
+  if (key1->version < key2->version) {
+    return -1;
+  } else if (key1->version > key2->version) {
+    return 1;
+  }
+  return 0;
+}
+
+int32_t tsdbRowCompare(const void *p1, const void *p2) {
+  STsdbRowKey key1, key2;
+
+  tsdbRowGetKey((TSDBROW *)p1, &key1);
+  tsdbRowGetKey((TSDBROW *)p2, &key2);
+  return tsdbRowKeyCmpr(&key1, &key2);
+}
+
+int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2) {
+  STsdbRowKey key1, key2;
+
+  tsdbRowGetKey((TSDBROW *)p1, &key1);
+  tsdbRowGetKey((TSDBROW *)p2, &key2);
+  return tRowKeyCompare(&key1.key, &key2.key);
 }
 
 // STSDBRowIter ======================================================
@@ -636,8 +688,9 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
     if (pIter->iColData == 0) {
-      pIter->cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP,
-                                (SValue){.val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]});
+      pIter->cv = COL_VAL_VALUE(
+          PRIMARYKEY_TIMESTAMP_COL_ID,
+          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
       ++pIter->iColData;
       return &pIter->cv;
     }
@@ -674,11 +727,10 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
     ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       return code;
-      //      goto _exit;
     }
 
     // other
@@ -694,7 +746,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
-      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
+      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
         uint8_t *pVal = pColVal->value.pData;
 
         pColVal->value.pData = NULL;
@@ -738,7 +790,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
       if (key.version > pMerger->version) {
         if (!COL_VAL_IS_NONE(pColVal)) {
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
             if (!COL_VAL_IS_NULL(pColVal)) {
               code = tRealloc(&pTColVal->value.pData, pColVal->value.nData);
@@ -760,7 +812,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       } else if (key.version < pMerger->version) {
         SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
         if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->type)) {
+          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
 
@@ -796,7 +848,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
 void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -808,7 +860,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -1140,8 +1192,7 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
         continue;
       }
 
-      tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type,
-                   (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+      tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type, pTColumn->flags);
 
       iColumn++;
       pTColumn = (iColumn < pTSchema->numOfCols) ? &pTSchema->columns[iColumn] : NULL;
@@ -1152,8 +1203,7 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
 
     for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
       STColumn *pTColumn = &pTSchema->columns[iColData + 1];
-      tColDataInit(&pBlockData->aColData[iColData], pTColumn->colId, pTColumn->type,
-                   (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+      tColDataInit(&pBlockData->aColData[iColData], pTColumn->colId, pTColumn->type, pTColumn->flags);
     }
   }
 
@@ -1179,6 +1229,24 @@ void tBlockDataClear(SBlockData *pBlockData) {
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     tColDataClear(tBlockDataGetColDataByIdx(pBlockData, iColData));
   }
+}
+
+int32_t tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData) {
+  ASSERT(pBlockData->nColData == 0 || pBlockData->aColData[pBlockData->nColData - 1].cid < cid);
+
+  SColData *newColData = taosMemoryRealloc(pBlockData->aColData, sizeof(SColData) * (pBlockData->nColData + 1));
+  if (newColData == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pBlockData->aColData = newColData;
+  pBlockData->nColData++;
+
+  *ppColData = &pBlockData->aColData[pBlockData->nColData - 1];
+  memset(*ppColData, 0, sizeof(SColData));
+  tColDataInit(*ppColData, cid, type, cflag);
+
+  return 0;
 }
 
 /* flag > 0: forward update
@@ -1303,7 +1371,7 @@ int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 }
 #endif
 
-void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {
+SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid) {
   ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
   int32_t lidx = 0;
   int32_t ridx = pBlockData->nColData - 1;
@@ -1314,8 +1382,7 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
     int32_t   c = (pColData->cid == cid) ? 0 : ((pColData->cid > cid) ? 1 : -1);
 
     if (c == 0) {
-      *ppColData = pColData;
-      return;
+      return pColData;
     } else if (c < 0) {
       lidx = midx + 1;
     } else {
@@ -1323,170 +1390,112 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
     }
   }
 
-  *ppColData = NULL;
+  return NULL;
 }
 
-int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
-                       int32_t aBufN[]) {
+/* buffers[0]: SDiskDataHdr
+ * buffers[1]: key part: uid + version + ts + primary keys
+ * buffers[2]: SBlockCol part
+ * buffers[3]: regular column part
+ */
+int32_t tBlockDataCompress(SBlockData *bData, int8_t cmprAlg, SBuffer *buffers, SBuffer *assist) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
-                      .fmtVer = 0,
-                      .suid = pBlockData->suid,
-                      .uid = pBlockData->uid,
-                      .nRow = pBlockData->nRow,
-                      .cmprAlg = cmprAlg};
+  SDiskDataHdr hdr = {
+      .delimiter = TSDB_FILE_DLMT,
+      .fmtVer = 1,
+      .suid = bData->suid,
+      .uid = bData->uid,
+      .szUid = 0,     // filled by compress key
+      .szVer = 0,     // filled by compress key
+      .szKey = 0,     // filled by compress key
+      .szBlkCol = 0,  // filled by this func
+      .nRow = bData->nRow,
+      .cmprAlg = cmprAlg,
+      .numOfPKs = 0,  // filled by compress key
+  };
 
-  // encode =================
-  // columns AND SBlockCol
-  aBufN[0] = 0;
-  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+  // Key part
+  tBufferClear(&buffers[1]);
+  code = tBlockDataCompressKeyPart(bData, &hdr, &buffers[1], assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-    ASSERT(pColData->flag);
+  // Regulart column part
+  tBufferClear(&buffers[2]);
+  tBufferClear(&buffers[3]);
+  for (int i = 0; i < bData->nColData; i++) {
+    SColData *colData = tBlockDataGetColDataByIdx(bData, i);
 
-    if (pColData->flag == HAS_NONE) continue;
-
-    SBlockCol blockCol = {.cid = pColData->cid,
-                          .type = pColData->type,
-                          .smaOn = pColData->smaOn,
-                          .flag = pColData->flag,
-                          .szOrigin = pColData->nData};
-
-    if (pColData->flag != HAS_NULL) {
-      code = tsdbCmprColData(pColData, cmprAlg, &blockCol, &aBuf[0], aBufN[0], &aBuf[2]);
-      if (code) goto _exit;
-
-      blockCol.offset = aBufN[0];
-      aBufN[0] = aBufN[0] + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue;
+    if (colData->cflag & COL_IS_KEY) {
+      continue;
+    }
+    if (colData->flag == HAS_NONE) {
+      continue;
     }
 
-    code = tRealloc(&aBuf[1], hdr.szBlkCol + tPutBlockCol(NULL, &blockCol));
-    if (code) goto _exit;
-    hdr.szBlkCol += tPutBlockCol(aBuf[1] + hdr.szBlkCol, &blockCol);
+    SColDataCompressInfo cinfo = {
+        .cmprAlg = cmprAlg,
+    };
+    int32_t offset = buffers[3].size;
+    code = tColDataCompress(colData, &cinfo, &buffers[3], assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    SBlockCol blockCol = (SBlockCol){
+        .cid = cinfo.columnId,
+        .type = cinfo.dataType,
+        .cflag = cinfo.columnFlag,
+        .flag = cinfo.flag,
+        .szOrigin = cinfo.dataOriginalSize,
+        .szBitmap = cinfo.bitmapCompressedSize,
+        .szOffset = cinfo.offsetCompressedSize,
+        .szValue = cinfo.dataCompressedSize,
+        .offset = offset,
+    };
+
+    code = tPutBlockCol(&buffers[2], &blockCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
+  hdr.szBlkCol = buffers[2].size;
 
-  // SBlockCol
-  aBufN[1] = hdr.szBlkCol;
-
-  // uid + version + tskey
-  aBufN[2] = 0;
-  if (pBlockData->uid == 0) {
-    code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                        &aBuf[2], aBufN[2], &hdr.szUid, &aBuf[3]);
-    if (code) goto _exit;
-  }
-  aBufN[2] += hdr.szUid;
-
-  code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
-                      cmprAlg, &aBuf[2], aBufN[2], &hdr.szVer, &aBuf[3]);
-  if (code) goto _exit;
-  aBufN[2] += hdr.szVer;
-
-  code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
-                      cmprAlg, &aBuf[2], aBufN[2], &hdr.szKey, &aBuf[3]);
-  if (code) goto _exit;
-  aBufN[2] += hdr.szKey;
-
-  // hdr
-  aBufN[3] = tPutDiskDataHdr(NULL, &hdr);
-  code = tRealloc(&aBuf[3], aBufN[3]);
-  if (code) goto _exit;
-  tPutDiskDataHdr(aBuf[3], &hdr);
-
-  // aggragate
-  if (ppOut) {
-    *szOut = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
-    code = tRealloc(ppOut, *szOut);
-    if (code) goto _exit;
-
-    memcpy(*ppOut, aBuf[3], aBufN[3]);
-    memcpy(*ppOut + aBufN[3], aBuf[2], aBufN[2]);
-    if (aBufN[1]) {
-      memcpy(*ppOut + aBufN[3] + aBufN[2], aBuf[1], aBufN[1]);
-    }
-    if (aBufN[0]) {
-      memcpy(*ppOut + aBufN[3] + aBufN[2] + aBufN[1], aBuf[0], aBufN[0]);
-    }
-  }
+  // SDiskDataHdr part
+  tBufferClear(&buffers[0]);
+  code = tPutDiskDataHdr(&buffers[0], &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   return code;
 }
 
-int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]) {
-  int32_t code = 0;
-
-  tBlockDataReset(pBlockData);
-
-  int32_t      n = 0;
-  SDiskDataHdr hdr = {0};
+int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SDiskDataHdr  hdr = {0};
+  SCompressInfo cinfo;
 
   // SDiskDataHdr
-  n += tGetDiskDataHdr(pIn + n, &hdr);
-  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  code = tGetDiskDataHdr(br, &hdr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  pBlockData->suid = hdr.suid;
-  pBlockData->uid = hdr.uid;
-  pBlockData->nRow = hdr.nRow;
+  tBlockDataReset(blockData);
+  blockData->suid = hdr.suid;
+  blockData->uid = hdr.uid;
+  blockData->nRow = hdr.nRow;
 
-  // uid
-  if (hdr.uid == 0) {
-    ASSERT(hdr.szUid);
-    code = tsdbDecmprData(pIn + n, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aUid,
-                          sizeof(int64_t) * hdr.nRow, &aBuf[0]);
-    if (code) goto _exit;
-  } else {
-    ASSERT(!hdr.szUid);
-  }
-  n += hdr.szUid;
+  // Key part
+  code = tBlockDataDecompressKeyPart(&hdr, br, blockData, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  // version
-  code = tsdbDecmprData(pIn + n, hdr.szVer, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aVersion,
-                        sizeof(int64_t) * hdr.nRow, &aBuf[0]);
-  if (code) goto _exit;
-  n += hdr.szVer;
+  // Column part
+  SBufferReader br2 = *br;
+  br->offset += hdr.szBlkCol;
+  for (uint32_t startOffset = br2.offset; br2.offset - startOffset < hdr.szBlkCol;) {
+    SBlockCol blockCol;
 
-  // TSKEY
-  code = tsdbDecmprData(pIn + n, hdr.szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr.cmprAlg, (uint8_t **)&pBlockData->aTSKEY,
-                        sizeof(TSKEY) * hdr.nRow, &aBuf[0]);
-  if (code) goto _exit;
-  n += hdr.szKey;
-
-  // loop to decode each column data
-  if (hdr.szBlkCol == 0) goto _exit;
-
-  int32_t nColData = 0;
-  int32_t nt = 0;
-  while (nt < hdr.szBlkCol) {
-    SBlockCol blockCol = {0};
-    nt += tGetBlockCol(pIn + n + nt, &blockCol);
-    ++nColData;
-  }
-  ASSERT(nt == hdr.szBlkCol);
-
-  code = tBlockDataAdjustColData(pBlockData, nColData);
-  if (code) goto _exit;
-
-  nt = 0;
-  int32_t iColData = 0;
-  while (nt < hdr.szBlkCol) {
-    SBlockCol blockCol = {0};
-    nt += tGetBlockCol(pIn + n + nt, &blockCol);
-
-    SColData *pColData = &pBlockData->aColData[iColData++];
-
-    tColDataInit(pColData, blockCol.cid, blockCol.type, blockCol.smaOn);
-    if (blockCol.flag == HAS_NULL) {
-      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
-        code = tColDataAppendValue(pColData, &COL_VAL_NULL(blockCol.cid, blockCol.type));
-        if (code) goto _exit;
-      }
-    } else {
-      code = tsdbDecmprColData(pIn + n + hdr.szBlkCol + blockCol.offset, &blockCol, hdr.cmprAlg, hdr.nRow, pColData,
-                               &aBuf[0]);
-      if (code) goto _exit;
-    }
+    code = tGetBlockCol(&br2, &blockCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -1494,218 +1503,254 @@ _exit:
 }
 
 // SDiskDataHdr ==============================
-int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
-  int32_t n = 0;
+int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr) {
+  int32_t code;
 
-  n += tPutU32(p ? p + n : p, pHdr->delimiter);
-  n += tPutU32v(p ? p + n : p, pHdr->fmtVer);
-  n += tPutI64(p ? p + n : p, pHdr->suid);
-  n += tPutI64(p ? p + n : p, pHdr->uid);
-  n += tPutI32v(p ? p + n : p, pHdr->szUid);
-  n += tPutI32v(p ? p + n : p, pHdr->szVer);
-  n += tPutI32v(p ? p + n : p, pHdr->szKey);
-  n += tPutI32v(p ? p + n : p, pHdr->szBlkCol);
-  n += tPutI32v(p ? p + n : p, pHdr->nRow);
-  n += tPutI8(p ? p + n : p, pHdr->cmprAlg);
+  if ((code = tBufferPutU32(buffer, pHdr->delimiter))) return code;
+  if ((code = tBufferPutU32v(buffer, pHdr->fmtVer))) return code;
+  if ((code = tBufferPutI64(buffer, pHdr->suid))) return code;
+  if ((code = tBufferPutI64(buffer, pHdr->uid))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szUid))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szVer))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szKey))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->szBlkCol))) return code;
+  if ((code = tBufferPutI32v(buffer, pHdr->nRow))) return code;
+  if ((code = tBufferPutI8(buffer, pHdr->cmprAlg))) return code;
+  if (pHdr->fmtVer == 1) {
+    if ((code = tBufferPutI8(buffer, pHdr->numOfPKs))) return code;
+    for (int i = 0; i < pHdr->numOfPKs; i++) {
+      if ((code = tPutBlockCol(buffer, &pHdr->primaryBlockCols[i]))) return code;
+    }
+  }
 
-  return n;
+  return 0;
 }
 
-int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
-  int32_t       n = 0;
-  SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
+int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
+  int32_t code;
 
-  n += tGetU32(p + n, &pHdr->delimiter);
-  n += tGetU32v(p + n, &pHdr->fmtVer);
-  n += tGetI64(p + n, &pHdr->suid);
-  n += tGetI64(p + n, &pHdr->uid);
-  n += tGetI32v(p + n, &pHdr->szUid);
-  n += tGetI32v(p + n, &pHdr->szVer);
-  n += tGetI32v(p + n, &pHdr->szKey);
-  n += tGetI32v(p + n, &pHdr->szBlkCol);
-  n += tGetI32v(p + n, &pHdr->nRow);
-  n += tGetI8(p + n, &pHdr->cmprAlg);
+  if ((code = tBufferGetU32(br, &pHdr->delimiter))) return code;
+  if ((code = tBufferGetU32v(br, &pHdr->fmtVer))) return code;
+  if ((code = tBufferGetI64(br, &pHdr->suid))) return code;
+  if ((code = tBufferGetI64(br, &pHdr->uid))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szUid))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szVer))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szKey))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->szBlkCol))) return code;
+  if ((code = tBufferGetI32v(br, &pHdr->nRow))) return code;
+  if ((code = tBufferGetI8(br, &pHdr->cmprAlg))) return code;
+  if (pHdr->fmtVer == 1) {
+    if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
+    for (int i = 0; i < pHdr->numOfPKs; i++) {
+      if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i]))) return code;
+    }
+  } else {
+    pHdr->numOfPKs = 0;
+  }
 
-  return n;
+  return 0;
 }
 
 // ALGORITHM ==============================
-int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
-  int32_t n = 0;
+int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
+  int32_t code;
 
-  n += tPutI16v(p ? p + n : p, pColAgg->colId);
-  n += tPutI16v(p ? p + n : p, pColAgg->numOfNull);
-  n += tPutI64(p ? p + n : p, pColAgg->sum);
-  n += tPutI64(p ? p + n : p, pColAgg->max);
-  n += tPutI64(p ? p + n : p, pColAgg->min);
+  if ((code = tBufferPutI16v(buffer, pColAgg->colId))) return code;
+  if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
+  if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
 
-  return n;
+  return 0;
 }
 
-int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
-  int32_t n = 0;
+int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
+  int32_t code;
 
-  n += tGetI16v(p + n, &pColAgg->colId);
-  n += tGetI16v(p + n, &pColAgg->numOfNull);
-  n += tGetI64(p + n, &pColAgg->sum);
-  n += tGetI64(p + n, &pColAgg->max);
-  n += tGetI64(p + n, &pColAgg->min);
+  if ((code = tBufferGetI16v(br, &pColAgg->colId))) return code;
+  if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
+  if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
 
-  return n;
+  return 0;
 }
 
-int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
-                     int32_t *szOut, uint8_t **ppBuf) {
-  int32_t code = 0;
+static int32_t tBlockDataCompressKeyPart(SBlockData *bData, SDiskDataHdr *hdr, SBuffer *buffer, SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SCompressInfo cinfo;
 
-  ASSERT(szIn > 0 && ppOut);
+  // uid
+  if (bData->uid == 0) {
+    cinfo = (SCompressInfo){
+        .cmprAlg = hdr->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .originalSize = sizeof(int64_t) * bData->nRow,
+    };
+    code = tCompressDataToBuffer(bData->aUid, &cinfo, buffer, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    hdr->szUid = cinfo.compressedSize;
+  }
 
-  if (cmprAlg == NO_COMPRESSION) {
-    code = tRealloc(ppOut, nOut + szIn);
-    if (code) goto _exit;
+  // version
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_BIGINT,
+      .originalSize = sizeof(int64_t) * bData->nRow,
+  };
+  code = tCompressDataToBuffer((uint8_t *)bData->aVersion, &cinfo, buffer, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  hdr->szVer = cinfo.compressedSize;
 
-    memcpy(*ppOut + nOut, pIn, szIn);
-    *szOut = szIn;
-  } else {
-    int32_t size = szIn + COMP_OVERFLOW_BYTES;
+  // ts
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_TIMESTAMP,
+      .originalSize = sizeof(TSKEY) * bData->nRow,
+  };
+  code = tCompressDataToBuffer((uint8_t *)bData->aTSKEY, &cinfo, buffer, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  hdr->szKey = cinfo.compressedSize;
 
-    code = tRealloc(ppOut, nOut + size);
-    if (code) goto _exit;
+  // primary keys
+  for (hdr->numOfPKs = 0; hdr->numOfPKs < bData->nColData; hdr->numOfPKs++) {
+    ASSERT(hdr->numOfPKs <= TD_MAX_PK_COLS);
 
-    if (cmprAlg == TWO_STAGE_COMP) {
-      ASSERT(ppBuf);
-      code = tRealloc(ppBuf, size);
-      if (code) goto _exit;
+    SBlockCol *blockCol = &hdr->primaryBlockCols[hdr->numOfPKs];
+    SColData  *colData = tBlockDataGetColDataByIdx(bData, hdr->numOfPKs);
+
+    if ((colData->cflag & COL_IS_KEY) == 0) {
+      break;
     }
 
-    *szOut =
-        tDataTypes[type].compFunc(pIn, szIn, szIn / tDataTypes[type].bytes, *ppOut + nOut, size, cmprAlg, *ppBuf, size);
-    if (*szOut <= 0) {
-      code = TSDB_CODE_COMPRESS_ERROR;
-      goto _exit;
-    }
+    SColDataCompressInfo info = {
+        .cmprAlg = hdr->cmprAlg,
+    };
+    code = tColDataCompress(colData, &info, buffer, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    *blockCol = (SBlockCol){
+        .cid = info.columnId,
+        .type = info.dataType,
+        .cflag = info.columnFlag,
+        .flag = info.flag,
+        .szOrigin = info.dataOriginalSize,
+        .szBitmap = info.bitmapCompressedSize,
+        .szOffset = info.offsetCompressedSize,
+        .szValue = info.dataCompressedSize,
+        .offset = 0,
+    };
   }
 
 _exit:
   return code;
 }
 
-int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t szOut,
-                       uint8_t **ppBuf) {
+int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
+                                    SBlockData *blockData, SBuffer *assist) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  code = tRealloc(ppOut, szOut);
-  if (code) goto _exit;
+  SColData *colData;
 
-  if (cmprAlg == NO_COMPRESSION) {
-    ASSERT(szIn == szOut);
-    memcpy(*ppOut, pIn, szOut);
-  } else {
-    if (cmprAlg == TWO_STAGE_COMP) {
-      code = tRealloc(ppBuf, szOut + COMP_OVERFLOW_BYTES);
-      if (code) goto _exit;
-    }
+  code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-    int32_t size = tDataTypes[type].decompFunc(pIn, szIn, szOut / tDataTypes[type].bytes, *ppOut, szOut, cmprAlg,
-                                               *ppBuf, szOut + COMP_OVERFLOW_BYTES);
-    if (size <= 0) {
-      code = TSDB_CODE_COMPRESS_ERROR;
-      goto _exit;
-    }
+  // ASSERT(blockCol->flag != HAS_NONE);
 
-    ASSERT(size == szOut);
+  SColDataCompressInfo info = {
+      .cmprAlg = hdr->cmprAlg,
+      .columnFlag = blockCol->cflag,
+      .flag = blockCol->flag,
+      .dataType = blockCol->type,
+      .columnId = blockCol->cid,
+      .numOfData = hdr->nRow,
+      .bitmapOriginalSize = 0,
+      .bitmapCompressedSize = blockCol->szBitmap,
+      .offsetOriginalSize = blockCol->szOffset ? sizeof(int32_t) * hdr->nRow : 0,
+      .offsetCompressedSize = blockCol->szOffset,
+      .dataOriginalSize = blockCol->szOrigin,
+      .dataCompressedSize = blockCol->szValue,
+  };
+
+  switch (blockCol->flag) {
+    case (HAS_NONE | HAS_NULL | HAS_VALUE):
+      info.bitmapOriginalSize = BIT2_SIZE(hdr->nRow);
+      break;
+    case (HAS_NONE | HAS_NULL):
+    case (HAS_NONE | HAS_VALUE):
+    case (HAS_NULL | HAS_VALUE):
+      info.bitmapOriginalSize = BIT1_SIZE(hdr->nRow);
+      break;
   }
+
+  code = tColDataDecompress(BR_PTR(br), &info, colData, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
 
 _exit:
   return code;
 }
 
-int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int32_t nOut,
-                        uint8_t **ppBuf) {
-  int32_t code = 0;
+int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
+                                    SBuffer *assist) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SCompressInfo cinfo;
 
-  ASSERT(pColData->flag && (pColData->flag != HAS_NONE) && (pColData->flag != HAS_NULL));
+  // uid
+  if (hdr->szUid > 0) {
+    cinfo = (SCompressInfo){
+        .cmprAlg = hdr->cmprAlg,
+        .dataType = TSDB_DATA_TYPE_BIGINT,
+        .compressedSize = hdr->szUid,
+        .originalSize = sizeof(int64_t) * hdr->nRow,
+    };
 
-  pBlockCol->szBitmap = 0;
-  pBlockCol->szOffset = 0;
-  pBlockCol->szValue = 0;
-
-  int32_t size = 0;
-  // bitmap
-  if (pColData->flag != HAS_VALUE) {
-    int32_t szBitMap;
-    if (pColData->flag == (HAS_VALUE | HAS_NULL | HAS_NONE)) {
-      szBitMap = BIT2_SIZE(pColData->nVal);
-    } else {
-      szBitMap = BIT1_SIZE(pColData->nVal);
-    }
-
-    code = tsdbCmprData(pColData->pBitMap, szBitMap, TSDB_DATA_TYPE_TINYINT, cmprAlg, ppOut, nOut + size,
-                        &pBlockCol->szBitmap, ppBuf);
-    if (code) goto _exit;
+    code = tRealloc((uint8_t **)&blockData->aUid, cinfo.originalSize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tDecompressData(BR_PTR(br), &cinfo, blockData->aUid, cinfo.originalSize, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    br->offset += cinfo.compressedSize;
   }
-  size += pBlockCol->szBitmap;
 
-  // offset
-  if (IS_VAR_DATA_TYPE(pColData->type) && pColData->flag != (HAS_NULL | HAS_NONE)) {
-    code = tsdbCmprData((uint8_t *)pColData->aOffset, sizeof(int32_t) * pColData->nVal, TSDB_DATA_TYPE_INT, cmprAlg,
-                        ppOut, nOut + size, &pBlockCol->szOffset, ppBuf);
-    if (code) goto _exit;
+  // version
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_BIGINT,
+      .compressedSize = hdr->szVer,
+      .originalSize = sizeof(int64_t) * hdr->nRow,
+  };
+  code = tRealloc((uint8_t **)&blockData->aVersion, cinfo.originalSize);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  code = tDecompressData(BR_PTR(br), &cinfo, blockData->aVersion, cinfo.originalSize, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += cinfo.compressedSize;
+
+  // ts
+  cinfo = (SCompressInfo){
+      .cmprAlg = hdr->cmprAlg,
+      .dataType = TSDB_DATA_TYPE_TIMESTAMP,
+      .compressedSize = hdr->szKey,
+      .originalSize = sizeof(TSKEY) * hdr->nRow,
+  };
+  code = tRealloc((uint8_t **)&blockData->aTSKEY, cinfo.originalSize);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  code = tDecompressData(BR_PTR(br), &cinfo, blockData->aTSKEY, cinfo.originalSize, assist);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  br->offset += cinfo.compressedSize;
+
+  // primary keys
+  for (int i = 0; i < hdr->numOfPKs; i++) {
+    const SBlockCol *blockCol = &hdr->primaryBlockCols[i];
+
+    ASSERT(blockCol->flag == HAS_VALUE);
+    ASSERT(blockCol->cflag & COL_IS_KEY);
+
+    code = tBlockDataDecompressColData(hdr, blockCol, br, blockData, assist);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  size += pBlockCol->szOffset;
-
-  // value
-  if ((pColData->flag != (HAS_NULL | HAS_NONE)) && pColData->nData) {
-    code = tsdbCmprData((uint8_t *)pColData->pData, pColData->nData, pColData->type, cmprAlg, ppOut, nOut + size,
-                        &pBlockCol->szValue, ppBuf);
-    if (code) goto _exit;
-  }
-  size += pBlockCol->szValue;
-
-_exit:
-  return code;
-}
-
-int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
-                          uint8_t **ppBuf) {
-  int32_t code = 0;
-
-  ASSERT(pColData->cid == pBlockCol->cid);
-  ASSERT(pColData->type == pBlockCol->type);
-  pColData->smaOn = pBlockCol->smaOn;
-  pColData->flag = pBlockCol->flag;
-  pColData->nVal = nVal;
-  pColData->nData = pBlockCol->szOrigin;
-
-  uint8_t *p = pIn;
-  // bitmap
-  if (pBlockCol->szBitmap) {
-    int32_t szBitMap;
-    if (pColData->flag == (HAS_VALUE | HAS_NULL | HAS_NONE)) {
-      szBitMap = BIT2_SIZE(pColData->nVal);
-    } else {
-      szBitMap = BIT1_SIZE(pColData->nVal);
-    }
-
-    code = tsdbDecmprData(p, pBlockCol->szBitmap, TSDB_DATA_TYPE_TINYINT, cmprAlg, &pColData->pBitMap, szBitMap, ppBuf);
-    if (code) goto _exit;
-  }
-  p += pBlockCol->szBitmap;
-
-  // offset
-  if (pBlockCol->szOffset) {
-    code = tsdbDecmprData(p, pBlockCol->szOffset, TSDB_DATA_TYPE_INT, cmprAlg, (uint8_t **)&pColData->aOffset,
-                          sizeof(int32_t) * pColData->nVal, ppBuf);
-    if (code) goto _exit;
-  }
-  p += pBlockCol->szOffset;
-
-  // value
-  if (pBlockCol->szValue) {
-    code = tsdbDecmprData(p, pBlockCol->szValue, pColData->type, cmprAlg, &pColData->pData, pColData->nData, ppBuf);
-    if (code) goto _exit;
-  }
-  p += pBlockCol->szValue;
 
 _exit:
   return code;
