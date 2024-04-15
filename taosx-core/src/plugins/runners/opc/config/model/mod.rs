@@ -129,9 +129,9 @@ impl PointConfig {
         row_index: usize,
     ) -> anyhow::Result<Self> {
         let code = parse_tbname(header, row)?;
+        let value_type = parse_type(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
-        let value_type = parse_type(header, row);
 
         Ok(PointConfig {
             row_index,
@@ -162,24 +162,41 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
         value.to_string()
     };
 
-    Ok(tbname)
+    match tbname.is_empty() {
+        true => bail!("tbname cannot be empty"),
+        false => Ok(tbname),
+    }
 }
 
-fn parse_type(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<IpcDataType> {
+fn parse_type(
+    header: &CsvHeader,
+    row: &csv_async::StringRecord,
+) -> anyhow::Result<Option<IpcDataType>> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
         .flatten()
         .map(|val| {
+            if val.is_empty() {
+                return Ok(None);
+            }
+
             let value_type = IpcDataType::from_str(val);
             if value_type.is_err() {
-                tracing::warn!("invalid column data type: {}, use None", val);
-                None
+                bail!("invalid column data type: [{}]", val)
             } else {
-                Some(value_type.unwrap())
+                Ok(Some(value_type.unwrap()))
             }
         })
+        .unwrap_or(Ok(None))
+}
+
+fn get_raw_type(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
+    header
+        .get_column("type")
+        .map(|col| row.get(col.index))
         .flatten()
+        .map(|val| val.to_string())
 }
 
 fn parse_stable(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
@@ -188,15 +205,14 @@ fn parse_stable(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<Str
         .map(|col| row.get(col.index))
         .flatten()
         .map(|val| {
-            let val_type = parse_type(header, row);
-
+            let val_type = get_raw_type(header, row);
             if val.contains("{type}") && val_type.is_none() {
                 tracing::warn!("stable contains '{{type}}' but type is None, use None");
                 return None;
             }
 
             let stable_name = if val_type.is_some() {
-                Some(val.replace("{type}", val_type.unwrap().to_string().as_str()))
+                Some(val.replace("{type}", &val_type.unwrap()))
             } else {
                 Some(val.to_string())
             };

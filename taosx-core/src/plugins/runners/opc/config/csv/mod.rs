@@ -305,7 +305,7 @@ mod tests {
         match CsvParser::from_dsn(&dsn).await {
             Ok(_) => panic!("empty csv file should fail"),
             Err(e) => {
-                println!("error: {}", e.to_string());
+                // println!("error: {}", e.to_string());
                 assert_eq!(e.to_string(), "empty csv file")
             }
         }
@@ -314,10 +314,29 @@ mod tests {
     #[tokio::test]
     async fn test_csv_file_with_transform_error() {
         let dsn = Dsn::from_str(
-            "opcda://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv",
+            "opcua://?csv_config_file=@../tests/opc/opcua-utf8bom-transform-error.csv",
         )
         .unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await;
         assert!(csv_parser.is_err());
+        // println!("error: {}", csv_parser.err().unwrap().to_string());
+    }
+
+    #[tokio::test]
+    async fn test_empty_tbname() {
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-tbname-empty.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).await;
+        assert!(csv_parser.is_err());
+        // println!("error: {}", csv_parser.err().unwrap().to_string());
+    }
+
+    #[tokio::test]
+    async fn test_error_type() {
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-type-error.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).await;
+        assert!(csv_parser.is_err());
+        // println!("error: {:?}", csv_parser.err().unwrap().to_string());
     }
 }

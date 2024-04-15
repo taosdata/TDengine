@@ -1,4 +1,4 @@
-use rhai::{Engine, EvalAltResult, Scope};
+use rhai::{Engine, Scope};
 
 /**
  * 数学表达式.
