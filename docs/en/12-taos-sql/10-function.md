@@ -952,7 +952,7 @@ FIRST(expr)
 
 **More explanation**:
 
-- FIRST(\*) can be used to get the first non-null value of all columns;When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
+- FIRST(\*) can be used to get the first non-null value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - NULL will be returned if all the values of the specified column are all NULL
 - A result will NOT be returned if all the columns in the result set are all NULL
 
