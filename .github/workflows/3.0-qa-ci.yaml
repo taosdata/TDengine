@@ -235,10 +235,10 @@ jobs:
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
       
-      # - name: Sleep for 20 seconds
-      #   uses: jakejarvis/wait-action@master
-      #   with:
-      #     time: '20s'
+      - name: Sleep for 20 seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '20s'
       
       # - name: Force stop taosx-agent & taosx
       #   if: always()
@@ -295,10 +295,10 @@ jobs:
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
     
-      # - name: Sleep for 20 seconds
-      #   uses: jakejarvis/wait-action@master
-      #   with:
-      #     time: '20s'
+      - name: Sleep for 20 seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '20s'
       
       # - name: Force stop taosx-agent & taosx
       #   if: always()
