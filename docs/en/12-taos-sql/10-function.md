@@ -952,7 +952,7 @@ FIRST(expr)
 
 **More explanation**:
 
-- FIRST(\*) can be used to get the first non-null value of all columns
+- FIRST(\*) can be used to get the first non-null value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - NULL will be returned if all the values of the specified column are all NULL
 - A result will NOT be returned if all the columns in the result set are all NULL
 
@@ -1014,7 +1014,7 @@ LAST(expr)
 
 **More explanation**:
 
-- LAST(\*) can be used to get the last non-NULL value of all columns
+- LAST(\*) can be used to get the last non-NULL value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - If the values of a column in the result set are all NULL, NULL is returned for that column; if all columns in the result are all NULL, no result will be returned.
 - When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
 
@@ -1035,6 +1035,7 @@ LAST_ROW(expr)
 
 **More explanations**:
 
+- LAST_ROW(\*) can be used to get the last value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
 - Can't be used with `INTERVAL`.
 

@@ -109,6 +109,8 @@ const char* nodesNodeName(ENodeType type) {
       return "FlushDatabaseStmt";
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
+    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+      return "S3MigrateDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -823,7 +825,7 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
 
 static const char* jkProjectLogicPlanProjections = "Projections";
 static const char* jkProjectLogicPlanIgnoreGroupId = "IgnoreGroupId";
-static const char* jkProjectLogicPlanInputIgnoreGroup= "InputIgnoreGroup";
+static const char* jkProjectLogicPlanInputIgnoreGroup = "InputIgnoreGroup";
 
 static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectLogicNode* pNode = (const SProjectLogicNode*)pObj;
@@ -1339,7 +1341,6 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-
 static const char* jkSubplanIdQueryId = "QueryId";
 static const char* jkSubplanIdGroupId = "GroupId";
 static const char* jkSubplanIdSubplanId = "SubplanId";
@@ -1846,8 +1847,6 @@ static int32_t jsonToFuncType(const SJson* pJson, void* pObj) {
   return code;
 }
 
-
-
 static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
 
@@ -1861,7 +1860,7 @@ static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkLastRowScanPhysiPlanTargets, pNode->pTargets);
   }
-    if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddTArray(pJson, jkLastRowScanPhysiPlanFuncTypes, funcTypeToJson, pNode->pFuncTypes);
   }
 
@@ -2255,7 +2254,6 @@ static int32_t physiHashJoinNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-
 static int32_t jsonToPhysiHashJoinNode(const SJson* pJson, void* pObj) {
   SHashJoinPhysiNode* pNode = (SHashJoinPhysiNode*)pObj;
 
@@ -2289,7 +2287,6 @@ static int32_t jsonToPhysiHashJoinNode(const SJson* pJson, void* pObj) {
   }
   return code;
 }
-
 
 static const char* jkAggPhysiPlanExprs = "Exprs";
 static const char* jkAggPhysiPlanGroupKeys = "GroupKeys";
@@ -2504,7 +2501,7 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkSortPhysiPlanCalcGroupIds, &pNode->calcGroupId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code= tjsonGetBoolValue(pJson, jkSortPhysiPlanExcludePKCol, &pNode->excludePkCol);
+    code = tjsonGetBoolValue(pJson, jkSortPhysiPlanExcludePKCol, &pNode->excludePkCol);
   }
 
   return code;
@@ -3187,7 +3184,6 @@ static const char* jkGroupCachePhysiPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCachePhysiPlanGlobalGroup = "GlobalGroup";
 static const char* jkGroupCachePhysiPlanBatchFetch = "BatchFetch";
 
-
 static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   const SGroupCachePhysiNode* pNode = (const SGroupCachePhysiNode*)pObj;
 
@@ -3320,8 +3316,6 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
 
   return code;
 }
-
-
 
 static const char* jkQueryNodeAddrId = "Id";
 static const char* jkQueryNodeAddrInUse = "InUse";
@@ -4855,6 +4849,10 @@ static const char* jkDatabaseOptionsNumOfVgroups = "NumOfVgroups";
 static const char* jkDatabaseOptionsSingleStable = "SingleStable";
 static const char* jkDatabaseOptionsRetentions = "Retentions";
 static const char* jkDatabaseOptionsSchemaless = "Schemaless";
+static const char* jkDatabaseOptionsS3ChunkSize = "S3ChunkSize";
+static const char* jkDatabaseOptionsS3KeepLocalNode = "S3KeepLocalNode";
+static const char* jkDatabaseOptionsS3KeepLocal = "S3KeepLocal";
+static const char* jkDatabaseOptionsS3Compact = "S3Compact";
 
 static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
   const SDatabaseOptions* pNode = (const SDatabaseOptions*)pObj;
@@ -4913,6 +4911,18 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSchemaless, pNode->schemaless);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3ChunkSize, pNode->s3ChunkSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkDatabaseOptionsS3KeepLocalNode, nodeToJson, pNode->s3KeepLocalStr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3KeepLocal, pNode->s3KeepLocal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3Compact, pNode->s3Compact);
   }
 
   return code;
@@ -4975,6 +4985,18 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSchemaless, &pNode->schemaless);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->s3ChunkSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkDatabaseOptionsS3KeepLocalNode, (SNode**)&pNode->s3KeepLocalStr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->s3KeepLocal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->s3Compact);
   }
 
   return code;
@@ -5560,6 +5582,24 @@ static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkTrimDatabaseStmtMaxSpeed, &pNode->maxSpeed);
   }
+
+  return code;
+}
+
+static const char* jkS3MigrateDatabaseStmtDbName = "DbName";
+
+static int32_t s3migrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SS3MigrateDatabaseStmt* pNode = (const SS3MigrateDatabaseStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+
+  return code;
+}
+
+static int32_t jsonToS3MigrateDatabaseStmt(const SJson* pJson, void* pObj) {
+  SS3MigrateDatabaseStmt* pNode = (SS3MigrateDatabaseStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
@@ -6233,10 +6273,6 @@ static int32_t jsonToRestoreVnodeStmt(const SJson* pJson, void* pObj) {
   return jsonToRestoreComponentNodeStmt(pJson, pObj);
 }
 
-
-
-
-
 static const char* jkCreateTopicStmtTopicName = "TopicName";
 static const char* jkCreateTopicStmtSubscribeDbName = "SubscribeDbName";
 static const char* jkCreateTopicStmtIgnoreExists = "IgnoreExists";
@@ -6892,7 +6928,6 @@ static int32_t showCreateViewStmtToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-
 static int32_t jsonToShowCreateViewStmt(const SJson* pJson, void* pObj) {
   SShowCreateViewStmt* pNode = (SShowCreateViewStmt*)pObj;
 
@@ -6903,7 +6938,6 @@ static int32_t jsonToShowCreateViewStmt(const SJson* pJson, void* pObj) {
 
   return code;
 }
-
 
 static const char* jkShowTableDistributedStmtDbName = "DbName";
 static const char* jkShowTableDistributedStmtTableName = "TableName";
@@ -7150,6 +7184,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return trimDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+      return s3migrateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return createTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -7489,6 +7525,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDatabaseStmt(pJson, pObj);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return jsonToTrimDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
+      return jsonToS3MigrateDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return jsonToCreateTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
