@@ -297,7 +297,10 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
     Ok(enabled)
 }
 
-fn parse_columns(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<Vec<ColumnConfig>> {
+fn parse_columns(
+    header: &CsvHeader,
+    row: &csv_async::StringRecord,
+) -> anyhow::Result<Vec<ColumnConfig>> {
     let mut columns = Vec::new();
 
     // value => value_col
