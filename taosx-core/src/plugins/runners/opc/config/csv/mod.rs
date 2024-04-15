@@ -339,4 +339,13 @@ mod tests {
         assert!(csv_parser.is_err());
         // println!("error: {:?}", csv_parser.err().unwrap().to_string());
     }
+
+    #[tokio::test]
+    async fn test_error_name() {
+        let dsn =
+            Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-name-error.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).await;
+        assert!(csv_parser.is_err());
+        println!("error: {:?}", csv_parser.err().unwrap().to_string());
+    }
 }

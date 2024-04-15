@@ -12,6 +12,7 @@ use taosx_ipc::prelude::IpcDataType;
 use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;
+use crate::utils::validate_table_column_name;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcModelConfig {
@@ -132,6 +133,17 @@ impl PointConfig {
         let value_type = parse_type(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
+        if stable.is_some() && !validate_table_column_name(stable.as_ref().unwrap()) {
+            bail!("invalid stable: [{}]", stable.unwrap());
+        }
+        // 遍历tag_values，校验tag_values中的tag_name是否合法
+        if tag_values.is_some() {
+            for (tag_name, _) in tag_values.as_ref().unwrap() {
+                if !validate_table_column_name(tag_name) {
+                    bail!("invalid tag_name: [{}]", tag_name);
+                }
+            }
+        }
 
         Ok(PointConfig {
             row_index,
@@ -154,6 +166,10 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
         .get(column.index)
         .ok_or(anyhow::anyhow!("tbname not exist in csv row"))?;
 
+    if value.is_empty() {
+        bail!("tbname cannot be empty");
+    }
+
     let tbname = if value.contains("{") {
         // replace {tag_name} or {TagName} in tbname
         let opc_type = header.get_opc_type();
@@ -161,6 +177,9 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
     } else {
         value.to_string()
     };
+    if !validate_table_column_name(&tbname) {
+        bail!("invalid tbname: [{}]", tbname);
+    }
 
     match tbname.is_empty() {
         true => bail!("tbname cannot be empty"),
@@ -324,6 +343,10 @@ fn parse_columns(
     if value.transform.is_some() {
         // 校验表达式
         let value_name = value.alias.as_ref().unwrap();
+        if !validate_table_column_name(value_name) {
+            bail!("invalid value column name: [{}]", value_name);
+        }
+
         let value_transform = value.transform.as_ref().unwrap();
         check_math_expression(value_name, value_transform).map_err(|e| {
             anyhow::anyhow!(
@@ -357,9 +380,12 @@ fn parse_columns(
 
     if received_ts.is_some() {
         let received_ts_column = received_ts.unwrap();
+        let ts_name = received_ts_column.alias.as_ref().unwrap();
+        if !validate_table_column_name(ts_name) {
+            bail!("invalid received_ts column name: [{}]", ts_name);
+        }
         if received_ts_column.transform.is_some() {
             // 校验表达式
-            let ts_name = received_ts_column.alias.as_ref().unwrap();
             let ts_transform = received_ts_column.transform.as_ref().unwrap();
             check_math_expression(ts_name, ts_transform).map_err(|e| {
                 anyhow::anyhow!(
@@ -374,9 +400,12 @@ fn parse_columns(
 
     if original_ts.is_some() {
         let original_ts_column = original_ts.unwrap();
+        let ts_name = original_ts_column.alias.as_ref().unwrap();
+        if !validate_table_column_name(ts_name) {
+            bail!("invalid original_ts column name: [{}]", ts_name);
+        }
         if original_ts_column.transform.is_some() {
             // 校验表达式
-            let ts_name = original_ts_column.alias.as_ref().unwrap();
             let ts_transform = original_ts_column.transform.as_ref().unwrap();
             check_math_expression(ts_name, ts_transform).map_err(|e| {
                 anyhow::anyhow!(

@@ -216,6 +216,14 @@ pub async fn get_server_version(taos: &Taos) -> anyhow::Result<String> {
     }
 }
 
+lazy_static::lazy_static! {
+    static ref TABLE_COLUMN_NAME_REGEX: regex::Regex = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_]*$").unwrap();
+}
+
+pub fn validate_table_column_name(name: &str) -> bool {
+    TABLE_COLUMN_NAME_REGEX.is_match(name)
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
