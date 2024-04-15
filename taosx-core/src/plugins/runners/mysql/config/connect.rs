@@ -9,6 +9,12 @@ pub struct ConnectConfig {
     // authentication
     pub username: String,
     pub password: String,
+    // other options
+    pub charset: String,
+    pub ssl_mode: String,
+    pub ssl_ca: Option<String>,
+    pub ssl_client_cert: Option<String>,
+    pub ssl_client_key: Option<String>,
 }
 
 impl ConnectConfig {
@@ -19,6 +25,11 @@ impl ConnectConfig {
             subject: Self::parse_subject(dsn)?,
             username: Self::parse_username(dsn)?,
             password: Self::parse_password(dsn)?,
+            charset: Self::parse_charset(dsn)?,
+            ssl_mode: Self::parse_ssl_mode(dsn)?,
+            ssl_ca: Self::parse_ssl_ca(dsn),
+            ssl_client_cert: Self::parse_ssl_client_cert(dsn),
+            ssl_client_key: Self::parse_ssl_client_key(dsn),
         })
     }
 
@@ -66,6 +77,40 @@ impl ConnectConfig {
         dsn.password
             .clone()
             .ok_or_else(|| anyhow::anyhow!("password is required"))
+    }
+
+    fn parse_charset(dsn: &Dsn) -> anyhow::Result<String> {
+        dsn.params
+            .get("charset")
+            .map(|charset| charset.to_lowercase().clone())
+            .unwrap_or_else(|| "utf8mb4".to_string())
+            .parse()
+            .map_err(|_| anyhow::anyhow!("charset is invalid"))
+    }
+
+    fn parse_ssl_mode(dsn: &Dsn) -> anyhow::Result<String> {
+        dsn.params
+            .get("ssl_mode")
+            .map(|ssl_mode| ssl_mode.to_uppercase().clone())
+            .unwrap_or_else(|| "PREFERRED".to_string())
+            .parse()
+            .map_err(|_| anyhow::anyhow!("ssl_mode is invalid"))
+    }
+
+    fn parse_ssl_ca(dsn: &Dsn) -> Option<String> {
+        dsn.params.get("ssl_ca").map(|ssl_ca| ssl_ca.clone())
+    }
+
+    fn parse_ssl_client_cert(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("ssl_client_cert")
+            .map(|ssl_client_cert| ssl_client_cert.clone())
+    }
+
+    fn parse_ssl_client_key(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("ssl_client_key")
+            .map(|ssl_client_key| ssl_client_key.clone())
     }
 }
 

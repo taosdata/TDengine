@@ -77,7 +77,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
 
     // generate sql
-    let sql = config.task.generate_sql();
+    let sql = config.task.generate_sql().unwrap();
     tracing::info!(
         "get sample data, sql: {}, limit: {}",
         sql,
@@ -413,7 +413,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_full_columns&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_full_columns where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
