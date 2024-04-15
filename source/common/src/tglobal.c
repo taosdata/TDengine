@@ -47,7 +47,7 @@ EEncryptAlgor  tsiEncryptAlgorithm = 0;
 EEncryptScope  tsiEncryptScope = 0;
 //char     tsAuthCode[500] = {0};
 //char     tsEncryptKey[17] = {0};
-char     tsEncryptKey[17] = "1234567890123456";
+char     tsEncryptKey[17] = {0};
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -98,10 +98,8 @@ int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
 
 // dnode misc
-//uint32_t tsEncryptionKeyChksum = 0;
-//int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
-uint32_t tsEncryptionKeyChksum = 11111111;
-int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
+uint32_t tsEncryptionKeyChksum = 0;
+int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 int8_t   tsGrant = 1;
 
 // monitor
