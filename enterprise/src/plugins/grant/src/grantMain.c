@@ -2544,17 +2544,8 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 
     ++cols;
 
-    const char *keyStr = getEncryptKeyStatStr(pDnode->encryptionKeyStat);
-    int32_t     keyStrLen = strlen(keyStr);
-    memcpy(varDataVal(buf), keyStr, keyStrLen);
-    if (online) {
-      varDataVal(buf + keyStrLen)[0] = 0;
-    } else {
-      varDataVal(buf + keyStrLen)[0] = '*';
-      varDataVal(buf + (++keyStrLen))[0] = 0;
-    }
-    varDataSetLen(buf, keyStrLen);
-
+    const char *keyStr = getEncryptKeyStatStr(online ? pDnode->encryptionKeyStat : ENCRYPT_KEY_STAT_UNKNOWN);
+    STR_TO_VARSTR(buf, keyStr)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
