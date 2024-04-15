@@ -471,7 +471,7 @@ int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, SBuffer
   code = tBufferEnsureCapacity(buffer, buffer->size + size);
   if (code) return code;
   code = tsdbReadFile(pFD, offset, (uint8_t *)tBufferGetDataEnd(buffer), size, szHint,
-                     encryptAlgorithm, encryptKey);
+                      encryptAlgorithm, encryptKey);
   if (code) return code;
   buffer->size += size;
 

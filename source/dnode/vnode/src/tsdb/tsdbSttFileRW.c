@@ -197,7 +197,7 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
   // load data
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
@@ -226,7 +226,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   // load key part
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode header
@@ -259,12 +259,10 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
     goto _exit;
   }
 
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load SBlockCol part
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // load each column
@@ -340,7 +338,7 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   // load
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
@@ -380,7 +378,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   // load data
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode data
@@ -564,6 +562,9 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
   statisBlk.maxTbid.suid = record.suid;
   statisBlk.maxTbid.uid = record.uid;
 
+  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+
   // compress each column
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlk.size); i++) {
     SCompressInfo info = {
@@ -572,10 +573,6 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
         .originalSize = statisBlock->buffers[i].size,
     };
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-
-  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; i++) {
     tBufferClear(buffer0);
     code = tCompressDataToBuffer(statisBlock->buffers[i].data, &info, buffer0, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -610,12 +607,12 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, buffer0->size);
+    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->file->size += buffer0->size;
     statisBlk.dp->size += buffer0->size;
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer1->data, buffer1->size);
+    code = tsdbWriteFile(writer->fd, writer->file->size, buffer1->data, buffer1->size, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->file->size += buffer1->size;
     statisBlk.dp->size += buffer1->size;

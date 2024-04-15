@@ -100,7 +100,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize,
                             int32_t encryptAlgorithm, char* encryptKey);
 int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer,
-                               int32_t encryptAlgorithm, char* encryptKey);
+                                int32_t encryptAlgorithm, char* encryptKey);
 
 // tomb
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
@@ -110,7 +110,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize,
                             int32_t encryptAlgorithm, char* encryptKey);
 int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize,
-                               int32_t encryptAlgorithm, char* encryptKey);
+                                int32_t encryptAlgorithm, char* encryptKey);
 
 // utils
 int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);

@@ -320,7 +320,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   // load key part
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize, buffer0, 0,
-                             encryptAlgorithm, encryptKey);
+                              encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // SDiskDataHdr
@@ -352,8 +352,6 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
     goto _exit;
   }
   
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load SBlockCol part
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize, hdr.szBlkCol,
@@ -790,9 +788,9 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     };
 
     tBufferClear(buffer0);
-    code = tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist, encryptAlgorithm, encryptKey);
+    code = tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist);
     if (code) return code;
-    code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size);
+    code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey);
     if (code) return code;
     brinBlk.size[i] = info.compressedSize;
     brinBlk.dp->size += info.compressedSize;
@@ -806,9 +804,9 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     };
 
     tBufferClear(buffer0);
-    code = tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist, encryptAlgorithm, encryptKey);
+    code = tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist);
     if (code) return code;
-    code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size);
+    code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey);
     if (code) return code;
     brinBlk.size[i] = info.compressedSize;
     brinBlk.dp->size += info.compressedSize;
@@ -833,10 +831,10 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAl
     }
 
     // write to file
-    if ((code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size))) return code;
+    if ((code = tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey))) return code;
     *fileSize += buffer0->size;
     brinBlk.dp->size += buffer0->size;
-    if ((code = tsdbWriteFile(fd, *fileSize, buffer1->data, buffer1->size))) return code;
+    if ((code = tsdbWriteFile(fd, *fileSize, buffer1->data, buffer1->size, encryptAlgorithm, encryptKey))) return code;
     *fileSize += buffer1->size;
     brinBlk.dp->size += buffer1->size;
   }
@@ -952,7 +950,7 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   for (int i = 0; i < 4; i++) {
     code = tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, buffers[i].data,
-                         buffers[i].size, encryptAlgorithm, encryptKey);
+                          buffers[i].size, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[TSDB_FTYPE_DATA].size += buffers[i].size;
   }
