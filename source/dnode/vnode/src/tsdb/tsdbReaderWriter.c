@@ -15,11 +15,8 @@
 
 #include "cos.h"
 #include "tsdb.h"
-<<<<<<< HEAD
 #include "crypt.h"
-=======
 #include "vnd.h"
->>>>>>> 3.0
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
@@ -285,41 +282,6 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
     goto _exit;
   }
 
-<<<<<<< HEAD
-    // read
-    n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
-    } else if (n < pFD->szPage) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _exit;
-    }
-
-    if(encryptAlgorithm == DND_CA_SM4){
-    //if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
-      unsigned char		PacketData[128];
-      int		NewLen;
-
-      int32_t count = 0;
-      while(count < pFD->szPage)
-      {
-        SCryptOpts opts = {0};
-        opts.len = 128;
-        opts.source = pFD->pBuf + count;
-        opts.result = PacketData;
-        opts.unitLen = 128;
-        //strncpy(opts.key, tsEncryptKey, 16);
-        strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
-
-        NewLen = CBC_Decrypt(&opts);
-
-        memcpy(pFD->pBuf + count, PacketData, NewLen);
-        count += NewLen;
-      }
-      //tsdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
-    }
-=======
   // read
   n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
   if (n < 0) {
@@ -328,9 +290,32 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   } else if (n < pFD->szPage) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
->>>>>>> 3.0
   }
   //}
+
+  if(encryptAlgorithm == DND_CA_SM4){
+  //if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
+    unsigned char		PacketData[128];
+    int		NewLen;
+
+    int32_t count = 0;
+    while(count < pFD->szPage)
+    {
+      SCryptOpts opts = {0};
+      opts.len = 128;
+      opts.source = pFD->pBuf + count;
+      opts.result = PacketData;
+      opts.unitLen = 128;
+      //strncpy(opts.key, tsEncryptKey, 16);
+      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+
+      NewLen = CBC_Decrypt(&opts);
+
+      memcpy(pFD->pBuf + count, PacketData, NewLen);
+      count += NewLen;
+    }
+    //tsdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+  }
 
   // check
   if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
@@ -624,12 +609,8 @@ int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char* encryptKey) 
     tsdbWarn("%s file: %s", __func__, pFD->path);
     return code;
   }
-<<<<<<< HEAD
-  code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
-=======
   */
-  code = tsdbWriteFilePage(pFD);
->>>>>>> 3.0
+  code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
   if (code) goto _exit;
 
   if (taosFsyncFile(pFD->pFD) < 0) {
