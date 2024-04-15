@@ -37,7 +37,6 @@ typedef struct {
     int64_t    cid;
     int64_t    now;
     TSKEY      nextKey;
-    TSKEY      maxDelKey;
     int32_t    fid;
     int32_t    expLevel;
     SDiskID    did;
@@ -161,14 +160,12 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int64_t   numRecord = 0;
   SMetaInfo info;
 
-  if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
-    if (committer->ctx->maxKey < committer->ctx->maxDelKey) {
-      committer->ctx->nextKey = committer->ctx->maxKey + 1;
-    } else {
-      committer->ctx->nextKey = TSKEY_MAX;
-    }
-    return 0;
+  if (committer->tsdb->imem->nDel == 0) {
+    goto _exit;
   }
+
+  // do not need to write tomb data if there is no ts data
+  bool skip = (committer->ctx->fset == NULL && !committer->ctx->hasTSData);
 
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
@@ -196,9 +193,11 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       record->skey = TMAX(record->skey, committer->ctx->minKey);
       record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
-      numRecord++;
-      code = tsdbFSetWriteTombRecord(committer->writer, record);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      if (!skip) {
+        numRecord++;
+        code = tsdbFSetWriteTombRecord(committer->writer, record);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
 
     code = tsdbIterMergerNext(committer->tombIterMerger);
@@ -477,26 +476,9 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
       STbData *tbData = TCONTAINER_OF(node, STbData, rbtn);
 
       for (SDelData *delData = tbData->pHead; delData; delData = delData->pNext) {
-        if (delData->sKey < committer->ctx->nextKey) {
-          committer->ctx->nextKey = delData->sKey;
-        }
+        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, delData->sKey);
       }
     }
-  }
-
-  committer->ctx->maxDelKey = TSKEY_MIN;
-  TSKEY minKey = TSKEY_MAX;
-  TSKEY maxKey = TSKEY_MIN;
-  if (TARRAY2_SIZE(committer->fsetArr) > 0) {
-    STFileSet *fset = TARRAY2_LAST(committer->fsetArr);
-    tsdbFidKeyRange(fset->fid, committer->minutes, committer->precision, &minKey, &committer->ctx->maxDelKey);
-
-    fset = TARRAY2_FIRST(committer->fsetArr);
-    tsdbFidKeyRange(fset->fid, committer->minutes, committer->precision, &minKey, &maxKey);
-  }
-
-  if (committer->ctx->nextKey < TMIN(tsdb->imem->minKey, minKey)) {
-    committer->ctx->nextKey = TMIN(tsdb->imem->minKey, minKey);
   }
 
 _exit:
