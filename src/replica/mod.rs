@@ -34,7 +34,6 @@ const REPLICA_LABEL_GROUP: &str = "group";
 
 /// Active-StandBy replication management commands
 #[derive(Debug, Args)]
-#[command(subcommand_negates_reqs = true)]
 pub struct Cli {
     #[clap(subcommand)]
     command: ReplicaCommands,
@@ -851,9 +850,9 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         let config = &self.config;
         config.assert_server_alive().await?;
-        println!("taosx server is alive");
+        tracing::info!("taosx server is alive");
         let profile = config.profile().await?;
-        println!(
+        tracing::debug!(
             "taosx version: {} built {}",
             profile.version, profile.build_time
         );
