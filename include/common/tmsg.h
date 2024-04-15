@@ -3438,6 +3438,8 @@ enum {
   ONLY_META = 2,
 };
 
+#define TQ_OFFSET_VERSION 1
+
 typedef struct {
   int8_t type;
   union {
@@ -3445,6 +3447,7 @@ typedef struct {
     struct {
       int64_t uid;
       int64_t ts;
+      SValue  primaryKey;
     };
     // log
     struct {
@@ -3453,10 +3456,14 @@ typedef struct {
   };
 } STqOffsetVal;
 
-static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts) {
+static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts, SValue primaryKey) {
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
   pOffsetVal->uid = uid;
   pOffsetVal->ts = ts;
+  if(IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
+    taosMemoryFree(pOffsetVal->primaryKey.pData);
+  }
+  pOffsetVal->primaryKey = primaryKey;
 }
 
 static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid) {
@@ -3473,6 +3480,8 @@ int32_t tEncodeSTqOffsetVal(SEncoder* pEncoder, const STqOffsetVal* pOffsetVal);
 int32_t tDecodeSTqOffsetVal(SDecoder* pDecoder, STqOffsetVal* pOffsetVal);
 int32_t tFormatOffset(char* buf, int32_t maxLen, const STqOffsetVal* pVal);
 bool    tOffsetEqual(const STqOffsetVal* pLeft, const STqOffsetVal* pRight);
+void    tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pOffsetVal);
+void    tOffsetDestroy(void* pVal);
 
 typedef struct {
   STqOffsetVal val;
@@ -3779,6 +3788,7 @@ typedef struct {
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
 int32_t tDeserializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
+void    tDestroySMqPollReq(SMqPollReq *pReq);
 
 typedef struct {
   int32_t vgId;
@@ -3822,7 +3832,9 @@ typedef struct {
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
 int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
+void    tDeleteMqMetaRsp(SMqMetaRsp *pRsp);
 
+#define MQ_DATA_RSP_VERSION 100
 typedef struct {
   SMqRspHead   head;
   STqOffsetVal reqOffset;
@@ -3838,7 +3850,7 @@ typedef struct {
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
-int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp, int8_t dataVersion);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 
 typedef struct {
@@ -3859,7 +3871,7 @@ typedef struct {
 } STaosxRsp;
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
-int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp, int8_t dateVersion);
 void    tDeleteSTaosxRsp(STaosxRsp* pRsp);
 
 typedef struct {

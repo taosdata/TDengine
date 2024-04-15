@@ -123,6 +123,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_primary_key.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
@@ -1170,6 +1171,7 @@
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
 ,,y,script,./test.sh -f tsim/query/query_count0.sim
 ,,y,script,./test.sh -f tsim/query/query_count_sliding0.sim
+,,y,script,./test.sh -f tsim/query/union_precision.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim

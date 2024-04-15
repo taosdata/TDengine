@@ -490,10 +490,6 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
     return 0;
   }
 
-//  if (pDataBlock->info.rows > 0) {
-    //    ASSERT(pDataBlock->info.dataLoad == 1);
-//  }
-
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   if (numOfCols <= 0) {
     return -1;
@@ -525,35 +521,36 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     return -1;
   }
 
+  SDataBlockInfo* pInfo = &pDataBlock->info;
   SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pkColumnIndex);
   if (!IS_NUMERIC_TYPE(pColInfoData->info.type) && (pColInfoData->info.type != TSDB_DATA_TYPE_VARCHAR)) {
     return 0;
   }
 
   void* skey = colDataGetData(pColInfoData, 0);
-  void* ekey = colDataGetData(pColInfoData, (pDataBlock->info.rows - 1));
+  void* ekey = colDataGetData(pColInfoData, (pInfo->rows - 1));
 
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, skey);
-      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, ekey);
     } else {  // todo refactor
-      memcpy(pDataBlock->info.pks[0].pData, varDataVal(skey), varDataLen(skey));
-      pDataBlock->info.pks[0].nData = varDataLen(skey);
+      memcpy(pInfo->pks[0].pData, varDataVal(skey), varDataLen(skey));
+      pInfo->pks[0].nData = varDataLen(skey);
 
-      memcpy(pDataBlock->info.pks[1].pData, varDataVal(ekey), varDataLen(ekey));
-      pDataBlock->info.pks[1].nData = varDataLen(ekey);
+      memcpy(pInfo->pks[1].pData, varDataVal(ekey), varDataLen(ekey));
+      pInfo->pks[1].nData = varDataLen(ekey);
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pDataBlock->info.pks[0].val, int64_t, pColInfoData->info.type, ekey);
-      GET_TYPED_DATA(pDataBlock->info.pks[1].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, skey);
     } else {  // todo refactor
-      memcpy(pDataBlock->info.pks[0].pData, varDataVal(ekey), varDataLen(ekey));
-      pDataBlock->info.pks[0].nData = varDataLen(ekey);
+      memcpy(pInfo->pks[0].pData, varDataVal(ekey), varDataLen(ekey));
+      pInfo->pks[0].nData = varDataLen(ekey);
 
-      memcpy(pDataBlock->info.pks[1].pData, varDataVal(skey), varDataLen(skey));
-      pDataBlock->info.pks[1].nData = varDataLen(skey);
+      memcpy(pInfo->pks[1].pData, varDataVal(skey), varDataLen(skey));
+      pInfo->pks[1].nData = varDataLen(skey);
     }
   }
 

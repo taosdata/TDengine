@@ -137,20 +137,19 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
   if (numOfPks > 0) {
     pKey->pks[0].type = type;
     if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
-      char* p = (char*)&pKey->pks[0].val;
       if (asc) {
         switch(pKey->pks[0].type) {
-          case TSDB_DATA_TYPE_BIGINT:*(int64_t*)p = INT64_MIN;break;
-          case TSDB_DATA_TYPE_INT:*(int32_t*)p = INT32_MIN;break;
-          case TSDB_DATA_TYPE_SMALLINT:*(int16_t*)p = INT16_MIN;break;
-          case TSDB_DATA_TYPE_TINYINT:*(int8_t*)p = INT8_MIN;break;
+          case TSDB_DATA_TYPE_BIGINT:pKey->pks[0].val = INT64_MIN;break;
+          case TSDB_DATA_TYPE_INT:pKey->pks[0].val = INT32_MIN;break;
+          case TSDB_DATA_TYPE_SMALLINT:pKey->pks[0].val = INT16_MIN;break;
+          case TSDB_DATA_TYPE_TINYINT:pKey->pks[0].val = INT8_MIN;break;
         }
       } else {
         switch(pKey->pks[0].type) {
-          case TSDB_DATA_TYPE_BIGINT:*(int64_t*)p = INT64_MAX;break;
-          case TSDB_DATA_TYPE_INT:*(int32_t*)p = INT32_MAX;break;
-          case TSDB_DATA_TYPE_SMALLINT:*(int16_t*)p = INT16_MAX;break;
-          case TSDB_DATA_TYPE_TINYINT:*(int8_t*)p = INT8_MAX;break;
+          case TSDB_DATA_TYPE_BIGINT:pKey->pks[0].val = INT64_MAX;break;
+          case TSDB_DATA_TYPE_INT:pKey->pks[0].val = INT32_MAX;break;
+          case TSDB_DATA_TYPE_SMALLINT:pKey->pks[0].val = INT16_MAX;break;
+          case TSDB_DATA_TYPE_TINYINT:pKey->pks[0].val = INT8_MAX;break;
         }
       }
     } else {

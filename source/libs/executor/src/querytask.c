@@ -209,7 +209,10 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   return pqSw;
 }
 
-static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) { tDeleteSchemaWrapper(pStreamInfo->schema); }
+static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
+  tDeleteSchemaWrapper(pStreamInfo->schema);
+  tOffsetDestroy(&pStreamInfo->currentOffset);
+}
 
 static void freeBlock(void* pParam) {
   SSDataBlock* pBlock = *(SSDataBlock**)pParam;

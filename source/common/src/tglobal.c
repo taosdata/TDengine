@@ -149,6 +149,7 @@ char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
+int32_t tmqRowSize = 4096;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
@@ -725,6 +726,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
+  if (cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
+    return -1;
+
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1193,6 +1197,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
+  tmqRowSize = cfgGetItem(pCfg, "tmqRowSize")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
@@ -1524,6 +1529,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
                                          {"queryRspPolicy", &tsQueryRspPolicy},
                                          {"timeseriesThreshold", &tsTimeSeriesThreshold},
                                          {"tmqMaxTopicNum", &tmqMaxTopicNum},
+                                         {"tmqRowSize", &tmqRowSize},
                                          {"transPullupInterval", &tsTransPullupInterval},
                                          {"compactPullupInterval", &tsCompactPullupInterval},
                                          {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
@@ -1795,8 +1801,11 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
 
 void taosSetGlobalDebugFlag(int32_t flag) { taosSetAllDebugFlag(tsCfg, flag); }
 
+// NOTE: set all command does not change the tmrDebugFlag
 static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
-  if (flag <= 0) return;
+  if (flag <= 0) {
+    return;
+  }
 
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
@@ -1806,7 +1815,6 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   }
 
   taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
-  taosCheckAndSetDebugFlag(&tmrDebugFlag, "tmrDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);

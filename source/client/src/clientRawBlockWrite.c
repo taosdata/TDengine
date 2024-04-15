@@ -64,6 +64,8 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
     }
+    cJSON* isPk = cJSON_CreateBool(s->flags & COL_IS_KEY);
+    cJSON_AddItemToObject(column, "isPrimarykey", isPk);
     cJSON_AddItemToArray(columns, column);
   }
   cJSON_AddItemToObject(json, "columns", columns);
@@ -1625,7 +1627,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   rspObj.resType = RES_TYPE__TMQ;
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp);
+  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;
@@ -1754,7 +1756,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   rspObj.resType = RES_TYPE__TMQ_METADATA;
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp);
+  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;

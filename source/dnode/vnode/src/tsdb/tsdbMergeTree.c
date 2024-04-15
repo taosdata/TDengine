@@ -392,12 +392,13 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
-        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pFirstTs,
-                          tBufferGetDataAt(&block.firstKeyTimestamps, i * sizeof(int64_t)), rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pLastTs, tBufferGetDataAt(&block.lastKeyTimestamps, i * sizeof(int64_t)),
-                          rows - i);
-        taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, i * sizeof(int64_t)), rows - i);
+        int32_t size = rows - i;
+        int32_t offset = i * sizeof(int64_t);
+
+        taosArrayAddBatch(pBlockLoadInfo->info.pUid, tBufferGetDataAt(&block.uids, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pFirstTs, tBufferGetDataAt(&block.firstKeyTimestamps, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pLastTs, tBufferGetDataAt(&block.lastKeyTimestamps, offset), size);
+        taosArrayAddBatch(pBlockLoadInfo->info.pCount, tBufferGetDataAt(&block.counts, offset), size);
 
         if (block.numOfPKs > 0) {
           SValue vFirst = {0}, vLast = {0};
@@ -419,8 +420,13 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             tValueDupPayload(&vLast);
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &vLast);
           }
+        } else {
+          SValue vFirst = {0};
+          for(int32_t j = 0; j < size; ++j) {
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &vFirst);
+          }
         }
-
       } else {
         STbStatisRecord record = {0};
 
@@ -439,13 +445,15 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           if (record.firstKey.numOfPKs > 0) {
             SValue s = record.firstKey.pks[0];
             tValueDupPayload(&s);
-
             taosArrayPush(pBlockLoadInfo->info.pFirstKey, &s);
 
             s = record.lastKey.pks[0];
             tValueDupPayload(&s);
-
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &s);
+          } else {
+            SValue v = {0};
+            taosArrayPush(pBlockLoadInfo->info.pFirstKey, &v);
+            taosArrayPush(pBlockLoadInfo->info.pLastKey, &v);
           }
 
           i += 1;
@@ -549,7 +557,6 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   pIter->verRange.maxVer = pConf->verRange.maxVer;
   pIter->timeWindow.skey = pConf->timewindow.skey;
   pIter->timeWindow.ekey = pConf->timewindow.ekey;
-  pIter->comparFn = pConf->comparFn;
 
   pIter->pStartRowKey = pConf->pCurRowKey;
   pIter->pReader = pSttFileReader;
@@ -702,7 +709,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
         if (ts == pIter->timeWindow.skey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
+          int32_t ret = pkCompEx(&key, pIter->pStartRowKey);
           if (ret < 0) {
             continue;
           }
@@ -719,7 +726,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
         if (ts == pIter->timeWindow.ekey && pIter->pStartRowKey->numOfPKs > 0) {
           SRowKey key;
           tColRowGetKey(pData, i, &key);
-          int32_t ret = pkCompEx(pIter->comparFn, &key, pIter->pStartRowKey);
+          int32_t ret = pkCompEx(&key, pIter->pStartRowKey);
           if (ret > 0) {
             continue;
           }
