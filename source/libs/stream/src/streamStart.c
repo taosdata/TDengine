@@ -868,8 +868,10 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
-    pRange->minVer = walScanStartVer;
-    pRange->maxVer = nextProcessVer - 1;
+    pTask->step2Range.minVer = walScanStartVer;
+    pTask->step2Range.maxVer = nextProcessVer - 1;
+    stDebug("s-task:%s set step2 verRange:%" PRId64 "-%" PRId64 ", step1 verRange:%" PRId64 "-%" PRId64, pTask->id.idStr,
+            pTask->step2Range.minVer, pTask->step2Range.maxVer, pRange->minVer, pRange->maxVer);
     return false;
   }
 }

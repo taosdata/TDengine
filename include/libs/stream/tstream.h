@@ -445,6 +445,7 @@ struct SStreamTask {
   SCheckpointInfo     chkInfo;
   STaskExec           exec;
   SDataRange          dataRange;
+  SVersionRange       step2Range;
   SHistoryTaskInfo    hTaskInfo;
   STaskId             streamTaskId;
   STaskExecStatisInfo execInfo;

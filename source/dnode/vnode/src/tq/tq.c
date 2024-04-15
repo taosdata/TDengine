@@ -800,33 +800,33 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
   const char*    id = pTask->id.idStr;
   int64_t        nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
-  SVersionRange* pRange = &pTask->dataRange.range;
+  SVersionRange* pStep2Range = &pTask->step2Range;
 
   // if it's an source task, extract the last version in wal.
   bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
   pTask->execInfo.step2Start = taosGetTimestampMs();
 
   if (done) {
-    qDebug("s-task:%s scan wal(step 2) verRange:%" PRId64 "-%" PRId64 " ended, elapsed time:%.2fs", id, pRange->minVer,
-           pRange->maxVer, 0.0);
+    qDebug("s-task:%s scan wal(step 2) verRange:%" PRId64 "-%" PRId64 " ended, elapsed time:%.2fs", id, pStep2Range->minVer,
+           pStep2Range->maxVer, 0.0);
     streamTaskPutTranstateIntoInputQ(pTask);
     streamExecTask(pTask);  // exec directly
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
-    tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+    tqDebug("s-task:%s level:%d verRange:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64
             ", do secondary scan-history from WAL after halt the related stream task:%s",
-            id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey,
+            id, pTask->info.taskLevel, pStep2Range->minVer, pStep2Range->maxVer, pWindow->skey, pWindow->ekey,
             pStreamTask->id.idStr);
     ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
-    streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
+    streamSetParamForStreamScannerStep2(pTask, pStep2Range, pWindow);
 
-    int64_t dstVer = pTask->dataRange.range.minVer;
+    int64_t dstVer =pStep2Range->minVer;
     pTask->chkInfo.nextProcessVer = dstVer;
 
     walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
     tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
-            pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
+            pStep2Range->maxVer, TASK_SCHED_STATUS__INACTIVE);
 
     /*int8_t status = */ streamTaskSetSchedStatusInactive(pTask);
 

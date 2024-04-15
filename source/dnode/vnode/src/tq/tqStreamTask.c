@@ -242,21 +242,23 @@ int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
 // todo handle memory error
 bool handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
   const char* id = pTask->id.idStr;
-  int64_t     maxVer = pTask->dataRange.range.maxVer;
+  int64_t     maxVer = pTask->step2Range.maxVer;
 
-  if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
+  if ((pTask->info.fillHistory == 1) && ver > maxVer) {
     if (!pTask->status.appendTranstateBlock) {
       qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the maximum ver:%" PRId64
             ", not scan wal anymore, add transfer-state block into inputQ",
             id, ver, maxVer);
 
       double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.0;
-      qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
+      qDebug("s-task:%s scan-history from WAL stage(step 2) ended, range:%" PRId64 "-%" PRId64 ", elapsed time:%.2fs",
+             id, pTask->step2Range.minVer, maxVer, el);
       /*int32_t code = */streamTaskPutTranstateIntoInputQ(pTask);
       return true;
     } else {
-      qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the maximum ver:%" PRId64 ", not scan wal",
-            id, ver, maxVer);
+      qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the ver range:%" PRId64 "-%" PRId64
+            ", not scan wal",
+            id, ver, pTask->step2Range.minVer, maxVer);
     }
   }
 
@@ -389,7 +391,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
-    int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
+    int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->step2Range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
 

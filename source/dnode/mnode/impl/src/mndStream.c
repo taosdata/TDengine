@@ -1541,7 +1541,12 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   // history_task_id
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   if (pe->hTaskId != 0) {
-    colDataSetVal(pColInfo, numOfRows, (const char*)&pe->hTaskId, false);
+    memset(idstr, 0, tListLen(idstr));
+    len = tintToHex(pe->hTaskId, &idstr[4]);
+    idstr[2] = '0';
+    idstr[3] = 'x';
+    varDataSetLen(idstr, len + 2);
+    colDataSetVal(pColInfo, numOfRows, idstr, false);
   } else {
     colDataSetVal(pColInfo, numOfRows, 0, true);
   }
