@@ -331,6 +331,7 @@ DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
 DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
 DLL_EXPORT int32_t     tmq_write_raw(TAOS *taos, tmq_raw_data raw);
+DLL_EXPORT int32_t     tmq_write_raw_with_errstr(TAOS* taos, tmq_raw_data raw, char* errstr, int32_t errstrLen);
 DLL_EXPORT int         taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
 DLL_EXPORT int         taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid);
 DLL_EXPORT int         taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname,
