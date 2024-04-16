@@ -327,17 +327,6 @@ static int32_t addSystableFirstCol(SRealTableNode* pTable, SNodeList** pCols) {
   return nodesListMakeStrictAppend(pCols, createFirstCol(pTable, pTable->pMeta->schema));
 }
 
-static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
-  if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
-    return addSystableFirstCol(pTable, pCols);
-  }
-  int32_t code = addPrimaryKeyCol(pTable, pCols);
-  if (code == TSDB_CODE_SUCCESS && hasPkInTable(pTable->pMeta)) {
-    code = addPkCol(pTable, pCols);
-  }
-  return code;
-}
-
 static int32_t addPkCol(SRealTableNode* pTable, SNodeList** pCols) {
   bool   found = false;
   SNode* pCol = NULL;
@@ -353,6 +342,17 @@ static int32_t addPkCol(SRealTableNode* pTable, SNodeList** pCols) {
     return nodesListMakeStrictAppend(pCols, createFirstCol(pTable, pSchema));
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
+  if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
+    return addSystableFirstCol(pTable, pCols);
+  }
+  int32_t code = addPrimaryKeyCol(pTable, pCols);
+  if (code == TSDB_CODE_SUCCESS && hasPkInTable(pTable->pMeta)) {
+    code = addPkCol(pTable, pCols);
+  }
+  return code;
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
@@ -1798,7 +1798,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
   STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
   if (TSDB_CODE_SUCCESS == code && hasPkInTable(pMeta)) {
-    code = addPkCol(pMeta->uid, pMeta->schema + 1, &pScan->pScanCols, pMeta);
+    code = addPkCol((SRealTableNode*)pDelete->pFromTable, &pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {

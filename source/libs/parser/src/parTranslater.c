@@ -5715,7 +5715,7 @@ static int32_t createPkColByTable(STranslateContext* pCxt, SRealTableNode* pTabl
   pCol->colId = pTable->pMeta->schema[1].colId;
   strcpy(pCol->colName, pTable->pMeta->schema[1].name);
   bool    found = false;
-  int32_t code = findAndSetColumn(pCxt, &pCol, (STableNode*)pTable, &found);
+  int32_t code = findAndSetColumn(pCxt, &pCol, (STableNode*)pTable, &found, true);
   if (TSDB_CODE_SUCCESS != code || !found) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR);
   }

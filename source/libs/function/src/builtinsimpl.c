@@ -3275,7 +3275,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
         // handle selectivity
         if (pCtx->subsidiaries.num > 0) {
-          appendSelectivityValue(pCtx, i, pos);
+          appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
         }
 
         numOfElems += 1;
