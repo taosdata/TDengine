@@ -928,7 +928,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  qError("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d", 
+  qDebug("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d", 
       pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList), pOperator->status);
 
   if (pParam->tableSeq) {
@@ -962,7 +962,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     }
 
     tableIdx++;
-    qError("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+    qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
   }
   
   return code;
@@ -4056,7 +4056,7 @@ static int32_t stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
     taosMemoryFree(pSubTblsInfo);
     pInfo->pSubTablesMergeInfo = NULL;
 
-    taosMemoryTrim(0);
+    //taosMemoryTrim(0);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4073,6 +4073,8 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
+  int64_t st = taosGetTimestampUs();
 
   size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
   if (!pInfo->hasGroupId) {
@@ -4102,7 +4104,7 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       pInfo->bGroupProcessed = true;
-      return pBlock;
+      break;
     } else {
       // Data of this group are all dumped, let's try the next group
       stopSubTablesTableMergeScan(pInfo);
@@ -4117,6 +4119,8 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
   }
+
+  pOperator->cost.totalCost += (taosGetTimestampUs() - st) / 1000.0;;
 
   return pBlock;
 }
@@ -4480,6 +4484,8 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
+  int64_t st = taosGetTimestampUs();
+
   size_t tableListSize = tableListGetSize(pInfo->base.pTableListInfo);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
@@ -4509,7 +4515,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       pInfo->bGroupProcessed = true;
-      return pBlock;
+      break;
     } else {
       if (pInfo->bNewFilesetEvent) {
         stopDurationForGroupTableMergeScan(pOperator);
@@ -4532,6 +4538,8 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  pOperator->cost.totalCost += (taosGetTimestampUs() - st) / 1000.0;;
 
   return pBlock;
 }

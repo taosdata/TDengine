@@ -245,6 +245,7 @@ typedef enum ENodeType {
   QUERY_NODE_EVENT_WINDOW,
   QUERY_NODE_HINT,
   QUERY_NODE_VIEW,
+  QUERY_NODE_WINDOW_OFFSET,
   QUERY_NODE_COUNT_WINDOW,
 
   // Statement nodes are used in parser and planner module.

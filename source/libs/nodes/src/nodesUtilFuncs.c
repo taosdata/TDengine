@@ -44,6 +44,74 @@ struct SNodeAllocator {
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
 
+char* getJoinTypeString(EJoinType type) {
+  static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};
+  return joinType[type];
+}
+
+char* getJoinSTypeString(EJoinSubType type) {
+  static char* joinSType[] = {"", "", "OUTER", "SEMI", "ANTI", "ANY", "ASOF", "WINDOW"};
+  return joinSType[type];
+}
+
+char* getFullJoinTypeString(EJoinType type, EJoinSubType stype) {
+  static char* joinFullType[][8] = {
+    {"INNER", "INNER", "INNER", "INNER", "INNER", "INNER ANY", "INNER", "INNER"},
+    {"LEFT", "LEFT", "LEFT OUTER", "LEFT SEMI", "LEFT ANTI", "LEFT ANY", "LEFT ASOF", "LEFT WINDOW"},
+    {"RIGHT", "RIGHT", "RIGHT OUTER", "RIGHT SEMI", "RIGHT ANTI", "RIGHT ANY", "RIGHT ASOF", "RIGHT WINDOW"},
+    {"FULL", "FULL", "FULL OUTER", "FULL", "FULL", "FULL ANY", "FULL", "FULL"}
+  };  
+  return joinFullType[type][stype];
+}
+
+
+int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc) {
+  if (NULL == *ppSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == *ppDst) {
+    *ppDst = *ppSrc;
+    *ppSrc = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
+    TSWAP(*ppDst, *ppSrc);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst)) {
+    SLogicConditionNode* pDst = (SLogicConditionNode*)*ppDst;
+    if (pDst->condType == LOGIC_COND_TYPE_AND) {
+      if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
+        nodesListStrictAppendList(pDst->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList);
+        ((SLogicConditionNode*)(*ppSrc))->pParameterList = NULL;
+      } else {
+        nodesListStrictAppend(pDst->pParameterList, *ppSrc);
+        *ppSrc = NULL;
+      }
+      nodesDestroyNode(*ppSrc);
+      *ppSrc = NULL;
+      
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pLogicCond) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  pLogicCond->pParameterList = nodesMakeList();
+  nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc);
+  nodesListStrictAppend(pLogicCond->pParameterList, *ppDst);
+
+  *ppDst = (SNode*)pLogicCond;
+  *ppSrc = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static SNodeMemChunk* callocNodeChunk(SNodeAllocator* pAllocator) {
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {
@@ -308,6 +376,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SHintNode));
     case QUERY_NODE_VIEW:
       return makeNode(type, sizeof(SViewNode));
+    case QUERY_NODE_WINDOW_OFFSET:
+      return makeNode(type, sizeof(SWindowOffsetNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -746,6 +816,9 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      nodesDestroyNode(pJoin->pWindowOffset);
+      nodesDestroyNode(pJoin->pJLimit);
+      nodesDestroyNode(pJoin->addPrimCond);
       nodesDestroyNode(pJoin->pLeft);
       nodesDestroyNode(pJoin->pRight);
       nodesDestroyNode(pJoin->pOnCond);
@@ -877,6 +950,12 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pView->pSmaIndexes, destroySmaIndex);
       break;
     }
+    case QUERY_NODE_WINDOW_OFFSET: {
+      SWindowOffsetNode* pWin = (SWindowOffsetNode*)pNode;
+      nodesDestroyNode(pWin->pStartOffset);
+      nodesDestroyNode(pWin->pEndOffset);
+      break;
+    }    
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1211,9 +1290,19 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyNode(pLogicNode->pWindowOffset);
+      nodesDestroyNode(pLogicNode->pJLimit);
+      nodesDestroyNode(pLogicNode->addPrimEqCond);
       nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
-      nodesDestroyNode(pLogicNode->pOtherOnCond);
       nodesDestroyNode(pLogicNode->pColEqCond);
+      nodesDestroyNode(pLogicNode->pColOnCond);
+      nodesDestroyNode(pLogicNode->pTagEqCond);
+      nodesDestroyNode(pLogicNode->pTagOnCond);
+      nodesDestroyNode(pLogicNode->pFullOnCond);
+      nodesDestroyList(pLogicNode->pLeftEqNodes);
+      nodesDestroyList(pLogicNode->pRightEqNodes);
+      nodesDestroyNode(pLogicNode->pLeftOnCond);
+      nodesDestroyNode(pLogicNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -1357,10 +1446,17 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pWindowOffset);
+      nodesDestroyNode(pPhyNode->pJLimit);
+      nodesDestroyNode(pPhyNode->leftPrimExpr);
+      nodesDestroyNode(pPhyNode->rightPrimExpr);
+      nodesDestroyList(pPhyNode->pEqLeft);
+      nodesDestroyList(pPhyNode->pEqRight);
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
-      nodesDestroyNode(pPhyNode->pOtherOnCond);
+      nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyNode(pPhyNode->pColEqCond);
+      nodesDestroyNode(pPhyNode->pColOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {
@@ -1368,12 +1464,17 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pOnLeft);
       nodesDestroyList(pPhyNode->pOnRight);
-      nodesDestroyNode(pPhyNode->pFilterConditions);
+      nodesDestroyNode(pPhyNode->leftPrimExpr);
+      nodesDestroyNode(pPhyNode->rightPrimExpr);
+      nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
 
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
+
+      nodesDestroyNode(pPhyNode->pLeftOnCond);
+      nodesDestroyNode(pPhyNode->pRightOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
@@ -2025,6 +2126,7 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp) {
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;
   const char*     pTableAlias;
+  SSHashObj*      pMultiTableAlias;
   ECollectColType collectType;
   SNodeList*      pCols;
   SHashObj*       pColHash;
@@ -2066,6 +2168,19 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
+  SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (isCollectType(pCxt->collectType, pCol->colType) && 0 != strcmp(pCol->colName, "*") &&
+        (NULL == pCxt->pMultiTableAlias || NULL != (pCxt->pTableAlias = tSimpleHashGet(pCxt->pMultiTableAlias, pCol->tableAlias, strlen(pCol->tableAlias))))) {
+      return doCollect(pCxt, pCol, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
@@ -2083,6 +2198,38 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   }
   *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
+  taosHashCleanup(cxt.pColHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
+    nodesDestroyList(cxt.pCols);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
+                            SNodeList** pCols) {
+  if (NULL == pSelect || NULL == pCols) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectColumnsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTableAlias = NULL,
+      .pMultiTableAlias = pMultiTableAlias,
+      .collectType = type,
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pCols = NULL;
+  nodesWalkSelectStmtImpl(pSelect, clause, collectColumnsExt, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
@@ -2437,7 +2584,6 @@ SValueNode* nodesMakeValueNodeFromString(char* literal) {
     pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
     pValNode->translate = true;
-    pValNode->isDuration = false;
     pValNode->isNull = false;
   }
   return pValNode;
@@ -2450,7 +2596,6 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
     pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     nodesSetValueNodeValue(pValNode, &b);
     pValNode->translate = true;
-    pValNode->isDuration = false;
     pValNode->isNull = false;
   }
   return pValNode;

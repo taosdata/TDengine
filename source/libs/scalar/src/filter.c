@@ -3911,6 +3911,7 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
   int32_t          optr = 0;
   int32_t          code = 0;
   bool             empty = false, all = false;
+  uint32_t         emptyGroups = 0;
 
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup *group = &info->groups[i];
@@ -3922,6 +3923,7 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       optr = LOGIC_COND_TYPE_OR;
     }
 
+    empty = false;
     for (uint32_t u = 0; u < group->unitNum; ++u) {
       uint32_t     uidx = group->unitIdxs[u];
       SFilterUnit *unit = &info->units[uidx];
@@ -3929,13 +3931,19 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       uint8_t raOptr = FILTER_UNIT_OPTR(unit);
 
       filterAddRangeOptr(cur, raOptr, LOGIC_COND_TYPE_AND, &empty, NULL);
-      FLT_CHK_JMP(empty);
+      if (empty) {
+        emptyGroups++;
+      }
 
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
         continue;
       }
 
       filterAddUnitRange(info, unit, cur, optr);
+    }
+
+    if (empty) {
+      continue;
     }
 
     if (cur->notnull) {
@@ -3951,6 +3959,8 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
       }
     }
   }
+
+  FLT_CHK_JMP(emptyGroups == info->groupNum);
 
   if (prev->notnull) {
     *win = TSWINDOW_INITIALIZER;
@@ -4792,14 +4802,8 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-typedef enum EConditionType {
-  COND_TYPE_PRIMARY_KEY = 1,
-  COND_TYPE_TAG_INDEX,
-  COND_TYPE_TAG,
-  COND_TYPE_NORMAL
-} EConditionType;
 
-static EConditionType classifyCondition(SNode *pNode) {
+EConditionType filterClassifyCondition(SNode *pNode) {
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
   return cxt.hasOtherCol ? COND_TYPE_NORMAL
@@ -4809,7 +4813,7 @@ static EConditionType classifyCondition(SNode *pNode) {
                                                      : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
 }
 
-static bool isCondColumnsFromMultiTable(SNode *pCond) {
+bool filterIsMultiTableColsCond(SNode *pCond) {
   SNodeList *pCondCols = nodesMakeList();
   int32_t    code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   if (code == TSDB_CODE_SUCCESS) {
@@ -4841,12 +4845,12 @@ static int32_t partitionLogicCond(SNode **pCondition, SNode **pPrimaryKeyCond, S
   SNodeList *pOtherConds = NULL;
   SNode     *pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    if (isCondColumnsFromMultiTable(pCond)) {
+    if (filterIsMultiTableColsCond(pCond)) {
       if (NULL != pOtherCond) {
         code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
       }
     } else {
-      switch (classifyCondition(pCond)) {
+      switch (filterClassifyCondition(pCond)) {
         case COND_TYPE_PRIMARY_KEY:
           if (NULL != pPrimaryKeyCond) {
             code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
@@ -4932,13 +4936,13 @@ int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode *
   }
 
   bool needOutput = false;
-  if (isCondColumnsFromMultiTable(*pCondition)) {
+  if (filterIsMultiTableColsCond(*pCondition)) {
     if (NULL != pOtherCond) {
       *pOtherCond = *pCondition;
       needOutput = true;
     }
   } else {
-    switch (classifyCondition(*pCondition)) {
+    switch (filterClassifyCondition(*pCondition)) {
       case COND_TYPE_PRIMARY_KEY:
         if (NULL != pPrimaryKeyCond) {
           *pPrimaryKeyCond = *pCondition;

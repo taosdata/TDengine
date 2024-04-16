@@ -153,7 +153,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions are allowed only in the SELECT list of a query. "
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
-      return "Window query not supported, since the result of subquery not include valid timestamp column";
+      return "Window query not supported, since not valid primary timestamp column as input";
     case TSDB_CODE_PAR_INVALID_DROP_COL:
       return "No columns can be dropped";
     case TSDB_CODE_PAR_INVALID_COL_JSON:
@@ -194,6 +194,14 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "ORDER BY \"%s\" is ambiguous";
     case TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT:
       return "Operator not supported multi result: %s";
+    case TSDB_CODE_PAR_INVALID_WJOIN_HAVING_EXPR:
+      return "Not supported window join having expr";
+    case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
+      return "Invalid WINDOW_OFFSET unit \"%c\"";
+    case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
+      return "Valid primary timestamp required";
+    case TSDB_CODE_PAR_NOT_WIN_FUNC:
+      return "Column exists for window join with aggregation functions";
     case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
       return "tag %s can not be primary key";
     case TSDB_CODE_PAR_SECOND_COL_PK:
@@ -227,6 +235,15 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
+
+int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...) {
+  va_list vArgList;
+  va_start(vArgList, pFormat);
+  vsnprintf(pBuf->buf, pBuf->len, pFormat, vArgList);
+  va_end(vArgList);
+  return TSDB_CODE_TSC_INVALID_OPERATION;
+}
+
 
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
   if (pBuf == NULL) return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
@@ -726,6 +743,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
+  select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   select->pHint = pHint;
@@ -1161,7 +1179,7 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   tNameExtractFullName(pName, fullName);
   STableCfg* pCfg = NULL;
   int32_t    code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pCfg) {
     *pOutput = tableCfgDup(pCfg);
     if (NULL == *pOutput) {
       code = TSDB_CODE_OUT_OF_MEMORY;

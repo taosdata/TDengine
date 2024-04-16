@@ -274,6 +274,8 @@ bool fmIsBlockDistFunc(int32_t funcId) {
   return FUNCTION_TYPE_BLOCK_DIST == funcMgtBuiltins[funcId].type;
 }
 
+bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
