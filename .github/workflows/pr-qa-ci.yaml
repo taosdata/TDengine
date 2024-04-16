@@ -218,7 +218,7 @@ jobs:
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity mqtt_test.py
 
       - name: Stop taosx-agent & taosx
-        if: always()
+        # if: always()
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
@@ -228,11 +228,12 @@ jobs:
         with:
           time: '20s'
       
-      # - name: Force stop taosx-agent & taosx
-      #   if: always()
-      #   run: |
-      #     pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
-      #     pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx"; kill -9 "$pid"; done; fi
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        shell: bash {0}
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
 
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa]
@@ -278,7 +279,7 @@ jobs:
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity opcua_test.py
 
       - name: Stop taosx-agent & taosx
-        if: always()
+        # if: always()
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do kill -2 "$pid"; done; fi
@@ -288,11 +289,12 @@ jobs:
         with:
           time: '20s'
       
-      # - name: Force stop taosx-agent & taosx
-      #   if: always()
-      #   run: |
-      #     pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent"; kill -9 "$pid"; done; fi
-      #     pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx"; kill -9 "$pid"; done; fi
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        shell: bash {0}
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
