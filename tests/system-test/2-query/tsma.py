@@ -1260,7 +1260,7 @@ class TDTestCase:
                          'avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'nsdb', '10m', 'meters')
         tdSql.query('select avg(c1) from nsdb.meters', queryTimes=1)
-        tdSql.execute('drop database nsdb', queryTimes=1)
+        tdSql.execute('drop database nsdb')
     
     def test_tb_ddl_with_created_tsma(self):
         function_name = sys._getframe().f_code.co_name
@@ -1472,7 +1472,7 @@ class TDTestCase:
 
     def generate_tsma_function_list_columns(self,max_column: int =4093):
         columns = []
-        self.tsma_support_func = ["avg", "max", "min", "count", "sum", "first", "last", "spread", "stddev", "hyperloglog"]
+        self.tsma_support_func = ["max", "min", "count", "sum"]
         num_items = len(self.tsma_support_func)
         for i in range(max_column):
             random_index = secrets.randbelow(num_items)

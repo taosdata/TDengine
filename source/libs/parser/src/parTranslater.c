@@ -7640,7 +7640,7 @@ static int32_t addWdurationToSampleProjects(SNodeList* pProjectionList) {
   return nodesListAppend(pProjectionList, (SNode*)pFunc);
 }
 
-static int32_t buildProjectsForSampleAst(SSampleAstInfo* pInfo, SNodeList** pList) {
+static int32_t buildProjectsForSampleAst(SSampleAstInfo* pInfo, SNodeList** pList, int32_t *pProjectionTotalLen) {
   SNodeList* pProjectionList = pInfo->pFuncs;
   pInfo->pFuncs = NULL;
 
@@ -7654,7 +7654,11 @@ static int32_t buildProjectsForSampleAst(SSampleAstInfo* pInfo, SNodeList** pLis
 
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pProject = NULL;
-    FOREACH(pProject, pProjectionList) { sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject); }
+    if (pProjectionTotalLen) *pProjectionTotalLen = 0;
+    FOREACH(pProject, pProjectionList) {
+      sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject);
+      if (pProjectionTotalLen) *pProjectionTotalLen += ((SExprNode*)pProject)->resType.bytes;
+    }
     *pList = pProjectionList;
   } else {
     nodesDestroyList(pProjectionList);
@@ -7682,7 +7686,7 @@ static int32_t buildIntervalForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput)
 }
 
 static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, char** pAst, int32_t* pLen, char** pExpr,
-                              int32_t* pExprLen) {
+                              int32_t* pExprLen, int32_t* pProjectionTotalLen) {
   SSelectStmt* pSelect = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -7691,7 +7695,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
 
   int32_t code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList);
+    code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList, pProjectionTotalLen);
   }
   if (TSDB_CODE_SUCCESS == code) {
     TSWAP(pInfo->pSubTable, pSelect->pSubtable);
@@ -7843,7 +7847,7 @@ static int32_t getRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, SR
   SSampleAstInfo info = {0};
   int32_t        code = buildSampleAstInfoByTable(pCxt, pStmt, pRetension, precision, &info);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildSampleAst(pCxt, &info, pAst, pLen, NULL, NULL);
+    code = buildSampleAst(pCxt, &info, pAst, pLen, NULL, NULL, NULL);
   }
   clearSampleAstInfo(&info);
   return code;
@@ -8377,7 +8381,7 @@ static int32_t getSmaIndexAst(STranslateContext* pCxt, SCreateIndexStmt* pStmt, 
   SSampleAstInfo info = {0};
   int32_t        code = buildSampleAstInfoByIndex(pCxt, pStmt, &info);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildSampleAst(pCxt, &info, pAst, pLen, pExpr, pExprLen);
+    code = buildSampleAst(pCxt, &info, pAst, pLen, pExpr, pExprLen, NULL);
   }
   clearSampleAstInfo(&info);
   return code;
@@ -10676,7 +10680,11 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     code = fmCreateStateFuncs(info.pFuncs);
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = buildSampleAst(pCxt, &info, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
+    int32_t pProjectionTotalLen = 0;
+    code = buildSampleAst(pCxt, &info, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen, &pProjectionTotalLen);
+    if (code == TSDB_CODE_SUCCESS && pProjectionTotalLen > TSDB_MAX_BYTES_PER_ROW) {
+      code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+    }
   }
   clearSampleAstInfo(&info);
   return code;

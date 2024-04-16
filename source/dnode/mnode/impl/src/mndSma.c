@@ -1486,7 +1486,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
     f.bytes = pExprNode->resType.bytes;
     f.type = pExprNode->resType.type;
     f.flags = COL_SMA_ON;
-    strcpy(f.name, pExprNode->aliasName);
+    strcpy(f.name, pExprNode->userAlias);
     taosArrayPush(pCxt->pCreateStreamReq->pCols, &f);
   }
 }
