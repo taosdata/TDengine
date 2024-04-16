@@ -936,7 +936,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
 
     if (retInfo.ret == TASK_SCANHISTORY_REXEC) {
-      streamReExecScanHistoryFuture(pTask, retInfo.idleTime);
+      streamExecScanHistoryInFuture(pTask, retInfo.idleTime);
     } else {
       SStreamTaskState* p = streamTaskGetStatus(pTask);
       ETaskStatus       s = p->state;

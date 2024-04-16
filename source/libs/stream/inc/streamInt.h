@@ -87,6 +87,11 @@ struct SStreamQueue {
   int8_t      status;
 };
 
+typedef enum {
+  EXEC_CONTINUE = 0x0,
+  EXEC_AFTER_IDLE = 0x1,
+} EExtractDataCode;
+
 extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
@@ -125,7 +130,7 @@ void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
-int32_t           streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                               int32_t* blockSize);
 int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
