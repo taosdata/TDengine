@@ -24,7 +24,12 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-//#include "os.h"
+
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
+
+#include "os.h"
 
 #include "executor.h"
 #include "executorInt.h"
