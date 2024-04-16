@@ -526,10 +526,7 @@ async fn sync(
                         }
                     }
                     if let Err(err) = consumer.commit(offset).await {
-                        tracing::warn!(
-                            consumer.worker.id = id,
-                            "[{id}] commit error: {err:?}"
-                        );
+                        tracing::warn!("Commit error: {err:?}");
                     }
                 } else {
                     break;
