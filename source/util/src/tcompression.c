@@ -280,7 +280,7 @@ TCompressL2FnSet compressL2Dict[] = {
     {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
     {"zlib", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
     {"zstd", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
-    {"tsz", l2ComressInitImpl_lz4, l2CompressImpl_tsz, l2DecompressImpl_tsz},
+    {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
     {"xz", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4}};
 #else
 TCompressL2FnSet compressL2Dict[] = {
