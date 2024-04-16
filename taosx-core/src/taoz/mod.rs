@@ -258,6 +258,25 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
+    async fn test_is_taos_valid_timeout() {
+        let dsn = Dsn::from_str("taos+ws://unknown_user:unknown_pass@ec2-35-86-78-3.us-west-2.compute.amazonaws.com:6041/test").unwrap();
+        // let dsv = is_taos_valid(&dsn).await;
+        let timeout = std::time::Duration::from_secs(5);
+        let timeout = tokio::time::timeout(timeout, is_taos_valid(&dsn)).await;
+
+        match timeout {
+            Err(err) => {
+                println!("timeout: {}", err);
+                assert!(true, "timeout");
+            }
+            Ok(_) => {
+                unreachable!("should not reach here");
+            }
+        }
+    }
+
+    #[ignore]
+    #[tokio::test]
     async fn test_is_taos_valid() {
         // taos
         let dsn = Dsn::from_str("taos+ws://root:taosdata@192.168.1.40:6041").unwrap();
