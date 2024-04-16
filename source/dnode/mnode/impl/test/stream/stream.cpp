@@ -62,8 +62,8 @@ SRpcMsg buildHbReq() {
     entry.id.taskId = 5;
     entry.id.streamId = defStreamId;
 
-    entry.checkpointId = 1;
-    entry.checkpointFailed = true;
+    entry.checkpointInfo.activeId = 1;
+    entry.checkpointInfo.failed = true;
 
     taosArrayPush(msg.pTaskStatus, &entry);
   }

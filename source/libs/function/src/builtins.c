@@ -46,7 +46,7 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
 #define TIME_UNIT_TOO_SMALL 2
 
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
-  if (!pVal->isDuration) {
+  if (!IS_DURATION_VAL(pVal->flag)) {
     return TIME_UNIT_INVALID;
   }
 
@@ -225,7 +225,6 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   }
 
   pVal->literal = strndup(buf, len);
-  pVal->isDuration = false;
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
@@ -245,7 +244,6 @@ static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   }
 
   pVal->literal = NULL;
-  pVal->isDuration = false;
   pVal->translate = true;
   pVal->notReserved = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
@@ -547,6 +545,9 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   for (int32_t i = 1; i < numOfParams; ++i) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+    if (QUERY_NODE_VALUE != nodeType(pValue)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
     pValue->notReserved = true;
 
     uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
@@ -2399,7 +2400,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateCount,
     .dataRequiredFunc = countDataRequired,
     .getEnvFunc   = getCountFuncEnv,
@@ -2417,7 +2418,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateSum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSumFuncEnv,
@@ -2435,7 +2436,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2450,7 +2451,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2525,7 +2526,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2544,7 +2545,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_partial",
     .type = FUNCTION_TYPE_AVG_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateAvgPartial,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2559,7 +2560,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_merge",
     .type = FUNCTION_TYPE_AVG_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateAvgMerge,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
@@ -2636,7 +2637,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2652,7 +2653,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2850,7 +2851,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last",
     .type = FUNCTION_TYPE_CACHE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2884,7 +2885,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2900,7 +2901,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_first_partial",
     .type = FUNCTION_TYPE_FIRST_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLastPartial,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2913,7 +2914,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_first_merge",
     .type = FUNCTION_TYPE_FIRST_MERGE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2925,7 +2926,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2941,7 +2942,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_last_partial",
     .type = FUNCTION_TYPE_LAST_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLastPartial,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2954,7 +2955,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_last_merge",
     .type = FUNCTION_TYPE_LAST_MERGE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,

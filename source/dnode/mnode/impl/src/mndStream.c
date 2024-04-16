@@ -1348,9 +1348,31 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
 
+    // create time
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
 
+    // stream id
+    char buf[128] = {0};
+    int32_t len = tintToHex(pStream->uid, &buf[4]);
+    buf[2] = '0';
+    buf[3] = 'x';
+    varDataSetLen(buf, len + 2);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // related fill-history stream id
+    memset(buf, 0, tListLen(buf));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pStream->hTaskUid != 0) {
+      len = tintToHex(pStream->hTaskUid, &buf[4]);
+      varDataSetLen(buf, len + 2);
+      colDataSetVal(pColInfo, numOfRows, buf, false);
+    } else {
+      colDataSetVal(pColInfo, numOfRows, buf, true);
+    }
+
+    // related fill-history stream id
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->sql, sizeof(sql));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1513,19 +1535,69 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   //        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   //        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
 
+  // info
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     const char *sinkStr = "%.2fMiB";
     sprintf(buf, sinkStr, pe->sinkDataSize);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // offset info
     const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    sprintf(buf, offsetStr, pe->processedVer, pe->verStart, pe->verEnd);
+    sprintf(buf, offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
   }
 
   STR_TO_VARSTR(vbuf, buf);
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+
+  // start_time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char*)&pe->startTime, false);
+
+  // start id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char*)&pe->startCheckpointId, false);
+
+  // start ver
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char*)&pe->startCheckpointVer, false);
+
+  // checkpoint time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  if (pe->checkpointInfo.latestTime != 0) {
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pe->checkpointInfo.latestTime, false);
+  } else {
+    colDataSetVal(pColInfo, numOfRows, 0, true);
+  }
+
+  // checkpoint_id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char*)&pe->checkpointInfo.latestId, false);
+
+  // checkpoint info
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char*)&pe->checkpointInfo.latestVer, false);
+
+  // ds_err_info
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, 0, true);
+
+  // history_task_id
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  if (pe->hTaskId != 0) {
+    memset(idstr, 0, tListLen(idstr));
+    len = tintToHex(pe->hTaskId, &idstr[4]);
+    idstr[2] = '0';
+    idstr[3] = 'x';
+    varDataSetLen(idstr, len + 2);
+    colDataSetVal(pColInfo, numOfRows, idstr, false);
+  } else {
+    colDataSetVal(pColInfo, numOfRows, 0, true);
+  }
+
+  // history_task_status
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, 0, true);
 
   return TSDB_CODE_SUCCESS;
 }

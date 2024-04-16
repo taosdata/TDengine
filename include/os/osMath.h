@@ -31,7 +31,7 @@ extern "C" {
 
 #define TSWAP(a, b)                  \
   do {                               \
-    char *__tmp = alloca(sizeof(a)); \
+    char *__tmp = (char*)alloca(sizeof(a)); \
     memcpy(__tmp, &(a), sizeof(a));  \
     memcpy(&(a), &(b), sizeof(a));   \
     memcpy(&(b), __tmp, sizeof(a));  \

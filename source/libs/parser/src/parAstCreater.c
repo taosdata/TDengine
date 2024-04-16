@@ -365,7 +365,6 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
     val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   }
-  val->isDuration = false;
   val->translate = false;
   return (SNode*)val;
 }
@@ -480,6 +479,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_SMALLDATA_TS_SORT:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
+    case HINT_HASH_JOIN:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
+      break;
     default:
       return true;
   }
@@ -574,6 +576,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         opt = HINT_SMALLDATA_TS_SORT;
         break;
+      case TK_HASH_JOIN:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_HASH_JOIN;
+        break;
       case TK_NK_LP:
         lastComma = false;
         if (0 == opt || inParamList) {
@@ -663,13 +673,59 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
     val->literal = strndup(pLiteral->z, pLiteral->n);
   }
   CHECK_OUT_OF_MEM(val->literal);
-  val->isDuration = true;
+  val->flag |= VALUE_FLAG_IS_DURATION;
   val->translate = false;
   val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   return (SNode*)val;
 }
+
+SNode* createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  CHECK_OUT_OF_MEM(val);
+  if (pLiteral->type == TK_NK_STRING) {
+    // like '100s' or "100d"
+    // check format: ^[0-9]+[smwbauhdny]$'
+    if (pLiteral->n < 4) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+      return NULL;
+    }
+    char unit = pLiteral->z[pLiteral->n - 2];
+    switch (unit) {
+      case 'a':
+      case 'b':
+      case 'd':
+      case 'h':
+      case 'm':
+      case 's':
+      case 'u':
+      case 'w':
+        break;
+      default:
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+        return NULL;
+    }
+    for (uint32_t i = 1; i < pLiteral->n - 2; ++i) {
+      if (!isdigit(pLiteral->z[i])) {
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+        return NULL;
+      }
+    }
+    val->literal = strndup(pLiteral->z + 1, pLiteral->n - 2);
+  } else {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+  }
+  CHECK_OUT_OF_MEM(val->literal);
+  val->flag |= VALUE_FLAG_IS_TIME_OFFSET;
+  val->translate = false;
+  val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  return (SNode*)val;
+}
+
 
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
@@ -681,7 +737,6 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(val);
   val->literal = taosStrdup(pCxt->pQueryCxt->db);
   CHECK_OUT_OF_MEM(val->literal);
-  val->isDuration = false;
   val->translate = false;
   val->node.resType.type = TSDB_DATA_TYPE_BINARY;
   val->node.resType.bytes = strlen(val->literal);
@@ -801,6 +856,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   } else {
     strncpy(pCol->colName, pFuncName->z, pFuncName->n);
   }
+  pCol->isPrimTs = true;
   return (SNode*)pCol;
 }
 
@@ -890,11 +946,12 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   return (SNode*)tempTable;
 }
 
-SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft, SNode* pRight, SNode* pJoinCond) {
+SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight, SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
   SJoinTableNode* joinTable = (SJoinTableNode*)nodesMakeNode(QUERY_NODE_JOIN_TABLE);
   CHECK_OUT_OF_MEM(joinTable);
   joinTable->joinType = type;
+  joinTable->subType = stype;
   joinTable->pLeft = pLeft;
   joinTable->pRight = pRight;
   joinTable->pOnCond = pJoinCond;
@@ -1006,6 +1063,15 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pSliding = pSliding;
   interval->pFill = pFill;
   return (SNode*)interval;
+}
+
+SNode* createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWindowOffsetNode* winOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
+  CHECK_OUT_OF_MEM(winOffset);
+  winOffset->pStartOffset = pStartOffset;
+  winOffset->pEndOffset = pEndOffset;
+  return (SNode*)winOffset;
 }
 
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
@@ -1178,6 +1244,31 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   }
   return pStmt;
 }
+
+
+SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pJLimit) {
+    return pJoin;
+  }
+  SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
+  pJoinNode->pJLimit = pJLimit;
+  
+  return pJoin;
+}
+
+
+SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinOffset) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pWinOffset) {
+    return pJoin;
+  }
+  SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
+  pJoinNode->pWindowOffset = pWinOffset;
+  
+  return pJoin;
+}
+
 
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable,
                         SNodeList* pHint) {

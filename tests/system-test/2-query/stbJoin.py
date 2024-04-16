@@ -124,11 +124,13 @@ class TDTestCase:
         tdSql.query(f"select a.* from sta a ,stb b where a.ts=b.ts and a.ts is not null;")
         tdSql.checkRows(48)
 
+        tdSql.query(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!it works now
+        tdSql.checkRows(18)
+
 #        tdSql.checkData(0,1,10)
 
         tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
         tdSql.error(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
-        tdSql.error(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!make it work
 
     def stop(self):
         tdSql.close()

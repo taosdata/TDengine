@@ -849,13 +849,15 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->inputQUsed = pSrc->inputQUsed;
   pDst->inputRate = pSrc->inputRate;
   pDst->processedVer = pSrc->processedVer;
-  pDst->verStart = pSrc->verStart;
-  pDst->verEnd = pSrc->verEnd;
+  pDst->verRange = pSrc->verRange;
   pDst->sinkQuota = pSrc->sinkQuota;
   pDst->sinkDataSize = pSrc->sinkDataSize;
-  pDst->checkpointId = pSrc->checkpointId;
-  pDst->checkpointFailed = pSrc->checkpointFailed;
-  pDst->chkpointTransId = pSrc->chkpointTransId;
+  pDst->checkpointInfo = pSrc->checkpointInfo;
+  pDst->startCheckpointId = pSrc->startCheckpointId;
+  pDst->startCheckpointVer = pSrc->startCheckpointVer;
+
+  pDst->startTime = pSrc->startTime;
+  pDst->hTaskId = pSrc->hTaskId;
 }
 
 static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {

@@ -352,7 +352,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
         // continue merge data, ignore the group id
         blockDataMerge(pFinalRes, pRes);
-        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold) {
+        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;
         }
       }

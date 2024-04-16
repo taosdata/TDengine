@@ -66,6 +66,7 @@ typedef struct SLogicNode {
   EOrder             inputTsOrder;
   EOrder             outputTsOrder;
   bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
+  bool               splitDone;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -128,15 +129,32 @@ typedef struct SScanLogicNode {
 typedef struct SJoinLogicNode {
   SLogicNode     node;
   EJoinType      joinType;
+  EJoinSubType   subType;
+  SNode*         pWindowOffset;
+  SNode*         pJLimit;
   EJoinAlgorithm joinAlgo;
+  SNode*         addPrimEqCond;
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
+  SNode*         pColOnCond;
   SNode*         pTagEqCond;
   SNode*         pTagOnCond;
-  SNode*         pOtherOnCond;
+  SNode*         pFullOnCond; // except prim eq cond
+  SNodeList*     pLeftEqNodes;
+  SNodeList*     pRightEqNodes;
+  bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
+  bool           seqWinGroup;
+  bool           grpJoin;
+  bool           hashJoinHint;
+
+  // FOR HASH JOIN
+  int32_t        timeRangeTarget;  //table onCond filter
+  STimeWindow    timeRange;        //table onCond filter
+  SNode*         pLeftOnCond;      //table onCond filter
+  SNode*         pRightOnCond;     //table onCond filter
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -480,26 +498,52 @@ typedef struct SInterpFuncPhysiNode {
 } SInterpFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pOtherOnCond;
-  SNodeList* pTargets;
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;
+  int32_t      asofOpType;
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  SNodeList*   pEqLeft;
+  SNodeList*   pEqRight;
+  SNode*       pPrimKeyCond; //remove
+  SNode*       pColEqCond;   //remove
+  SNode*       pColOnCond;
+  SNode*       pFullOnCond;
+  SNodeList*   pTargets;
+  SQueryStat   inputStat[2];  
+  bool         seqWinGroup;
+  bool         grpJoin;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNodeList* pOnLeft;
-  SNodeList* pOnRight;
-  SNode*     pFilterConditions;
-  SNodeList* pTargets;
-  SQueryStat inputStat[2];
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;  
+  SNodeList*   pOnLeft;
+  SNodeList*   pOnRight;
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  int32_t      timeRangeTarget; //table onCond filter
+  STimeWindow  timeRange;       //table onCond filter
+  SNode*       pLeftOnCond;     //table onCond filter
+  SNode*       pRightOnCond;    //table onCond filter
+  SNode*       pFullOnCond;     //preFilter
+  SNodeList*   pTargets;
+  SQueryStat   inputStat[2];
 
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pTagEqCond;  
+  // only in planner internal
+  SNode*       pPrimKeyCond;
+  SNode*       pColEqCond;
+  SNode*       pTagEqCond;  
 } SHashJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {
