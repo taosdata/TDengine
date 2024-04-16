@@ -66,6 +66,7 @@ namespace TDPIConnector.Core
         {
             public int ID;
             public string Path;
+            public string Template;
             public Dictionary<string, string> Tags;
             public List<ScanElement> Elements = new List<ScanElement>();
         }
@@ -114,6 +115,10 @@ namespace TDPIConnector.Core
 
         internal string GetInfo(ScanPiInfo.ScanMode scanMode, string filter, ScanPiInfo.FilterMode filterMode)
         {
+            if (piSystemManager == null)
+            {
+                return "PI System not found!";
+            }
             switch (scanMode) {
                 case ScanMode.ScanPIInfo:
                     return GetPIInfo(filter);
@@ -170,10 +175,6 @@ namespace TDPIConnector.Core
         }
         internal string GetScanAFPointInfoByElement(ref string filter)
         {
-            if (piSystemManager == null)
-            {
-                return "PI System not found!";
-            }
             var elements = piSystemManager.GetElementByFilter(AppSettings.tomlConfig.AFDatabaseName, filter);
             var piInfo = new ScanAFPointList();
             HashSet<string> existTemplate = new HashSet<string>();
@@ -206,6 +207,7 @@ namespace TDPIConnector.Core
                             {
                                 ScanAFPoint point = new ScanAFPoint();
                                 point.ID = attr.PIPoint.PointId;
+                                point.Template = templateName;
                                 point.Path = attr.PIPoint.GetPath();
                                 point.Tags = attr.PIPoint.GetPointSavedAttrsValue();
                                 point.Elements.Add(e);

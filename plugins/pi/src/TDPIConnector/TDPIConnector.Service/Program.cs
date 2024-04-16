@@ -126,7 +126,7 @@ namespace TDPIConnector.Service
                             break;
                         case "pt":
                             workMode = WorkMode.PrintPIInfo;
-                            printMode = ScanMode.ScanPx;
+                            printMode = ScanMode.ScanPt;
                             pointFilter = args[i + 1];
                             fileterMode = PIInfoScanner.GetFilterMode(args[i + 2]);
                             i += 3;
