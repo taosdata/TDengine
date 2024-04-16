@@ -146,10 +146,13 @@ int32_t l2DecompressImpl_lz4(const char *const input, const int32_t compressedSi
   }
   return -1;
 }
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+#else
 int32_t l2ComressInitImpl_zlib(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
                                uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
   return 0;
 }
+
 int32_t l2CompressImpl_zlib(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
                             const char type, int8_t lvl) {
   uLongf  dstLen = outputSize - 1;
@@ -267,6 +270,7 @@ int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSiz
   }
   return -1;
 }
+#endif
 
 TCompressL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressPlain2, tsDecompressPlain2},
                                      {"SIMPLE-8B", NULL, tsCompressINTImp2, tsDecompressINTImp2},
