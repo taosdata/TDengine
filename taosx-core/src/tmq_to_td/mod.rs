@@ -600,7 +600,7 @@ pub async fn tmq_to_td(
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
-    let mut handles = Vec::new();
+    let mut join_set = tokio::task::JoinSet::new();
     let mut consumer_task_id = 0;
     let target_database = to.subject.take();
 
@@ -800,7 +800,7 @@ pub async fn tmq_to_td(
             let sender = consumers_sender.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
-            let handle = tokio::spawn(
+            join_set.spawn(
                 async move {
                     sync(
                         consumer_task_id,
@@ -819,15 +819,18 @@ pub async fn tmq_to_td(
                 }
                 .in_current_span(),
             );
-            handles.push(handle);
             tracing::info!("Spawn consuming task with id {consumer_task_id}",);
             consumer_task_id += 1;
         }
     }
 
-    tracing::info!("Spawn consuming tasks {}", handles.len());
-    for handle in handles {
-        let _ = handle.await??;
+    tracing::info!("Spawn consuming tasks {}", join_set.len());
+    while let Some(res) = join_set.join_next().await {
+        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
+            tracing::error!("Task error: {err}");
+            join_set.abort_all();
+            return Err(err);
+        }
     }
     tracing::info!("Stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
