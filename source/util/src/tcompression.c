@@ -146,6 +146,35 @@ int32_t l2DecompressImpl_lz4(const char *const input, const int32_t compressedSi
   }
   return -1;
 }
+int32_t l2ComressInitImpl_tsz(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                              uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+int32_t l2CompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                           const char type, int8_t lvl) {
+  if (type == TSDB_DATA_TYPE_FLOAT) {
+    if (lossyFloat) {
+      return tsCompressFloatLossyImp(input, inputSize, output);
+    }
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+    if (lossyDouble) {
+      return tsCompressDoubleLossyImp(input, inputSize, output);
+    }
+  }
+
+  return l2CompressImpl_lz4(input, inputSize, output, outputSize, type, lvl);
+}
+
+int32_t l2DecompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                             const char type) {
+  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+    if (HEAD_ALGO(((uint8_t *)input)[0]) == ALGO_SZ_LOSSY) {
+      return tsDecompressFloatLossyImp(input, inputSize, outputSize, output);
+    }
+  }
+
+  return l2DecompressImpl_lz4(input, inputSize, output, outputSize, type);
+}
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
 #else
 int32_t l2ComressInitImpl_zlib(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
@@ -214,35 +243,6 @@ int32_t l2DecompressImpl_zstd(const char *const input, const int32_t compressedS
     return compressedSize - 1;
   }
   return -1;
-}
-int32_t l2ComressInitImpl_tsz(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
-                              uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
-  return 0;
-}
-int32_t l2CompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
-                           const char type, int8_t lvl) {
-  if (type == TSDB_DATA_TYPE_FLOAT) {
-    if (lossyFloat) {
-      return tsCompressFloatLossyImp(input, inputSize, output);
-    }
-  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-    if (lossyDouble) {
-      return tsCompressDoubleLossyImp(input, inputSize, output);
-    }
-  }
-
-  return l2CompressImpl_lz4(input, inputSize, output, outputSize, type, lvl);
-}
-
-int32_t l2DecompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
-                             const char type) {
-  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
-    if (HEAD_ALGO(((uint8_t *)input)[0]) == ALGO_SZ_LOSSY) {
-      return tsDecompressFloatLossyImp(input, inputSize, outputSize, output);
-    }
-  }
-
-  return l2DecompressImpl_lz4(input, inputSize, output, outputSize, type);
 }
 
 int32_t l2ComressInitImpl_xz(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
