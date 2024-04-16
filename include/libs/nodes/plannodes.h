@@ -622,6 +622,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
+  int8_t     destHasPrimayKey;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 

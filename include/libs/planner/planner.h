@@ -44,6 +44,8 @@ typedef struct SPlanContext {
   const char* pUser;
   bool        sysInfo;
   int64_t     allocatorId;
+  bool        destHasPrimaryKey;
+  bool        sourceHasPrimaryKey;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

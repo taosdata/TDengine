@@ -468,6 +468,20 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
   return c;
 }
 
+void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid){
+  bool ret = false;
+  SSchemaWrapper *schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+    ret = true;
+  }
+  tDeleteSchemaWrapper(schema);
+  ctx->hasPrimaryKey = ret;
+}
+
+bool taosXGetTablePrimaryKey(SSnapContext* ctx){
+  return ctx->hasPrimaryKey;
+}
+
 int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
   int32_t ret = 0;
   void*   pKey = NULL;

@@ -807,6 +807,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   int32_t         vgId = pMeta->vgId;
+  bool            scanWal = false;
 
   streamMetaWLock(pMeta);
   if (pStartInfo->taskStarting == 1) {
@@ -831,10 +832,18 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
         pStartInfo->restartCount = 0;
         tqDebug("vgId:%d all tasks are ready, reset restartCounter 0, not restart tasks", vgId);
       }
+
+      scanWal = true;
     }
   }
 
   streamMetaWUnLock(pMeta);
+
+  if (scanWal && (vgId != SNODE_HANDLE)) {
+    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
+    tqScanWalAsync(pMeta->ahandle, true);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

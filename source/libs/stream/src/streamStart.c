@@ -119,7 +119,11 @@ int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) 
 
   // add ref for task
   SStreamTask* p = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
-  ASSERT(p != NULL);
+  if (p == NULL) {
+    stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
+            streamTaskGetStatus(pTask)->name);
+    return TSDB_CODE_SUCCESS;
+  }
 
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
 
@@ -394,8 +398,7 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   if (pTask->status.taskStatus == TASK_STATUS__HALT) {
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
 
-    // halt it self for count window stream task until the related
-    // fill history task completd.
+    // halt it self for count window stream task until the related fill history task completed.
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);

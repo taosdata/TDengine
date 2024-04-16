@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -120,6 +121,18 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
+  COPY_SCALAR_FIELD(tableHasPk);
+  COPY_SCALAR_FIELD(isPk);
+  COPY_SCALAR_FIELD(numOfPKs);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(colName);
+  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  COPY_CHAR_ARRAY_FIELD(comments);
+  COPY_SCALAR_FIELD(sma);
+  COPY_SCALAR_FIELD(is_pk);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -209,6 +222,8 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(funcType);
   CLONE_NODE_LIST_FIELD(pParameterList);
   COPY_SCALAR_FIELD(udfBufSize);
+  COPY_SCALAR_FIELD(hasPk);
+  COPY_SCALAR_FIELD(pkBytes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -739,6 +754,7 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(destHasPrimayKey);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -856,6 +872,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+      break;
+    case QUERY_NODE_COLUMN_DEF:
+      code = columnDefNodeCopy((const SColumnDefNode*)pNode, (SColumnDefNode*)pDst);
       break;
     case QUERY_NODE_VALUE:
       code = valueNodeCopy((const SValueNode*)pNode, (SValueNode*)pDst);

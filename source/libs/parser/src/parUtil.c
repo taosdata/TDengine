@@ -161,7 +161,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_VALUE_TOO_LONG:
       return "Value too long for column/tag: %s";
     case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
-      return "The DELETE statement must have a definite time window range";
+      return "The DELETE statement must only have a definite time window range";
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
@@ -202,6 +202,14 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Valid primary timestamp required";
     case TSDB_CODE_PAR_NOT_WIN_FUNC:
       return "Column exists for window join with aggregation functions";
+    case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
+      return "tag %s can not be primary key";
+    case TSDB_CODE_PAR_SECOND_COL_PK:
+      return "primary key column must be second column";
+    case TSDB_CODE_PAR_COL_PK_TYPE:
+      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
+    case TSDB_CODE_PAR_INVALID_PK_OP:
+      return "primary key column can not be added, modified, and dropped";    
     default:
       return "Unknown error";
   }

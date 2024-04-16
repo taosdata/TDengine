@@ -51,11 +51,7 @@ typedef enum {
   CFG_DTYPE_TIMEZONE
 } ECfgDataType;
 
-typedef enum {
-  CFG_SCOPE_SERVER,
-  CFG_SCOPE_CLIENT,
-  CFG_SCOPE_BOTH
-} ECfgScopeType;
+typedef enum { CFG_SCOPE_SERVER, CFG_SCOPE_CLIENT, CFG_SCOPE_BOTH } ECfgScopeType;
 
 typedef enum {
   CFG_DYN_NONE = 0,
@@ -138,6 +134,7 @@ void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
 void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
+void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump);
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl);
 

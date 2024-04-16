@@ -76,6 +76,7 @@ typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
   col_id_t numOfColumns;  // the number of columns
+  int16_t  numOfPKs;
   int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
@@ -197,7 +198,7 @@ typedef struct STableDataCxt {
   SBoundColInfo  boundColsInfo;
   SArray*        pValues;
   SSubmitTbData* pData;
-  TSKEY          lastTs;
+  SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
 } STableDataCxt;

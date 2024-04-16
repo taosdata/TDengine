@@ -302,7 +302,8 @@ typedef enum ENodeType {
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
   QUERY_NODE_ALTER_CLUSTER_STMT,
-  // placeholder for [153, 180]
+  QUERY_NODE_S3MIGRATE_DATABASE_STMT,
+  // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -587,10 +588,11 @@ typedef struct {
 // int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 // int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 // void    tFreeSSubmitBlkRsp(void* param);
-void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
+void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
+#define COL_IS_KEY     ((int8_t)0x4)
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
@@ -1039,6 +1041,7 @@ typedef struct {
   uint8_t scale;
   int32_t bytes;
   int8_t  type;
+  uint8_t pk;
 } SColumnInfo;
 
 typedef struct STimeWindow {
@@ -1152,6 +1155,9 @@ typedef struct {
   int32_t sstTrigger;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
@@ -1182,6 +1188,8 @@ typedef struct {
   int32_t minRows;
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
@@ -1263,6 +1271,20 @@ int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
+  char db[TSDB_DB_FNAME_LEN];
+} SS3MigrateDbReq;
+
+int32_t tSerializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+int32_t tDeserializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+
+typedef struct {
+  int32_t timestamp;
+} SVS3MigrateDbReq;
+
+int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+
+typedef struct {
   int32_t timestampSec;
   int32_t ttlDropMaxCount;
   int32_t nUids;
@@ -1298,6 +1320,9 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
   int32_t tsdbPageSize;
   int32_t walRetentionPeriod;
   int32_t walRollPeriod;
@@ -1588,13 +1613,13 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
-  int32_t     contLen;
-  char*       pCont;
+  int32_t contLen;
+  char*   pCont;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
 int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
-void tFreeSStatisReq(SStatisReq *pReq);
+void    tFreeSStatisReq(SStatisReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -1699,7 +1724,10 @@ typedef struct {
   int16_t  hashPrefix;
   int16_t  hashSuffix;
   int32_t  tsdbPageSize;
-  int64_t  reserved[8];
+  int32_t  s3ChunkSize;
+  int32_t  s3KeepLocal;
+  int8_t   s3Compact;
+  int64_t  reserved[6];
   int8_t   learnerReplica;
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
@@ -1787,13 +1815,15 @@ typedef struct {
   int8_t  walLevel;
   int8_t  strict;
   int8_t  cacheLast;
-  int64_t reserved[8];
+  int64_t reserved[7];
   // 1st modification
   int16_t sttTrigger;
   int32_t minRows;
   // 2nd modification
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -1952,7 +1982,7 @@ typedef struct {
 
 int32_t tSerializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
 // int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
-void    tFreeSShowReq(SShowReq* pReq);
+void tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
   int64_t       showId;
@@ -2565,6 +2595,8 @@ typedef struct {
   int8_t   igUpdate;
   int64_t  lastTs;
   SArray*  pVgroupVerList;
+  // 3.3.0.0
+  SArray*  pCols;  // array of SField
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -2834,7 +2866,7 @@ typedef struct {
     SVCreateTbReq* pReqs;
     SArray*        pArray;
   };
-  int8_t   source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVCreateTbBatchReq;
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
@@ -2929,7 +2961,7 @@ typedef struct {
   int32_t newCommentLen;
   char*   newComment;
   int64_t ctimeMs;  // fill by vnode
-  int8_t  source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
+  int8_t  source;   // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -3407,6 +3439,8 @@ enum {
   ONLY_META = 2,
 };
 
+#define TQ_OFFSET_VERSION 1
+
 typedef struct {
   int8_t type;
   union {
@@ -3414,6 +3448,7 @@ typedef struct {
     struct {
       int64_t uid;
       int64_t ts;
+      SValue  primaryKey;
     };
     // log
     struct {
@@ -3422,10 +3457,14 @@ typedef struct {
   };
 } STqOffsetVal;
 
-static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts) {
+static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts, SValue primaryKey) {
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
   pOffsetVal->uid = uid;
   pOffsetVal->ts = ts;
+  if(IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
+    taosMemoryFree(pOffsetVal->primaryKey.pData);
+  }
+  pOffsetVal->primaryKey = primaryKey;
 }
 
 static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid) {
@@ -3442,6 +3481,8 @@ int32_t tEncodeSTqOffsetVal(SEncoder* pEncoder, const STqOffsetVal* pOffsetVal);
 int32_t tDecodeSTqOffsetVal(SDecoder* pDecoder, STqOffsetVal* pOffsetVal);
 int32_t tFormatOffset(char* buf, int32_t maxLen, const STqOffsetVal* pVal);
 bool    tOffsetEqual(const STqOffsetVal* pLeft, const STqOffsetVal* pRight);
+void    tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pOffsetVal);
+void    tOffsetDestroy(void* pVal);
 
 typedef struct {
   STqOffsetVal val;
@@ -3748,6 +3789,7 @@ typedef struct {
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
 int32_t tDeserializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
+void    tDestroySMqPollReq(SMqPollReq *pReq);
 
 typedef struct {
   int32_t vgId;
@@ -3791,7 +3833,9 @@ typedef struct {
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
 int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
+void    tDeleteMqMetaRsp(SMqMetaRsp *pRsp);
 
+#define MQ_DATA_RSP_VERSION 100
 typedef struct {
   SMqRspHead   head;
   STqOffsetVal reqOffset;
@@ -3807,7 +3851,7 @@ typedef struct {
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
-int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp, int8_t dataVersion);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 
 typedef struct {
@@ -3828,7 +3872,7 @@ typedef struct {
 } STaosxRsp;
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
-int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp, int8_t dateVersion);
 void    tDeleteSTaosxRsp(STaosxRsp* pRsp);
 
 typedef struct {
@@ -4034,8 +4078,9 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
 #define TD_REQ_FROM_TAOX              0x8
+#define SUBMIT_REQUEST_VERSION        (1)
 
-#define TD_REQ_FROM_TAOX_OLD          0x1     // for compatibility
+#define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 
 typedef struct {
   int32_t        flags;

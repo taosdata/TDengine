@@ -1311,6 +1311,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t cons
     for(int i = 0; i < taosArrayGetSize(offsetRows); i++){
       OffsetRows *tmp = taosArrayGet(offsetRows, i);
       if(tmp->vgId != pVgEp->vgId){
+        mError("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
         continue;
       }
       data = tmp;
@@ -1374,7 +1375,6 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, topic, cgroup, pConsumerEp->vgs, pConsumerEp->offsetRows);
     }
 
-    // do not show for cleared subscription
     buildResult(pBlock, &numOfRows, -1, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows);
 
     pBlock->info.rows = numOfRows;

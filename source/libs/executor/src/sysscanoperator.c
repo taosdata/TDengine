@@ -983,7 +983,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
         tagVarChar = taosMemoryCalloc(1, bufSize + 1);
         int32_t len = -1;
-        convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        if (tagLen > 0)
+          convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        else
+          len = 0;
         varDataSetLen(tagVarChar, len);
       }
     }
@@ -2327,6 +2330,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList->colId = 1;
   pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
   pCond->colList->bytes = sizeof(TSKEY);
+  pCond->colList->pk = 0;
 
   pCond->pSlotList[0] = 0;
 

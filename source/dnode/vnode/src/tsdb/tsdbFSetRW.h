@@ -37,6 +37,7 @@ typedef struct {
   int64_t cid;
   SDiskID did;
   int32_t level;
+  int32_t lcn;
   struct {
     bool   exist;
     STFile file;

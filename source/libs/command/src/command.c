@@ -113,7 +113,13 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     if (TSDB_VIEW_TABLE != pMeta->tableType) {
-      STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+      if (i >= pMeta->tableInfo.numOfColumns) {
+        STR_TO_VARSTR(buf, "TAG");
+      } else if (i == 1 && pMeta->schema[i].flags & COL_IS_KEY) {
+        STR_TO_VARSTR(buf, "PRIMARY KEY")
+      } else {
+        STR_TO_VARSTR(buf, "");
+      }
     } else {
       STR_TO_VARSTR(buf, "VIEW COL");
     }
@@ -307,12 +313,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
         "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
         "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
         "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " KEEP_TIME_OFFSET %d",
+        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " KEEP_TIME_OFFSET %d S3_CHUNKSIZE %d S3_KEEPLOCAL %dm S3_COMPACT %d",
         dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
         pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
         pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
         1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize,
-        pCfg->keepTimeOffset);
+        pCfg->keepTimeOffset, pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact);
 
     if (retentions) {
       len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -495,8 +501,12 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
-
-    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    if (!(pSchema->flags & COL_IS_KEY)) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    } else {
+      char* pk = "PRIMARY KEY";
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
+    }
   }
 }
 

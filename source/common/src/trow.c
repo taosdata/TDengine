@@ -510,9 +510,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
     rowTotalLen = sizeof(STSRow) + sizeof(col_id_t) + varDataLen + nonVarDataLen + (nBound - 1) * sizeof(SKvRowIdx) +
                   TD_BITMAP_BYTES(nBound - 1);
   }
-    if (!(*ppRow)) {
-      *ppRow = (STSRow *)taosMemoryCalloc(1, rowTotalLen);
-      isAlloc = true;
+  if (!(*ppRow)) {
+    *ppRow = (STSRow *)taosMemoryCalloc(1, rowTotalLen);
+    isAlloc = true;
   }
 
   if (!(*ppRow)) {
@@ -1106,7 +1106,7 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   } else {
     pColVal->cid = pTColumn->colId;
-    pColVal->type = pTColumn->type;
+    pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
 
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
