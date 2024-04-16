@@ -2,7 +2,7 @@
 members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics"]
 
 [workspace.dependencies]
-chrono = { version = "0.4.26" }
+chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.8.3" }
 shadow-rs = { version = "0.26.0" }
 
