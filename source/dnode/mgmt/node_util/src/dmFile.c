@@ -305,6 +305,7 @@ _OVER:
 }
 
 int32_t dmUpdateEncryptKey(char *key) {
+#ifdef TD_ENTERPRISE
   int32_t code = -1;
   char   *machineId = NULL;
   char   *encryptCode = NULL;
@@ -363,6 +364,9 @@ _OVER:
     dError("failed to update encrypt key since %s", terrstr());
   }
   return code;
+#else
+  return 0;
+#endif
 }
 
 extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
@@ -411,6 +415,7 @@ _OVER:
 }
 
 int32_t dmGetEncryptKey(){
+#ifdef TD_ENTERPRISE
   int32_t   code = -1;
   char      encryptFile[PATH_MAX] = {0};
   char      checkFile[PATH_MAX] = {0};
@@ -467,4 +472,7 @@ _OVER:
     dError("failed to get encrypt key since %s", terrstr());
   }
   return code;
+#else
+  return 0;
+#endif
 }
