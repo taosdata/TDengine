@@ -242,6 +242,7 @@ jobs:
       
       - name: Force stop taosx-agent & taosx
         if: always()
+        shell: bash {0}
         run: |
           pgrep --help
           pgrep "taosx-agent"
@@ -303,6 +304,7 @@ jobs:
       
       - name: Force stop taosx-agent & taosx
         if: always()
+        shell: bash {0}
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
