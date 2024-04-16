@@ -312,7 +312,7 @@ pub struct DsnAgentQuery {
     timeout: Option<u64>,
 }
 
-const DEFAULT_REQUEST_TIMEOUT: u64 = 30 * 60; // 30 minutes
+const DEFAULT_REQUEST_TIMEOUT: u64 = 5; // 5s
 
 /// check data source validation by dsn
 #[utoipa::path(
