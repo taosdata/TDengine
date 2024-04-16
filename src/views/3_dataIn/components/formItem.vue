@@ -9,8 +9,9 @@
         :parent="parent + field + '.'"
       />
     </template>
+    <!-- 排除tmq中 dsn 自己带的参数，这类 param 特点就是 type=input,没有label  -->
     <el-form-item
-      v-else-if="display"
+      v-else-if="display && (labelText || config.type !== 'input')"
       :label="labelText"
       :label-width="labelWidth"
       :required="required(config)"
