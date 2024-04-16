@@ -215,7 +215,10 @@ fn get_raw_type(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<Str
         .get_column("type")
         .map(|col| row.get(col.index))
         .flatten()
-        .map(|val| val.to_string())
+        .map(|val| match val.find("(") {
+            Some(index) => val[..index].to_string(),
+            None => val.to_string(),
+        })
 }
 
 fn parse_stable(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
@@ -361,7 +364,12 @@ fn parse_columns(
     // quality => quality_col
     let quality = parse_quality_col(header, row);
     if quality.is_some() {
-        columns.push(quality.clone().unwrap());
+        let quality_column = quality.unwrap();
+        let quality_name = quality_column.alias.as_ref().unwrap();
+        if !validate_table_column_name(quality_name) {
+            bail!("invalid quality column name: [{}]", quality_name);
+        }
+        columns.push(quality_column);
     }
 
     // received_ts => received_ts_col/received_time_col
