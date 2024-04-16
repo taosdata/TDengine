@@ -774,7 +774,7 @@ _OVER:
   return terrno;
 }
 
-int64_t mndStreamGenChkpId(SMnode *pMnode) {
+int64_t mndStreamGenChkptId(SMnode *pMnode, bool lock) {
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
   SSdb       *pSdb = pMnode->pSdb;
@@ -791,7 +791,10 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
 
   {
     int64_t maxCheckpointId = -1;
-    taosThreadMutexLock(&execInfo.lock);
+    if (lock) {
+      taosThreadMutexLock(&execInfo.lock);
+    }
+
     for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
       STaskId *p = taosArrayGet(execInfo.pTaskList, i);
 
@@ -809,7 +812,10 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
       }
     }
 
-    taosThreadMutexUnlock(&execInfo.lock);
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
+    }
+
     if (maxCheckpointId > maxChkptId) {
       mDebug("max checkpointId in mnode:%" PRId64 ", smaller than max checkpointId in vnode:%" PRId64, maxChkptId,
              maxCheckpointId);
@@ -829,7 +835,7 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   }
 
   SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = mndStreamGenChkpId(pMnode);
+  pMsg->checkpointId = mndStreamGenChkptId(pMnode, true);
 
   int32_t size = sizeof(SMStreamDoCheckpointMsg);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
@@ -2214,7 +2220,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   int32_t total = taosArrayGetSize(*pReqTaskList);
   if (total == numOfTasks) {  // all tasks has send the reqs
-    int64_t checkpointId = mndStreamGenChkpId(pMnode);
+    int64_t checkpointId = mndStreamGenChkptId(pMnode, false);
     mInfo("stream:0x%" PRIx64 " all tasks req checkpoint, start checkpointId:%" PRId64, req.streamId, checkpointId);
 
     if (pStream != NULL) { // TODO:handle error
