@@ -247,11 +247,11 @@ typedef enum {
   TASK_SCANHISTORY_CONT = 0x1,
   TASK_SCANHISTORY_QUIT = 0x2,
   TASK_SCANHISTORY_REXEC = 0x3,
-} EScanHistoryRet;
+} EScanHistoryCode;
 
 typedef struct {
-  EScanHistoryRet ret;
-  int32_t         idleTime;
+  EScanHistoryCode ret;
+  int32_t          idleTime;
 } SScanhistoryDataInfo;
 
 typedef struct {
@@ -797,7 +797,7 @@ int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* 
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
-int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration);
+int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);

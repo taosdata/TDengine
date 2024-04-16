@@ -109,7 +109,7 @@ static void doReExecScanhistory(void* param, void* tmrId) {
   }
 }
 
-int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) {
+int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
   int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
   if (numOfTicks <= 0) {
     numOfTicks = 1;
