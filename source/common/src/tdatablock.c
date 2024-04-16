@@ -653,25 +653,15 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     return NULL;
   }
 
-  SSDataBlock* pDst = createDataBlock();
+  SSDataBlock* pDst = createOneDataBlock(pBlock, false);
   if (pDst == NULL) {
     return NULL;
   }
 
-  pDst->info = pBlock->info;
-  pDst->info.rows = 0;
-  pDst->info.capacity = 0;
-  pDst->info.rowSize = 0;
-  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData  colInfo = {0};
-    SColumnInfoData* pSrcCol = taosArrayGet(pBlock->pDataBlock, i);
-    colInfo.info = pSrcCol->info;
-    blockDataAppendColInfo(pDst, &colInfo);
-  }
 
   blockDataEnsureCapacity(pDst, rowCount);
 
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);

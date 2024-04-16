@@ -642,7 +642,12 @@ class TDTestCase:
         tdSql.checkData(7, 0, datetime.datetime(2021, 4, 19, 0, 0, 2))
         tdSql.checkData(7, 1, 8)
         tdSql.checkData(7, 2, 8)
-
+        
+        tdSql.query('select ts, last(pk) from d1.st order by pk')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0, 2))
+        tdSql.checkData(0, 1, 8)
+        
         tdSql.execute('drop database pk_func')
     def stop(self):
         tdSql.close()
