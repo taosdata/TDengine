@@ -234,10 +234,10 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   code = dmUpdateEncryptKey(cfgReq.value);
-  if(code == 0) {
+  if (code == 0) {
     tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
     tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
-    strncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
   }
 
   pMsg->code = code;
@@ -245,8 +245,9 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   pMsg->info.rspLen = 0;
 _exit:
   return code;
-#endif
+#else
   return 0;
+#endif
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
