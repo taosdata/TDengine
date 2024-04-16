@@ -175,7 +175,9 @@ int32_t l2DecompressImpl_tsz(const char *const input, const int32_t inputSize, c
 
   return l2DecompressImpl_lz4(input, inputSize, output, outputSize, type);
 }
+
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
+// do nothing
 #else
 int32_t l2ComressInitImpl_zlib(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
                                uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
