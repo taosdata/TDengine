@@ -1551,6 +1551,11 @@ impl MessageArrowRecords {
         }
     }
     pub fn table_sql(&self) -> String {
+        let table_name = self
+            .opts
+            .canonical_table_name(self.table.name.as_str())
+            .to_string();
+
         if let Some(using) = self.table.using.as_ref() {
             let names = self
                 .table
@@ -1572,17 +1577,15 @@ impl MessageArrowRecords {
                 .iter()
                 .map(|c| c.taos_value(0).to_sql_value())
                 .join(",");
+
             format!(
                 "create table if not exists `{}` using `{}` ({}) tags({})",
-                self.table.name, using, names, values
+                table_name, using, names, values
             )
         } else {
             let fields = self.column_meta();
             let columns = fields.iter().map(|f| f.sql_repr()).join(",");
-            format!(
-                "create table if not exists `{}` ({})",
-                self.table.name, columns
-            )
+            format!("create table if not exists `{}` ({})", table_name, columns)
         }
     }
 
