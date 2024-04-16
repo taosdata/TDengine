@@ -205,81 +205,6 @@ static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
 #endif
 }
 
-int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tbUidList) {
-  void *pKey = NULL;
-  int   nKey = 0;
-  void *pData = NULL;
-  int   nData = 0;
-  int   c = 0;
-  int   rc = 0;
-
-  // check if super table exists
-  rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
-  if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
-    tdbFree(pData);
-    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    return -1;
-  }
-
-  // drop all child tables
-  TBC *pCtbIdxc = NULL;
-
-  tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, NULL);
-  rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
-  if (rc < 0) {
-    tdbTbcClose(pCtbIdxc);
-    metaWLock(pMeta);
-    goto _drop_super_table;
-  }
-
-  for (;;) {
-    rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, NULL, NULL);
-    if (rc < 0) break;
-
-    if (((SCtbIdxKey *)pKey)->suid < pReq->suid) {
-      continue;
-    } else if (((SCtbIdxKey *)pKey)->suid > pReq->suid) {
-      break;
-    }
-
-    taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
-  }
-
-  tdbTbcClose(pCtbIdxc);
-
-  (void)tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, tbUidList, pReq->suid);
-
-  metaWLock(pMeta);
-
-  for (int32_t iChild = 0; iChild < taosArrayGetSize(tbUidList); iChild++) {
-    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUidList, iChild);
-    metaDropTableByUid(pMeta, uid, NULL, NULL, NULL);
-  }
-
-  // drop super table
-_drop_super_table:
-  tdbTbGet(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), &pData, &nData);
-  tdbTbDelete(pMeta->pTbDb, &(STbDbKey){.version = ((SUidIdxVal *)pData)[0].version, .uid = pReq->suid},
-              sizeof(STbDbKey), pMeta->txn);
-  tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, pMeta->txn);
-  tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
-  tdbTbDelete(pMeta->pSuidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
-
-  metaStatsCacheDrop(pMeta, pReq->suid);
-
-  metaULock(pMeta);
-
-  metaUpdTimeSeriesNum(pMeta);
-
-  pMeta->changed = true;
-
-_exit:
-  tdbFree(pKey);
-  tdbFree(pData);
-  metaDebug("vgId:%d, super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
-  return 0;
-}
-
 static void metaGetSubtables(SMeta *pMeta, int64_t suid, SArray *uids) {
   if (!uids) return;
 
@@ -752,54 +677,6 @@ _err:
   tdbFree(pData);
 
   return -1;
-}
-
-int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids, tb_uid_t *tbUid) {
-  void    *pData = NULL;
-  int      nData = 0;
-  int      rc = 0;
-  tb_uid_t uid = 0;
-  tb_uid_t suid = 0;
-  int8_t   sysTbl = 0;
-  int      type;
-
-  rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
-  if (rc < 0) {
-    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-    return -1;
-  }
-  uid = *(tb_uid_t *)pData;
-
-  metaWLock(pMeta);
-  rc = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
-  metaULock(pMeta);
-
-  if (rc < 0) goto _exit;
-
-  if (!sysTbl && type == TSDB_CHILD_TABLE) {
-    int32_t      nCols = 0;
-    SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, suid, NULL, &nCols) == 0) {
-      pStats->numOfTimeSeries -= nCols - 1;
-    }
-  }
-
-  if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
-    taosArrayPush(tbUids, &uid);
-
-    if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-      tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, suid, NULL);
-    }
-  }
-
-  if ((type == TSDB_CHILD_TABLE) && tbUid) {
-    *tbUid = uid;
-  }
-
-  pMeta->changed = true;
-_exit:
-  tdbFree(pData);
-  return rc;
 }
 
 void metaDropTables(SMeta *pMeta, SArray *tbUids) {
@@ -2455,6 +2332,81 @@ _exit:
   return (terrno = code);
 }
 
+int32_t metaDropSTable(SMeta *meta, int64_t verison, SVDropStbReq *request, SArray *tbUidList) {
+  void *pKey = NULL;
+  int   nKey = 0;
+  void *pData = NULL;
+  int   nData = 0;
+  int   c = 0;
+  int   rc = 0;
+
+  // check if super table exists
+  rc = tdbTbGet(meta->pNameIdx, request->name, strlen(request->name) + 1, &pData, &nData);
+  if (rc < 0 || *(tb_uid_t *)pData != request->suid) {
+    tdbFree(pData);
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
+    return -1;
+  }
+
+  // drop all child tables
+  TBC *pCtbIdxc = NULL;
+
+  tdbTbcOpen(meta->pCtbIdx, &pCtbIdxc, NULL);
+  rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = request->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
+  if (rc < 0) {
+    tdbTbcClose(pCtbIdxc);
+    metaWLock(meta);
+    goto _drop_super_table;
+  }
+
+  for (;;) {
+    rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, NULL, NULL);
+    if (rc < 0) break;
+
+    if (((SCtbIdxKey *)pKey)->suid < request->suid) {
+      continue;
+    } else if (((SCtbIdxKey *)pKey)->suid > request->suid) {
+      break;
+    }
+
+    taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
+  }
+
+  tdbTbcClose(pCtbIdxc);
+
+  (void)tsdbCacheDropSubTables(meta->pVnode->pTsdb, tbUidList, request->suid);
+
+  metaWLock(meta);
+
+  for (int32_t iChild = 0; iChild < taosArrayGetSize(tbUidList); iChild++) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUidList, iChild);
+    metaDropTableByUid(meta, uid, NULL, NULL, NULL);
+  }
+
+  // drop super table
+_drop_super_table:
+  tdbTbGet(meta->pUidIdx, &request->suid, sizeof(tb_uid_t), &pData, &nData);
+  tdbTbDelete(meta->pTbDb, &(STbDbKey){.version = ((SUidIdxVal *)pData)[0].version, .uid = request->suid},
+              sizeof(STbDbKey), meta->txn);
+  tdbTbDelete(meta->pNameIdx, request->name, strlen(request->name) + 1, meta->txn);
+  tdbTbDelete(meta->pUidIdx, &request->suid, sizeof(tb_uid_t), meta->txn);
+  tdbTbDelete(meta->pSuidIdx, &request->suid, sizeof(tb_uid_t), meta->txn);
+
+  metaStatsCacheDrop(meta, request->suid);
+
+  metaULock(meta);
+
+  metaUpdTimeSeriesNum(meta);
+
+  meta->changed = true;
+
+_exit:
+  tdbFree(pKey);
+  tdbFree(pData);
+  metaDebug("vgId:%d, super table %s uid:%" PRId64 " is dropped", TD_VID(meta->pVnode), request->name, request->suid);
+  return 0;
+}
+
 int32_t metaCreateTable(SMeta *meta, int64_t version, SVCreateTbReq *request, STableMetaRsp **response) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -2484,4 +2436,52 @@ _exit:
   bool sysTbl = (request->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(meta, request->ctb.stbName, 1);
   metaTimeSeriesNotifyCheck(meta);
 #endif
+}
+
+int32_t metaDropTable(SMeta *meta, int64_t version, SVDropTbReq *request, SArray *tbUids, tb_uid_t *tbUid) {
+  void    *pData = NULL;
+  int      nData = 0;
+  int      rc = 0;
+  tb_uid_t uid = 0;
+  tb_uid_t suid = 0;
+  int8_t   sysTbl = 0;
+  int      type;
+
+  rc = tdbTbGet(meta->pNameIdx, request->name, strlen(request->name) + 1, &pData, &nData);
+  if (rc < 0) {
+    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    return -1;
+  }
+  uid = *(tb_uid_t *)pData;
+
+  metaWLock(meta);
+  rc = metaDropTableByUid(meta, uid, &type, &suid, &sysTbl);
+  metaULock(meta);
+
+  if (rc < 0) goto _exit;
+
+  if (!sysTbl && type == TSDB_CHILD_TABLE) {
+    int32_t      nCols = 0;
+    SVnodeStats *pStats = &meta->pVnode->config.vndStats;
+    if (metaGetStbStats(meta->pVnode, suid, NULL, &nCols) == 0) {
+      pStats->numOfTimeSeries -= nCols - 1;
+    }
+  }
+
+  if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
+    taosArrayPush(tbUids, &uid);
+
+    if (!TSDB_CACHE_NO(meta->pVnode->config)) {
+      tsdbCacheDropTable(meta->pVnode->pTsdb, uid, suid, NULL);
+    }
+  }
+
+  if ((type == TSDB_CHILD_TABLE) && tbUid) {
+    *tbUid = uid;
+  }
+
+  meta->changed = true;
+_exit:
+  tdbFree(pData);
+  return rc;
 }
