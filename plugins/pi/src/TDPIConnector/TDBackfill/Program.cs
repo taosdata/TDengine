@@ -123,7 +123,7 @@ namespace TDBackfill
                 AppService appService = new AppService();
                 if (options.workMode == CommandLineOptions.WorkMode.PrintPIInfo)
                 {
-                    appService.PrintPIInfo(options.filter);
+                    appService.PrintPIInfo(options.printMode, options.filter, options.fileterMode);
                     return;
                 }
                 else if (options.workMode == CommandLineOptions.WorkMode.CheckConfig)

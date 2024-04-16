@@ -1,4 +1,6 @@
 ﻿using System;
+using TDPIConnector.Core;
+using TDPIConnector.Core.ScanPiInfo;
 
 namespace TDBackfill
 {
@@ -54,8 +56,32 @@ namespace TDBackfill
                 else if (args[i] == "-p" || args[i] == "--print")
                 {
                     options.workMode = CommandLineOptions.WorkMode.PrintPIInfo;
+                    options.printMode = ScanMode.ScanPIInfo;
                     options.filter = args[i + 1];
                     i++;
+                }
+                else if (args[i] == "-pp")
+                {
+                    options.workMode = CommandLineOptions.WorkMode.PrintPIInfo;
+                    options.printMode = ScanMode.ScanPoint;
+                    options.filter = args[i + 1];
+                    i++;
+                }
+                else if (args[i] == "-px")
+                {
+                    options.workMode = CommandLineOptions.WorkMode.PrintPIInfo;
+                    options.printMode = ScanMode.ScanPx;
+                    options.filter = args[i + 1];
+                    options.fileterMode = PIInfoScanner.GetFilterMode(args[i + 2]);
+                    i += 2;
+                }
+                else if (args[i] == "-pt")
+                {
+                    options.workMode = CommandLineOptions.WorkMode.PrintPIInfo;
+                    options.printMode = ScanMode.ScanPt;
+                    options.filter = args[i + 1];
+                    options.fileterMode = PIInfoScanner.GetFilterMode(args[i + 2]);
+                    i += 2;
                 }
                 else if (args[i] == "-s" || args[i] == "--start")
                 {
