@@ -50,14 +50,16 @@
 #define _DEFAULT_SOURCE
 #include "tcompression.h"
 #include "lz4.h"
-#include "tcompare.h"
 #include "tlog.h"
 #include "ttypes.h"
 // #include "tmsg.h"
 
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+#else
 #include "fast-lzma2.h"
 #include "zlib.h"
 #include "zstd.h"
+#endif
 
 #ifdef TD_TSZ
 #include "td_sz.h"
@@ -272,6 +274,15 @@ TCompressL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressPlain2, tsDecompr
                                      {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
                                      {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2}};
 
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+TCompressL2FnSet compressL2Dict[] = {
+    {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
+    {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zlib", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zstd", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"tsz", l2ComressInitImpl_lz4, l2CompressImpl_tsz, l2DecompressImpl_tsz},
+    {"xz", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4}};
+#else
 TCompressL2FnSet compressL2Dict[] = {
     {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
     {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
@@ -279,6 +290,8 @@ TCompressL2FnSet compressL2Dict[] = {
     {"zstd", l2ComressInitImpl_zstd, l2CompressImpl_zstd, l2DecompressImpl_zstd},
     {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
     {"xz", l2ComressInitImpl_xz, l2CompressImpl_xz, l2DecompressImpl_xz}};
+
+#endif
 
 static const int32_t TEST_NUMBER = 1;
 #define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)
