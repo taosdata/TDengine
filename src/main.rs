@@ -611,7 +611,7 @@ fn main() -> Result<()> {
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
         Commands::Replica(replica) => {
-            runtime.block_on(replica.run())?;
+            runtime.block_on(replica.run(args.opt_args))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
