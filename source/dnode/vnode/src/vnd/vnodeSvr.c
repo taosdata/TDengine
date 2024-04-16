@@ -1054,7 +1054,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     return -1;
   }
 
-  if (metaAlterSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaAlterSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     tDecoderClear(&dc);
     return -1;
@@ -1085,7 +1085,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // process request
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
-  if (metaDropSTable(pVnode->pMeta, ver, &req, tbUidList) < 0) {
+  if (metaDropSuperTable(pVnode->pMeta, ver, &req, tbUidList) < 0) {
     rcode = terrno;
     goto _exit;
   }
