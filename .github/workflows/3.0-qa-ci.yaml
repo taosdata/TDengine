@@ -231,9 +231,10 @@ jobs:
 
       - name: Stop taosx-agent & taosx
         # if: always()
+        # pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
+        # pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
         run: |
-          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+          echo "stop test skip"
       
       - name: Sleep for 20 seconds
         uses: jakejarvis/wait-action@master
@@ -244,10 +245,8 @@ jobs:
         if: always()
         shell: bash {0}
         run: |
-          pgrep --help
-          pgrep "taosx-agent"
-          echo "get pids"; pids=$(pgrep "taosx-agent"); echo "pids: $pids"; if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          echo "get pids"; pids=$(pgrep taosx); echo "pids: $pids"; if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; exit 1; fi
   
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa]
@@ -307,7 +306,7 @@ jobs:
         shell: bash {0}
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; exit 1; fi
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
