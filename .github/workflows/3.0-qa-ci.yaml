@@ -246,7 +246,7 @@ jobs:
         shell: bash {0}
         run: |
           pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; exit 1; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
   
   deploy_for_others:
     runs-on: [self-hosted, linux, x64, qa]
