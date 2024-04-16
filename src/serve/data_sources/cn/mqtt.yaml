@@ -108,7 +108,7 @@ groups:
       - name: topics
         display: 订阅主题及 QoS 配置
         required: true
-        pattern: "^(?:\S+::[0-2],)*\S+::[0-2]$"
+        pattern: "^(?:\\S+::[0-2],)*\\S+::[0-2]$"
         pattern_msg: "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`"
         description: |
           输入格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，订阅多个主题使用逗号分割，例如: `topic1::0,topic2::1`

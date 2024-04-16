@@ -109,7 +109,7 @@ groups:
       - name: topics
         display: Topics Qos Config
         required: true
-        pattern: "^(?:\S+::[0-2],)*\S+::[0-2]$"
+        pattern: "^(?:\\S+::[0-2],)*\\S+::[0-2]$"
         pattern_msg: "Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`"
         description: |
           Input format: `<topic name>::<QoS>`, QoS can be 0/1/2, if subscribe multiple topics, use commas to separate them, e.g: topic1::0,topic2::1
