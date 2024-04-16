@@ -9,13 +9,14 @@ use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     tmq::tmq_metric::TmqMetrics,
 };
-use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
+use crate::{taoz::ZFile, tmq::*};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use taos::{sync::MessageSet, Consumer, *};
+use taos::*;
 use tokio::sync::{Barrier, Mutex};
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -143,8 +144,8 @@ async fn backup(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     stop_at: Option<DateTime<Local>>,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    version: String,
+    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    _version: String,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -157,25 +158,6 @@ async fn backup(
                 break;
             }
             next = stream.try_next() => {
-                let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
-                tracing::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
-                let assignments = if a >= 3 && b >= 0 && c >= 5 {
-                    consumer.assignments().await.unwrap()
-                } else {
-                    vec![]
-                };
-
-                tracing::debug!("assignment: {:?}", assignments);
-                for (topic, assignment) in assignments {
-                    if assignment.is_empty() {
-                        continue;
-                    }
-                    let vgroup_id = assignment[0].vgroup_id();
-                    let key = format!("{}@vgroup{}", topic, vgroup_id);
-                    tracing::debug!("key: {}, assignment: {:?}", key, assignment);
-                    offsets.insert(key, assignment);
-                }
-
                 if let Some((offset, message)) = next? {
                     metrics.add_messages(1);
                     let total = metrics.messages.load(SeqCst);
@@ -374,7 +356,7 @@ pub async fn tmq_to_local(
     config.write_to(config_path)?;
     tracing::info!("write to config file done");
 
-    let mut handles = Vec::new();
+    let mut join_set = JoinSet::new();
 
     let mut consumer_task_id = 0;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
@@ -429,7 +411,7 @@ pub async fn tmq_to_local(
             let cancel = cancel.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
-            let handle = tokio::spawn(
+            join_set.spawn(
                 backup(
                     sender,
                     consumer,
@@ -444,16 +426,20 @@ pub async fn tmq_to_local(
                 )
                 .in_current_span(),
             );
-            handles.push(handle);
             consumer_task_id += 1;
         }
 
         files_manager.push(man);
     }
-    for handle in handles {
-        let _ = handle.await??;
-        tracing::info!("worker done");
+
+    while let Some(res) = join_set.join_next().await {
+        if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
+            tracing::error!("Task error: {err}");
+            join_set.abort_all();
+            return Err(err);
+        }
     }
+    tracing::info!("all consumers done");
     for man in files_manager {
         man.shutdown().await?;
     }
