@@ -1,0 +1,40 @@
+fn upx_run
+  echo "UPX args: ${1} ${2}"
+  fi = set ${1}
+  if not is_file ${fi}
+    echo "File ${fi} not found"
+    exit 1
+  end
+  name = basename ${fi}
+  fo = set ${2}
+  if is_dir ${fo}
+    fo = set "${fo}/${name}"
+  end
+  echo "Compressing ${fi} to ${fo} using UPX"
+
+  os = os_family
+  upx = which upx
+  upx_dir = get_env "UPX_DIR"
+
+  if is_empty ${upx}
+    echo "UPX not found, use local upx in ${upx_dir}"
+    cm_run_task upx-local
+    upx = set "${upx_dir}/upx"
+  else
+    echo "UPX found: ${upx}"
+  end
+
+  output = exec ${upx} --version | grep 'upx 3'
+
+  stdout = set ${output.stdout}
+
+  if contains stdout "upx 3"
+    echo "Use upx version: ${stdout}"
+  else
+    echo "UPX version not 3, use local upx in ${upx_dir}"
+    cm_run_task upx-local
+    upx = set "${upx_dir}/upx"
+  end
+
+  exec ${upx} -1 -f ${fi} -o ${fo}
+end

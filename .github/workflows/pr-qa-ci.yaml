@@ -46,7 +46,6 @@ jobs:
               cargo llvm-cov nextest --workspace
               cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
           fi
-
       - name: Build agent
         run: |
           # build agent
@@ -268,7 +267,7 @@ jobs:
         run: |
           systemctl restart taos-explorer
           systemctl restart taosadapter
-
+      
       - name: Run Test
         continue-on-error: true
         run: |

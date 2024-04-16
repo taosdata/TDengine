@@ -12,6 +12,12 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio_cron_scheduler::JobScheduler;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, instrument, warn, Instrument};
+use uuid::Uuid;
+
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::{
     core_metrics::{
@@ -24,11 +30,6 @@ use taosx_core::{
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
-use tokio::sync::{oneshot, Mutex, RwLock};
-use tokio_cron_scheduler::JobScheduler;
-use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, warn, Instrument};
-use uuid::Uuid;
 
 use crate::serve::controller::{
     agent::Activity,
@@ -145,9 +146,10 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     let task_id = task.id;
     let (opts, task_rx) = task_opts_init(task).await?;
     tracing::info!("start worker");
-    // set current dir for upload files
-    let path = get_data_dir();
-    let _ = std::env::set_current_dir(&path);
+
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let instant = std::time::Instant::now();
     let global_sender = global.clone();
     tokio::spawn(async move {

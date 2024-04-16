@@ -84,7 +84,7 @@ mod datetime_format {
 
 mod option_datetime_format {
     use chrono::{DateTime, SecondsFormat, Utc};
-    use serde::{self, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     type Target = Option<DateTime<Utc>>;
 
@@ -745,8 +745,7 @@ impl TaskController {
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
-        let path = get_data_dir();
-        let _ = std::env::set_current_dir(&path);
+
         let not_start = task.not_start;
         tracing::info!("create new task");
         let mut from: Dsn = task
@@ -2238,6 +2237,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
+        include_ds_yaml!("mysql");
         for ds in &mut def {
             ds.compute();
         }
@@ -2272,6 +2272,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
+        include_ds_yaml!("mysql");
         for ds in &mut def {
             ds.compute();
         }

@@ -167,14 +167,14 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     platform = "linux"
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(top_dir,"target",mode.lower(),"taosx")
+    binary_file = os.path.join(top_dir,"target","deploy","taosx")
     check_directory(dst_dir)
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --release --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx')
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx')
     logging.info("taosx built successfully")
 
     shutil.copy(binary_file,dst_dir)
@@ -192,12 +192,15 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(explore_dir,"target",mode.lower(),"taos-explorer")
+    os.chdir(top_dir)
+    deploy_file = os.path.join(top_dir,"target","deploy","taos-explorer")
+    os.system(f"cargo make upx {binary_file} {deploy_file}")
+
     check_directory(dst_dir)
+    shutil.copy(deploy_file, dst_dir)
+    logging.info("taosx-explorer copied to {release_dir}".format(release_dir=dst_dir))
+
     os.chdir(explore_dir)
-
-    shutil.copy(binary_file, dst_dir)
-    logging.info("taosx-agent copied to {release_dir}".format(release_dir=dst_dir))
-
     shutil.copy2(os.path.join(explore_dir, "target",f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
@@ -209,15 +212,15 @@ def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     platform = "linux"
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(top_dir,"target",mode.lower(),"taosx-agent")
+    binary_file = os.path.join(top_dir,"target","deploy","taosx-agent")
     check_directory(dst_dir)
 
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --release --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx-agent')
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx-agent')
 
     logging.info("taosx-agent built successfully")
 
@@ -238,7 +241,10 @@ def replace_file_content(file, pattern, new_attribute):
         f.write(new_content)
 
 def chmodReleaseDir(release_info):
-    os.chmod(os.path.join(release_dir,"bin"),0o755)
+    dir = os.path.join(release_dir,"bin")
+    if os.path.exists(dir):
+        os.chmod(os.path.join(release_dir,"bin"),0o755)
+
     os.chmod(os.path.join(release_dir,"plugins"),0o755)
 
 def make_agent_package(release_info):

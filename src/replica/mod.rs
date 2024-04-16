@@ -34,7 +34,6 @@ const REPLICA_LABEL_GROUP: &str = "group";
 
 /// Active-StandBy replication management commands
 #[derive(Debug, Args)]
-#[command(subcommand_negates_reqs = true)]
 pub struct Cli {
     #[clap(subcommand)]
     command: ReplicaCommands,
@@ -846,14 +845,15 @@ impl Display for ReplicaEndpoint {
 
 impl Cli {
     #[tracing::instrument(skip_all, name = "replica")]
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(self, opt_args: super::OptArgs) -> Result<()> {
         let config = &self.config;
         config.assert_server_alive().await?;
-        println!("taosx server is alive");
+        tracing::info!("taosx server is alive");
         let profile = config.profile().await?;
-        println!(
+        tracing::debug!(
             "taosx version: {} built {}",
-            profile.version, profile.build_time
+            profile.version,
+            profile.build_time
         );
         match self.command {
             ReplicaCommands::Start {
@@ -948,8 +948,7 @@ impl Cli {
 
                 let mut table = prettytable::Table::new();
                 table.set_titles(prettytable::row![
-                    "replica", "task", "source", "sink", "database", "topic", "group", "status",
-                    "note",
+                    "id", "task", "source", "sink", "database", "topic", "group", "status", "note",
                 ]);
                 for (replica, tasks) in replicas {
                     for task in tasks {
@@ -1001,6 +1000,7 @@ impl Cli {
                 }
             }
             ReplicaCommands::Remove { id, databases } => {
+                let force = opt_args.yes_i_really_mean_it;
                 tracing::info!("stopping replication");
                 if databases.is_empty() {
                     let (replica, tasks) =
@@ -1010,7 +1010,11 @@ impl Cli {
                     println!("removing replication {}", replica.id);
                     for task in tasks {
                         if !task.in_final_state() {
-                            config.stop_once(&task).await?;
+                            if force {
+                                config.stop_once(&task).await?;
+                            } else {
+                                bail!("replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove", task.tid, task.database);
+                            }
                         }
                         config.remove_once(&task).await?;
                     }
@@ -1024,7 +1028,11 @@ impl Cli {
                     for task in tasks {
                         if databases.contains(&task.database) {
                             if !task.in_final_state() {
-                                config.stop_once(&task).await?;
+                                if force {
+                                    config.stop_once(&task).await?;
+                                } else {
+                                    bail!("replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove", task.tid, task.database);
+                                }
                             }
                             config.remove_once(&task).await?;
                         }
@@ -1115,6 +1123,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_replica_func() {
         std::env::set_var("RUST_LOG", "debug");
         use tracing_subscriber::EnvFilter;

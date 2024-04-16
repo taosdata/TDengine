@@ -97,7 +97,7 @@ struct OptArgs {
 
     /// For verbosity print.
     #[clap(flatten)]
-    verbose: Option<Verbosity<InfoLevel>>,
+    verbose: Verbosity<InfoLevel>,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
@@ -274,10 +274,6 @@ impl Args {
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
-            Some(Commands::Run(cli)) => {
-                // verbose in subCommand
-                args.opt_args.verbose.clone_from(&cli.verbose);
-            }
             Some(Commands::Serve(cli)) => {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
@@ -299,8 +295,6 @@ impl Args {
                     tak_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
-                // verbose in subCommand
-                args.opt_args.verbose.clone_from(&cli.verbose);
             }
             _ => {}
         }
@@ -385,6 +379,7 @@ async fn init_tracing_layers(
         log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
         log::LevelFilter::Trace => TracingLevelFilter::TRACE,
     };
+
     fn env_filter_from(tracing_level_filter: &TracingLevelFilter) -> anyhow::Result<EnvFilter> {
         let event_filter = EnvFilter::builder()
             .with_default_directive(tracing_level_filter.clone().into())
@@ -402,6 +397,7 @@ async fn init_tracing_layers(
                 .add_directive("h2=warn".parse()?)
                 .add_directive("sqlx::query=warn".parse()?)
                 .add_directive("hyper=warn".parse()?)
+                .add_directive("reqwest=warn".parse()?)
         } else {
             event_filter.add_directive("sqlx::query=warn".parse()?)
         };
@@ -418,7 +414,6 @@ async fn init_tracing_layers(
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
         / chrono::Duration::hours(1).num_seconds() as i32) as i8;
-    println!("local timezone offset: {}", timezone_offset);
     let timer = OffsetTime::new(
         UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
@@ -584,12 +579,14 @@ fn main() -> Result<()> {
         tracing::error!("panic occurred. {} {}", info, backtrace);
     }));
     // Initialize tracing layers
-    let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
-    if let Some(_) = args.opt_args.verbose.as_ref() {
-        let matches = Args::command().get_matches();
-        let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
-        level_filter = level_upgrade(level_filter, level_num);
-    }
+    let mut level_filter = if matches!(args.commands, Some(Commands::Replica(_))) {
+        LevelFilter::Warn
+    } else {
+        args.global.log_level.clone().unwrap_or(LevelFilter::Info)
+    };
+    let matches = Args::command().get_matches();
+    let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
+    level_filter = level_upgrade(level_filter, level_num);
 
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
@@ -614,7 +611,7 @@ fn main() -> Result<()> {
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
         Commands::Replica(replica) => {
-            runtime.block_on(replica.run())?;
+            runtime.block_on(replica.run(args.opt_args))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();

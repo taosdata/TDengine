@@ -80,7 +80,8 @@ impl<'a> LicenseValidator<'a> {
                     | "tmq"
                     | "taos"
                     | taosx_core::runners::kafka::KAFKA_ID
-                    | taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
+                    | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
+                    | taosx_core::runners::mysql::MYSQL_ID => {
                         validate_connector_license(self.from, self.to, self.pool).await
                     }
                     _ => Ok(LicenseKind::Good),
@@ -231,6 +232,9 @@ async fn validate_connector_license(
         return Ok(LicenseKind::Good);
     }
 
+    #[cfg(feature = "disable-enterprise-connector-validation")]
+    return Ok(LicenseKind::Good);
+
     let cluster_id: i64 = taos
         .query_one("select id from information_schema.ins_cluster")
         .await
@@ -250,6 +254,7 @@ async fn validate_connector_license(
         "mqtt" => "mqtt",
         "tmq" => "td3.0",
         "taos" => "td2.6",
+        taosx_core::runners::mysql::MYSQL_ID => "mysql",
         connector => bail!("The current connector {connector} is not supported by license."),
     };
 

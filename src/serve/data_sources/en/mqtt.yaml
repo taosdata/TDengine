@@ -20,7 +20,7 @@ options:
       MQTT server endpoint. e.g: 127.0.0.1:1883
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:1883
-    pattern: "^.+:(?:[0-9]{1,5})$"
+    pattern: "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$"
     pattern_msg: "Input format error, please refer to: `host:port`, port range is 1-65535."
 
 authentication:
@@ -109,10 +109,10 @@ groups:
       - name: topics
         display: Topics Qos Config
         required: true
-        pattern: "^(?:[^:]+::[0-2],)*[^:]+::[0-2]$"
-        pattern_msg: "Input format error, please refer to: `<topic name>::<QoS>`, e.g: `topic1::0,topic2::1`"
+        pattern: "^(?:\\S+::[0-2],)*\\S+::[0-2]$"
+        pattern_msg: "Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`"
         description: |
-          Input format: `<topic name>::<QoS>`, if there are multiple, use commas to separate them, e.g: topic1::0,topic2::1
+          Input format: `<topic name>::<QoS>`, QoS can be 0/1/2, if subscribe multiple topics, use commas to separate them, e.g: topic1::0,topic2::1
         hint:
           type: str
         placeholder: topic1::0,topic2::1

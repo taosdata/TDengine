@@ -225,6 +225,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
                 "csv" => crate::csv::is_csv_valid(&dsn).await,
                 "local" => crate::local_to_taos::is_local_valid(&dsn).await,
+                runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }

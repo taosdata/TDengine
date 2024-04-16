@@ -588,67 +588,68 @@ impl DataSourceDefinition {
                         private_key,
                         connect_timeout,
                     } => {
-                        let mut endpoint_str = String::new();
-                        if dsn.driver == "tmq" {
-                            endpoint_str.push_str("tmq");
+                        match dsn.driver.as_str() {
+                            "tmq" => {
+                                let mut dsn = dsn.clone();
+                                for group in self.groups.as_mut_slice() {
+                                    for param in &mut group.params {
+                                        dsn.remove(&param.name);
+                                    }
+                                }
+
+                                for param in &mut self.params {
+                                    dsn.remove(&param.name);
+                                }
+                                endpoint.value.replace(dsn.to_string());
+                            }
+                            _ => {
+                                let mut endpoint_str = String::new();
+                                if let Some(scheme) = dsn.protocol.as_deref() {
+                                    endpoint_str.push_str(scheme);
+                                    endpoint_str.push_str("://");
+                                }
+                                if let Some(addr) = dsn.addresses.first() {
+                                    endpoint_str.push_str(addr.to_string().as_str());
+                                }
+                                if let Some(value) = dsn.subject.as_ref() {
+                                    endpoint_str.push_str("/");
+                                    endpoint_str.push_str(value.as_str());
+                                }
+                                if dsn.driver == "opcua" {
+                                    if let Some(value) = dsn.remove("security_mode") {
+                                        security_mode
+                                            .get_or_insert(Default::default())
+                                            .value
+                                            .replace(value.to_string());
+                                    }
+                                    if let Some(value) = dsn.remove("security_policy") {
+                                        security_policy
+                                            .get_or_insert(Default::default())
+                                            .value
+                                            .replace(value.to_string());
+                                    }
+                                    if let Some(value) = dsn.remove("certificate") {
+                                        certificate
+                                            .get_or_insert(Default::default())
+                                            .value
+                                            .replace(value.to_string());
+                                    }
+                                    if let Some(value) = dsn.remove("private_key") {
+                                        private_key
+                                            .get_or_insert(Default::default())
+                                            .value
+                                            .replace(value.to_string());
+                                    }
+                                    if let Some(value) = dsn.remove("connect_timeout") {
+                                        connect_timeout
+                                            .get_or_insert(Default::default())
+                                            .value
+                                            .replace(value.to_string());
+                                    }
+                                }
+                                endpoint.value.replace(endpoint_str);
+                            }
                         }
-                        if let Some(scheme) = dsn.protocol.as_deref() {
-                            endpoint_str.push('+');
-                            endpoint_str.push_str(scheme);
-                            endpoint_str.push_str("://");
-                        }
-                        if let Some(addr) = dsn.addresses.first() {
-                            if let Some(value) = addr.host.as_ref() {
-                                endpoint_str.push_str(value.as_str());
-                            }
-                            if let Some(value) = addr.port.as_ref() {
-                                endpoint_str.push_str(":");
-                                endpoint_str.push_str(value.to_string().as_str());
-                            }
-                        }
-                        if let Some(value) = dsn.subject.as_ref() {
-                            endpoint_str.push_str("/");
-                            endpoint_str.push_str(value.as_str());
-                        }
-                        if dsn.driver == "tmq" {
-                            if let Some(value) = dsn.remove("token") {
-                                endpoint_str.push_str("?");
-                                endpoint_str.push_str("token=");
-                                endpoint_str.push_str(value.as_str());
-                            }
-                        } else if dsn.driver == "opcua" {
-                            if let Some(value) = dsn.remove("security_mode") {
-                                security_mode
-                                    .get_or_insert(Default::default())
-                                    .value
-                                    .replace(value.to_string());
-                            }
-                            if let Some(value) = dsn.remove("security_policy") {
-                                security_policy
-                                    .get_or_insert(Default::default())
-                                    .value
-                                    .replace(value.to_string());
-                            }
-                            if let Some(value) = dsn.remove("certificate") {
-                                certificate
-                                    .get_or_insert(Default::default())
-                                    .value
-                                    .replace(value.to_string());
-                            }
-                            if let Some(value) = dsn.remove("private_key") {
-                                private_key
-                                    .get_or_insert(Default::default())
-                                    .value
-                                    .replace(value.to_string());
-                            }
-                            if let Some(value) = dsn.remove("connect_timeout") {
-                                connect_timeout
-                                    .get_or_insert(Default::default())
-                                    .value
-                                    .replace(value.to_string());
-                            }
-                        }
-                        endpoint.value.replace(endpoint_str);
 
                         // user/pass
                         if let Some(value) = username_value.as_deref() {

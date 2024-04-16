@@ -258,7 +258,7 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let data: Vec<OpcPoint> = reader
                     .records()
                     .into_iter()
-                    .skip(page * page_size + 1)
+                    .skip(page * page_size)
                     .take(page_size)
                     .map(|record| {
                         let record = record.unwrap();
@@ -395,7 +395,7 @@ async fn get_all_points(
     }
 }
 
-fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
+fn get_opcua_csv_header(_lang: &str, demo: bool) -> String {
     // let header = match lang {
     //     "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
     //     _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
@@ -429,7 +429,7 @@ fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
     header
 }
 
-fn get_opcda_csv_header(lang: &str, demo: bool) -> String {
+fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
     // let header = match lang {
     //     "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
     //     _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",

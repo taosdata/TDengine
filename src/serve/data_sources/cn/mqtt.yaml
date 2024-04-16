@@ -14,7 +14,7 @@ options:
   endpoint:
     display: MQTT 地址
     required: true
-    pattern: "^.+:(?:[0-9]{1,5})$"
+    pattern: "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$"
     pattern_msg: "输入格式有误，请按照格式 `host:port`，port 范围为 1-65535。"
     description: |
       MQTT 服务器地址。如: “127.0.0.1:1883”
@@ -108,10 +108,10 @@ groups:
       - name: topics
         display: 订阅主题及 QoS 配置
         required: true
-        pattern: "^(?:[^:]+::[0-2],)*[^:]+::[0-2]$"
-        pattern_msg: "输入格式有误，请按照格式 `<topic name>::<QoS>`，例如： `topic1::0,topic2::1`"
+        pattern: "^(?:\\S+::[0-2],)*\\S+::[0-2]$"
+        pattern_msg: "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`"
         description: |
-          输入格式 `<topic name>::<QoS>`，订阅多个使用逗号分割，例如: `topic1::0,topic2::1`
+          输入格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，订阅多个主题使用逗号分割，例如: `topic1::0,topic2::1`
         hint:
           type: str
         placeholder: topic1::0,topic2::1

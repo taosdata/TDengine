@@ -88,7 +88,7 @@ func (c *DataDump) Dump(values []*common.NodeValue) {
 			status = strconv.FormatInt(value.Status, 10)
 		}
 		item := []string{
-			value.Identifier,                           // id
+			value.IDStr,                                // id
 			value.Name,                                 // name
 			value.StartTime.Format(TimeFormat),         // start time
 			value.FinishTime.Format(TimeFormat),        // finish time

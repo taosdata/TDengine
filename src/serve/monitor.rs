@@ -4,6 +4,7 @@ use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::AgentFilter;
 use super::TaskControllerRef;
 use clap::Parser;
+use dashmap::DashMap;
 use gethostname::gethostname;
 use lazy_static::lazy_static;
 use metrics::gauge;
@@ -14,6 +15,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use taos::taos_query::tmq::Assignment;
 use taosx_core::core_metrics::{self, CommonMetrics, TaskMetrics};
 use taosx_core::legacy_metric::LegacyToTaosMetrics;
 use taosx_core::sink::ipc_metric::IpcMetrics;
@@ -277,15 +279,16 @@ async fn add_task_metrics_tables(
 
 /// 将 TMQ task 的 progress 转换成 Table
 fn add_task_progress_tables(
-    progress: &dashmap::DashMap<String, Vec<taos::taos_query::tmq::Assignment>>,
+    progress: &DashMap<String, DashMap<i32, Assignment>>,
     taosx_id: &str,
     task_id: i64,
     tables: &mut Vec<Table>,
 ) {
     for entry in progress.iter() {
         let topic = entry.key().clone();
-        let assignments = entry.value();
-        for assignment in assignments {
+        let topic_progress = entry.value();
+        for entry in topic_progress.iter() {
+            let assignment = entry.value();
             let table_key = TableKey {
                 stable: "taosx_task_progress".to_string(),
                 tags: vec![
@@ -314,7 +317,7 @@ fn add_task_progress_tables(
                 },
                 Metric {
                     name: "latest".to_string(),
-                    value: assignment.end() as f64 - 1.0,
+                    value: assignment.end() as f64,
                 },
             ];
             let table = Table { table_key, metrics };

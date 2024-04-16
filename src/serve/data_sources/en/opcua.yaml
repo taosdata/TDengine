@@ -251,8 +251,11 @@ datasets:
           description: |
             Support multiple selections, only query the data points under these namespaces.
           placeholder: Please select after connection check successfully
+          multiple: true
           hint:
             type: str
+            choices:
+              - "--NONE--"
         - name: pattern
           display: Regex pattern
           description: Match the data point name or id

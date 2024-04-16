@@ -29,8 +29,7 @@ type UAClient struct {
 	conn          *opcua.Client
 	ctx           context.Context
 	collectMode   string
-	nodes         []*ua.NodeID
-	dataCache     []*common.NodeValue
+	nodes         []*nodeValue
 	index         int
 	logger        *logrus.Entry
 	readInterval  time.Duration
@@ -45,9 +44,51 @@ type UAClient struct {
 	once                     sync.Once
 	dumper                   *log.DataDump
 	maxAge                   float64
+
+	observeChange chan []*nodeValue
+	subList       []*subscription
+	subIndex      int
 }
 
-func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, collectConfig config.CollectConfig, index int, logger *logrus.Entry, onMessage client.OnMessage) (*UAClient, error) {
+type subscription struct {
+	client            *UAClient
+	nodes             []*nodeValue
+	ch                chan *opcua.PublishNotificationData
+	sub               *opcua.Subscription
+	clientHandleIndex uint32
+	subCount          int
+	subIndex          int
+}
+
+type nodeValue struct {
+	nodeID          *ua.NodeID
+	nodeValue       *common.NodeValue
+	clientHandle    uint32 //always exists
+	subscribed      bool
+	subscriptionID  *int
+	monitoredItemID uint32
+}
+
+func newSubscription(uaClient *UAClient) (*subscription, error) {
+	c := uaClient
+	ch := make(chan *opcua.PublishNotificationData, 1)
+	sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
+	if err != nil {
+		c.logger.WithError(err).Error("subscribe error")
+		return nil, err
+	}
+	s := &subscription{
+		ch:       ch,
+		sub:      sub,
+		client:   uaClient,
+		subIndex: uaClient.subIndex,
+	}
+	c.subList = append(c.subList, s)
+	uaClient.subIndex += 1
+	return s, nil
+}
+
+func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, index int, logger *logrus.Entry) (*UAClient, error) {
 	if err := connectConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("validate connection collectConfig fail. %v", err)
 	}
@@ -55,49 +96,20 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 	if err != nil {
 		return nil, err
 	}
-	dataCache := make([]*common.NodeValue, len(collectConfig.Ua.Nodes))
-	nodes := make([]*ua.NodeID, 0, len(collectConfig.Ua.Nodes))
-	for i, node := range collectConfig.Ua.Nodes {
-		nodeID, err := ua.ParseNodeID(node.ID)
-		if err != nil {
-			return nil, err
-		}
-		nodes = append(nodes, nodeID)
-		dataCache[i] = &common.NodeValue{
-			Identifier: node.ID,
-		}
-	}
-	interval := collectConfig.Interval
+
 	opcLogger := logger.WithField("id", index)
-	var dataDumper *log.DataDump
-	if collectConfig.Dump.Enable {
-		opcLogger.Info("dump is enabled")
-		dataDumper, err = log.NewDataDump(collectConfig.Dump.Path, collectConfig.Dump.Keep, true)
-		if err != nil {
-			opcLogger.WithError(err).Error("new data dump error")
-			return nil, err
-		}
-	}
 	maxAge := float64(2000)
 	if connectConfig.MaxAge != nil {
 		maxAge = *connectConfig.MaxAge
 	}
 	return &UAClient{
-		onMessage:                onMessage,
 		conn:                     conn,
 		ctx:                      ctx,
-		collectMode:              collectConfig.Ua.CollectMode,
-		nodes:                    nodes,
 		index:                    index,
 		logger:                   opcLogger,
-		readInterval:             time.Duration(interval) * time.Second,
 		connectConfig:            connectConfig,
 		maxMonitoredItemsPerCall: 0,
 		maxNodesPerRead:          0,
-		dataCache:                dataCache,
-		containsBad:              collectConfig.ContainsBad,
-		closeChan:                make(chan struct{}),
-		dumper:                   dataDumper,
 		maxAge:                   maxAge,
 	}, nil
 }
@@ -250,69 +262,100 @@ func (c *UAClient) getServerLimit(needMonitorLimit bool) error {
 		c.logger.Warn("get max node per read fail")
 	}
 	if c.maxNodesPerRead == 0 {
-		c.logger.Warn("get max node per read 0, try to get max nodes per read")
-		c.tryGetMaxNodesPerRead()
+		c.maxNodesPerRead = 1000
+		c.logger.Warn("get max node per read 0, set maxNodesPerRead 1000")
 	}
-
-	if errors.Is(resp.Results[1].Status, ua.StatusOK) {
-		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
+	if needMonitorLimit {
+		if errors.Is(resp.Results[1].Status, ua.StatusOK) {
+			c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
+			if c.maxMonitoredItemsPerCall == 0 {
+				c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
+			}
+			c.logger.Info("get max monitored items per call success, ", c.maxMonitoredItemsPerCall)
+		} else {
+			c.logger.Warn("get max monitored items per call fail")
+		}
 		if c.maxMonitoredItemsPerCall == 0 {
-			c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
+			c.maxMonitoredItemsPerCall = 1000
+			c.logger.Warn("get max monitored items per call 0, set maxMonitoredItemsPerCall 1000")
 		}
-		c.logger.Info("get max monitored items per call success, ", c.maxMonitoredItemsPerCall)
-	} else {
-		c.logger.Warn("get max monitored items per call fail")
-	}
 
-	if errors.Is(resp.Results[2].Status, ua.StatusOK) {
-		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
+		if errors.Is(resp.Results[2].Status, ua.StatusOK) {
+			c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
+			if c.maxNodesPerBrowse == 0 {
+				c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
+			}
+			c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
+		} else {
+			c.logger.Warn("get max node per browse fail")
+		}
 		if c.maxNodesPerBrowse == 0 {
-			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
-		}
-		c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
-	} else {
-		c.logger.Warn("get max node per browse fail")
-	}
-	if c.maxNodesPerBrowse == 0 {
-		c.logger.Warn("get max nodes per browse 0")
-	}
-
-	if c.maxMonitoredItemsPerCall == 0 {
-		c.logger.Warn("get max monitored items per call 0")
-		if needMonitorLimit {
-			c.tryGetMonitorAbility()
+			c.logger.Warn("get max nodes per browse 0, set maxNodesPerBrowse 1000")
+			c.maxNodesPerBrowse = 1000
 		}
 	}
 	return nil
 }
 
-func (c *UAClient) Collect() error {
-	err := c.checkCollect()
+func (c *UAClient) Collect(collectConfig config.CollectConfig, onMessage client.OnMessage) error {
+	nodes := make([]*nodeValue, len(collectConfig.Ua.Nodes))
+	for i, node := range collectConfig.Ua.Nodes {
+		nodeID, err := ua.ParseNodeID(node.ID)
+		if err != nil {
+			c.logger.WithField("node", node.ID).WithError(err).Error("parse node id error")
+			return err
+		}
+		nodes[i] = &nodeValue{
+			nodeID: nodeID,
+			nodeValue: &common.NodeValue{
+				IDStr: node.ID,
+			},
+		}
+	}
+	interval := collectConfig.Interval
+	var dataDumper *log.DataDump
+	var err error
+	if collectConfig.Dump.Enable {
+		c.logger.Info("dump is enabled")
+		dataDumper, err = log.NewDataDump(collectConfig.Dump.Path, collectConfig.Dump.Keep, true)
+		if err != nil {
+			c.logger.WithError(err).Error("new data dump error")
+			return err
+		}
+	}
+
+	c.onMessage = onMessage
+	c.readInterval = time.Duration(interval) * time.Second
+	c.dumper = dataDumper
+	c.closeChan = make(chan struct{})
+	c.collectMode = collectConfig.Ua.CollectMode
+	c.nodes = nodes
+	c.containsBad = collectConfig.ContainsBad
+	c.logger.Info("opc ua start to collect")
+	err = c.checkCollect()
 	if err != nil {
 		return err
 	}
-	err = c.getServerLimit(c.collectMode == config.OPcUaSubscribeType)
+	err = c.getServerLimit(c.collectMode == config.OpcUaSubscribeType)
 	if err != nil {
 		return err
 	}
-	err = c.initNodeNameAndValue()
+	err = c.initNodeName()
 	if err != nil {
 		return err
 	}
 	switch c.collectMode {
 	case config.OpcUaObserveType:
+		c.observeChange = make(chan []*nodeValue, 1)
 		return c.observe()
-	case config.OPcUaSubscribeType:
-		return c.subscribe()
+	case config.OpcUaSubscribeType:
+		return c.subscribe(c.nodes)
 	default:
 		return fmt.Errorf("invalid collect mode %q", c.collectMode)
 	}
 }
 
 func (c *UAClient) checkCollect() error {
-	if len(c.nodes) == 0 {
-		return fmt.Errorf("no nodes to collect")
-	}
 	if c.conn == nil {
 		return fmt.Errorf("opc ua client is nil")
 	}
@@ -322,173 +365,50 @@ func (c *UAClient) checkCollect() error {
 	return nil
 }
 
-func (c *UAClient) initNodeNameAndValue() error {
+func (c *UAClient) initNodeName() error {
 	err := c.checkCollect()
 	if err != nil {
 		return err
 	}
 	// read names
-	c.readAllNames()
-	// read value
-	c.readAllValue()
+	c.readAllNames(c.nodes)
 	return nil
 }
 
-var ability = []uint64{
-	10000,
-	5000,
-	2500,
-	1000,
-	100,
-}
-
-func (c *UAClient) readAllNames() {
+func (c *UAClient) readAllNames(nodes []*nodeValue) {
 	maxOperations := uint(c.maxNodesPerRead)
-	operationTimes := uint(len(c.nodes)) / maxOperations
+	operationTimes := uint(len(nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
-		nodes := c.nodes[base : base+maxOperations]
-		c.readNameBatch(int(base), nodes)
+		c.readNameBatch(nodes[base : base+maxOperations])
 	}
-	if len(c.nodes)%int(maxOperations) != 0 {
+	if len(nodes)%int(maxOperations) != 0 {
 		base := operationTimes * maxOperations
-		nodes := c.nodes[base:]
-		c.readNameBatch(int(base), nodes)
+		c.readNameBatch(nodes[base:])
 	}
-
 }
 
-func (c *UAClient) tryGetMaxNodesPerRead() {
-	conn, err := createUAConn(c.connectConfig)
-	if err != nil {
-		c.logger.WithError(err).Fatal("try to get max nodes per read error: create conn error")
-	}
-	err = conn.Connect(c.ctx)
-	if err != nil {
-		c.logger.WithError(err).Fatal("try to get max nodes per read error:conn error")
-	}
-	defer conn.Close(c.ctx)
-	nodeID, _ := ua.ParseNodeID("i=85")
-	reqs := make([]*ua.ReadValueID, ability[0])
-	for i := 0; uint64(i) < ability[0]; i++ {
-		reqs[i] = &ua.ReadValueID{NodeID: nodeID, AttributeID: ua.AttributeIDBrowseName}
-	}
-	result := uint64(1)
-	for _, v := range ability {
-		req := reqs[:v]
-		resp, err := conn.Read(c.ctx, &ua.ReadRequest{NodesToRead: req})
-		if err != nil {
-			if errors.Is(err, ua.StatusBadTooManyOperations) {
-				continue
-			}
-			c.logger.WithError(err).Fatal("try to get max nodes per read error:read error")
-		}
-		for _, r := range resp.Results {
-			if !errors.Is(r.Status, ua.StatusOK) {
-				continue
-			}
-		}
-		result = v
-		break
-	}
-	c.maxNodesPerRead = result
-	c.logger.Warnf("try to get max nodes per read finish, set value %d", c.maxNodesPerRead)
-}
-
-func (c *UAClient) tryGetMonitorAbility() {
-	// start time "i=2257"
-	conn, err := createUAConn(c.connectConfig)
-	if err != nil {
-		c.logger.WithError(err).Fatal("try to get monitor ability error: create conn error")
-	}
-	err = conn.Connect(c.ctx)
-	if err != nil {
-		c.logger.WithError(err).Fatal("try to get monitor ability error: conn error")
-	}
-	defer conn.Close(c.ctx)
-	nodeID, _ := ua.ParseNodeID("i=2257")
-	// max monitored items per call
-	ch := make(chan *opcua.PublishNotificationData, 1)
-	sub, err := conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
-	if err != nil {
-		c.logger.WithError(err).Fatal("subscribe error")
-	}
-	defer sub.Cancel(c.ctx)
-	reqs := make([]*ua.MonitoredItemCreateRequest, ability[0])
-	for i := 0; uint64(i) < ability[0]; i++ {
-		reqs[i] = opcua.NewMonitoredItemCreateRequestWithDefaults(nodeID, ua.AttributeIDValue, uint32(i))
-	}
-	if c.maxMonitoredItemsPerCall == 0 {
-		//get max monitored items per call
-		for _, v := range ability {
-			req := reqs[:v]
-			resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, req...)
-			if err != nil {
-				if errors.Is(err, ua.StatusBadTooManyOperations) {
-					continue
-				}
-				c.logger.WithError(err).Fatal("try to get monitor ability error: monitor error")
-			}
-			for _, r := range resp.Results {
-				if !errors.Is(r.StatusCode, ua.StatusOK) {
-					continue
-				}
-			}
-			c.maxMonitoredItemsPerCall = v
-			c.logger.Warnf("try to get max monitored items per call finish, set value %d", c.maxMonitoredItemsPerCall)
-			break
-		}
-	}
-	if c.maxMonitoredItemsPerCall == 0 {
-		c.logger.Warnf("try to get max monitored items per call fail, set value %d", ability[0])
-		c.maxMonitoredItemsPerCall = ability[0]
-	}
-	if c.maxNodesPerBrowse != 0 {
+func (c *UAClient) readAllValue(nodes []*nodeValue) {
+	if len(nodes) == 0 {
+		c.logger.Errorf("no nodes to collect")
 		return
 	}
-	// max nodes per browse, try 10 times
-	for i := 0; i < 10; i++ {
-		req := reqs[:c.maxMonitoredItemsPerCall]
-		resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, req...)
-		if err != nil {
-			if errors.Is(err, ua.StatusBadTooManyOperations) {
-				continue
-			}
-			c.logger.WithError(err).Fatal("try to get monitor ability error: monitor error")
-		}
-		for v, r := range resp.Results {
-			if !errors.Is(r.StatusCode, ua.StatusOK) {
-				if errors.Is(r.StatusCode, ua.StatusBadTooManyMonitoredItems) {
-					c.maxNodesPerBrowse = uint64(i+1)*(c.maxMonitoredItemsPerCall) + uint64(v)
-					c.logger.Warnf("try to get max nodes per browse finish, set value %d", c.maxMonitoredItemsPerCall)
-					return
-				}
-				c.logger.WithError(r.StatusCode).Fatal("try to get monitor ability error: monitor error")
-			}
-		}
-	}
-	c.logger.Warn("try to get max nodes per browse fail")
-}
-
-func (c *UAClient) readAllValue() {
 	maxOperations := uint(c.maxNodesPerRead)
-	operationTimes := uint(len(c.nodes)) / maxOperations
+	operationTimes := uint(len(nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
-		nodes := c.nodes[base : base+maxOperations]
-		c.readValueBatch(int(base), nodes)
+		c.readValueBatch(nodes[base : base+maxOperations])
 	}
-	if len(c.nodes)%int(maxOperations) != 0 {
+	if len(nodes)%int(maxOperations) != 0 {
 		base := operationTimes * maxOperations
-		nodes := c.nodes[base:]
-		c.readValueBatch(int(base), nodes)
+		c.readValueBatch(nodes[base:])
 	}
 }
 
-func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) {
+func (c *UAClient) readNameBatch(nodes []*nodeValue) {
 	reqs := make([]*ua.ReadValueID, 0, len(nodes))
 	for _, node := range nodes {
-		reqs = append(reqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDBrowseName})
+		reqs = append(reqs, &ua.ReadValueID{NodeID: node.nodeID, AttributeID: ua.AttributeIDBrowseName})
 	}
 	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{NodesToRead: reqs})
 	if err != nil {
@@ -500,15 +420,15 @@ func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) {
 			c.logger.WithError(err).Error("read names error")
 			continue
 		}
-		c.dataCache[base+i].Name = r.Value.String()
+		nodes[i].nodeValue.Name = r.Value.String()
 	}
 	return
 }
 
-func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
+func (c *UAClient) readValueBatch(nodes []*nodeValue) {
 	valueReqs := make([]*ua.ReadValueID, 0, len(nodes))
 	for _, node := range nodes {
-		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDValue})
+		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node.nodeID, AttributeID: ua.AttributeIDValue})
 	}
 	start := time.Now()
 	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: c.maxAge, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
@@ -520,23 +440,23 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
 		if !errors.Is(r.Status, ua.StatusOK) {
-			c.logger.WithField("id", c.dataCache[base+i].Identifier).WithError(r.Status).Error("read value batch status error")
-			c.dataCache[base+i].Value = nil
+			c.logger.WithField("id", nodes[i].nodeValue.IDStr).WithError(r.Status).Error("read value batch status error")
+			nodes[i].nodeValue.Value = nil
 		} else {
 			if r.Value != nil {
-				c.dataCache[base+i].Value = r.Value.Value()
+				nodes[i].nodeValue.Value = r.Value.Value()
 				if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
-					c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
+					c.logger.WithField("id", nodes[i].nodeValue.IDStr).Warn("skip node: read value is array")
 					continue
 				}
 				exists := false
-				c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
+				nodes[i].nodeValue.ValueType, exists = convertType[r.Value.Type()]
 				if !exists {
-					c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
+					c.logger.WithField("id", nodes[i].nodeValue.IDStr).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
 					continue
 				}
 			} else {
-				c.dataCache[base+i].Value = nil
+				nodes[i].nodeValue.Value = nil
 			}
 		}
 		var ts time.Time
@@ -547,10 +467,10 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 		} else {
 			ts = time.Now()
 		}
-		c.dataCache[base+i].Timestamp = ts
-		c.dataCache[base+i].FinishTime = end
-		c.dataCache[base+i].StartTime = start
-		c.dataCache[base+i].Status = int64(r.Status)
+		nodes[i].nodeValue.Timestamp = ts
+		nodes[i].nodeValue.FinishTime = end
+		nodes[i].nodeValue.StartTime = start
+		nodes[i].nodeValue.Status = int64(r.Status)
 	}
 }
 
@@ -558,6 +478,7 @@ func (c *UAClient) observe() error {
 	ticker := time.NewTicker(c.readInterval)
 	go func() {
 		defer ticker.Stop()
+		var readNameList []*nodeValue
 		for {
 			select {
 			case <-c.ctx.Done():
@@ -566,34 +487,46 @@ func (c *UAClient) observe() error {
 			case <-c.closeChan:
 				c.logger.Info("close chan,observe exit")
 				return
+			case data := <-c.observeChange:
+				c.nodes = data
 			case <-ticker.C:
+				readNameList = readNameList[:0]
 				start := time.Now()
-				c.readAllValue()
+				c.readAllValue(c.nodes)
 				spent := time.Since(start)
 				if spent > c.readInterval {
 					c.logger.WithField("spent", spent).WithField("interval", c.readInterval).Warn("read value spend too much time")
 				}
-				values := make([]*common.NodeValue, 0, len(c.dataCache))
-				for _, data := range c.dataCache {
-					if data.Name == "" {
+				values := make([]*common.NodeValue, 0, len(c.nodes))
+				for _, node := range c.nodes {
+					if !node.nodeValue.ValueType.IsValid() {
 						continue
 					}
-					if !errors.Is(ua.StatusCode(data.Status), ua.StatusOK) {
-						c.logger.WithField("id", data.Identifier).WithField("status", ua.StatusCode(data.Status)).Warn("read value status is not ok")
+					if node.nodeValue.Name == "" {
+						readNameList = append(readNameList, node)
+						continue
+					}
+					if !errors.Is(ua.StatusCode(node.nodeValue.Status), ua.StatusOK) {
+						c.logger.WithField("id", node.nodeValue.IDStr).WithField("status", ua.StatusCode(node.nodeValue.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
 							continue
 						}
 					}
-					values = append(values, &common.NodeValue{
-						Identifier: data.Identifier,
-						Name:       data.Name,
-						Timestamp:  data.Timestamp,
-						StartTime:  data.StartTime,
-						FinishTime: data.FinishTime,
-						Value:      data.Value,
-						ValueType:  data.ValueType,
-						Status:     data.Status,
-					})
+					values = append(values, node.nodeValue.Copy())
+				}
+				if len(readNameList) != 0 {
+					readNameStart := time.Now()
+					c.readAllNames(readNameList)
+					readNameEnd := time.Now()
+					totalSpent := readNameEnd.Sub(start)
+					if spent > c.readInterval {
+						c.logger.WithField("total", totalSpent).WithField("interval", c.readInterval).WithField("name", readNameEnd.Sub(readNameStart)).WithField("value", spent).WithField("read_count", len(readNameList)).Warn("after read name spend too much time")
+					}
+					for _, value := range readNameList {
+						if value.nodeValue.Name != "" {
+							values = append(values, value.nodeValue.Copy())
+						}
+					}
 				}
 				if len(values) == 0 {
 					c.logger.Warn("opcua read no values")
@@ -613,27 +546,34 @@ func (c *UAClient) observe() error {
 	return nil
 }
 
-func (c *UAClient) subscribe() error {
+func (c *UAClient) subscribe(nodes []*nodeValue) error {
 	//return nil
 	err := c.checkCollect()
 	if err != nil {
 		return err
 	}
-	if c.maxNodesPerBrowse == 0 {
-		c.logger.Warn("max nodes per browse is 0, try to sub all nodes")
-		c.doSubAll()
-		return nil
-	}
-	needSubTimes := uint64(len(c.nodes)) / c.maxNodesPerBrowse
+	needSubTimes := uint64(len(nodes)) / c.maxNodesPerBrowse
 	for subTimes := uint64(0); subTimes < needSubTimes; subTimes++ {
-		err = c.doSubBatch(uint(subTimes*c.maxNodesPerBrowse), c.nodes[subTimes*c.maxNodesPerBrowse:(subTimes+1)*c.maxNodesPerBrowse])
+		subHandle, err := newSubscription(c)
+		if err != nil {
+			// panic on create subscription error
+			c.logger.WithError(err).Fatal("create subscription error")
+		}
+		subHandle.nodes = nodes[subTimes*c.maxNodesPerBrowse : (subTimes+1)*c.maxNodesPerBrowse]
+		err = c.doSubBatch(subHandle, subHandle.nodes)
 		if err != nil {
 			c.logger.WithError(err).Error("subscribe error")
 			return err
 		}
 	}
-	if len(c.nodes)%int(c.maxNodesPerBrowse) != 0 {
-		err = c.doSubBatch(uint(needSubTimes*c.maxNodesPerBrowse), c.nodes[needSubTimes*c.maxNodesPerBrowse:])
+	if len(nodes)%int(c.maxNodesPerBrowse) != 0 {
+		subHandle, err := newSubscription(c)
+		if err != nil {
+			// panic on create subscription error
+			c.logger.WithError(err).Fatal("create subscription error")
+		}
+		subHandle.nodes = nodes[needSubTimes*c.maxNodesPerBrowse:]
+		err = c.doSubBatch(subHandle, subHandle.nodes)
 		if err != nil {
 			c.logger.WithError(err).Error("subscribe error")
 			return err
@@ -643,99 +583,38 @@ func (c *UAClient) subscribe() error {
 	return err
 }
 
-// get max node per browse fail, try to sub all nodes
-func (c *UAClient) doSubAll() {
-	reqs := make([]*ua.MonitoredItemCreateRequest, 0, c.maxMonitoredItemsPerCall)
-	baseIndex := uint64(0)
-	monitCount := uint64(0)
-	needNextMonitor := false
-	for {
-		if monitCount >= uint64(len(c.nodes)) {
-			break
-		}
-		// new subscription
-		ch := make(chan *opcua.PublishNotificationData, 1)
-		sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
-		if err != nil {
-			c.logger.WithError(err).Error("subscribe error")
-			return
-		}
-		c.logger.Info("start to add monitored items")
-		//monitor
-		for {
-			if monitCount >= uint64(len(c.nodes)) {
-				c.handleSubCallback(sub, ch)
-				break
-			}
-			reqs = reqs[:0]
-			subItemCount := c.maxMonitoredItemsPerCall
-			if baseIndex+subItemCount > uint64(len(c.nodes)) {
-				subItemCount = uint64(len(c.nodes)) - baseIndex
-			}
-			for i := uint64(0); i < subItemCount; i++ {
-				reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(c.nodes[baseIndex+i], ua.AttributeIDValue, uint32(baseIndex+i)))
-			}
-			resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, reqs...)
-			if err != nil {
-				c.logger.WithError(err).Error("monitor error")
-				continue
-			}
-			for index, result := range resp.Results {
-				if !errors.Is(result.StatusCode, ua.StatusOK) {
-					if errors.Is(result.StatusCode, ua.StatusBadTooManyMonitoredItems) {
-						baseIndex += uint64(index)
-						needNextMonitor = true
-						break
-					}
-					c.logger.WithField("identifier", c.nodes[baseIndex+uint64(index)].String()).WithError(result.StatusCode).Error("monitor item error")
-				}
-				monitCount += 1
-			}
-			if needNextMonitor {
-				c.handleSubCallback(sub, ch)
-				needNextMonitor = false
-				break
-			} else {
-				baseIndex += c.maxMonitoredItemsPerCall - 1
-			}
-		}
-		c.logger.Info("add monitored items finish")
-	}
-}
-
-func (c *UAClient) doSubBatch(base uint, nodes []*ua.NodeID) error {
-	maxOperations := uint(c.maxMonitoredItemsPerCall)
-	ch := make(chan *opcua.PublishNotificationData, 1)
-	sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
-	if err != nil {
-		c.logger.WithError(err).Error("subscribe error")
-		return err
-	}
+func (c *UAClient) doSubBatch(subscriptionHandle *subscription, nodes []*nodeValue) error {
 	c.logger.Info("start to add monitored items")
+	maxOperations := uint(c.maxMonitoredItemsPerCall)
 	subItemTimes := uint(len(nodes)) / maxOperations
 
 	for i := uint(0); i < subItemTimes; i++ {
 		indexBase := i * maxOperations
 		subNodes := nodes[indexBase : indexBase+maxOperations]
 		//ignore error
-		c.doSubItems(int(indexBase+base), subNodes, sub)
+		c.doSubItems(subscriptionHandle, subNodes)
 	}
 	if len(nodes)%int(maxOperations) != 0 {
 		indexBase := subItemTimes * maxOperations
 		subNodes := nodes[indexBase:]
 		//ignore error
-		c.doSubItems(int(indexBase+base), subNodes, sub)
+		c.doSubItems(subscriptionHandle, subNodes)
 	}
-	c.handleSubCallback(sub, ch)
+	subscriptionHandle.handleSubCallback()
 	return nil
 }
 
-func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscription) error {
+func (c *UAClient) doSubItems(sub *subscription, nodes []*nodeValue) error {
 	reqs := make([]*ua.MonitoredItemCreateRequest, 0, len(nodes))
-	for i, node := range nodes {
-		reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(node, ua.AttributeIDValue, uint32(base+i)))
+	for _, node := range nodes {
+		if node.subscriptionID == nil {
+			node.subscriptionID = &sub.subIndex
+			node.clientHandle = sub.clientHandleIndex
+			sub.clientHandleIndex += 1
+		}
+		reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(node.nodeID, ua.AttributeIDValue, node.clientHandle))
 	}
-	resp, err := sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, reqs...)
+	resp, err := sub.sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, reqs...)
 	if err != nil {
 		c.logger.WithError(err).Error("monitor error")
 		return err
@@ -743,24 +622,30 @@ func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscript
 	var errs []error
 	for index, r := range resp.Results {
 		if !errors.Is(r.StatusCode, ua.StatusOK) {
-			c.logger.WithError(err).Error("monitor item error")
-			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", nodes[uint(index)].String(), r.StatusCode))
+			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", nodes[index].nodeValue.IDStr, r.StatusCode))
+		} else {
+			nodes[index].subscribed = true
+			nodes[index].monitoredItemID = r.MonitoredItemID
+			sub.subCount += 1
 		}
 	}
 	if len(errs) != 0 {
 		err = errors.Join(errs...)
+		c.logger.WithError(err).Error("subscribe monitor error")
 		return err
 	}
 	return nil
 }
 
-func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.PublishNotificationData) {
+func (s *subscription) handleSubCallback() {
 	go func() {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
-			sub.Cancel(ctx)
+			s.sub.Cancel(ctx)
 		}()
+		c := s.client
+		var readNameList []*nodeValue
 		for {
 			select {
 			case <-c.ctx.Done():
@@ -769,7 +654,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 			case <-c.closeChan:
 				c.logger.Info("close chan,handleSubCallback exit")
 				return
-			case data := <-ch:
+			case data := <-s.ch:
 				if data == nil {
 					return
 				}
@@ -784,17 +669,18 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 					values := make([]*common.NodeValue, 0, len(x.MonitoredItems))
 					for _, item := range x.MonitoredItems {
 						handle := item.ClientHandle
-						nodeID := c.nodes[handle]
-						identifier := nodeID.String()
-
+						node := s.nodes[handle]
 						if item == nil || item.Value == nil {
-							c.logger.WithField("identifier", identifier).WithField("item", item).Error("observe opc ua item is nil")
+							c.logger.WithField("identifier", node.nodeValue.IDStr).WithField("item", item).Error("observe opc ua item is nil")
 							continue
 						}
 						if item.Value.Value != nil {
-							c.dataCache[handle].Value = item.Value.Value.Value()
+							node.nodeValue.Value = item.Value.Value.Value()
+							if !node.nodeValue.ValueType.IsValid() {
+								node.nodeValue.ValueType = convertType[item.Value.Value.Type()]
+							}
 						} else {
-							c.dataCache[handle].Value = nil
+							node.nodeValue.Value = nil
 						}
 						var ts time.Time
 						if !item.Value.SourceTimestamp.IsZero() {
@@ -804,26 +690,40 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						} else {
 							ts = now
 						}
-						c.dataCache[handle].Timestamp = ts
-						c.dataCache[handle].FinishTime = now
-						c.dataCache[handle].StartTime = now
-						c.dataCache[handle].Status = int64(item.Value.Status)
+						node.nodeValue.Timestamp = ts
+						node.nodeValue.FinishTime = now
+						node.nodeValue.StartTime = now
+						node.nodeValue.Status = int64(item.Value.Status)
 						if !errors.Is(item.Value.Status, ua.StatusOK) {
-							c.logger.WithField("status", item.Value.Status).WithField("identifier", identifier).Warn("read value status is not ok")
+							c.logger.WithField("status", item.Value.Status).WithField("identifier", node.nodeValue.IDStr).Warn("read value status is not ok")
 							if !c.containsBad {
 								continue
 							}
 						}
-						values = append(values, &common.NodeValue{
-							Identifier: identifier,
-							Name:       c.dataCache[handle].Name,
-							Timestamp:  c.dataCache[handle].Timestamp,
-							StartTime:  c.dataCache[handle].StartTime,
-							FinishTime: c.dataCache[handle].FinishTime,
-							Value:      c.dataCache[handle].Value,
-							ValueType:  c.dataCache[handle].ValueType,
-							Status:     c.dataCache[handle].Status,
-						})
+						if node.nodeValue.Name == "" {
+							readNameList = append(readNameList, node)
+							continue
+						}
+						values = append(values, node.nodeValue.Copy())
+					}
+					if len(readNameList) != 0 {
+						readNameStart := time.Now()
+						c.readAllNames(readNameList)
+						readNameEnd := time.Now()
+						totalSpent := readNameEnd.Sub(readNameStart)
+						if totalSpent > 3*time.Second {
+							c.logger.WithField("spent", totalSpent).WithField("name", readNameEnd.Sub(readNameStart)).WithField("read_count", len(readNameList)).Warn("read name spend over 3 seconds")
+						}
+						for _, value := range readNameList {
+							if value.nodeValue.Name != "" {
+								values = append(values, value.nodeValue.Copy())
+							}
+						}
+					}
+					for _, value := range readNameList {
+						if value.nodeValue.Name != "" {
+							values = append(values, value.nodeValue.Copy())
+						}
 					}
 					if len(values) != 0 {
 						if c.dumper != nil {
@@ -1110,7 +1010,9 @@ func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
 
 func (c *UAClient) Close() error {
 	c.once.Do(func() {
-		close(c.closeChan)
+		if c.closeChan != nil {
+			close(c.closeChan)
+		}
 		if c.conn != nil {
 			ctx, cancel := context.WithTimeout(c.ctx, time.Second*5)
 			defer cancel()
@@ -1121,4 +1023,174 @@ func (c *UAClient) Close() error {
 		}
 	})
 	return nil
+}
+
+func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
+	// observe
+	if c.collectMode != conf.Ua.CollectMode {
+		c.logger.Error("collect mode not match")
+		return
+	}
+
+	if c.collectMode == config.OpcUaObserveType {
+		oldNodeMap := make(map[string]*nodeValue, len(c.nodes))
+		for _, node := range c.nodes {
+			oldNodeMap[node.nodeValue.IDStr] = node
+		}
+
+		newCacheNodes := make([]*nodeValue, 0, len(conf.Ua.Nodes))
+		var needInitNodeIDs []*nodeValue
+		for i := 0; i < len(conf.Ua.Nodes); i++ {
+			node, err := ua.ParseNodeID(conf.Ua.Nodes[i].ID)
+			if err != nil {
+				c.logger.WithError(err).WithField("node", conf.Ua.Nodes[i].ID).Error("parse node id error")
+				continue
+			}
+			oldNode := oldNodeMap[conf.Ua.Nodes[i].ID]
+			if oldNode != nil {
+				newCacheNodes = append(newCacheNodes, oldNode)
+			} else {
+				cache := &nodeValue{
+					nodeID: node,
+					nodeValue: &common.NodeValue{
+						IDStr: conf.Ua.Nodes[i].ID,
+					},
+				}
+				newCacheNodes = append(newCacheNodes, cache)
+				needInitNodeIDs = append(needInitNodeIDs, cache)
+			}
+		}
+		c.readNameBatch(needInitNodeIDs)
+		c.readValueBatch(needInitNodeIDs)
+		c.observeChange <- newCacheNodes
+	} else if c.collectMode == config.OpcUaSubscribeType {
+		oldSubMap := make(map[string]*nodeValue, len(c.nodes))
+		for _, node := range c.nodes {
+			oldSubMap[node.nodeValue.IDStr] = node
+		}
+
+		var newSubNode []*nodeValue
+		var reSubNode []*nodeValue
+		needUnsubNode := map[int][]*nodeValue{}
+		for i := 0; i < len(conf.Ua.Nodes); i++ {
+			nodeID, err := ua.ParseNodeID(conf.Ua.Nodes[i].ID)
+			if err != nil {
+				c.logger.WithError(err).WithField("node", conf.Ua.Nodes[i].ID).Error("parse node id error")
+				continue
+			}
+			if node, ok := oldSubMap[conf.Ua.Nodes[i].ID]; ok {
+				if !node.subscribed {
+					reSubNode = append(reSubNode, node)
+				}
+				delete(oldSubMap, conf.Ua.Nodes[i].ID)
+				continue
+			} else {
+				newSubNode = append(newSubNode, &nodeValue{
+					nodeID: nodeID,
+					nodeValue: &common.NodeValue{
+						IDStr: conf.Ua.Nodes[i].ID,
+					},
+				})
+			}
+		}
+		if len(oldSubMap) > 0 {
+			for _, v := range oldSubMap {
+				subID := *v.subscriptionID
+				needUnsubNode[subID] = append(needUnsubNode[subID], v)
+			}
+		}
+		//unsubscribe
+		for subscriptionID, monitoredNode := range needUnsubNode {
+			var unsubRetryNode []*nodeValue
+
+			var monitoredItemIDs []uint32
+			for _, node := range monitoredNode {
+				if !node.subscribed {
+					continue
+				}
+				monitoredItemIDs = append(monitoredItemIDs, node.monitoredItemID)
+			}
+			if len(monitoredItemIDs) > 0 {
+				subscriber := c.subList[subscriptionID]
+				resp, err := subscriber.sub.Unmonitor(c.ctx, monitoredItemIDs...)
+				if err != nil {
+					c.logger.WithError(err).Error("unmonitor response error")
+				}
+				for index, r := range resp.Results {
+					if !errors.Is(r, ua.StatusOK) {
+						c.logger.WithError(r).WithField("nodeID", monitoredNode[index].nodeValue.IDStr).Error("unmonitor error")
+						unsubRetryNode = append(unsubRetryNode, monitoredNode[index])
+					} else {
+						monitoredNode[index].subscribed = false
+						subscriber.subCount -= 1
+					}
+				}
+				for _, value := range unsubRetryNode {
+					c.logger.WithField("nodeID", value.nodeValue.IDStr).Debug("retry unmonitor")
+					resp, err := subscriber.sub.Unmonitor(c.ctx, value.monitoredItemID)
+					if err != nil {
+						c.logger.WithError(err).WithField("nodeID", value.nodeValue.IDStr).Error("retry unmonitor response error")
+						continue
+					}
+					if !errors.Is(resp.Results[0], ua.StatusOK) {
+						c.logger.WithError(resp.Results[0]).WithField("nodeID", value.nodeValue.IDStr).Error("retry unmonitor error")
+					} else {
+						value.subscribed = false
+						subscriber.subCount -= 1
+					}
+				}
+			}
+		}
+		// reSubscribe nodes
+		reSubscriptionNodes := make([][]*nodeValue, len(c.subList))
+		if len(reSubNode) > 0 {
+			for _, value := range reSubNode {
+				if value.subscriptionID != nil {
+					subscriptionID := *value.subscriptionID
+
+					reSubscriptionNodes[subscriptionID] = append(reSubscriptionNodes[subscriptionID], value)
+				}
+			}
+			for i, nodes := range reSubscriptionNodes {
+				if len(nodes) == 0 {
+					continue
+				}
+				subHandle := c.subList[i]
+				err := c.doSubBatch(subHandle, nodes)
+				if err != nil {
+					c.logger.WithError(err).Error("resubscribe error")
+				}
+			}
+		}
+		if len(newSubNode) > 0 {
+			// subscribe new nodes
+			c.readNameBatch(newSubNode)
+			c.nodes = append(c.nodes, newSubNode...)
+			lastSubscription := c.subList[len(c.subList)-1]
+			delta := int(c.maxNodesPerBrowse) - len(lastSubscription.nodes)
+			if delta > 0 {
+				if len(newSubNode) > delta {
+					lastSubscription.nodes = append(lastSubscription.nodes, newSubNode[delta:]...)
+					err := c.doSubBatch(lastSubscription, newSubNode[:delta])
+					if err != nil {
+						c.logger.WithError(err).Error("subscribe new delta 1 error")
+					}
+					newSubNode = newSubNode[delta:]
+				} else {
+					lastSubscription.nodes = append(lastSubscription.nodes, newSubNode...)
+					err := c.doSubBatch(lastSubscription, newSubNode)
+					if err != nil {
+						c.logger.WithError(err).Error("subscribe new delta 2 error")
+					}
+					newSubNode = nil
+				}
+			}
+			if len(newSubNode) != 0 {
+				err := c.subscribe(newSubNode)
+				if err != nil {
+					c.logger.WithError(err).Error("subscribe new error")
+				}
+			}
+		}
+	}
 }

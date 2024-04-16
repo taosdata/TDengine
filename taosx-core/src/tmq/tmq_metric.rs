@@ -38,9 +38,9 @@ pub struct TmqMetrics {
     pub write_raw_fails: AtomicU64,
     #[serde(default)]
     pub success_blocks: AtomicU64,
-    // Topic Name -> Vec<Assignment>
+    // Topic Name -> Vgroup ID -> Assignment
     #[serde(skip)]
-    pub progress: DashMap<String, Vec<Assignment>>,
+    pub progress: DashMap<String, DashMap<i32, Assignment>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -123,8 +123,13 @@ impl TmqMetrics {
     }
 
     #[inline]
-    pub fn update_progress(&self, topic: String, assignments: Vec<Assignment>) {
-        self.progress.insert(topic, assignments);
+    pub fn update_progress(&self, assignments: Vec<(String, Vec<Assignment>)>) {
+        for (topic, assignments) in assignments {
+            let topic_progress = self.progress.entry(topic).or_insert_with(DashMap::new);
+            for assignment in assignments {
+                topic_progress.insert(assignment.vgroup_id(), assignment);
+            }
+        }
     }
 
     pub fn get_progress_string(&self) -> String {
@@ -132,13 +137,14 @@ impl TmqMetrics {
         let mut data = Vec::<TopicProgress>::new();
         for entry in self.progress.iter() {
             let topic = entry.key().clone();
-            let assignments = entry.value();
-            for assignment in assignments {
+            let topic_progress = entry.value();
+            for entry in topic_progress {
+                let assignment = entry.value();
                 data.push(TopicProgress {
                     topic: topic.clone(),
                     vgroup: assignment.vgroup_id(),
                     offset: assignment.current_offset(),
-                    latest: assignment.end() - 1, // end is the next offset
+                    latest: assignment.end(),
                 });
             }
         }
@@ -230,7 +236,7 @@ mod tests {
     #[test]
     fn test_get_progress_string() {
         let tmq_metrics = TmqMetrics::default();
-        tmq_metrics.update_progress("topic1".to_string(), vec![Assignment::default()]);
+        tmq_metrics.update_progress(vec![("topic1".to_string(), vec![Assignment::default()])]);
         let progress = tmq_metrics.get_progress_string();
         println!("{}", progress);
     }

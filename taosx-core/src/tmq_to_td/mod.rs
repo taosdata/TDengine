@@ -115,20 +115,6 @@ async fn write_data(
                 }
             }
         } else {
-            while let Some(raw) = data
-                .fetch_raw_block()
-                .await
-                .context("Fetch raw block error")?
-            {
-                *rows += raw.nrows();
-                metrics.add_written_rows(raw.nrows() as _);
-                metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
-                metrics.add_suc_blocks(1);
-            }
-            tracing::debug!(
-                "End writing data, current written rows {}",
-                metrics.written_rows()
-            );
             return Ok(0);
         }
     }
@@ -512,8 +498,8 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    // let refresh_pgrogress_interval =
-    //     crate::utils::interval::IntervalLimit::new(Duration::from_secs(3));
+    let refresh_pgrogress_interval =
+        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -551,22 +537,9 @@ async fn sync(
                     if let Err(err) = consumer.commit(offset).await {
                         tracing::warn!("Commit error: {err:?}");
                     } else {
-                        // if refresh_pgrogress_interval.ticked() {
-                            let assignments = consumer.assignments().await;
-                            match assignments {
-                                Some(assignments) => {
-                                    if !assignments.is_empty() {
-                                        for (topic, assignments) in assignments {
-                                            tracing::debug!("Update progress for topic {topic} with {:?}", &assignments);
-                                            metrics.update_progress(topic, assignments);
-                                        }
-                                    }
-                                }
-                                None => {
-                                    tracing::warn!("Failed to get assignments");
-                                }
-                            }
-                        // }
+                        if refresh_pgrogress_interval.ticked() {
+                            update_progress(&consumer, &metrics).await;
+                        }
                     }
                 } else {
                     break;
@@ -574,12 +547,27 @@ async fn sync(
             }
         }
     }
+    update_progress(&consumer, &metrics).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
     drop(stream);
     let _ = sender.send(consumer); // tokio send
     Ok(())
+}
+
+async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
+    let assignments = consumer.assignments().await;
+    match assignments {
+        Some(assignments) => {
+            if !assignments.is_empty() {
+                metrics.update_progress(assignments);
+            }
+        }
+        None => {
+            tracing::warn!("Failed to get assignments");
+        }
+    }
 }
 
 #[instrument(skip_all)]
@@ -937,15 +925,23 @@ pub async fn get_table_progress(
             )
         }
     };
-    tracing::debug!("from_sql:\n {from_sql}, to_sql:\n {to_sql}");
+    tracing::debug!("\nfrom_sql: {from_sql}\nto_sql: {to_sql}");
     let from_result = from_taos
         .query_one::<String, (Option<u64>, u64)>(from_sql)
-        .await?
-        .ok_or(anyhow!("No data found in source database"))?;
+        .await;
+    if let Err(err) = from_result {
+        tracing::error!("Query from source database error: {err}");
+        bail!(err);
+    }
     let to_result = to_taos
         .query_one::<String, (Option<u64>, u64)>(to_sql)
-        .await?
-        .ok_or(anyhow!("No data found in target database"))?;
+        .await;
+    if let Err(err) = to_result {
+        tracing::error!("Query to target database error: {err}");
+        bail!(err);
+    }
+    let from_result = from_result.unwrap().unwrap();
+    let to_result = to_result.unwrap().unwrap();
     Ok(TableProgress {
         table_name: table.to_string(),
         from_last_ts: from_result.0,

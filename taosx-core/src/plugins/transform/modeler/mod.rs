@@ -410,7 +410,7 @@ impl From<Model> for Vec<Table> {
 
 mod model_serde {
     use super::{Model, Table};
-    use serde::{self, Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer};
 
     type Target = Vec<Table>;
     // The signature of a deserialize_with function must follow the pattern:
@@ -431,6 +431,36 @@ mod tests {
     use arrow::array::{ArrayRef, Float64Array, TimestampMillisecondArray};
 
     use super::*;
+
+    #[test]
+    fn test_serde() {
+        let model = r#"[
+            {
+                "name": "table",
+                "columns": ["time", "value"]
+            }
+        ]"#;
+        let model: Modeler = serde_json::from_str(model).unwrap();
+        dbg!(&model);
+
+        let model = r#"{
+            "name": "table",
+            "using": "using",
+            "tags": ["tag"],
+            "columns": ["time", "value"]
+        }"#;
+
+        let model: Modeler = serde_json::from_str(model).unwrap();
+        dbg!(&model);
+
+        let model = r#"{
+            "name": "{topic}",
+            "using": "mqtt",
+            "tags": ["topic"],
+            "columns": ["ts", "value", "qos"]
+        }"#;
+        let model: Modeler = serde_json::from_str(model).unwrap();
+    }
 
     #[test]
     fn test_into_modeled_json_with_tz() {

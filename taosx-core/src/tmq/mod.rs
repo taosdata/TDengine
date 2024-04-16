@@ -176,16 +176,14 @@ pub(crate) async fn check_tmq_dsn(
     let use_topic_name = from.remove("use.topic.name");
     let use_table_name = from.remove("use.table.name");
 
-    let with_meta_delete = if let Some(val) = from.remove("with.meta.delete") {
-        val == "true"
-    } else {
-        false
-    };
-    let with_meta_drop = if let Some(val) = from.remove("with.meta.drop") {
-        val == "true"
-    } else {
-        false
-    };
+    let with_meta_delete = from
+        .remove("with.meta.delete")
+        .and_then(|val| val.parse().ok())
+        .unwrap_or(true);
+    let with_meta_drop = from
+        .remove("with.meta.drop")
+        .and_then(|val| val.parse().ok())
+        .unwrap_or(true);
 
     if from.get("timeout").is_none() {
         from.set("timeout", "5s");
@@ -819,7 +817,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_replica() {
-        let dsn = Dsn::from_str("tmq:///db1?replica").unwrap();
+        let dsn = Dsn::from_str("tmq:///db1?replica&with.meta.delete").unwrap();
         let (dsn, _, topics, _, _) = check_tmq_dsn(dsn).await.unwrap();
         assert_eq!(true, dsn.params.contains_key("msg.consume.excluded"));
         assert_eq!("1", dsn.params.get("msg.consume.excluded").unwrap());

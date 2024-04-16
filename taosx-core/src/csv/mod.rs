@@ -6,12 +6,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use actix_web::http::header;
 use anyhow::{anyhow, bail, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
-use csv_lib::{Reader, ReaderBuilder, StringRecord};
+use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use futures_util::stream::FuturesUnordered;
 use futures_util::TryStreamExt;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
@@ -238,6 +239,7 @@ struct CsvSource {
     readers: Vec<Reader<File>>,
     concurrent: usize,
     batch_size: usize,
+    skip_error: bool,
     port: u16,
 }
 
@@ -267,18 +269,16 @@ impl CsvSource {
             .remove("has_header")
             .and_then(|v| v.parse().ok())
             .unwrap_or(true);
-        // let headers = dsn
-        //     .remove("header")
-        //     .or(dsn.remove("headers"))
-        //     .unwrap_or_default();
-        // let headers = if !headers.is_empty() {
-        //     headers
-        //         .split(",")
-        //         .map(|i| i.trim().to_string())
-        //         .collect::<Vec<String>>()
-        // } else {
-        //     Vec::new()
-        // };
+        let headers = dsn
+            .remove("header")
+            .or(dsn.remove("headers"))
+            .map(|headers| {
+                headers
+                    .split(',')
+                    .map(String::from)
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
         let skip = dsn.params.remove("skip").and_then(|skip_char| {
             if skip_char.is_empty() {
                 None
@@ -343,18 +343,45 @@ impl CsvSource {
             concurrent = paths.len();
         }
 
+        let skip_error = dsn
+            .remove("skip_error")
+            .and_then(|v| {
+                if v.trim().is_empty() {
+                    Some(true)
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(false);
+
         // if !has_header && headers.len() == 0 {
         //     return Err(anyhow!("csv header is null"));
         // }
+        let skip_validate: bool = dsn
+            .remove("skip_validate")
+            .and_then(|v| {
+                if v.trim().is_empty() {
+                    Some(true)
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(false);
+        if !skip_validate {
+            CsvSource::validate(
+                &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
+            )?;
+        }
 
-        CsvSource::validate(&paths, has_header, skip, delimiter, quote, comment)?;
-
-        let readers = CsvSource::csv_readers(&paths, has_header, skip, delimiter, quote, comment)?;
+        let readers = CsvSource::csv_readers(
+            &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
+        )?;
 
         Ok(CsvSource {
             readers,
             concurrent,
             batch_size,
+            skip_error,
             port,
         })
     }
@@ -452,15 +479,20 @@ impl CsvSource {
                 );
             }
 
-            reader
-                .records()
-                .into_iter()
-                .take(sample)
-                .for_each(|record| {
-                    if let Ok(record) = record {
-                        samples.push(record.iter().map(String::from).collect::<Vec<String>>());
-                    }
-                });
+            loop {
+                let mut record = StringRecord::new();
+                let ok = reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {} record error", path))?;
+                if ok {
+                    samples.push(record.iter().map(String::from).collect::<Vec<String>>());
+                } else {
+                    break;
+                }
+                if samples.len() >= sample {
+                    break;
+                }
+            }
         }
 
         Ok(samples)
@@ -479,6 +511,7 @@ impl CsvSource {
     async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
         let port = self.port;
         let batch_size = self.batch_size;
+        let skip_error = self.skip_error;
         tracing::info!("reading csv files with batch size: {batch_size}");
         let futures = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
@@ -489,7 +522,7 @@ impl CsvSource {
             let future = tokio::spawn(
                 async move {
                     info!("Deal with csv reader");
-                    let res = CsvSource::deal_file(reader, port, batch_size).await?;
+                    let res = CsvSource::deal_file(reader, port, batch_size, skip_error).await?;
 
                     drop(permit);
                     Ok(res)
@@ -503,7 +536,12 @@ impl CsvSource {
         Ok(futures)
     }
 
-    async fn deal_file(mut reader: Reader<File>, port: u16, batch_size: usize) -> Result<()> {
+    async fn deal_file(
+        mut reader: Reader<File>,
+        port: u16,
+        batch_size: usize,
+        skip_error: bool,
+    ) -> Result<()> {
         debug!("Deal with file by IPC port: {port}");
         let stream = std::net::TcpStream::connect(format!("localhost:{}", port));
         debug!("Connected to IPC stream");
@@ -546,21 +584,40 @@ impl CsvSource {
 
             let mut writer: StreamWriter<_> = StreamWriter::try_new(&stream, &schema)?;
 
-            // let writer = writer;
-            let mut record = StringRecord::new();
             let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
             let mut batches = 0usize;
-            while reader.read_record(&mut record)? {
+            let mut errors = 0usize;
+
+            for record in reader.byte_records() {
+                let record = match record {
+                    Ok(record) => record,
+                    Err(err) => {
+                        if !skip_error {
+                            Err(err).context("Reading csv records error")?;
+                        } else {
+                            warn!("skip error is enabled, ignore error: {:#}", err);
+                            errors += 1;
+                        }
+                        continue;
+                    }
+                };
+
                 if record.is_empty() {
                     continue;
                 }
-                for (i, s) in record.iter().enumerate() {
-                    let s = s.trim();
-                    records[i].push(if !s.is_empty() {
-                        Some(s.to_string())
-                    } else {
-                        None
-                    });
+                for i in 0..headers.len() {
+                    match record.get(i) {
+                        Some(s) => {
+                            let s = String::from_utf8_lossy(s);
+                            let s = s.trim();
+                            records[i].push(if !s.is_empty() {
+                                Some(s.replace('\0', "").to_string())
+                            } else {
+                                None
+                            });
+                        }
+                        None => records[i].push(None),
+                    }
                 }
                 if records[0].len() >= batch_size {
                     CsvSource::write_to_stream(&headers, &mut writer, &records)?;
@@ -577,7 +634,11 @@ impl CsvSource {
                 // metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
                 // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
             }
+            if errors > 0 {
+                warn!("There are {} errors while reading csv records", errors);
+            }
 
+            info!("CSV stream finished");
             let _ = writer.finish();
             anyhow::Ok(batches)
         });
@@ -630,7 +691,7 @@ impl CsvSource {
 
         let columns = headers
             .iter()
-            .map(|header| Field::new(header, ArrowDataType::Utf8, false))
+            .map(|header| Field::new(header, ArrowDataType::Utf8, true))
             .collect::<Vec<Field>>();
 
         Schema::new(columns).with_metadata(metadata)
@@ -672,11 +733,12 @@ impl CsvSource {
     fn csv_readers(
         paths: &[impl AsRef<Path>],
         has_header: bool,
-        // headers: &Vec<String>,
+        headers: &[String],
         skip: Option<u64>,
         delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
+        skip_error: bool,
     ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         for path in paths {
@@ -687,19 +749,15 @@ impl CsvSource {
                     _ => b'"',
                 })
                 .comment(comment)
-                // when there is no header, we will set one later, so here is true.
                 .has_headers(true)
-                .flexible(false)
+                .flexible(skip_error)
                 .from_path(path)
                 .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
             // should first fetch headers record in case it has headers.
-            // if has_header {
-            //     let _ = reader.headers();
-            // }
-            // if !headers.is_empty() {
-            //     reader.set_headers(StringRecord::from(headers.clone()));
-            // }
-            if !has_header {
+            if !headers.is_empty() {
+                reader.set_headers(StringRecord::from(headers));
+            }
+            if !has_header && headers.is_empty() {
                 let mut reader_tmp = ReaderBuilder::new()
                     .delimiter(delimiter)
                     .quote(match quote {
@@ -717,15 +775,18 @@ impl CsvSource {
                 }
                 reader.set_headers(StringRecord::from(column_names));
             }
+            let _ = reader.headers();
             if let Some(skip) = skip {
-                let mut record = StringRecord::new();
+                let mut record = ByteRecord::new();
                 for _ in 0..skip {
-                    let _ = reader.read_record(&mut record);
+                    let _ = reader.read_byte_record(&mut record);
                 }
+                let pos = reader.position();
                 info!(
                     skip,
-                    "Start reading csv from line {}",
-                    reader.position().line()
+                    "Start reading csv from line {}, byte: {}",
+                    pos.line(),
+                    pos.byte(),
                 );
             }
             readers.push(reader);
@@ -736,15 +797,17 @@ impl CsvSource {
     fn validate(
         paths: &[impl AsRef<Path>],
         has_header: bool,
-        // headers: &Vec<String>,
+        headers: &[String],
         skip: Option<u64>,
         delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
+        skip_error: bool,
     ) -> Result<()> {
-        const MAX_VALIDATE_LINES: usize = 10;
+        const MAX_VALIDATE_LINES: usize = 5;
         let mut cols = 0;
         for path in paths {
+            let path = path.as_ref();
             let mut reader = ReaderBuilder::new()
                 .delimiter(delimiter)
                 .quote(match quote {
@@ -752,19 +815,35 @@ impl CsvSource {
                     _ => b'"',
                 })
                 .comment(comment)
-                .has_headers(has_header)
+                .has_headers(true)
                 .flexible(false)
                 .from_path(path)
-                .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
+                .with_context(|| format!("Open file {} error", path.display()))?;
             // should first fetch headers record in case it has headers.
-            // if has_header {
-            //     let _ = reader.headers();
-            // }
-            // if !headers.is_empty() {
-            //     reader.set_headers(StringRecord::from(headers.clone()));
-            // }
-            info!(
-                path = %path.as_ref().display(),
+            if !headers.is_empty() {
+                reader.set_headers(StringRecord::from(headers));
+            }
+            if !has_header && headers.is_empty() {
+                let mut reader_tmp = ReaderBuilder::new()
+                    .delimiter(delimiter)
+                    .quote(match quote {
+                        Some(quote) => quote,
+                        _ => b'"',
+                    })
+                    .comment(comment)
+                    .flexible(false)
+                    .from_path(path)
+                    .with_context(|| format!("Open file {} error", path.display()))?;
+                let headers = reader_tmp.headers()?;
+                let mut column_names = vec![];
+                for n in 0..(headers.len()) {
+                    column_names.push(format!("c{n}"));
+                }
+                reader.set_headers(StringRecord::from(column_names));
+            }
+            let _ = reader.headers();
+            debug!(
+                path = %path.display(),
                 "Using headers: \"{}\"",
                 reader.headers()?.iter().join(",")
             );
@@ -773,7 +852,7 @@ impl CsvSource {
                 for _ in 0..skip {
                     let _ = reader.read_record(&mut record);
                 }
-                info!(
+                debug!(
                     skip,
                     "Start reading csv from line {}",
                     reader.position().line()
@@ -784,14 +863,18 @@ impl CsvSource {
                 bail!("CSV fields number should greater than 1.")
             }
 
+            if skip_error {
+                continue;
+            }
+
             if cols == 0 {
                 cols = headers.len();
             }
             let mut record = StringRecord::new();
             for _ in 0..MAX_VALIDATE_LINES {
-                let ok = reader.read_record(&mut record).with_context(|| {
-                    format!("Reading file {} record error", path.as_ref().display())
-                })?;
+                let ok = reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {} record error", path.display()))?;
                 if !ok {
                     break;
                 }
@@ -803,7 +886,7 @@ impl CsvSource {
                 if cols != len {
                     bail!(
                         "CSV file {} line {line} expect {cols} columns but has {len}",
-                        path.as_ref().display()
+                        path.display()
                     );
                 }
             }
@@ -935,7 +1018,8 @@ mod tests {
 
         // has header
         let mut readers =
-            CsvSource::csv_readers(&paths, true, None, b',', Some(b'"'), Some(b'#')).unwrap();
+            CsvSource::csv_readers(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
+                .unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -956,8 +1040,17 @@ mod tests {
         }
 
         // does not has header
-        let mut readers =
-            CsvSource::csv_readers(&paths, false, None, b',', Some(b'"'), Some(b'#')).unwrap();
+        let mut readers = CsvSource::csv_readers(
+            &paths,
+            false,
+            &[],
+            None,
+            b',',
+            Some(b'"'),
+            Some(b'#'),
+            false,
+        )
+        .unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -979,6 +1072,38 @@ mod tests {
             );
         }
 
+        // does not has header, but with custom headers
+        let mut readers = CsvSource::csv_readers(
+            &paths,
+            false,
+            &["ts".to_string(), "payload".to_string()],
+            None,
+            b',',
+            Some(b'"'),
+            Some(b'#'),
+            false,
+        )
+        .unwrap();
+        while let Some(mut reader) = readers.pop() {
+            let headers = reader
+                .headers()
+                .unwrap()
+                .iter()
+                .map(String::from)
+                .collect::<Vec<String>>();
+            assert_eq!(headers, vec!["ts".to_string(), "payload".to_string()]);
+            let mut record = StringRecord::new();
+            let _ = reader.read_record(&mut record);
+            assert_eq!(record, vec!["ts".to_string(), "payload".to_string()]);
+            let _ = reader.read_record(&mut record);
+            assert_eq!(
+                record,
+                vec![
+                    "2001-01-01T00:00:00Z".to_string(),
+                    "location,1,2,3".to_string()
+                ]
+            );
+        }
         for path in &paths {
             let _ = delete_csv_file(path);
         }
@@ -991,7 +1116,8 @@ mod tests {
             let _ = create_csv_file(path).await.unwrap();
         }
 
-        let _ = CsvSource::validate(&paths, true, None, b',', Some(b'"'), Some(b'#')).unwrap();
+        let _ = CsvSource::validate(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
+            .unwrap();
 
         for path in &paths {
             let _ = delete_csv_file(path);

@@ -9,6 +9,7 @@ pub mod interval;
 pub mod metrics_db;
 pub mod monitor;
 pub mod port_pool;
+pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod trace;
 
@@ -213,6 +214,14 @@ pub async fn get_server_version(taos: &Taos) -> anyhow::Result<String> {
         Err(err) => anyhow::bail!(format!("Get TDengine server version error: {err:?}")),
         Ok(version) => Ok(version.to_string()),
     }
+}
+
+lazy_static::lazy_static! {
+    static ref TABLE_COLUMN_NAME_REGEX: regex::Regex = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_]*$").unwrap();
+}
+
+pub fn validate_table_column_name(name: &str) -> bool {
+    TABLE_COLUMN_NAME_REGEX.is_match(name)
 }
 
 #[tokio::test(flavor = "multi_thread")]
