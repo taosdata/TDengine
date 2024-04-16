@@ -1523,7 +1523,7 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
   if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
     code = TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN;
     mGError("msg:%p, failed to create encrypt_key since invalid key length:%d, valid range:[%d, %d]", pReq, klen,
-            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);  // ENCRYPT_TODO: range[min, max]
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
     goto _exit;
   }
 
@@ -1552,6 +1552,7 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
     if (pDnode->offlineReason != DND_REASON_ONLINE) {
       mGWarn("msg:%p, don't send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
              offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
       continue;
     }
 
