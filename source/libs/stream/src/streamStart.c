@@ -44,7 +44,7 @@ static void              tryLaunchHistoryTask(void* param, void* tmrId);
 static void              doProcessDownstreamReadyRsp(SStreamTask* pTask);
 
 int32_t streamTaskSetReady(SStreamTask* pTask) {
-  int32_t     numOfDowns = streamTaskGetNumOfDownstream(pTask);
+  int32_t           numOfDowns = streamTaskGetNumOfDownstream(pTask);
   SStreamTaskState* p = streamTaskGetStatus(pTask);
 
   if ((p->state == TASK_STATUS__SCAN_HISTORY) && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
@@ -868,8 +868,10 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
-    pRange->minVer = walScanStartVer;
-    pRange->maxVer = nextProcessVer - 1;
+    pTask->step2Range.minVer = walScanStartVer;
+    pTask->step2Range.maxVer = nextProcessVer - 1;
+    stDebug("s-task:%s set step2 verRange:%" PRId64 "-%" PRId64 ", step1 verRange:%" PRId64 "-%" PRId64, pTask->id.idStr,
+            pTask->step2Range.minVer, pTask->step2Range.maxVer, pRange->minVer, pRange->maxVer);
     return false;
   }
 }
