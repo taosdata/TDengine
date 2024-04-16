@@ -1130,6 +1130,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
 
   tsMultiResultFunctionStarReturnTags = cfgGetItem(pCfg, "multiResultFunctionStarReturnTags")->bval;
+  tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
   return 0;
 }
 
@@ -1211,7 +1212,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
   tmqRowSize = cfgGetItem(pCfg, "tmqRowSize")->i32;
   tsMaxTsmaNum = cfgGetItem(pCfg, "maxTsmaNum")->i32;
-  tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
