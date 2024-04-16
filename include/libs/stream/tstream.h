@@ -304,9 +304,9 @@ typedef struct SStreamTaskId {
 
 typedef struct SCheckpointInfo {
   int64_t startTs;
-  int64_t checkpointId;
-
-  int64_t checkpointVer;  // latest checkpointId version
+  int64_t checkpointId;    // latest checkpoint id
+  int64_t checkpointVer;   // latest checkpoint offset in wal
+  int64_t checkpointTime;  // latest checkpoint time
   int64_t processedVer;
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
   int64_t failedId;        // record the latest failed checkpoint id
@@ -386,6 +386,9 @@ typedef struct STaskExecStatisInfo {
   int64_t       created;
   int64_t       init;
   int64_t       start;
+  int64_t       startCheckpointId;
+  int64_t       startCheckpointVer;
+
   int64_t       step1Start;
   double        step1El;
   int64_t       step2Start;
@@ -442,6 +445,7 @@ struct SStreamTask {
   SCheckpointInfo     chkInfo;
   STaskExec           exec;
   SDataRange          dataRange;
+  SVersionRange       step2Range;
   SHistoryTaskInfo    hTaskInfo;
   STaskId             streamTaskId;
   STaskExecStatisInfo execInfo;
@@ -672,24 +676,34 @@ typedef struct {
 int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pRsp);
 int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
 
+typedef struct STaskCkptInfo {
+  int64_t latestId;            // saved checkpoint id
+  int64_t latestVer;           // saved checkpoint ver
+  int64_t latestTime;          // latest checkpoint time
+  int64_t activeId;  // current active checkpoint id
+  int32_t activeTransId;       // checkpoint trans id
+  int8_t  failed;              // denote if the checkpoint is failed or not
+} STaskCkptInfo;
+
 typedef struct STaskStatusEntry {
-  STaskId id;
-  int32_t status;
-  int32_t statusLastDuration;  // to record the last duration of current status
-  int64_t stage;
-  int32_t nodeId;
-  int64_t verStart;          // start version in WAL, only valid for source task
-  int64_t verEnd;            // end version in WAL, only valid for source task
-  int64_t processedVer;      // only valid for source task
-  int64_t checkpointId;      // current active checkpoint id
-  int32_t chkpointTransId;   // checkpoint trans id
-  int8_t  checkpointFailed;  // denote if the checkpoint is failed or not
-  bool    inputQChanging;    // inputQ is changing or not
-  int64_t inputQUnchangeCounter;
-  double  inputQUsed;  // in MiB
-  double  inputRate;
-  double  sinkQuota;     // existed quota size for sink task
-  double  sinkDataSize;  // sink to dst data size
+  STaskId       id;
+  int32_t       status;
+  int32_t       statusLastDuration;  // to record the last duration of current status
+  int64_t       stage;
+  int32_t       nodeId;
+  SVersionRange verRange;        // start/end version in WAL, only valid for source task
+  int64_t       processedVer;    // only valid for source task
+  bool          inputQChanging;  // inputQ is changing or not
+  int64_t       inputQUnchangeCounter;
+  double        inputQUsed;  // in MiB
+  double        inputRate;
+  double        sinkQuota;     // existed quota size for sink task
+  double        sinkDataSize;  // sink to dst data size
+  int64_t       startTime;
+  int64_t       startCheckpointId;
+  int64_t       startCheckpointVer;
+  int64_t       hTaskId;
+  STaskCkptInfo checkpointInfo;
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {

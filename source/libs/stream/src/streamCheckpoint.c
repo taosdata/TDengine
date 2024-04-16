@@ -309,6 +309,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
 
     pCKInfo->checkpointId = pCKInfo->checkpointingId;
     pCKInfo->checkpointVer = pCKInfo->processedVer;
+    pCKInfo->checkpointTime = pCKInfo->startTs;
 
     streamTaskClearCheckInfo(p, false);
     taosThreadMutexUnlock(&p->lock);

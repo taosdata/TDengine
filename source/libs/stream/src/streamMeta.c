@@ -591,19 +591,16 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
   taosArrayPush(pMeta->pTaskList, &pTask->id);
 
   if (streamMetaSaveTask(pMeta, pTask) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
   if (streamMetaCommit(pMeta) < 0) {
-    tFreeStreamTask(pTask);
     return -1;
   }
 
@@ -960,11 +957,18 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeDouble(pEncoder, ps->sinkQuota) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->sinkDataSize) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->processedVer) < 0) return -1;
-    if (tEncodeI64(pEncoder, ps->verStart) < 0) return -1;
-    if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
-    if (tEncodeI64(pEncoder, ps->checkpointId) < 0) return -1;
-    if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
-    if (tEncodeI32(pEncoder, ps->chkpointTransId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verRange.minVer) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verRange.maxVer) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.activeId) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointInfo.failed) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->checkpointInfo.activeTransId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.latestId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.latestVer) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.latestTime) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->startTime) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->startCheckpointId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->startCheckpointVer) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->hTaskId) < 0) return -1;
   }
 
   int32_t numOfVgs = taosArrayGetSize(pReq->pUpdateNodes);
@@ -999,11 +1003,19 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeDouble(pDecoder, &entry.sinkQuota) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.sinkDataSize) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.processedVer) < 0) return -1;
-    if (tDecodeI64(pDecoder, &entry.verStart) < 0) return -1;
-    if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
-    if (tDecodeI64(pDecoder, &entry.checkpointId) < 0) return -1;
-    if (tDecodeI8(pDecoder, &entry.checkpointFailed) < 0) return -1;
-    if (tDecodeI32(pDecoder, &entry.chkpointTransId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verRange.minVer) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verRange.maxVer) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.activeId) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointInfo.failed) < 0) return -1;
+    if (tDecodeI32(pDecoder, &entry.checkpointInfo.activeTransId) < 0) return -1;
+
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestVer) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestTime) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.startTime) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.startCheckpointId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.startCheckpointVer) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.hTaskId) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -1105,7 +1117,16 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
         .status = streamTaskGetStatus(*pTask)->state,
         .nodeId = hbMsg.vgId,
         .stage = pMeta->stage,
+
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
+        .startTime = (*pTask)->execInfo.start,
+        .checkpointInfo.latestId = (*pTask)->chkInfo.checkpointId,
+        .checkpointInfo.latestVer = (*pTask)->chkInfo.checkpointVer,
+        .checkpointInfo.latestTime = (*pTask)->chkInfo.checkpointTime,
+        .hTaskId = (*pTask)->hTaskInfo.id.taskId,
+
+        .startCheckpointId = (*pTask)->execInfo.startCheckpointId,
+        .startCheckpointVer = (*pTask)->execInfo.startCheckpointVer,
     };
 
     entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
@@ -1115,11 +1136,11 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     if ((*pTask)->chkInfo.checkpointingId != 0) {
-      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId) ? 1 : 0;
-      entry.checkpointId = (*pTask)->chkInfo.checkpointingId;
-      entry.chkpointTransId = (*pTask)->chkInfo.transId;
+      entry.checkpointInfo.failed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId) ? 1 : 0;
+      entry.checkpointInfo.activeId = (*pTask)->chkInfo.checkpointingId;
+      entry.checkpointInfo.activeTransId = (*pTask)->chkInfo.transId;
 
-      if (entry.checkpointFailed) {
+      if (entry.checkpointInfo.failed) {
         stInfo("s-task:%s send kill checkpoint trans info, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.transId);
       }
     }
@@ -1130,7 +1151,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
         entry.processedVer = (*pTask)->chkInfo.processedVer;
       }
 
-      walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
+      walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verRange.minVer, &entry.verRange.maxVer);
     }
 
     addUpdateNodeIntoHbMsg(*pTask, &hbMsg);

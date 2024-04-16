@@ -2486,6 +2486,20 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
+  if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
+    pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
+    if(pParam && nodeType(pParam) == QUERY_NODE_VALUE) {
+      if (pCxt && pCxt->pCurrStmt && pCxt->pCurrStmt->type == QUERY_NODE_SELECT_STMT &&
+          ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+          nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) == QUERY_NODE_REAL_TABLE) {
+        SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+        if (strcmp(((SValueNode*)pParam)->literal, pRealTable->table.tableName) == 0) {
+          NODES_DESTORY_LIST((*pFunc)->pParameterList);
+          (*pFunc)->pParameterList = NULL;
+        }
+      }
+    }
+  }
   FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
       pCxt->errCode = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
@@ -2732,11 +2746,14 @@ static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   return false;
 }
 
-static bool fromSubtable(SNode* table) {
+static bool fromSingleTable(SNode* table) {
   if (NULL == table) return false;
-  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta &&
-      ((SRealTableNode*)table)->pMeta->tableType == TSDB_CHILD_TABLE) {
-    return true;
+  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta) {
+        int8_t type = ((SRealTableNode*)table)->pMeta->tableType;
+        if(type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE
+        || type == TSDB_SYSTEM_TABLE) {
+          return true;
+        }
   }
   return false;
 }
@@ -2835,7 +2852,7 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   }
   SNode* pPartKey = NULL;
   bool   partionByTbname = false;
-  if (fromSubtable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
+  if (fromSingleTable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
       hasTbnameFunction(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList)) {
     partionByTbname = true;
   }
@@ -2844,7 +2861,9 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
-  if (partionByTbname && QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+  if (partionByTbname &&
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) ||
+       (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType))) {
     return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -3429,9 +3448,9 @@ static int32_t createMultiResFuncsParas(STranslateContext* pCxt, SNodeList* pSrc
   SNode*     pPara = NULL;
   FOREACH(pPara, pSrcParas) {
     if (nodesIsStar(pPara)) {
-      code = createAllColumns(pCxt, true, &pExprs);
+      code = createAllColumns(pCxt, !tsMultiResultFunctionStarReturnTags, &pExprs);
     } else if (nodesIsTableStar(pPara)) {
-      code = createTableAllCols(pCxt, (SColumnNode*)pPara, true, &pExprs);
+      code = createTableAllCols(pCxt, (SColumnNode*)pPara, !tsMultiResultFunctionStarReturnTags, &pExprs);
     } else {
       code = nodesListMakeStrictAppend(&pExprs, nodesCloneNode(pPara));
     }
