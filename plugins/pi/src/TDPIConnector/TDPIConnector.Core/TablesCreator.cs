@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
-using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.Models;
 
 namespace TDPIConnector.Core
@@ -31,8 +30,8 @@ namespace TDPIConnector.Core
         }
         public List<TDColumn> GetPiPointTags(PIPointWrapper point) {
             var pointTags = new List<TDColumn>();
-            var tagVals = point.getPointSavedAttrsValue();
-            var tagTypes = PIPointWrapper.getPointSavedAttrsType();
+            var tagVals = point.GetPointSavedAttrsValue();
+            var tagTypes = PIPointWrapper.GetPointSavedAttrsType();
             foreach (var tag in tagVals) {
                 TDColumn column = new TDColumn(tag.Key, tagTypes[tag.Key], "", null);
                 column.TagValue = tag.Value;

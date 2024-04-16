@@ -4,6 +4,7 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using TDPIConnector.Core.Monitoring;
+using TDPIConnector.Core.ScanPiInfo;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
@@ -350,13 +351,13 @@ namespace TDPIConnector.Core
             StartBackfill();
             log.Debug("Checking PI Data Archive connection: SUCCESS");
         }
-        public void PrintPIInfo(string pointFilter) {
+        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
             //startWebService();
             //InitMonitoring();
             try {
                 InitializePIConnections();
                 var scanner = new PIInfoScanner(piServerManager, piSystemManager);
-                string info = scanner.GetInfo(pointFilter);
+                string info = scanner.GetInfo(scanMode, filter, filterMode);
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
                 log.Info(info);

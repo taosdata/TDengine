@@ -1,4 +1,4 @@
-﻿#define ONLY_PI_TEST
+﻿#define UNONLY_PI_TEST
 
 using log4net;
 using System;

@@ -48,7 +48,7 @@ namespace TDPIConnector.PI
         {
             this.AFSDKObject.SaveAttributes(piPointAttributes);
         }
-        static public Dictionary<string, string> getPointSavedAttrsType()
+        static public Dictionary<string, string> GetPointSavedAttrsType()
         {
             Dictionary<string, string> tags = new Dictionary<string, string> { };
             tags.Add("tag", "string");
@@ -60,10 +60,10 @@ namespace TDPIConnector.PI
             tags.Add("future", "string");
             return tags;
         }
-        public Dictionary<string, string> getPointSavedAttrsValue() {
-            var all = this.AFSDKObject.FindAttributeNames("*");
+        public Dictionary<string, string> GetPointSavedAttrsValue() {
+            // var all = this.AFSDKObject.FindAttributeNames("*");
             string[] needSaveAttr = {"tag", "descriptor", "exdesc", "engunits", "pointsource", "step", "future"};
-            IDictionary<string, object> res = this.AFSDKObject.GetAttributes(all.ToArray());
+            IDictionary<string, object> res = this.AFSDKObject.GetAttributes(needSaveAttr.ToArray());
             Dictionary<string, string> tags = new Dictionary<string, string> { };
             foreach (var r in res) {
                 var k = r.Key;
@@ -71,6 +71,10 @@ namespace TDPIConnector.PI
                 tags.Add(r.Key, r.Value.ToString());
             }
             return tags;
+        }
+
+        public string GetPath() {
+            return this.AFSDKObject.GetPath();
         }
     }
 }
