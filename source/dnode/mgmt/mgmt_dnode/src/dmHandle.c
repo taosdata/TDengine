@@ -240,10 +240,10 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     tstrncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
   }
 
+_exit:
   pMsg->code = code;
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
-_exit:
   return code;
 #else
   return 0;
