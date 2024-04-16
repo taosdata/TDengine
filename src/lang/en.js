@@ -1354,11 +1354,13 @@ export default {
         type3: "Upload File",
         retrieve: "Retrieve From Server",
       },
+      
       filterexecuted: "Filter condition triggered",
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",
       parsefirst: "Please excute the parse,extract or split first",
       parse: "1. Parse",
+      jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
       jsontip: "Please enter the correct JSON format",
       texttip:"Please enter correct text format",
       mappingvaildtip:

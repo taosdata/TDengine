@@ -7,6 +7,7 @@
             :loading="checkLoading"
             type="primary"
             size="small"
+            plain
             @click.capture.stop="clickCheckBtn"
             >{{ $t("dataIn.check") }}
           </el-button>

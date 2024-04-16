@@ -9,7 +9,7 @@
       <el-input
         autocomplete="off"
         :readonly="true"
-        placeholder="请选择，格式 key1,key2,key3=key3_alias"
+        :placeholder="$t('datasource.transformer.jsonPlaceholder')"
         size="small"
         v-model="expression"
       >

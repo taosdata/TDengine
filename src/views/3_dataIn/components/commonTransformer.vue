@@ -44,7 +44,7 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" size="small" @click="getMsgBody" :disabled="$store.state.app.currentDBType !== 'avevaHistorian'">{{
+              <el-button type="primary" plain size="small" @click="getMsgBody" :disabled="$store.state.app.currentDBType !== 'avevaHistorian'">{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button>
             </el-col>
@@ -65,7 +65,7 @@
                 :file-list="fileList"
                 :show-file-list="false"
               >
-                <el-button size="small" type="primary" :loading="request">{{
+                <el-button size="small" type="primary" plain :loading="request">{{
                   $t("datasource.transformer.msgbodytypes.type3")
                 }}</el-button>
               </el-upload>

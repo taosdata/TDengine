@@ -66,6 +66,7 @@
               @click="createAgent"
               type="primary"
               size="small"
+              plain
               class="ml15"
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
@@ -86,6 +87,7 @@
               @click="createDb"
               type="primary"
               size="small"
+              plain
               class="ml15"
               icon="el-icon-plus"
               >{{ $t("data.createDatabase") }}</el-button

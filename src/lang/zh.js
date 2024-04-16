@@ -1145,6 +1145,7 @@ export default {
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",
       parse: "1. 解析",
+      jsonPlaceholder: "请选择要提取的 json 属性，可选项来自于第一条示例数据，请确保其完整性。",
       jsontip: "请输入正确JSON格式",
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
