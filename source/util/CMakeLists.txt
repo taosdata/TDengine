@@ -27,12 +27,24 @@ target_link_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
 )
-target_link_libraries(
+
+
+if (TD_LINUX)
+    target_link_libraries(
+        util
+        PUBLIC os common
+        PUBLIC lz4_static fast-lzma2 
+        PUBLIC api cjson geos_c TSZ 
+    
+    ) 
+else() 
+    target_link_libraries(
     util
     PUBLIC os common
-    PUBLIC lz4_static fast-lzma2 
+    PUBLIC lz4_static 
     PUBLIC api cjson geos_c TSZ 
-)
+    ) 
+endif()
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
