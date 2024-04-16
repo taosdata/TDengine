@@ -711,22 +711,6 @@ end:
 
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
-static STaskId replaceStreamTaskId(SStreamTask* pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to expand task", pTask->id.taskId);
@@ -736,74 +720,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
     return code;
   }
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    STaskId taskId = {0};
-    if (pTask->info.fillHistory) {
-      taskId = replaceStreamTaskId(pTask);
-    }
-
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
-    if (pTask->pState == NULL) {
-      tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
-      return -1;
-    }
-
-    tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
-    if (pTask->info.fillHistory) {
-      restoreStreamTaskId(pTask, &taskId);
-    }
-
-    SReadHandle handle = {
-        .checkpointId = pTask->chkInfo.checkpointId,
-        .vnode = pTq->pVnode,
-        .initTqReader = 1,
-        .pStateBackend = pTask->pState,
-        .fillHistory = pTask->info.fillHistory,
-        .winRange = pTask->dataRange.window,
-    };
-
-    initStorageAPI(&handle.api);
-
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
-    if (pTask->exec.pExecutor == NULL) {
-      return -1;
-    }
-
-    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    STaskId taskId = {0};
-    if (pTask->info.fillHistory) {
-      taskId = replaceStreamTaskId(pTask);
-    }
-
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
-    if (pTask->pState == NULL) {
-      tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
-      return -1;
-    } else {
-      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
-    }
-
-    if (pTask->info.fillHistory) {
-      restoreStreamTaskId(pTask, &taskId);
-    }
-
-    SReadHandle handle = {
-        .checkpointId = pTask->chkInfo.checkpointId,
-        .vnode = NULL,
-        .numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList),
-        .pStateBackend = pTask->pState,
-        .fillHistory = pTask->info.fillHistory,
-        .winRange = pTask->dataRange.window,
-    };
-
-    initStorageAPI(&handle.api);
-
-    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
-    if (pTask->exec.pExecutor == NULL) {
-      return -1;
-    }
-    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
+  code = tqExpandStreamTask(pTask, pTq->pStreamMeta, pTq->pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   // sink
@@ -839,12 +758,15 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
+
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
 
   // checkpoint ver is the kept version, handled data should be the next version.
   if (pChkInfo->checkpointId != 0) {
     pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
     pChkInfo->processedVer = pChkInfo->checkpointVer;
+    pTask->execInfo.startCheckpointVer = pChkInfo->nextProcessVer;
+    pTask->execInfo.startCheckpointId = pChkInfo->checkpointId;
     tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
            pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
@@ -890,33 +812,33 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
   const char*    id = pTask->id.idStr;
   int64_t        nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
-  SVersionRange* pRange = &pTask->dataRange.range;
+  SVersionRange* pStep2Range = &pTask->step2Range;
 
   // if it's an source task, extract the last version in wal.
   bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
   pTask->execInfo.step2Start = taosGetTimestampMs();
 
   if (done) {
-    qDebug("s-task:%s scan wal(step 2) verRange:%" PRId64 "-%" PRId64 " ended, elapsed time:%.2fs", id, pRange->minVer,
-           pRange->maxVer, 0.0);
+    qDebug("s-task:%s scan wal(step 2) verRange:%" PRId64 "-%" PRId64 " ended, elapsed time:%.2fs", id, pStep2Range->minVer,
+           pStep2Range->maxVer, 0.0);
     streamTaskPutTranstateIntoInputQ(pTask);
     streamExecTask(pTask);  // exec directly
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
-    tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+    tqDebug("s-task:%s level:%d verRange:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64
             ", do secondary scan-history from WAL after halt the related stream task:%s",
-            id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey,
+            id, pTask->info.taskLevel, pStep2Range->minVer, pStep2Range->maxVer, pWindow->skey, pWindow->ekey,
             pStreamTask->id.idStr);
     ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
-    streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
+    streamSetParamForStreamScannerStep2(pTask, pStep2Range, pWindow);
 
-    int64_t dstVer = pTask->dataRange.range.minVer;
+    int64_t dstVer =pStep2Range->minVer;
     pTask->chkInfo.nextProcessVer = dstVer;
 
     walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
     tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
-            pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
+            pStep2Range->maxVer, TASK_SCHED_STATUS__INACTIVE);
 
     /*int8_t status = */ streamTaskSetSchedStatusInactive(pTask);
 

@@ -2093,12 +2093,14 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   tDecoderInit(pCoder, pReq, len);
   tDecodeDeleteRes(pCoder, pRes);
 
-  for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
-    uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
-    code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey);
-    if (code) goto _err;
-    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
-    if (code) goto _err;
+  if (pRes->affectedRows > 0) {
+    for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
+      uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
+      code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey);
+      if (code) goto _err;
+      code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
+      if (code) goto _err;
+    }
   }
 
   code = tdProcessRSmaDelete(pVnode->pSma, ver, pRes, pReq, len);
@@ -2296,5 +2298,5 @@ _OVER:
 int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   return 0;
 }
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync);
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) { return 0; }
 #endif

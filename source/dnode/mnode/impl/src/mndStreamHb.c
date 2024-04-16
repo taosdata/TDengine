@@ -294,12 +294,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
 
       streamTaskStatusCopy(pTaskEntry, p);
-      if ((p->checkpointId != 0) && p->checkpointFailed) {
+
+      STaskCkptInfo *pChkInfo = &p->checkpointInfo;
+      if ((pChkInfo->activeId != 0) && pChkInfo->failed) {
         mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
-               p->checkpointId, p->chkpointTransId);
+               pChkInfo->activeId, pChkInfo->activeTransId);
 
         SFailedCheckpointInfo info = {
-            .transId = p->chkpointTransId, .checkpointId = p->checkpointId, .streamUid = p->id.streamId};
+            .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
         addIntoCheckpointList(pFailedTasks, &info);
       }
     }
