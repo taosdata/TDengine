@@ -352,6 +352,7 @@ async fn write_meta(
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
+    tracing::debug!(meta.sql = %json_meta, meta.idx = cur, "Start writing meta");
     match &json_meta {
         JsonMeta::Delete(meta) => {
             tracing::debug!("Start writing meta: {meta}");
@@ -498,7 +499,7 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    let refresh_pgrogress_interval =
+    let refresh_progress_interval =
         crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
     loop {
         tokio::select! {
@@ -537,7 +538,7 @@ async fn sync(
                     if let Err(err) = consumer.commit(offset).await {
                         tracing::warn!("Commit error: {err:?}");
                     } else {
-                        if refresh_pgrogress_interval.ticked() {
+                        if refresh_progress_interval.ticked() {
                             update_progress(&consumer, &metrics).await;
                         }
                     }
