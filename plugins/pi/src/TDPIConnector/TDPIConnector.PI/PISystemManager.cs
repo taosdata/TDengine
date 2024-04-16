@@ -119,6 +119,16 @@ namespace TDPIConnector.PI
                 .Where(et => et.InstanceType == typeof(AFElement))
                 .Select(e => new AFElementTemplateWrapper(e));
         }
+        public IEnumerable<AFElementTemplateWrapper> GetElementTemplates(string afDatabaseName, string filter) {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            
+            AFNamedCollectionList<AFElementTemplate> templates = AFElementTemplate.FindElementTemplates(afDatabase, filter, AFSearchField.Name, AFSortField.Name, AFSortOrder.Ascending, int.MaxValue);
+            return templates.Select(t => new AFElementTemplateWrapper(t));
+        }
         public IEnumerable<AFElementWrapper> GetElementTemplateInstances(AFElementTemplateWrapper elementTemplate)
         {
             using (var search = new AFElementSearch(elementTemplate.AFSDKObject.Database, "Find_" + elementTemplate.Name, $"Template: '{elementTemplate.Name}'"))

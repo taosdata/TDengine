@@ -66,6 +66,8 @@ namespace TDPIConnector.Core
         {
             public int ID;
             public string Path;
+            public string Type;
+            public string UOM;
             public string Template;
             public Dictionary<string, string> Tags;
             public List<ScanElement> Elements = new List<ScanElement>();
@@ -166,27 +168,30 @@ namespace TDPIConnector.Core
         internal string GetScanAFPointInfo(string filter, FilterMode filterMode)
         {
             if (FilterMode.FilterElement == filterMode) {
-                return GetScanAFPointInfoByElement(ref filter);
+                return GetScanAFPointInfoByElementFilter(ref filter);
             } else if (FilterMode.FilterTemplate == filterMode) {
-                return GetScanAFPointInfoByTemplate(filter);
+                return GetScanAFPointInfoByTemplateFilter(filter);
             } else {
                 return "start param error, filterMode not found!";
             }
         }
-        internal string GetScanAFPointInfoByElement(ref string filter)
+        internal string GetScanAFPointInfoByElements(IEnumerable<AFElementWrapper> elements)
         {
-            var elements = piSystemManager.GetElementByFilter(AppSettings.tomlConfig.AFDatabaseName, filter);
             var piInfo = new ScanAFPointList();
             HashSet<string> existTemplate = new HashSet<string>();
             HashSet<Guid> existElements = new HashSet<Guid>();
             Dictionary<int, ScanAFPoint> points = new Dictionary<int, ScanAFPoint>();
 
-            foreach (var element in elements) {
-                if (!existElements.Contains(element.ID)) {
+            foreach (var element in elements)
+            {
+                if (!existElements.Contains(element.ID))
+                {
                     existElements.Add(element.ID);
-                    foreach (var attr in element.Attributes) {
+                    foreach (var attr in element.Attributes)
+                    {
                         var templateName = element.GetAFPointTemplateName(attr);
-                        if (!existTemplate.Contains(templateName)) {
+                        if (!existTemplate.Contains(templateName))
+                        {
                             existTemplate.Add(templateName);
                             ScanTemplateForPoint temp = new ScanTemplateForPoint();
                             temp.TemplateName = templateName;
@@ -201,12 +206,14 @@ namespace TDPIConnector.Core
                         e.Path = element.GetPath();
                         e.TemplateName = templateName;
 
-                        if(attr.PIPoint != null)
+                        if (attr.PIPoint != null)
                         {
                             if (!points.ContainsKey(attr.PIPoint.PointId))
                             {
                                 ScanAFPoint point = new ScanAFPoint();
                                 point.ID = attr.PIPoint.PointId;
+                                point.Type = attr.Type.Name;
+                                point.UOM = attr.Uom;
                                 point.Template = templateName;
                                 point.Path = attr.PIPoint.GetPath();
                                 point.Tags = attr.PIPoint.GetPointSavedAttrsValue();
@@ -217,24 +224,34 @@ namespace TDPIConnector.Core
                             {
                                 points[attr.PIPoint.PointId].Elements.Add(e);
                             }
-                        }                        
+                        }
                     }
                 }
             }
-            foreach (var p in points) {
+            foreach (var p in points)
+            {
                 piInfo.Points.Add(p.Value);
             }
 
             var json = JsonConvert.SerializeObject(piInfo);
             return json;
         }
-        internal string GetScanAFPointInfoByTemplate(string filter)
+        internal string GetScanAFPointInfoByElementFilter(ref string filter)
         {
-            var points = piServerManager.FindPIPoints(filter);
+            var elements = piSystemManager.GetElementByFilter(AppSettings.tomlConfig.AFDatabaseName, filter);
+            return GetScanAFPointInfoByElements(elements);
+        }
+        internal string GetScanAFPointInfoByTemplateFilter(string filter)
+        {
+            IEnumerable<AFElementWrapper> elements = new List<AFElementWrapper>();
+            var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
+            foreach (var template in templates)
+            {
+                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name);
+                elements = elements.Concat(es);
+            }
 
-            var piInfo = new ScanAFPointList();
-            var json = JsonConvert.SerializeObject(piInfo);
-            return json;
+            return GetScanAFPointInfoByElements(elements);
         }
         internal string GetScanElementInfo(string pointFilter, FilterMode filterMode)
         {
