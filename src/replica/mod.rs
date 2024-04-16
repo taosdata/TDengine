@@ -548,12 +548,24 @@ impl ReplicaConfig {
             databases
         };
 
+        let (mut created, mut started) = (0, 0);
+
         for database in databases {
             if let Some(replica) = tasks.iter().find(|task| task.database == *database) {
                 println!(
                     "* replicating task `{}` already exists as task {}",
                     database, replica.tid
                 );
+                if replica.in_final_state() {
+                    if let Err(err) = self.restart_once(replica).await {
+                        println!(
+                            "* restart task {}:{} failed: {}",
+                            replica.tid, replica.database, err
+                        );
+                    } else {
+                        started += 1;
+                    }
+                }
                 continue;
             }
             let (source_db, sink_db);
@@ -610,9 +622,30 @@ impl ReplicaConfig {
                 bail!("start replica error {}: {}", status, response.text().await?);
             }
             println!("  replicating database `{}` task created", database);
+            created += 1;
         }
 
-        println!("`{}` replication started", replica.id);
+        match (created, started) {
+            (0, 0) => {
+                println!("no task created or started");
+            }
+            (created, 0) => {
+                println!("replication `{}`: created {} task(s)", replica.id, created);
+            }
+            (0, started) => {
+                println!(
+                    "replication `{}`: started {} existing task(s)",
+                    replica.id, started
+                );
+            }
+            (created, started) => {
+                println!(
+                    "replication `{}`: created {} task(s), started {} exist task(s)",
+                    replica.id, created, started
+                );
+            }
+        }
+
         Ok(())
     }
 
