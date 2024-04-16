@@ -29,14 +29,14 @@ pub struct OPCConfig {
     pub connect: ConnectConfig,
     pub report: ReportConfig,
     pub points: Option<PointsConfig>,
-    pub collect: CollectConfig,
+    pub collect: Option<CollectConfig>,
 
     #[serde(skip)]
     model_config: Option<OpcModelConfig>,
 }
 
 impl OPCConfig {
-    /// 从 dsn 中解析参数 select_all_points
+    /// 从 dsn 中解析参数 select_all_points 参数
     /// 1. dsn 没有参数，返回 None
     /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
     /// 3. dsn 有参数，不合法，Error, return Error()
@@ -117,7 +117,7 @@ impl OPCConfig {
             connect,
             report,
             points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
+            collect: Some(CollectConfig::from_dsn(dsn, id).await?),
             model_config,
         })
     }
@@ -140,8 +140,8 @@ impl OPCConfig {
             opc_type: OpcType::from_dsn(&dsn)?,
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
-            points: PointsConfig::from_dsn(&dsn),
-            collect: CollectConfig::new_empty(),
+            points: Some(PointsConfig::from_dsn(&dsn)?),
+            collect: None,
             report: ReportConfig::from_dsn(&dsn, 0)?,
             model_config: None,
         })
@@ -157,7 +157,7 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::new_empty(),
+            collect: None,
             report: ReportConfig::from_dsn(dsn, 0)?,
             model_config: None,
         })
