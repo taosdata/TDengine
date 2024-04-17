@@ -1109,7 +1109,9 @@ enum {
   FUNCTION_CODE_PARAMETERS,
   FUNCTION_CODE_UDF_BUF_SIZE,
   FUNCTION_NODE_HAS_PK,
-  FUNCTION_NODE_PK_BYTES
+  FUNCTION_NODE_PK_BYTES,
+  FUNCTION_CODE_IS_MERGE_FUNC,
+  FUNCTION_CODE_MERGE_FUNC_OF,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1137,6 +1139,13 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_NODE_PK_BYTES, pNode->pkBytes);
   }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IS_MERGE_FUNC, pNode->hasOriginalFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, FUNCTION_CODE_MERGE_FUNC_OF, pNode->originalFuncId);
+  }
+
   return code;
 }
 
@@ -1171,6 +1180,12 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
       case FUNCTION_NODE_PK_BYTES:
         code = tlvDecodeI32(pTlv, &pNode->pkBytes);
         break;  
+      case FUNCTION_CODE_IS_MERGE_FUNC:
+        code = tlvDecodeBool(pTlv, &pNode->hasOriginalFunc);
+        break;
+      case FUNCTION_CODE_MERGE_FUNC_OF:
+        code = tlvDecodeI32(pTlv, &pNode->originalFuncId);
+        break;
       default:
         break;
     }
@@ -2839,7 +2854,8 @@ enum {
   PHY_AGG_CODE_GROUP_KEYS,
   PHY_AGG_CODE_AGG_FUNCS,
   PHY_AGG_CODE_MERGE_DATA_BLOCK,
-  PHY_AGG_CODE_GROUP_KEY_OPTIMIZE
+  PHY_AGG_CODE_GROUP_KEY_OPTIMIZE,
+  PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS,
 };
 
 static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2860,6 +2876,9 @@ static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_GROUP_KEY_OPTIMIZE, pNode->groupKeyOptimized);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS, pNode->hasCountLikeFunc);
   }
 
   return code;
@@ -2889,6 +2908,9 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_AGG_CODE_GROUP_KEY_OPTIMIZE:
         code = tlvDecodeBool(pTlv, &pNode->groupKeyOptimized);
+        break;
+      case PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS:
+        code = tlvDecodeBool(pTlv, &pNode->hasCountLikeFunc);
         break;
       default:
         break;

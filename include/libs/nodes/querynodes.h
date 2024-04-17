@@ -142,6 +142,7 @@ typedef enum EHintOption {
   HINT_PARA_TABLES_SORT,
   HINT_SMALLDATA_TS_SORT,
   HINT_HASH_JOIN,
+  HINT_SKIP_TSMA,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -177,6 +178,8 @@ typedef struct SFunctionNode {
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
+  bool       hasOriginalFunc;
+  int32_t    originalFuncId;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -190,6 +193,11 @@ typedef struct STableNode {
 
 struct STableMeta;
 
+typedef struct STsmaTargetCTbInfo {
+  char     tableName[TSDB_TABLE_NAME_LEN]; // child table or normal table name
+  uint64_t uid;
+} STsmaTargetTbInfo;
+
 typedef struct SRealTableNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
@@ -198,6 +206,9 @@ typedef struct SRealTableNode {
   double             ratio;
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
+  SArray*            pTsmas;
+  SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
+  SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only
 } SRealTableNode;
 
 typedef struct STempTableNode {

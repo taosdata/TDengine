@@ -110,6 +110,8 @@ typedef struct SParseMetaCache {
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
+  SHashObj* pTSMAs;        // key is tsmaFName, elemetns are STableTSMAInfo*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
 } SParseMetaCache;
@@ -153,6 +155,8 @@ int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
 int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
+int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta);
@@ -168,6 +172,8 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 SNode*  createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint);
+int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
+int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 /**
  * @brief return a - b with overflow check
