@@ -1,5 +1,5 @@
 use crate::plugins::config::AdvancedOptions;
-use crate::runners::mysql::config::connect::ConnectConfig;
+use crate::runners::postgres::config::connect::ConnectConfig;
 use anyhow::Ok;
 use chrono::{DateTime, Duration, Utc};
 use taos::Dsn;
@@ -7,7 +7,7 @@ use taos::Dsn;
 pub mod connect;
 
 #[derive(Debug, Clone)]
-pub struct MySqlConfig {
+pub struct PostgresConfig {
     // task info
     pub task_id: Option<i64>,
     pub sub_task_id: Option<String>,
@@ -20,12 +20,12 @@ pub struct MySqlConfig {
     pub advanced: AdvancedOptions,
 }
 
-impl MySqlConfig {
+impl PostgresConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        if dsn.driver != "mysql" {
+        if dsn.driver != "postgres" {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
-        Ok(MySqlConfig {
+        Ok(PostgresConfig {
             task_id: Self::parse_task_id(dsn),
             sub_task_id: None,
             ipc_port: None,
@@ -264,25 +264,25 @@ mod tests {
 
     #[test]
     fn test_parse_config_invalid_driver() {
-        let dsn = Dsn::from_str("mysqlx://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("postgresx://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
-        let config = MySqlConfig::from_dsn(&dsn);
+        let config = PostgresConfig::from_dsn(&dsn);
         dbg!(&config);
         assert!(config.is_err());
     }
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
-        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
-        assert_eq!(config.connect.host, "localhost");
-        assert_eq!(config.connect.port, 3306);
-        assert_eq!(config.connect.username, "root");
-        assert_eq!(config.connect.password, "password");
-        assert_eq!(config.connect.subject, "dbname");
-        assert_eq!(config.task.sql, "select * from table");
+        assert_eq!(config.connect.host, "192.168.1.40");
+        assert_eq!(config.connect.port, 5432);
+        assert_eq!(config.connect.username, "postgres");
+        assert_eq!(config.connect.password, "tbase125!");
+        assert_eq!(config.connect.subject, "postgres");
+        assert_eq!(config.task.sql, "select * from information_schema.tables");
         assert_eq!(
             config.task.start,
             "2021-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
@@ -297,9 +297,9 @@ mod tests {
 
     #[test]
     fn test_generate_sql() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
-        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
         assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));

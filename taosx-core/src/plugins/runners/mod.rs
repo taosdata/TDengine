@@ -15,6 +15,7 @@ pub mod influxdb;
 pub mod kafka;
 pub mod mqtt;
 pub mod mysql;
+pub mod postgres;
 pub mod opc;
 pub mod opentsdb;
 pub mod pi;

@@ -390,7 +390,8 @@ pub fn init_task_metrics(
             | runners::kafka::KAFKA_ID
             | runners::historian::AVEVA_HISTORIAN_ID
             | "csv"
-            | runners::mysql::MYSQL_ID,
+            | runners::mysql::MYSQL_ID
+            | runners::postgres::POSTGRES_ID,
             "taos",
         ) => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id);

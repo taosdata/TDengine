@@ -2238,6 +2238,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
         include_ds_yaml!("mysql");
+        include_ds_yaml!("postgres");
         for ds in &mut def {
             ds.compute();
         }
@@ -2273,6 +2274,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
         include_ds_yaml!("mysql");
+        include_ds_yaml!("postgres");
         for ds in &mut def {
             ds.compute();
         }
