@@ -239,6 +239,7 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
 
     match dsn.driver.as_str() {
         AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),
