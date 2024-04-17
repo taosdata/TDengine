@@ -24,7 +24,6 @@
 #include "tutil.h"
 #include "types.h"
 #include "osString.h"
-#include <pthread.h>
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -1204,19 +1203,16 @@ int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
   return comparestrRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
+static threadlocal regex_t pRegex;
+static threadlocal char    *pOldPattern;
 static regex_t *threadGetRegComp(const char *pPattern) {
-  static __thread regex_t pRegex;
-  static __thread char    *pOldPattern;
   if (NULL != pOldPattern) {
     if( strcmp(pOldPattern, pPattern) == 0) {
       return &pRegex;
     } else {
-      regfree(&pRegex);
-      taosMemoryFree(pOldPattern);
-      pOldPattern == NULL;
+      DestoryThreadLocalRegComp();
     }
   }
-
   pOldPattern = taosMemoryMalloc(strlen(pPattern) + 1);
   if (NULL == pOldPattern) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
@@ -1229,12 +1225,18 @@ static regex_t *threadGetRegComp(const char *pPattern) {
     char msgbuf[256] = {0};
     regerror(ret, &pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
-    regfree(&pRegex);
-    taosMemoryFree(pOldPattern);
-    pOldPattern == NULL;
+    DestoryThreadLocalRegComp();
     return NULL;
   }
   return &pRegex;
+}
+
+void DestoryThreadLocalRegComp() {
+  if (NULL != pOldPattern) {
+    regfree(&pRegex);
+    taosMemoryFree(pOldPattern);
+    pOldPattern == NULL;
+  }
 }
 
 static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
