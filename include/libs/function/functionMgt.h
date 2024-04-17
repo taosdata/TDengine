@@ -88,6 +88,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LTRIM,
   FUNCTION_TYPE_RTRIM,
   FUNCTION_TYPE_SUBSTR,
+  FUNCTION_TYPE_MD5,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -164,6 +165,18 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_MERGE,
   FUNCTION_TYPE_IRATE_PARTIAL,
   FUNCTION_TYPE_IRATE_MERGE,
+  FUNCTION_TYPE_AVG_STATE,
+  FUNCTION_TYPE_AVG_STATE_MERGE,
+  FUNCTION_TYPE_FIRST_STATE,
+  FUNCTION_TYPE_FIRST_STATE_MERGE,
+  FUNCTION_TYPE_LAST_STATE,
+  FUNCTION_TYPE_LAST_STATE_MERGE,
+  FUNCTION_TYPE_SPREAD_STATE,
+  FUNCTION_TYPE_SPREAD_STATE_MERGE,
+  FUNCTION_TYPE_STDDEV_STATE,
+  FUNCTION_TYPE_STDDEV_STATE_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -270,6 +283,13 @@ bool    fmIsInvertible(int32_t funcId);
 #endif
 
 char*   fmGetFuncName(int32_t funcId);
+
+bool    fmIsTSMASupportedFunc(func_id_t funcId);
+int32_t fmCreateStateFuncs(SNodeList* pFuncs);
+int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
+int32_t fmGetFuncId(const char* name);
+bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
+bool    fmIsCountLikeFunc(int32_t funcId);
 
 #ifdef __cplusplus
 }

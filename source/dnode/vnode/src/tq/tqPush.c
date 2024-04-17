@@ -45,7 +45,7 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
   // 1. the vnode has already been restored.
   // 2. the vnode should be the leader.
   // 3. the stream is not suspended yet.
-  if ((!tsDisableStream) && (numOfTasks > 0) && (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE)) {
+  if ((!tsDisableStream) && (numOfTasks > 0) /* && (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE)*/) {
     tqScanWalAsync(pTq, true);
   }
 

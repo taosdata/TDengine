@@ -2470,6 +2470,7 @@ static const char* jkAggPhysiPlanGroupKeys = "GroupKeys";
 static const char* jkAggPhysiPlanAggFuncs = "AggFuncs";
 static const char* jkAggPhysiPlanMergeDataBlock = "MergeDataBlock";
 static const char* jkAggPhysiPlanGroupKeyOptimized = "GroupKeyOptimized";
+static const char* jkAggPhysiPlanHasCountLikeFunc = "HasCountFunc";
 
 static int32_t physiAggNodeToJson(const void* pObj, SJson* pJson) {
   const SAggPhysiNode* pNode = (const SAggPhysiNode*)pObj;
@@ -2489,6 +2490,9 @@ static int32_t physiAggNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkAggPhysiPlanGroupKeyOptimized, pNode->groupKeyOptimized);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkAggPhysiPlanHasCountLikeFunc, pNode->hasCountLikeFunc);
   }
 
   return code;
@@ -2512,6 +2516,9 @@ static int32_t jsonToPhysiAggNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkAggPhysiPlanGroupKeyOptimized, &pNode->groupKeyOptimized);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkAggPhysiPlanHasCountLikeFunc, &pNode->hasCountLikeFunc);
   }
 
   return code;
@@ -4240,6 +4247,8 @@ static const char* jkFunctionParameter = "Parameters";
 static const char* jkFunctionUdfBufSize = "UdfBufSize";
 static const char* jkFunctionHasPk = "HasPk";
 static const char* jkFunctionPkBytes = "PkBytes";
+static const char* jkFunctionIsMergeFunc = "IsMergeFunc";
+static const char* jkFunctionMergeFuncOf = "MergeFuncOf";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -4266,6 +4275,13 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionPkBytes, pNode->pkBytes);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkFunctionIsMergeFunc, pNode->hasOriginalFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionMergeFuncOf, pNode->originalFuncId);
+  }
+
   return code;
 }
 
@@ -4294,6 +4310,13 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkFunctionPkBytes, &pNode->pkBytes);
   }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFunctionIsMergeFunc, &pNode->hasOriginalFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkFunctionMergeFuncOf, &pNode->originalFuncId);
+  }
+
   return code;
 }
 
@@ -7324,6 +7347,105 @@ static int32_t jsonToInsertStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetUTinyIntValue(pJson, jkInsertStmtPrecision, &pNode->precision);
   }
 
+  return code;
+}
+
+static const char* jkTSMAOptionFuncs = "Funcs";
+static const char* jkTSMAOptionCols = "Cols";
+static const char* jkTSMAOptionInterval = "Interval";
+static const char* jkTSMAOptionTsPrecision = "Precision";
+
+static int32_t tsmaOptionToJson(const void* pObj, SJson* pJson) {
+  const STSMAOptions* pNode = (const STSMAOptions*)pObj;
+  int32_t code = nodeListToJson(pJson, jkTSMAOptionFuncs, pNode->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTSMAOptionInterval, nodeToJson, pNode->pInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTSMAOptionTsPrecision, pNode->tsPrecision);
+  }
+  return code;
+}
+
+static int32_t jsonToTSMAOption(const SJson* pJson, void* pObj) {
+  STSMAOptions* pNode = (STSMAOptions*)pObj;
+  int32_t code = jsonToNodeList(pJson, jkTSMAOptionFuncs, &pNode->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTSMAOptionInterval, &pNode->pInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
+  }
+  return code;
+}
+
+static const char* jkCreateTSMAStmtIgnoreExists = "IgnoreExists";
+static const char* jkCreateTSMAStmtTsmaName = "TSMAName";
+static const char* jkCreateTSMAStmtDbName = "DbName";
+static const char* jkCreateTSMAStmtTableName = "TableName";
+static const char* jkCreateTSMAStmtpOptions = "Options";
+
+static int32_t createTSMAStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateTSMAStmt* pNode = (const SCreateTSMAStmt*)pObj;
+  int32_t code = tjsonAddBoolToObject(pJson, jkCreateTSMAStmtIgnoreExists, pNode->ignoreExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkCreateTSMAStmtpOptions, nodeToJson, pNode->pOptions);
+  }
+  return code;
+}
+
+static int32_t jsonToCreateTSMAStmt(const SJson* pJson, void* pObj) {
+  SCreateTSMAStmt* pNode = (SCreateTSMAStmt*)pObj;
+  int32_t code = tjsonGetBoolValue(pJson, jkCreateTSMAStmtIgnoreExists, &pNode->ignoreExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkCreateTSMAStmtpOptions, (SNode**)&pNode->pOptions);
+  }
+  return code;
+}
+
+static const char* jkDropTSMAStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropTSMAStmtDbName = "DbName";
+static const char* jkDropTSMAStmtTsmaName = "TSMAName";
+
+static int32_t dropTSMAStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropTSMAStmt* pNode = (const SDropTSMAStmt*)pObj;
+  int32_t code = tjsonAddBoolToObject(pJson, jkDropTSMAStmtIgnoreNotExists, pNode->ignoreNotExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkDropTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkDropTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  return code;
+}
+
+static int32_t jsonToDropTSMAStmt(const SJson* pJson, void* pObj) {
+  SDropTSMAStmt* pNode = (SDropTSMAStmt*)pObj;
+  int32_t code = tjsonGetBoolValue(pJson, jkDropTSMAStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkDropTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkDropTSMAStmtTsmaName, pNode->tsmaName);
+  }
   return code;
 }
 

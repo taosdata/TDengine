@@ -109,6 +109,9 @@ typedef struct SScanLogicNode {
   int8_t        igExpired;
   int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
+  SArray*       pTsmas;
+  SArray*       pTsmaTargetTbVgInfo;
+  SArray*       pTsmaTargetTbInfo;
   SNodeList*    pGroupTags;
   bool          groupSort;
   SNodeList*    pTags;      // for create stream
@@ -124,6 +127,7 @@ typedef struct SScanLogicNode {
   SArray*       pFuncTypes; // for last, last_row
   bool          paraTablesSort; // for table merge scan
   bool          smallDataTsSort; // disable row id sort for table merge scan
+  bool          needSplit;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -169,6 +173,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  SNodeList *pTsmaSubplans;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -252,7 +257,9 @@ typedef struct SMergeLogicNode {
   SNodeList* pMergeKeys;
   SNodeList* pInputs;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       colsMerge;
   bool       needSort;
   bool       groupSort;
@@ -305,6 +312,7 @@ typedef struct SWindowLogicNode {
   bool             isPartTb;
   int64_t          windowCount;
   int64_t          windowSliding;
+  SNodeList*       pTsmaSubplans;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -577,6 +585,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
   bool       groupKeyOptimized;
+  bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -606,7 +615,9 @@ typedef struct SMergePhysiNode {
   SNodeList* pMergeKeys;
   SNodeList* pTargets;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;

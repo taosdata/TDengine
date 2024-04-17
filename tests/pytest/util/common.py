@@ -1862,6 +1862,55 @@ class TDCom:
                 time.sleep(1)
         return tbname
 
+    def update_json_file_replica(self, json_file_path, new_replica_value, output_file_path=None):
+        """
+        Read a JSON file, update the 'replica' value, and write the result back to a file.
+
+        Parameters:
+        json_file_path (str): The path to the original JSON file.
+        new_replica_value (int): The new 'replica' value to be set.
+        output_file_path (str, optional): The path to the output file where the updated JSON will be saved.
+        If not provided, the original file will be overwritten.
+
+        Returns:
+        None
+        """
+        try:
+            # Read the JSON file and load its content into a Python dictionary
+            with open(json_file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+
+            # Iterate over each item in the 'databases' list to find 'dbinfo' and update 'replica'
+            for db in data['databases']:
+                if 'dbinfo' in db:
+                    db['dbinfo']['replica'] = new_replica_value
+
+            # Convert the updated dictionary back into a JSON string with indentation for readability
+            updated_json_str = json.dumps(data, indent=4, ensure_ascii=False)
+
+            # Write the updated JSON string to a file
+            if output_file_path:
+                # If an output file path is provided, write to the new file
+                with open(output_file_path, 'w', encoding='utf-8') as output_file:
+                    output_file.write(updated_json_str)
+            else:
+                # Otherwise, overwrite the original file with the updated content
+                with open(json_file_path, 'w', encoding='utf-8') as file:
+                    file.write(updated_json_str)
+
+        except json.JSONDecodeError as e:
+            # Handle JSON decoding error (e.g., if the file is not valid JSON)
+            print(f"JSON decode error: {e}")
+        except FileNotFoundError:
+            # Handle the case where the JSON file is not found at the given path
+            print(f"File not found: {json_file_path}")
+        except KeyError as e:
+            # Handle missing key error (e.g., if 'databases' or 'dbinfo' is not present)
+            print(f"Key error: {e}")
+        except Exception as e:
+            # Handle any other exceptions that may occur
+            print(f"An error occurred: {e}")
+
 def is_json(msg):
     if isinstance(msg, str):
         try:
@@ -1895,5 +1944,8 @@ def dict2toml(in_dict: dict, file:str):
         return ""
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
+
+
+
 
 tdCom = TDCom()

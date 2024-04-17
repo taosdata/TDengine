@@ -586,6 +586,23 @@ db_kind_opt(A) ::= .                                                            
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
+
+/************************************************ tsma ********************************************************/
+cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
+  ON full_table_name(E) tsma_func_list(D)
+  INTERVAL NK_LP duration_literal(F) NK_RP.                                       { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+cmd ::= CREATE RECURSIVE TSMA not_exists_opt(B) tsma_name(C)
+  ON full_table_name(D) INTERVAL NK_LP duration_literal(E) NK_RP.                 { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, NULL, D, releaseRawExprNode(pCxt, E)); }
+cmd ::= DROP TSMA exists_opt(B) full_tsma_name(C).                                { pCxt->pRootNode = createDropTSMAStmt(pCxt, B, C); }
+cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                           { pCxt->pRootNode = createShowTSMASStmt(pCxt, B); }
+
+full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
+full_tsma_name(A) ::= db_name(B) NK_DOT tsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
+
+%type tsma_func_list                                                              { SNode* }
+%destructor tsma_func_list                                                        { nodesDestroyNode($$); }
+tsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = createTSMAOptions(pCxt, B); }
+
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)
   col_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
@@ -1059,6 +1076,10 @@ cgroup_name(A) ::= NK_ID(B).                                                    
 %type index_name                                                                  { SToken }
 %destructor index_name                                                            { }
 index_name(A) ::= NK_ID(B).                                                       { A = B; }
+
+%type tsma_name                                                                   { SToken }
+%destructor tsma_name                                                             { }
+tsma_name(A) ::= NK_ID(B).                                                        { A = B; }
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }

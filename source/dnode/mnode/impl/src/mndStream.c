@@ -41,6 +41,10 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
+
+static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
+static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
+
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq);
@@ -101,6 +105,13 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_STOP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_RESET_RSP, mndTransProcessRsp);
+
+  // for msgs inside mnode
+  // TODO change the name
+  mndSetMsgHandle(pMnode, TDMT_STREAM_CREATE, mndProcessCreateStreamReqFromMNode);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_CREATE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_DROP, mndProcessDropStreamReqFromMNode);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_DROP_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
@@ -335,7 +346,10 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
   pObj->version = 1;
-  pObj->smaId = 0;
+  if (pCreate->smaId > 0) {
+    pObj->subTableWithoutMd5 = 1;
+  }
+  pObj->smaId = pCreate->smaId;
   pObj->indexForMultiAggBalance = -1;
 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
@@ -819,23 +833,57 @@ _OVER:
   return terrno;
 }
 
-int64_t mndStreamGenChkpId(SMnode *pMnode) {
+int64_t mndStreamGenChkptId(SMnode *pMnode, bool lock) {
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
   SSdb       *pSdb = pMnode->pSdb;
-  int64_t     maxChkpId = 0;
+  int64_t     maxChkptId = 0;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
+    maxChkptId = TMAX(maxChkptId, pStream->checkpointId);
     mDebug("stream:%p, %s id:%" PRIx64 "checkpoint %" PRId64 "", pStream, pStream->name, pStream->uid,
            pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
 
-  mDebug("generated checkpoint %" PRId64 "", maxChkpId + 1);
-  return maxChkpId + 1;
+  {  // check the max checkpoint id from all vnodes.
+    int64_t maxCheckpointId = -1;
+    if (lock) {
+      taosThreadMutexLock(&execInfo.lock);
+    }
+
+    for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
+      STaskId *p = taosArrayGet(execInfo.pTaskList, i);
+
+      STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
+      if (pEntry == NULL) {
+        continue;
+      }
+
+      if (pEntry->checkpointInfo.failed) {
+        continue;
+      }
+
+      if (maxCheckpointId < pEntry->checkpointInfo.latestId) {
+        maxCheckpointId = pEntry->checkpointInfo.latestId;
+      }
+    }
+
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
+    }
+
+    if (maxCheckpointId > maxChkptId) {
+      mDebug("max checkpointId in mnode:%" PRId64 ", smaller than max checkpointId in vnode:%" PRId64, maxChkptId,
+             maxCheckpointId);
+      maxChkptId = maxCheckpointId;
+    }
+  }
+
+  mDebug("generated checkpoint %" PRId64 "", maxChkptId + 1);
+  return maxChkptId + 1;
 }
 
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
@@ -846,7 +894,7 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   }
 
   SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = mndStreamGenChkpId(pMnode);
+  pMsg->checkpointId = mndStreamGenChkptId(pMnode, true);
 
   int32_t size = sizeof(SMStreamDoCheckpointMsg);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
@@ -1179,6 +1227,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       mError("stream:%s not exist failed to drop", dropReq.name);
       tFreeMDropStreamReq(&dropReq);
       return -1;
+    }
+  }
+
+  if (pStream->smaId != 0) {
+    void    *pIter = NULL;
+    SSmaObj *pSma = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
+    while (pIter) {
+      if (pSma && pSma->uid == pStream->smaId) {
+        sdbRelease(pMnode->pSdb, pSma);
+        sdbRelease(pMnode->pSdb, pStream);
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        tFreeMDropStreamReq(&dropReq);
+        terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+        return -1;
+      }
+      if (pSma) sdbRelease(pMnode->pSdb, pSma);
+      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
     }
   }
 
@@ -2308,7 +2374,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   int32_t total = taosArrayGetSize(*pReqTaskList);
   if (total == numOfTasks) {  // all tasks has send the reqs
-    int64_t checkpointId = mndStreamGenChkpId(pMnode);
+    int64_t checkpointId = mndStreamGenChkptId(pMnode, false);
     mInfo("stream:0x%" PRIx64 " all tasks req checkpoint, start checkpointId:%" PRId64, req.streamId, checkpointId);
 
     if (pStream != NULL) {  // TODO:handle error
@@ -2344,4 +2410,26 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   }
 
   return 0;
+}
+
+static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq) {
+  int32_t code = mndProcessCreateStreamReq(pReq);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    pReq->info.rsp = rpcMallocCont(1);
+    pReq->info.rspLen = 1;
+    pReq->info.noResp = false;
+    pReq->code = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq) {
+  int32_t code = mndProcessDropStreamReq(pReq);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    pReq->info.rsp = rpcMallocCont(1);
+    pReq->info.rspLen = 1;
+    pReq->info.noResp = false;
+    pReq->code = code;
+  }
+  return code;
 }

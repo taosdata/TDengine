@@ -210,6 +210,7 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
 void taosCleanUpScheduler(void *param) {
   SSchedQueue *pSched = (SSchedQueue *)param;
   if (pSched == NULL) return;
+  if (pSched->stop) return;
 
   uDebug("start to cleanup %s schedQsueue", pSched->label);
 
@@ -240,6 +241,7 @@ void taosCleanUpScheduler(void *param) {
 
   if (pSched->queue) taosMemoryFree(pSched->queue);
   if (pSched->qthread) taosMemoryFree(pSched->qthread);
+  pSched->numOfThreads = 0;
   // taosMemoryFree(pSched);
 }
 

@@ -84,7 +84,7 @@ class TDTestCase:
 
         return cfgPath
 
-    def installTaosd(self,bPath,cPath):
+    def installTaosd(self, bPath, cPath, package_type="community"):
         # os.system(f"rmtaos && mkdir -p {self.getBuildPath()}/build/lib/temp &&  mv {self.getBuildPath()}/build/lib/libtaos.so*  {self.getBuildPath()}/build/lib/temp/ ")
         # os.system(f" mv {bPath}/build  {bPath}/build_bak ")
         # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so  {self.getBuildPath()}/build/lib/libtaos.so_bak ")
@@ -92,10 +92,15 @@ class TDTestCase:
         
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
+        packageType = "server"
+        if package_type == "community" :
+            packageType = "server"
+        elif package_type == "enterprise":
+            packageType = "enterprise"
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-server-"+  BASEVERSION + "-Linux-arm64.tar.gz"
+            packageName = "TDengine-"+ packageType + "-" + BASEVERSION + "-Linux-arm64.tar.gz"
         else:
-            packageName = "TDengine-server-"+  BASEVERSION + "-Linux-x64.tar.gz"
+            packageName = "TDengine-"+ packageType + "-" + BASEVERSION + "-Linux-x64.tar.gz"
         packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():
@@ -160,7 +165,8 @@ class TDTestCase:
         cPath = self.getCfgPath()
         dbname = "test"
         stb = f"{dbname}.meters"
-        self.installTaosd(bPath,cPath)
+        package_type = "community"
+        self.installTaosd(bPath,cPath,package_type)
         # os.system(f"echo 'debugFlag 143' >> {cPath}/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100

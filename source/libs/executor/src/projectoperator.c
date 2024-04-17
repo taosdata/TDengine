@@ -231,7 +231,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   // set current group id
   pLimitInfo->currentGroupId = groupId;
   bool limitReached = applyLimitOffset(pLimitInfo, pBlock, pOperator->pTaskInfo);
-  if (pBlock->info.rows == 0) {
+  if (pBlock->info.rows == 0 && 0 != pLimitInfo->limit.limit) {
     return PROJECT_RETRIEVE_CONTINUE;
   } else {
     if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
