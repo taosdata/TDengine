@@ -53,8 +53,7 @@ class AutoGen:
             f'binary({binary_len})',  # 12
             f'varbinary({binary_len})',
             f'nchar({nchar_len})',
-            f'varchar({nchar_len})',
-            f'geometry(64)'  #16
+            f'varchar({nchar_len})'
         ]
 
         sqls = ""
