@@ -1615,9 +1615,9 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     }
     if (key.compress == 1) {
       char* pCompressData = NULL;
-      if (key.len != 0 && *dest != NULL) {
+      if (key.len != 0) {
         p = taosDecodeBinary(p, (void**)&pCompressData, key.len);
-        *dest = taosMemoryCalloc(1, key.rawLen);
+        if (*dest) *dest = taosMemoryCalloc(1, key.rawLen);
         int32_t decompressSize = LZ4_decompress_safe(pCompressData, *dest, key.len, key.rawLen);
         ASSERT(decompressSize == key.rawLen);
         key.len = decompressSize;
