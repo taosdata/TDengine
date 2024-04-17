@@ -1563,7 +1563,7 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
       key.len = compressedSize;
       value = dst;
     }
-    stInfo("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
+    stDebug("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
   }
 
   if (*dest == NULL) {
