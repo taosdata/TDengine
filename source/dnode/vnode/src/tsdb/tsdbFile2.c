@@ -291,6 +291,10 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
       remove_file(lc_path);
     }
   } else {
+    if (fobj->f->lcn < 1) {
+      remove_file(fobj->fname);
+      return;
+    }
     // delete by data file prefix
     char lc_path[TSDB_FILENAME_LEN];
     tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
