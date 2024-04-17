@@ -538,7 +538,6 @@ void stopAllQueries(SRequestObj *pRequest) {
     pTmp = acquireRequest(tmpRefId);
     if (pTmp) {
       pReqList[++reqIdx] = pTmp;
-      releaseRequest(tmpRefId);
     } else {
       tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
@@ -547,6 +546,7 @@ void stopAllQueries(SRequestObj *pRequest) {
 
   for (int32_t i = reqIdx; i >= 0; i--) {
     taosStopQueryImpl(pReqList[i]);
+    releaseRequest(pReqList[i]->self);
   }
 
   taosStopQueryImpl(pRequest);
