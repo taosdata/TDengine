@@ -173,7 +173,7 @@ async fn assert_create_stable(
                     .map_err(Into::into);
             }
             match errno {
-                0x032C | 0x0360 => {
+                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => {
                     break Ok(());
                 }
                 0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
