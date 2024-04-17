@@ -1704,18 +1704,17 @@ async fn consume_point_record(
                                     }
                                     Err(err) => {
                                         let code: i32 = err.code().into();
-                                        // STable already exists
-                                        if code != 0x0360 {
+                                        if matches!(
+                                            code,
+                                            0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
+                                        ) {
+                                            tracing::debug!("error encountered, ignore: {err:#}",);
+                                        } else {
                                             tracing::warn!(
                                                 "create stable {stable_name} error: {err:#}"
                                             );
                                             let err_str = err.to_string();
-                                            if err_str.contains("0x032C") {
-                                                // Object is creating, maybe should ignore
-                                                tracing::warn!(
-                                                    "create stable sql encounter 0x032C"
-                                                );
-                                            } else if err_str.contains("0xE00") {
+                                            if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
                                                 retry += 1;
                                                 break_err = Err(err);
@@ -2351,6 +2350,13 @@ async fn consume_flat_record(
                                                     "error code [0x032C] encountered, ignore"
                                                 );
                                                 continue;
+                                            } else if matches!(
+                                                code,
+                                                0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
+                                            ) {
+                                                tracing::debug!(
+                                                    "error encountered, ignore: {err:#}",
+                                                );
                                             } else if code != 0x0360 {
                                                 tracing::error!(
                                                     sql,
