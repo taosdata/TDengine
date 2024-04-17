@@ -384,8 +384,8 @@ typedef struct SSinkRecorder {
 
 typedef struct STaskExecStatisInfo {
   int64_t       created;
-  int64_t       init;
-  int64_t       start;
+  int64_t       checkTs;
+  int64_t       readyTs;
   int64_t       startCheckpointId;
   int64_t       startCheckpointVer;
 
@@ -478,7 +478,7 @@ typedef struct STaskStartInfo {
   int64_t            startTs;
   int64_t            readyTs;
   int32_t            tasksWillRestart;
-  int32_t            taskStarting;    // restart flag, sentinel to guard the restart procedure.
+  int32_t            startAllTasks;    // restart flag, sentinel to guard the restart procedure.
   SHashObj*          pReadyTaskSet;   // tasks that are all ready for running stream processing
   SHashObj*          pFailedTaskSet;  // tasks that are done the check downstream process, may be successful or failed
   int64_t            elapsedTime;

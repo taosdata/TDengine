@@ -56,8 +56,8 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
 
-  pTask->execInfo.start = taosGetTimestampMs();
-  int64_t el = (pTask->execInfo.start - pTask->execInfo.init);
+  pTask->execInfo.readyTs = taosGetTimestampMs();
+  int64_t el = (pTask->execInfo.readyTs - pTask->execInfo.checkTs);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
           pTask->id.idStr, numOfDowns, el, p->name);
   return TSDB_CODE_SUCCESS;
@@ -391,9 +391,9 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
   streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
 
-  int64_t initTs = pTask->execInfo.init;
-  int64_t startTs = pTask->execInfo.start;
-  streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, initTs, startTs, true);
+  int64_t checkTs = pTask->execInfo.checkTs;
+  int64_t readyTs = pTask->execInfo.readyTs;
+  streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, checkTs, readyTs, true);
 
   if (pTask->status.taskStatus == TASK_STATUS__HALT) {
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
@@ -498,7 +498,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      int32_t startTs = pTask->execInfo.init;
+      int32_t startTs = pTask->execInfo.checkTs;
       int64_t now = taosGetTimestampMs();
       streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, now, false);
 
@@ -603,13 +603,13 @@ static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) 
   SDataRange* pRange = &pHTask->dataRange;
 
   // the query version range should be limited to the already processed data
-  pHTask->execInfo.init = taosGetTimestampMs();
+  pHTask->execInfo.checkTs = taosGetTimestampMs();
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
             " verRange:%" PRId64 " - %" PRId64 ", init:%" PRId64,
             pTask->id.idStr, pHTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-            pRange->range.maxVer, pHTask->execInfo.init);
+            pRange->range.maxVer, pHTask->execInfo.checkTs);
   } else {
     stDebug("s-task:%s no fill-history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
   }
@@ -767,8 +767,7 @@ static int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
   SLaunchHTaskInfo* pInfo = createHTaskLaunchInfo(pMeta, pTask->id.streamId, pTask->id.taskId, hStreamId, hTaskId);
   if (pInfo == NULL) {
     stError("s-task:%s failed to launch related fill-history task, since Out Of Memory", idStr);
-
-    streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->init, pExecInfo->start, false);
+    streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
     return terrno;
   }
 
@@ -785,7 +784,7 @@ static int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
       stError("s-task:%s failed to start timer, related fill-history task not launched, ref:%d", idStr, ref);
 
       taosMemoryFree(pInfo);
-      streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->init, pExecInfo->start, false);
+      streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
       return terrno;
     }
 
@@ -816,7 +815,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
     stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", idStr, hStreamId, hTaskId,
             pStatus->name);
 
-    streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->init, pExecInfo->start, false);
+    streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
     return -1;  // todo set the correct error code
   }
 
@@ -831,11 +830,11 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
     SStreamTask* pHisTask = streamMetaAcquireTask(pMeta, hStreamId, hTaskId);
     if (pHisTask == NULL) {
       stDebug("s-task:%s failed acquire and start fill-history task, it may have been dropped/stopped", idStr);
-      streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->init, pExecInfo->start, false);
+      streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
     } else {
       if (pHisTask->status.downstreamReady == 1) {  // it's ready now, do nothing
         stDebug("s-task:%s fill-history task is ready, no need to check downstream", pHisTask->id.idStr);
-        streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->init, pExecInfo->start, true);
+        streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, true);
       } else {  // exist, but not ready, continue check downstream task status
         checkFillhistoryTaskStatus(pTask, pHisTask);
       }

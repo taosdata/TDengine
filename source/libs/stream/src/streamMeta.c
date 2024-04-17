@@ -1119,7 +1119,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
         .stage = pMeta->stage,
 
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
-        .startTime = (*pTask)->execInfo.start,
+        .startTime = (*pTask)->execInfo.readyTs,
         .checkpointInfo.latestId = (*pTask)->chkInfo.checkpointId,
         .checkpointInfo.latestVer = (*pTask)->chkInfo.checkpointVer,
         .checkpointInfo.latestTime = (*pTask)->chkInfo.checkpointTime,
@@ -1329,7 +1329,7 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   pStartInfo->readyTs = 0;
 
   // reset the sentinel flag value to be 0
-  pStartInfo->taskStarting = 0;
+  pStartInfo->startAllTasks = 0;
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
@@ -1496,7 +1496,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
         streamLaunchFillHistoryTask(pTask);
       }
 
-      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->init, pInfo->start, true);
+      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs, true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -1506,10 +1506,10 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
       code = ret;
 
-      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->init, pInfo->start, false);
+      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs, false);
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         STaskId* pId = &pTask->hTaskInfo.id;
-        streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+        streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->checkTs, pInfo->readyTs, false);
       }
     }
 
@@ -1601,10 +1601,10 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (ret != TSDB_CODE_SUCCESS) {
     stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
 
-    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, pInfo->init, pInfo->start, false);
+    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, pInfo->checkTs, pInfo->readyTs, false);
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pId = &pTask->hTaskInfo.id;
-      streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+      streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->checkTs, pInfo->readyTs, false);
     }
   }
 
@@ -1641,7 +1641,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
   streamMetaWLock(pMeta);
 
-  if (pStartInfo->taskStarting != 1) {
+  if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
     qDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
            pMeta->vgId, taskId, ready, el);

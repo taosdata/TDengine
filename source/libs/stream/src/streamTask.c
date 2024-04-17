@@ -365,8 +365,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
           ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
           " nextProcessVer:%" PRId64 ", checkpointCount:%d",
-          taskId, pStatis->created, pStatis->init, pStatis->start, pStatis->updateCount, pStatis->latestUpdateTs,
-          pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer, pStatis->checkpoint);
+          taskId, pStatis->created, pStatis->checkTs, pStatis->readyTs, pStatis->updateCount,
+          pStatis->latestUpdateTs, pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer,
+          pStatis->checkpoint);
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {

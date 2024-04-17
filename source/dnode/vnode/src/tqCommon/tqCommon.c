@@ -455,8 +455,8 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
 }
 
-static void setParam(SStreamTask* pTask, int64_t* initTs, bool* hasHTask, STaskId* pId) {
-  *initTs = pTask->execInfo.init;
+static void setParam(SStreamTask* pTask, int64_t* startCheckTs, bool* hasHTask, STaskId* pId) {
+  *startCheckTs = pTask->execInfo.checkTs;
 
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     *hasHTask = true;
@@ -525,6 +525,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   if (pTask == NULL) {
     streamMetaRLock(pMeta);
 
+    // let's try to find this task in hashmap
     SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask != NULL) {
       setParam(*ppTask, &initTs, &hasHistoryTask, &fId);
@@ -533,7 +534,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
       if (hasHistoryTask) {
         streamMetaAddTaskLaunchResult(pMeta, fId.streamId, fId.taskId, initTs, now, false);
       }
-    } else {
+    } else {  // not exist even in the hash map of meta, forget it
       streamMetaRUnLock(pMeta);
     }
 
@@ -749,7 +750,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int64_t st = taosGetTimestampMs();
 
   streamMetaWLock(pMeta);
-  if (pMeta->startInfo.taskStarting == 1) {
+  if (pMeta->startInfo.startAllTasks == 1) {
     pMeta->startInfo.restartCount += 1;
     tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
             pMeta->startInfo.restartCount);
@@ -757,7 +758,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pMeta->startInfo.taskStarting = 1;
+  pMeta->startInfo.startAllTasks = 1;
   streamMetaWUnLock(pMeta);
 
   terrno = 0;
@@ -873,7 +874,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   bool            scanWal = false;
 
   streamMetaWLock(pMeta);
-  if (pStartInfo->taskStarting == 1) {
+  if (pStartInfo->startAllTasks == 1) {
     tqDebug("vgId:%d already in start tasks procedure in other thread, restartCounter:%d, do nothing", vgId,
             pMeta->startInfo.restartCount);
   } else {  // not in starting procedure
