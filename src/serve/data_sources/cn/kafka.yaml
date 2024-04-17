@@ -19,6 +19,7 @@ groups:
     display_order: 1
     description: 使用证书和私钥建立连接以启用 SSL。
     collapsible: true
+    connection_option: true
     params:
       - name: ca
         display: CA
@@ -38,11 +39,11 @@ groups:
         required: true
         hint:
           type: file
-
   - name: 采集配置
     display_order: 2
     description: 数据采集相关配置项。
     required: false
+    connection_option: true
     params:
       - name: timeout
         display: 超时时间

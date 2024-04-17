@@ -19,6 +19,7 @@ groups:
     display_order: 1
     description: Use self-signed certificate file and private key.
     collapsible: true
+    connection_option: true
     params:
       - name: ca
         display: CA
@@ -38,11 +39,11 @@ groups:
         required: true
         hint:
           type: file
-
   - name: Collect
     display_order: 2
     description: Configurations for collecting data.
     required: false
+    connection_option: true
     params:
       - name: timeout
         display: Timeout

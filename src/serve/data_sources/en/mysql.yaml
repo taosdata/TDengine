@@ -49,6 +49,7 @@ groups:
     collapsible: true
     display_order: 1
     description: Other connection options.
+    connection_option: true
     params:
       - name: charset
         display: Character Set

@@ -46,6 +46,7 @@ groups:
     collapsible: true
     display_order: 1
     description: 其他数据库连接选项。
+    connection_option: true
     params:
       - name: charset
         display: 字符集
