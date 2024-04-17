@@ -21,18 +21,36 @@
 #include "tsched.h"
 // clang-format off
 #include "cJSON.h"
+#include "queryInt.h"
 
-#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-#define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
+int32_t getAsofJoinReverseOp(EOperatorType op) {
+  switch (op) {
+    case OP_TYPE_GREATER_THAN:
+      return OP_TYPE_LOWER_THAN;
+    case OP_TYPE_GREATER_EQUAL:
+      return OP_TYPE_LOWER_EQUAL;
+    case OP_TYPE_LOWER_THAN:
+      return OP_TYPE_GREATER_THAN;
+    case OP_TYPE_LOWER_EQUAL:
+      return OP_TYPE_GREATER_EQUAL;
+    case OP_TYPE_EQUAL:
+      return OP_TYPE_EQUAL;
+    default:
+      break;
+  }
 
-static struct SSchema _s = {
-    .colId = TSDB_TBNAME_COLUMN_INDEX,
-    .type = TSDB_DATA_TYPE_BINARY,
-    .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
-    .name = "tbname",
-};
+  return -1;
+}
 
-const SSchema* tGetTbnameColumnSchema() { return &_s; }
+const SSchema* tGetTbnameColumnSchema() { 
+  static struct SSchema _s = {
+      .colId = TSDB_TBNAME_COLUMN_INDEX,
+      .type = TSDB_DATA_TYPE_BINARY,
+      .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
+      .name = "tbname",
+  };
+  return &_s; 
+}
 
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   int32_t rowLen = 0;

@@ -213,11 +213,13 @@ typedef struct SDropTableClause {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
+  SArray*   pTsmas;
 } SDropTableClause;
 
 typedef struct SDropTableStmt {
   ENodeType  type;
   SNodeList* pTables;
+  bool       withTsma;
 } SDropTableStmt;
 
 typedef struct SDropSuperTableStmt {
@@ -589,6 +591,34 @@ typedef struct SSplitVgroupStmt {
   ENodeType type;
   int32_t   vgId;
 } SSplitVgroupStmt;
+
+typedef struct STSMAOptions {
+  ENodeType  type;
+  SNodeList* pFuncs;
+  SNodeList* pCols;
+  SNode*     pInterval;
+  uint8_t    tsPrecision;
+  bool       recursiveTsma;  // true if create recursive tsma
+} STSMAOptions;
+
+typedef struct SCreateTSMAStmt {
+  ENodeType       type;
+  bool            ignoreExists;
+  char            tsmaName[TSDB_TABLE_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
+  char            originalTbName[TSDB_TABLE_NAME_LEN];
+  STSMAOptions*   pOptions;
+  SNode*          pPrevQuery;
+  SMCreateSmaReq* pReq;
+} SCreateTSMAStmt;
+
+typedef struct SDropTSMAStmt {
+  ENodeType     type;
+  bool          ignoreNotExists;
+  char          dbName[TSDB_DB_NAME_LEN];
+  char          tsmaName[TSDB_TABLE_NAME_LEN];
+} SDropTSMAStmt;
 
 #ifdef __cplusplus
 }

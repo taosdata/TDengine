@@ -47,6 +47,7 @@ typedef struct SAggOperatorInfo {
   bool             groupKeyOptimized;
   bool             hasValidBlock;
   SSDataBlock*     pNewGroupBlock;
+  bool             hasCountFunc;
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
@@ -111,6 +112,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pInfo->groupId = UINT64_MAX;
   pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -317,18 +319,8 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   }
 
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
-  bool            hasCountFunc = false;
 
-  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-    const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "count") == 0) || (strcmp(pName, "hyperloglog") == 0) ||
-        (strcmp(pName, "_hyperloglog_partial") == 0) || (strcmp(pName, "_hyperloglog_merge") == 0)) {
-      hasCountFunc = true;
-      break;
-    }
-  }
-
-  if (!hasCountFunc) {
+  if (!pAggInfo->hasCountFunc) {
     return TSDB_CODE_SUCCESS;
   }
 

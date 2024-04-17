@@ -757,6 +757,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   }
 
   SViewMeta* pMeta = pStmt->pViewMeta;
+  ASSERT(pMeta);
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s", pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
   varDataLen(buf2) = (len > 65535) ? 65535 : len;

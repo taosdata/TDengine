@@ -579,6 +579,23 @@ db_kind_opt(A) ::= .                                                            
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
+
+/************************************************ tsma ********************************************************/
+cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
+  ON full_table_name(E) tsma_func_list(D)
+  INTERVAL NK_LP duration_literal(F) NK_RP.                                       { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+cmd ::= CREATE RECURSIVE TSMA not_exists_opt(B) tsma_name(C)
+  ON full_table_name(D) INTERVAL NK_LP duration_literal(E) NK_RP.                 { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, NULL, D, releaseRawExprNode(pCxt, E)); }
+cmd ::= DROP TSMA exists_opt(B) full_tsma_name(C).                                { pCxt->pRootNode = createDropTSMAStmt(pCxt, B, C); }
+cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                           { pCxt->pRootNode = createShowTSMASStmt(pCxt, B); }
+
+full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
+full_tsma_name(A) ::= db_name(B) NK_DOT tsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
+
+%type tsma_func_list                                                              { SNode* }
+%destructor tsma_func_list                                                        { nodesDestroyNode($$); }
+tsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = createTSMAOptions(pCxt, B); }
+
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)
   col_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
@@ -1052,6 +1069,10 @@ cgroup_name(A) ::= NK_ID(B).                                                    
 %destructor index_name                                                            { }
 index_name(A) ::= NK_ID(B).                                                       { A = B; }
 
+%type tsma_name                                                                   { SToken }
+%destructor tsma_name                                                             { }
+tsma_name(A) ::= NK_ID(B).                                                        { A = B; }
+
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }
 //expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
@@ -1278,7 +1299,7 @@ from_clause_opt(A) ::= .                                                        
 from_clause_opt(A) ::= FROM table_reference_list(B).                              { A = B; }
 
 table_reference_list(A) ::= table_reference(B).                                   { A = B; }
-table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, B, C, NULL); }
+table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, JOIN_STYPE_NONE, B, C, NULL); }
 
 /************************************************ table_reference *****************************************************/
 table_reference(A) ::= table_primary(B).                                          { A = B; }
@@ -1300,12 +1321,46 @@ parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.    
 
 /************************************************ joined_table ********************************************************/
 joined_table(A) ::=
-  table_reference(B) join_type(C) JOIN table_reference(D) ON search_condition(E). { A = createJoinTableNode(pCxt, C, B, D, E); }
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) join_on_clause_opt(F) 
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { 
+                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F); 
+                                                                                    A = addWindowOffsetClause(pCxt, A, G);
+                                                                                    A = addJLimitClause(pCxt, A, H);
+                                                                                  }
 
 %type join_type                                                                   { EJoinType }
 %destructor join_type                                                             { }
 join_type(A) ::= .                                                                { A = JOIN_TYPE_INNER; }
 join_type(A) ::= INNER.                                                           { A = JOIN_TYPE_INNER; }
+join_type(A) ::= LEFT.                                                            { A = JOIN_TYPE_LEFT; }
+join_type(A) ::= RIGHT.                                                           { A = JOIN_TYPE_RIGHT; }
+join_type(A) ::= FULL.                                                            { A = JOIN_TYPE_FULL; }
+
+%type join_subtype                                                                { EJoinSubType }
+%destructor join_subtype                                                          { }
+join_subtype(A) ::= .                                                             { A = JOIN_STYPE_NONE; }
+join_subtype(A) ::= OUTER.                                                        { A = JOIN_STYPE_OUTER; }
+join_subtype(A) ::= SEMI.                                                         { A = JOIN_STYPE_SEMI; }
+join_subtype(A) ::= ANTI.                                                         { A = JOIN_STYPE_ANTI; }
+join_subtype(A) ::= ASOF.                                                         { A = JOIN_STYPE_ASOF; }
+join_subtype(A) ::= WINDOW.                                                       { A = JOIN_STYPE_WIN; }
+
+join_on_clause_opt(A) ::= .                                                       { A = NULL; }
+join_on_clause_opt(A) ::= ON search_condition(B).                                 { A = B; }
+
+window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
+window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B) 
+  NK_COMMA window_offset_literal(C) NK_RP.                                        { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+
+window_offset_literal(A) ::= NK_VARIABLE(B).                                      { A = createRawExprNode(pCxt, &B, createTimeOffsetValueNode(pCxt, &B)); }
+window_offset_literal(A) ::= NK_MINUS(B) NK_VARIABLE(C).                          {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t)); 
+                                                                                  }
+                                                                                  
+jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
+jlimit_clause_opt(A) ::= JLIMIT NK_INTEGER(B).                                    { A = createLimitNode(pCxt, &B, NULL); }
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
