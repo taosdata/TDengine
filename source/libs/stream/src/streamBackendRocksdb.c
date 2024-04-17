@@ -1626,9 +1626,8 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     } else {
       if (key.len != 0 && dest != NULL) p = taosDecodeBinary(p, (void**)dest, key.len);
     }
-
-    if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
   }
+  if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
 
   return key.len;
 
