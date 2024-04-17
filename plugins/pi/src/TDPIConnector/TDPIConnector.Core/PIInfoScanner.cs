@@ -3,6 +3,7 @@ using System.Linq;
 using System;
 using Newtonsoft.Json;
 using TDPIConnector.PI;
+using TDPIConnector.Core.Conversions;
 
 namespace TDPIConnector.Core
 {
@@ -26,19 +27,19 @@ namespace TDPIConnector.Core
         };
         class ScanPointList
         {
-            public List<ScanTemplateForPoint> Template;
-            public List<ScanPoint> PointList;
+            public List<ScanTemplateForPoint> Template = new List<ScanTemplateForPoint>();
+            public List<ScanPoint> PointList = new List<ScanPoint>();
         }
         class ScanAFPointList
         {
-            public List<ScanTemplateForPoint> Templates = new List<ScanTemplateForPoint>();
+            public List<ScanTemplateForAFPoint> Templates = new List<ScanTemplateForAFPoint>();
             public List<ScanAFPoint> Points = new List<ScanAFPoint>();
         }
         class ScanElementList
         {
-            public List<ScanElementTemplate> Templates;
-            public List<ScanSingleElement> SingleElements;
-            public List<ScanElement> elements;
+            public List<ScanElementTemplate> Templates = new List<ScanElementTemplate>();
+            public List<ScanSingleElement> SingleElements = new List<ScanSingleElement>();
+            public List<ScanElement> elements = new List<ScanElement>();
         }
         class ScanPointTags
         {
@@ -53,26 +54,44 @@ namespace TDPIConnector.Core
         class ScanPoint
         {
             public int ID;
+            public string Name;
             public string Path;
             public string Template;
         }
-        class ScanAttribute
+        public class ScanAttributeValue
         {
-            public string type;
+            public string Name;
+            public string Type;
+            public string Value;
+        }
+        public class ScanAttribute
+        {
+            public string Name;
+            public string Type;
+            public string UOMABB;
             public string UOM;
-            public bool   IsTag;
         }
         class ScanAFPoint
         {
             public int ID;
+            public string Name;
             public string Path;
             public string Type;
+            public string UOMABB;
             public string UOM;
             public string Template;
             public Dictionary<string, string> Tags;
-            public List<ScanElement> Elements = new List<ScanElement>();
+            public List<ScanElementSummary> Elements = new List<ScanElementSummary>();
         }
         class ScanElement
+        {
+            public string ID;
+            public string Name;
+            public string TemplateName;
+            public string Path;
+            public List<ScanAttributeValue> StaticAttributeValues;
+        }
+        class ScanElementSummary
         {
             public string ID;
             public string Name;
@@ -83,17 +102,31 @@ namespace TDPIConnector.Core
         {
             public string TemplateName;
             public string Type;
+            public Dictionary<string, string> Tags;
+
+            public string TDType { get; internal set; }
+        }
+        class ScanTemplateForAFPoint
+        {
+            public string TemplateName;
+            public string TDType;
+            public string Type;
+            public string UOMABB;
             public string UOM;
             public Dictionary<string, string> Tags;
         }
         class ScanElementTemplate
         {
             public string TemplateName;
-            public ScanAttribute attributes;
+            public List<ScanAttribute> Attributes;
+            public List<ScanAttribute> StaticAttributes;
         }
         class ScanSingleElement
         {
-            public ScanAttribute attributes;
+            public string ID;
+            public string Name;
+            public List<ScanAttribute> Attributes;
+            public List<ScanAttribute> StaticAttributes;
         }
 
     }
@@ -156,10 +189,26 @@ namespace TDPIConnector.Core
             var points = piServerManager.FindPIPoints(pointFilter);
             var piInfo = new ScanPointList();
 
-            foreach (var point in points) {
-                ScanTemplateForPoint t = new ScanTemplateForPoint();
-                point.GetPointSavedAttrsValue();
+            HashSet<string> existTemplate = new HashSet<string>();
 
+            foreach (var point in points) {
+                string uk = GeneratePointSuperTableUniKey(point);
+                var tName =  GeneratePointSuperTableName(point);
+                if (!existTemplate.Contains(uk)) {
+                    existTemplate.Add(uk);
+                    ScanTemplateForPoint t = new ScanTemplateForPoint();
+                    t.TemplateName = tName;
+                    t.TDType = PointTypeConverter.Convert(point.PointType);
+                    t.Type = point.PointType;
+                    t.Tags = PIPointWrapper.GetPointSavedAttrsType();
+                    piInfo.Template.Add(t);
+                }
+                ScanPoint p = new ScanPoint();
+                p.Path = point.GetPath();
+                p.ID = point.ID;
+                p.Name = point.Name;
+                p.Template = tName;
+                piInfo.PointList.Add(p);
             }
 
             var json = JsonConvert.SerializeObject(piInfo);
@@ -170,9 +219,23 @@ namespace TDPIConnector.Core
             if (FilterMode.FilterElement == filterMode) {
                 return GetScanAFPointInfoByElementFilter(ref filter);
             } else if (FilterMode.FilterTemplate == filterMode) {
-                return GetScanAFPointInfoByTemplateFilter(filter);
+                return GetScanAFPointInfoByTemplateFilter(ref filter);
             } else {
                 return "start param error, filterMode not found!";
+            }
+        }
+        public string GetAFPointTemplateUniKey(AFAttributeWrapper attr)
+        {
+            return GetAFPointTemplateName(attr) + "_" + attr.Type;
+        }
+        public string GetAFPointTemplateName(AFAttributeWrapper attr)
+        {
+            var type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+            if (attr.Uom != null) { 
+                return "TS_" + type + "_" + attr.Uom; 
+            } else
+            {
+                return "TS_" + type;
             }
         }
         internal string GetScanAFPointInfoByElements(IEnumerable<AFElementWrapper> elements)
@@ -189,22 +252,26 @@ namespace TDPIConnector.Core
                     existElements.Add(element.ID);
                     foreach (var attr in element.Attributes)
                     {
-                        var templateName = element.GetAFPointTemplateName(attr);
-                        if (!existTemplate.Contains(templateName))
+                        if (attr.IsTDengineTag()) continue;
+                        string uk = GetAFPointTemplateUniKey(attr);
+                        var templateName = GetAFPointTemplateName(attr);
+                        if (!existTemplate.Contains(uk))
                         {
-                            existTemplate.Add(templateName);
-                            ScanTemplateForPoint temp = new ScanTemplateForPoint();
+                            existTemplate.Add(uk);
+                            ScanTemplateForAFPoint temp = new ScanTemplateForAFPoint();
                             temp.TemplateName = templateName;
+                            temp.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type); ;
                             temp.Type = attr.Type.Name;
-                            temp.UOM = attr.Uom;
+                            temp.UOMABB = attr.Uom;
+                            temp.UOM = attr.UomName;
                             temp.Tags = PIPointWrapper.GetPointSavedAttrsType();
                             piInfo.Templates.Add(temp);
                         }
-                        ScanElement e = new ScanElement();
+                        ScanElementSummary e = new ScanElementSummary();
                         e.ID = element.ID.ToString();
                         e.Name = element.Name;
                         e.Path = element.GetPath();
-                        e.TemplateName = templateName;
+                        e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
 
                         if (attr.PIPoint != null)
                         {
@@ -212,8 +279,10 @@ namespace TDPIConnector.Core
                             {
                                 ScanAFPoint point = new ScanAFPoint();
                                 point.ID = attr.PIPoint.PointId;
+                                point.Name = attr.PIPoint.Name;
                                 point.Type = attr.Type.Name;
-                                point.UOM = attr.Uom;
+                                point.UOMABB = attr.Uom;
+                                point.UOM = attr.UomName;
                                 point.Template = templateName;
                                 point.Path = attr.PIPoint.GetPath();
                                 point.Tags = attr.PIPoint.GetPointSavedAttrsValue();
@@ -241,7 +310,7 @@ namespace TDPIConnector.Core
             var elements = piSystemManager.GetElementByFilter(AppSettings.tomlConfig.AFDatabaseName, filter);
             return GetScanAFPointInfoByElements(elements);
         }
-        internal string GetScanAFPointInfoByTemplateFilter(string filter)
+        internal string GetScanAFPointInfoByTemplateFilter(ref string filter)
         {
             IEnumerable<AFElementWrapper> elements = new List<AFElementWrapper>();
             var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
@@ -253,20 +322,178 @@ namespace TDPIConnector.Core
 
             return GetScanAFPointInfoByElements(elements);
         }
-        internal string GetScanElementInfo(string pointFilter, FilterMode filterMode)
+        internal string GetScanElementInfo(string filter, FilterMode filterMode)
         {
-            var points = piServerManager.FindPIPoints(pointFilter);
+            if (FilterMode.FilterElement == filterMode)
+            {
+                return GetScanElementInfoByElementFilter(ref filter);
+            }
+            else if (FilterMode.FilterTemplate == filterMode)
+            {
+                return GetScanElementInfoByTemplateFilter(ref filter);
+            }
+            else
+            {
+                return "start param error, filterMode not found!";
+            }
+        }
+        internal string GetScanElementInfoByElements(IEnumerable<AFElementWrapper> elements) {
 
-            var piInfo = new ScanElementList();
-            var json = JsonConvert.SerializeObject(piInfo);
+            ScanElementList elmentInfo = new ScanElementList();
+            HashSet<string> existTemplates = new HashSet<string>();          
+            HashSet<Guid> usedElements = new HashSet<Guid>();
+            foreach (var element in elements) {
+                if (!usedElements.Contains(element.ID)) {
+                    usedElements.Add(element.ID);
+
+                    if (element.hasTemplate())
+                    {
+                        if (!existTemplates.Contains(element.Template.Name)) {
+                            existTemplates.Add(element.Template.Name);
+                            ScanElementTemplate template = new ScanElementTemplate();
+                            template.TemplateName = element.Template.Name;
+                            template.Attributes = GetTemplateAtrributes(element.Template);
+                            template.StaticAttributes = GetTemplateAtrributesForTag(element.Template);
+                            elmentInfo.Templates.Add(template);
+                        }
+                    }
+                    else
+                    {
+                        ScanSingleElement temp = new ScanSingleElement();
+                        temp.ID = element.ID.ToString();
+                        temp.Name = element.Name;
+                        temp.Attributes = GetElementAtrributes(element);
+                        if (temp.Attributes.Count == 0) continue;
+                        temp.StaticAttributes = GetElementAtrributesForTag(element);
+                        elmentInfo.SingleElements.Add(temp);
+                    }
+                    ScanElement e = new ScanElement();
+                    e.ID = element.ID.ToString();
+                    e.Name = element.Name;
+                    e.Path = element.GetPath();
+                    e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
+                    e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
+                    elmentInfo.elements.Add(e);
+                }
+            }
+            var json = JsonConvert.SerializeObject(elmentInfo);
             return json;
         }
+        internal string GetScanElementInfoByElementFilter(ref string filter) {
+            var elements = piSystemManager.GetElementByFilter(AppSettings.tomlConfig.AFDatabaseName, filter);
+            return GetScanElementInfoByElements(elements);
+        }
+        internal string GetScanElementInfoByTemplateFilter(ref string filter)
+        {
+            IEnumerable<AFElementWrapper> elements = new List<AFElementWrapper>();
+            var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
+            foreach (var template in templates)
+            {
+                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name);
+                elements = elements.Concat(es);
+            }
+            var elementsWithoutTemplate = piSystemManager.GetElementsNoTemplate(AppSettings.tomlConfig.AFDatabaseName);
+            elements = elements.Concat(elementsWithoutTemplate);
 
+            return GetScanElementInfoByElements(elements);
+        }
         static public FilterMode GetFilterMode(string strMode)
         {
             if ("element" == strMode || "e" == strMode ||
                 "Element" == strMode || "ELEMENT" == strMode ) return FilterMode.FilterElement;
             else return FilterMode.FilterTemplate;
+        }
+
+        static public List<ScanAttribute> GetTemplateAtrributes(AFElementTemplateWrapper template) {
+            List<ScanAttribute> attributes = new List<ScanAttribute>();
+            foreach (var attr in template.AttributeTemplates) {
+                if (!attr.IsTDengineTag())
+                {
+                    ScanAttribute tmp = new ScanAttribute();
+                    tmp.Type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+                    if (null == tmp.Type) continue;
+                    tmp.Name = attr.Name;
+                    tmp.UOMABB = attr.Uom;
+                    tmp.UOM = attr.UomName;
+                    attributes.Add(tmp);
+                }
+            }
+            return attributes;
+        }
+        static public List<ScanAttribute> GetTemplateAtrributesForTag(AFElementTemplateWrapper template)
+        {
+            List<ScanAttribute> attributes = new List<ScanAttribute>();
+            foreach (var attr in template.AttributeTemplates)
+            {
+                if (attr.IsTDengineTag()) {
+                    ScanAttribute tmp = new ScanAttribute();
+                    tmp.Type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+                    if (null == tmp.Type) continue;
+                    tmp.Name = attr.Name;
+                    tmp.UOMABB = attr.Uom;
+                    tmp.UOM = attr.UomName;
+                    attributes.Add(tmp);
+                }
+            }
+            return attributes;
+        }
+        static public List<ScanAttribute> GetElementAtrributes(AFElementWrapper element)
+        {
+            List<ScanAttribute> attributes = new List<ScanAttribute>();
+            foreach (var attr in element.Attributes)
+            {
+                if (!attr.IsTDengineTag())
+                {
+                    ScanAttribute tmp = new ScanAttribute();
+                    tmp.Type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+                    if (null == tmp.Type) continue;
+                    tmp.Name = attr.Name;
+                    tmp.UOMABB = attr.Uom;
+                    attributes.Add(tmp);
+                }
+            }
+            return attributes;
+        }
+        static public List<ScanAttribute> GetElementAtrributesForTag(AFElementWrapper element)
+        {
+            List<ScanAttribute> attributes = new List<ScanAttribute>();
+            foreach (var attr in element.Attributes)
+            {
+                if (attr.IsTDengineTag())
+                {
+                    ScanAttribute tmp = new ScanAttribute();
+                    tmp.Type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+                    if (null == tmp.Type) continue;
+                    tmp.Name = attr.Name;
+                    tmp.UOMABB = attr.Uom;
+                    attributes.Add(tmp);
+                }
+            }
+            return attributes;
+        }
+        static public List<ScanAttributeValue> GetElementStaticAtrributeValues(AFElementWrapper element)
+        {
+            List<ScanAttributeValue> attributeValues = new List<ScanAttributeValue>();
+            foreach (var attr in element.Attributes)
+            {
+                if (attr.IsTDengineTag())
+                {
+                    ScanAttributeValue v = new ScanAttributeValue();
+                    v.Name = attr.Name;
+                    v.Type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
+                    v.Value = attr.GetValueString();
+                    attributeValues.Add(v);
+                }
+            }
+            return attributeValues;
+        }
+        public string GeneratePointSuperTableName(PIPointWrapper point)
+        {    
+            return "TS_" + PointTypeConverter.Convert(point.PointType);
+        }
+        public string GeneratePointSuperTableUniKey(PIPointWrapper point)
+        {
+            return point.PointType;
         }
     }
 }

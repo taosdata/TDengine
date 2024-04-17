@@ -138,6 +138,14 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Abbreviation : null;
             }
         }
+        public string UomName
+        {
+            get
+            {
+
+                return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Name : null;
+            }
+        }
         public Type Type
         {
             get
@@ -199,6 +207,11 @@ namespace TDPIConnector.PI
                 return null;
             }
             return new AFValueWrapper(value);
+        }
+        public string GetValueString()
+        {
+            AFValue value = AFSDKObject.GetValue();
+            return Convert.ToString(value.Value);
         }
         public string ToStringWithUOM()
         {

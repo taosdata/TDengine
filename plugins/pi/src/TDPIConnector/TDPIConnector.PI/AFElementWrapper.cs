@@ -73,11 +73,5 @@ namespace TDPIConnector.PI
         public bool hasTemplate() {
             return Template.AFSDKObject != null;
         }
-
-        public string GetAFPointTemplateName(AFAttributeWrapper attr) {
-            var type = attr.Type.Name;
-            var uom = attr.Uom;
-            return "TS_" + type + "_" + uom;
-        }
     }
 }
