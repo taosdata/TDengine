@@ -729,9 +729,10 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
-  tqStreamRmTaskBackend(pMeta, &id);
 
   streamMetaWUnLock(pMeta);
+
+  tqStreamRmTaskBackend(pMeta, &id);
   return 0;
 }
 
