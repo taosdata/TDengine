@@ -1,0 +1,165 @@
+---
+id: postgres
+name: Postgres
+type: uri
+description: |
+  PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统， 有很多在大型商业RDBMS中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。
+  TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+strict: false
+
+options:
+  host:
+    display: 服务地址
+    description: PostgreSQL 的服务器地址
+    placeholder: "127.0.0.1"
+    required: true
+  port:
+    display: 服务端口
+    description: PostgreSQL 的端口
+    placeholder: "5432"
+    required: true
+  subject:
+    display: 数据库
+    description: PostgreSQL 数据库名称
+    placeholder: "示例: db1"
+    required: true
+
+authentication:
+  display: 认证
+  description: 使用用户名和密码访问 PostgreSQL 数据库
+  value: plain
+  alternatives:
+    - name: plain
+      display: 用户名密码访问
+      description: 使用用户名和密码访问 PostgreSQL 数据库
+      username:
+        display: 用户
+        placeholder: username
+        required: true
+      password:
+        display: 密码
+        placeholder: password
+        required: true
+
+groups:
+  - name: 连接选项
+    collapsible: true
+    display_order: 1
+    description: 其他数据库连接选项。
+    connection_option: true
+    params:
+      - name: applicationName
+        display: 应用名称
+        description: 设置应用程序名称，用于标识连接的应用程序。
+        placeholder: "示例: TDengine"
+        hint:
+          type: str
+      - name: ssl
+        display: SSL 模式
+        description: 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。
+        placeholder: "请选择 SSL 模式"
+        value: "PREFER"
+        hint:
+          type: str
+          choices:
+            - DISABLE
+            - ALLOW
+            - PREFER
+            - REQUIRE
+            - VERIFY_CA
+            - VERIFY_FULL
+      - name: ssl_ca
+        display: CA 证书
+        required: true
+        hint:
+          type: file
+      - name: ssl_client_cert
+        display: 客户端证书
+        required: true
+        hint:
+          type: file
+      - name: ssl_client_key
+        display: 客户端 Key
+        required: true
+        hint:
+          type: file
+  - name: SQL 查询
+    display_order: 2
+    description: 数据采集相关配置项。
+    required: true
+    params:
+      - name: sql
+        display: SQL 模板
+        description: >
+          用于查询的 SQL 语句。
+        required: false
+        placeholder: "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
+        hint:
+          type: str
+      - name: start
+        display: 起始时间
+        description: >
+          应用于查询语句的起始时间。
+        required: true
+        placeholder: 如：2023-01-01 00:00:00
+        hint:
+          type: time
+      - name: end
+        display: 结束时间
+        description: >
+          应用于查询语句的结束时间。
+        required: false
+        placeholder: 如：2024-01-01 00:00:00
+        hint:
+          type: time
+      - name: interval
+        display: 查询间隔
+        description: >
+          用于分段查询的时间间隔。
+        required: false
+        placeholder: 1h
+        hint:
+          type: duration
+      - name: delay
+        display: 延迟时长
+        description: >
+          用于同步未来时刻数据的等待时长。
+        required: false
+        placeholder: 0s
+        hint:
+          type: duration
+
+parser:
+  display: 数据映射
+  description: |
+    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等
+  fields:
+    - name: DateTime
+      description: 值对应的时间戳。
+      type: timestamp
+  required: true
+
+advanced:
+  name: 高级选项
+  collapsible: true
+  description: |
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
+  params:
+    - name: read_concurrency
+      display: 最大读取并发数
+      description: |
+        数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 10000
+      hint:
+        type: integer
+        min: 1
+        max: 100000

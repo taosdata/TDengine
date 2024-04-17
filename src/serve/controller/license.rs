@@ -81,7 +81,8 @@ impl<'a> LicenseValidator<'a> {
                     | "taos"
                     | taosx_core::runners::kafka::KAFKA_ID
                     | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
-                    | taosx_core::runners::mysql::MYSQL_ID => {
+                    | taosx_core::runners::mysql::MYSQL_ID
+                    | taosx_core::runners::postgres::POSTGRES_ID => {
                         validate_connector_license(self.from, self.to, self.pool).await
                     }
                     _ => Ok(LicenseKind::Good),
@@ -255,6 +256,7 @@ async fn validate_connector_license(
         "tmq" => "td3.0",
         "taos" => "td2.6",
         taosx_core::runners::mysql::MYSQL_ID => "mysql",
+        taosx_core::runners::postgres::POSTGRES_ID => "postgres",
         connector => bail!("The current connector {connector} is not supported by license."),
     };
 

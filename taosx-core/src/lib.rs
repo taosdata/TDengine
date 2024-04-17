@@ -28,6 +28,7 @@ use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
 use crate::runners::mysql::mysql_to_taos;
+use crate::runners::postgres::postgres_to_taos;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
@@ -496,6 +497,23 @@ impl TaskOpts {
                 }
                 (runners::mysql::MYSQL_ID, "taos") => {
                     mysql_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::postgres::POSTGRES_ID, "taos") => {
+                    postgres_to_taos(
                         from.clone(),
                         parser.clone(),
                         transform.clone(),

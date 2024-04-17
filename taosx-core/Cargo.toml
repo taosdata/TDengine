@@ -123,6 +123,9 @@ encoding_rs = "0.8.33"
 
 sqlx = { version = "0.7.4", features = ["mysql", "runtime-tokio", "chrono", "bigdecimal", "tls-rustls"] }
 bigdecimal = "0.3.0"
+bit-vec = "0.6.3"
+uuid = "1.4.0"
+sqlx-postgres = { version = "0.7.4", features = ["chrono", "bigdecimal"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
