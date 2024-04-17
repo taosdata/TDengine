@@ -187,7 +187,7 @@ pub async fn csv_to_taos(
                                 anyhow::bail!("CSV exit with IPC error: {res}");
                             }
                             Err(err) => {
-                                tracing::warn!("CSV worker done, cause: {:#}", err);
+                                tracing::debug!("CSV worker done, cause: {:#}", err);
                             }
                         }
                     }

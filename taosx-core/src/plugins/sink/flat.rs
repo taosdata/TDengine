@@ -287,7 +287,7 @@ async fn write_stable_with_sql(
                 }
                 match errno {
                     0x2603 | 0x0618 => {
-                        // stable not exists
+                        // stable/table not exists
                         break Err(FlatWriteError::TableNotExits(
                             records.stable.as_deref().unwrap_or("unknown").to_string(),
                         ));
@@ -331,8 +331,7 @@ pub async fn flat_write_with_sql(
     let groups = messages
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
-    for (stable, group) in groups.into_iter() {
-        let messages = group.into_iter().collect_vec();
+    for (stable, messages) in groups.into_iter() {
         let sqls = message_to_sql(&messages, target_precision, true);
         for records in sqls {
             loop {
@@ -348,10 +347,7 @@ pub async fn flat_write_with_sql(
                         metrics.add_failed_sqls(1 as u64);
                         metrics.add_failed_rows(records.records() as u64);
                         metrics.add_failed_points((records.records() * cols) as u64);
-                        error!(
-                            stable = stable.as_deref().unwrap_or("unknown"),
-                            "write stable with sql error: {err:#}"
-                        );
+                        error!(stable, "write stable with sql error: {err:#}");
                         match err {
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
@@ -361,6 +357,11 @@ pub async fn flat_write_with_sql(
                                         "stable not exists, create stable with sql: {stable_sql}"
                                     );
                                     assert_create_stable(pool, taos, &stable_sql, req_id).await?;
+                                }
+
+                                for m in &messages {
+                                    let sql = m.table_sql();
+                                    assert_create_stable(pool, taos, &sql, req_id).await?;
                                 }
                             }
                             FlatWriteError::ContainerLengthTooShort(field) => {
