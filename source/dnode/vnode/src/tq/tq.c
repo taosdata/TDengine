@@ -1102,7 +1102,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   }
 
   if (!pTq->pVnode->restored) {
-    tqDebug("vgId:%d checkpoint-source msg received during restoring, s-task:0x%x ignore it", vgId, req.taskId);
+    tqDebug("vgId:%d checkpoint-source msg received during restoring, checkpointId:%" PRId64
+            ", transId:%d s-task:0x%x ignore it",
+            vgId, req.checkpointId, req.transId, req.taskId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);  // error occurs
@@ -1111,7 +1113,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed", vgId, req.taskId);
+    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
+            " transId:%d it may have been destroyed",
+            vgId, req.taskId, req.checkpointId, req.transId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);  // error occurs
@@ -1123,7 +1127,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     pTask->chkInfo.checkpointingId = req.checkpointId;
     pTask->chkInfo.transId = req.transId;
 
-    tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
+    tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpointId:%" PRId64
             ", transId:%d set it failed",
             pTask->id.idStr, req.checkpointId, req.transId);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1140,7 +1144,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   if (req.mndTrigger == 1) {
     if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
-      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpoint:%" PRId64 ", set it failure",
+      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpointId:%" PRId64 ", set it failure",
               pTask->id.idStr, req.checkpointId);
 
       taosThreadMutexUnlock(&pTask->lock);

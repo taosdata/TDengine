@@ -656,7 +656,9 @@ _OVER:
   return -1;
 }
 
-static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  // check for number of existed tasks
+// 1. stream number check
+// 2. target stable can not be target table of other existed streams.
+static int32_t doStreamCheck(SMnode *pMnode, SStreamObj *pStreamObj) {
   int32_t     numOfStream = 0;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
@@ -669,14 +671,16 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
     sdbRelease(pMnode->pSdb, pStream);
 
     if (numOfStream > MND_STREAM_MAX_NUM) {
-      mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
+      mError("too many streams, no more than %d for each database, failed to create stream:%s", MND_STREAM_MAX_NUM,
+             pStreamObj->name);
       sdbCancelFetch(pMnode->pSdb, pIter);
       terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
       return terrno;
     }
 
     if (pStream->targetStbUid == pStreamObj->targetStbUid) {
-      mError("Cannot write the same stable as other stream:%s", pStream->name);
+      mError("Cannot write the same stable as other stream:%s, failed to create stream:%s", pStream->name,
+             pStreamObj->name);
       sdbCancelFetch(pMnode->pSdb, pIter);
       terrno = TSDB_CODE_MND_INVALID_TARGET_TABLE;
       return terrno;
@@ -741,7 +745,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (checkForNumOfStreams(pMnode, &streamObj) < 0) {
+  if (doStreamCheck(pMnode, &streamObj) < 0) {
     goto _OVER;
   }
 
@@ -976,7 +980,6 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   int32_t code = -1;
   int64_t ts = taosGetTimestampMs();
   if (mndTrigger == 1 && (ts - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000)) {
-    //    mWarn("checkpoint interval less than the threshold, ignore it");
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1393,6 +1396,15 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
   return 0;
 }
 
+static void int64ToHexStr(int64_t id, char *pBuf, int32_t bufLen) {
+  memset(pBuf, 0, bufLen);
+  pBuf[2] = '0';
+  pBuf[3] = 'x';
+
+  int32_t len = tintToHex(id, &pBuf[4]);
+  varDataSetLen(pBuf, len + 2);
+}
+
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -1417,19 +1429,14 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     // stream id
     char buf[128] = {0};
-    int32_t len = tintToHex(pStream->uid, &buf[4]);
-    buf[2] = '0';
-    buf[3] = 'x';
-    varDataSetLen(buf, len + 2);
+    int64ToHexStr(pStream->uid, buf, tListLen(buf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
     // related fill-history stream id
-    memset(buf, 0, tListLen(buf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pStream->hTaskUid != 0) {
-      len = tintToHex(pStream->hTaskUid, &buf[4]);
-      varDataSetLen(buf, len + 2);
+      int64ToHexStr(pStream->hTaskUid, buf, tListLen(buf));
       colDataSetVal(pColInfo, numOfRows, buf, false);
     } else {
       colDataSetVal(pColInfo, numOfRows, buf, true);
@@ -1528,11 +1535,8 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   // task id
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-  char    idstr[128] = {0};
-  int32_t len = tintToHex(pTask->id.taskId, &idstr[4]);
-  idstr[2] = '0';
-  idstr[3] = 'x';
-  varDataSetLen(idstr, len + 2);
+  char idstr[128] = {0};
+  int64ToHexStr(pTask->id.taskId, idstr, tListLen(idstr));
   colDataSetVal(pColInfo, numOfRows, idstr, false);
 
   // node type
@@ -1648,11 +1652,7 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   // history_task_id
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   if (pe->hTaskId != 0) {
-    memset(idstr, 0, tListLen(idstr));
-    len = tintToHex(pe->hTaskId, &idstr[4]);
-    idstr[2] = '0';
-    idstr[3] = 'x';
-    varDataSetLen(idstr, len + 2);
+    int64ToHexStr(pe->hTaskId, idstr, tListLen(idstr));
     colDataSetVal(pColInfo, numOfRows, idstr, false);
   } else {
     colDataSetVal(pColInfo, numOfRows, 0, true);
@@ -2023,7 +2023,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     }
   }
 
-  // no need to build the trans to handle the vgroup upddate
+  // no need to build the trans to handle the vgroup update
   if (pTrans == NULL) {
     return 0;
   }
