@@ -1553,8 +1553,9 @@ void destroyCompare(void* arg) {
 int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
   SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .rawLen = vlen, .compress = 0, .data = (char*)(value)};
   int32_t      len = 0;
+  char*        dst = NULL;
   if (vlen > 512) {
-    char*   dst = taosMemoryCalloc(1, vlen + 128);
+    dst = taosMemoryCalloc(1, vlen + 128);
     int32_t dstCap = vlen + 128;
     int32_t compressedSize = LZ4_compress_default((char*)value, dst, vlen, dstCap);
     if (compressedSize < vlen) {
@@ -1583,6 +1584,7 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
     len += taosEncodeFixedI8((void**)&buf, key.compress);
     len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
   }
+  taosMemoryFree(dst);
 
   return len;
 }
