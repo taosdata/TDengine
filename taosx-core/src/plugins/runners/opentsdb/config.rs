@@ -116,10 +116,8 @@ impl TaskConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use taos::Dsn;
-
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_opentsdb_config_from() {
