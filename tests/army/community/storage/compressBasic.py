@@ -197,13 +197,13 @@ class TDTestCase(TBase):
                 self.writeData(1000)
 
         # alter error 
-        sqls = {
+        sqls = [
             "alter table nodb.nostb modify column ts LEVEL 'high';",
             "alter table db.stb modify column ts encode 'simple8b';",
             "alter table db.stb modify column c1 compress 'errorcompress';",
             "alter table db.stb modify column c2 level 'errlevel';",
             "alter table db.errstb modify column c3 compress 'xz';"
-        }
+        ]
         tdSql.errors(sqls)
  
 
