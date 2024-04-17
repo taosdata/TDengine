@@ -1230,6 +1230,8 @@ static regex_t *threadGetRegComp(const char *pPattern) {
     regerror(ret, &pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     regfree(&pRegex);
+    taosMemoryFree(pOldPattern);
+    pOldPattern == NULL;
     return NULL;
   }
   return &pRegex;
