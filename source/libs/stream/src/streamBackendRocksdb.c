@@ -1610,13 +1610,9 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     code = 0;
     goto _EXCEPT;
   }
-
   if (vlen == (sizeof(key.unixTimestamp) + sizeof(key.len) + key.len)) {
     // compatiable with previous data
-    if (dest != NULL) {
-      p = taosDecodeBinary(p, (void**)dest, key.len);
-    }
-
+    p = taosDecodeBinary(p, (void**)&pOutput, key.len);
   } else {
     p = taosDecodeFixedI32(p, &key.rawLen);
     p = taosDecodeFixedI8(p, &key.compress);
@@ -1633,23 +1629,20 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
         goto _EXCEPT;
       }
       key.len = rawLen;
-
-      if (dest) {
-        *dest = pOutput;
-        pOutput = NULL;
-      }
     } else {
-      if (dest != NULL) {
-        p = taosDecodeBinary(p, (void**)dest, key.len);
-      }
+      p = taosDecodeBinary(p, (void**)&pOutput, key.len);
     }
   }
 
   if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
-  code = 0;
 
-  taosMemoryFree(pOutput);
+  code = 0;
+  if (dest) {
+    *dest = pOutput;
+    pOutput = NULL;
+  }
   taosMemoryFree(pCompressData);
+  taosMemoryFree(pOutput);
   return key.len;
 
 _EXCEPT:
