@@ -42,7 +42,7 @@ static const char *offlineReason[] = {
     "version not match",
     "dnodeId not match",
     "clusterId not match",
-    "interval not match",
+    "statusInterval not match",
     "timezone not match",
     "locale not match",
     "charset not match",
@@ -442,33 +442,39 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   if (pCfg->statusInterval != tsStatusInterval) {
     mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusInterval,
            tsStatusInterval);
+    terrno = TSDB_CODE_DNODE_INVALID_STATUS_INTERVAL;
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
   if ((0 != strcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
     mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
            pCfg->timezone, pCfg->checkTime, tsTimezoneStr, pMnode->checkTime);
+    terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
   if (0 != strcasecmp(pCfg->locale, tsLocale)) {
     mError("dnode:%d, locale:%s inconsistent with cluster:%s", pDnode->id, pCfg->locale, tsLocale);
+    terrno = TSDB_CODE_DNODE_INVALID_LOCALE;
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
   if (0 != strcasecmp(pCfg->charset, tsCharset)) {
     mError("dnode:%d, charset:%s inconsistent with cluster:%s", pDnode->id, pCfg->charset, tsCharset);
+    terrno = TSDB_CODE_DNODE_INVALID_CHARSET;
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
   if (pCfg->ttlChangeOnWrite != tsTtlChangeOnWrite) {
     mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
            tsTtlChangeOnWrite);
+    terrno = TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR;
     return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
   }
   int8_t enable = tsEnableWhiteList ? 1 : 0;
   if (pCfg->enableWhiteList != enable) {
     mError("dnode:%d, enableWhiteList:%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    terrno = TSDB_CODE_DNODE_INVALID_EN_WHITELIST;
     return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
   }
 
@@ -476,6 +482,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
       (pCfg->encryptionKeyStat != tsEncryptionKeyStat || pCfg->encryptionKeyChksum != tsEncryptionKeyChksum)) {
     mError("dnode:%d, encryptionKey:%" PRIi8 "-%u inconsistent with cluster:%" PRIi8 "-%u", pDnode->id,
            pCfg->encryptionKeyStat, pCfg->encryptionKeyChksum, tsEncryptionKeyStat, tsEncryptionKeyChksum);
+    terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
   }
 
@@ -905,7 +912,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
     if (pDnode->offlineReason != 0) {
       mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
-      terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
+      if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
       goto _OVER;
     }
 
