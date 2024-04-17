@@ -3677,7 +3677,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
                                pRealTable->table.tableName);
         len = taosCreateMD5Hash(buf, len);
-        strncpy(tsmaTargetTbName.tname, buf, strlen(buf));
+        strncpy(tsmaTargetTbName.tname, buf, MD5_OUTPUT_LEN);
         collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
         SVgroupInfo vgInfo = {0};
         bool exists = false;
