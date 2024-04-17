@@ -77,10 +77,14 @@ class AutoGen:
         for c in marr:
             data = ""
             if c == 0 : # timestamp
-                data = "%d" % (self.ts + i)
-            elif c <= 4 : # small
-                data = "%d"%(i%128)
-            elif c <= 8 : # int
+                data = "%d" % (i)
+            elif c <= 2 : # tinyint
+                data = "%d"%(i%0x7F)
+            elif c <= 4 : # smallint
+                data = "%d"%(i%0x7FFF)
+            elif c <= 6 : # int32
+                data = f"{i%0x7FFFFFFF}"
+            elif c <= 8 : # bigint
                 data = f"{i}"
             elif c <= 10 : # float
                 data = "%f"%(i+i/1000)
