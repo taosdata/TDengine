@@ -305,16 +305,18 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_MACHINES,
-  },    
-  { .showType = QUERY_NODE_SHOW_TSMAS_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_TSMAS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
   { .showType = QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ENCRYPTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_TSMAS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TSMAS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
