@@ -50,27 +50,268 @@
 #define _DEFAULT_SOURCE
 #include "tcompression.h"
 #include "lz4.h"
-#include "tRealloc.h"
 #include "tlog.h"
 #include "ttypes.h"
+// #include "tmsg.h"
+
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+#else
+#include "fast-lzma2.h"
+#include "zlib.h"
+#include "zstd.h"
+#endif
 
 #ifdef TD_TSZ
 #include "td_sz.h"
+#endif
+
+int32_t tsCompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type);
+int32_t tsDecompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type);
+// delta
+int32_t tsCompressTimestampImp2(const char *const input, const int32_t nelements, char *const output, const char type);
+
+int32_t tsDecompressTimestampImp2(const char *const input, const int32_t nelements, char *const output,
+                                  const char type);
+// simple8b
+int32_t tsCompressINTImp2(const char *const input, const int32_t nelements, char *const output, const char type);
+int32_t tsDecompressINTImp2(const char *const input, const int32_t nelements, char *const output, const char type);
+
+// bit
+int32_t tsCompressBoolImp2(const char *const input, const int32_t nelements, char *const output, char const type);
+int32_t tsDecompressBoolImp2(const char *const input, const int32_t nelements, char *const output, char const type);
+
+// double specail
+
+int32_t tsCompressDoubleImp2(const char *const input, const int32_t nelements, char *const output, char const type);
+int32_t tsDecompressDoubleImp2(const char *const input, const int32_t nelements, char *const output, char const type);
+
+int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, char *const output);
+
+int32_t l2ComressInitImpl_disabled(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                                   uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+
+int32_t l2CompressImpl_disabled(const char *const input, const int32_t inputSize, char *const output,
+                                int32_t outputSize, const char type, int8_t lvl) {
+  output[0] = 0;
+  memcpy(output + 1, input, inputSize);
+  return inputSize + 1;
+}
+int32_t l2DecompressImpl_disabled(const char *const input, const int32_t compressedSize, char *const output,
+                                  int32_t outputSize, const char type) {
+  memcpy(output, input + 1, compressedSize - 1);
+  return compressedSize - 1;
+}
+int32_t l2ComressInitImpl_lz4(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                              uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+
+int32_t l2CompressImpl_lz4(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                           const char type, int8_t lvl) {
+  const int32_t compressed_data_size = LZ4_compress_default(input, output + 1, inputSize, outputSize - 1);
+
+  // If cannot compress or after compression, data becomes larger.
+  if (compressed_data_size <= 0 || compressed_data_size > inputSize) {
+    /* First byte is for indicator */
+    output[0] = 0;
+    memcpy(output + 1, input, inputSize);
+    return inputSize + 1;
+  }
+  output[0] = 1;
+  return compressed_data_size + 1;
+}
+int32_t l2DecompressImpl_lz4(const char *const input, const int32_t compressedSize, char *const output,
+                             int32_t outputSize, const char type) {
+  if (input[0] == 1) {
+    /* It is compressed by LZ4 algorithm */
+    const int32_t decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
+    if (decompressed_size < 0) {
+      uError("Failed to decompress string with LZ4 algorithm, decompressed size:%d", decompressed_size);
+      return -1;
+    }
+
+    return decompressed_size;
+  } else if (input[0] == 0) {
+    /* It is not compressed by LZ4 algorithm */
+    memcpy(output, input + 1, compressedSize - 1);
+    return compressedSize - 1;
+  } else if (input[1] == 2) {
+    uError("Invalid decompress string indicator:%d", input[0]);
+    return -1;
+  }
+  return -1;
+}
+int32_t l2ComressInitImpl_tsz(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                              uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+int32_t l2CompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                           const char type, int8_t lvl) {
+  if (type == TSDB_DATA_TYPE_FLOAT) {
+    if (lossyFloat) {
+      return tsCompressFloatLossyImp(input, inputSize, output);
+    }
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+    if (lossyDouble) {
+      return tsCompressDoubleLossyImp(input, inputSize, output);
+    }
+  }
+
+  return l2CompressImpl_lz4(input, inputSize, output, outputSize, type, lvl);
+}
+
+int32_t l2DecompressImpl_tsz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                             const char type) {
+  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+    if (HEAD_ALGO(((uint8_t *)input)[0]) == ALGO_SZ_LOSSY) {
+      return tsDecompressFloatLossyImp(input, inputSize, outputSize, output);
+    }
+  }
+
+  return l2DecompressImpl_lz4(input, inputSize, output, outputSize, type);
+}
+
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+// do nothing
+#else
+int32_t l2ComressInitImpl_zlib(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                               uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+
+int32_t l2CompressImpl_zlib(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                            const char type, int8_t lvl) {
+  uLongf  dstLen = outputSize - 1;
+  int32_t ret = compress2((Bytef *)(output + 1), (uLongf *)&dstLen, (Bytef *)input, (uLong)inputSize, 9);
+  if (ret == Z_OK) {
+    output[0] = 1;
+    return dstLen + 1;
+  } else {
+    output[0] = 0;
+    memcpy(output + 1, input, inputSize);
+    return inputSize + 1;
+  }
+  return -1;
+}
+int32_t l2DecompressImpl_zlib(const char *const input, const int32_t compressedSize, char *const output,
+                              int32_t outputSize, const char type) {
+  if (input[0] == 1) {
+    uLongf len = outputSize;
+    int    ret = uncompress((Bytef *)output, &len, (Bytef *)input + 1, compressedSize - 1);
+    if (ret == Z_OK) {
+      return len;
+    } else {
+      return -1;
+    }
+
+  } else if (input[0] == 0) {
+    /* It is not compressed by LZ4 algorithm */
+    memcpy(output, input + 1, compressedSize - 1);
+    return compressedSize - 1;
+  } else if (input[1] == 2) {
+    uError("Invalid decompress string indicator:%d", input[0]);
+    return -1;
+  }
+  return 0;
+}
+int32_t l2ComressInitImpl_zstd(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                               uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+
+int32_t l2CompressImpl_zstd(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                            const char type, int8_t lvl) {
+  size_t len = ZSTD_compress(output + 1, outputSize - 1, input, inputSize, ZSTD_CLEVEL_DEFAULT);
+  if (len > inputSize) {
+    output[0] = 0;
+    memcpy(output + 1, input, inputSize);
+    return inputSize + 1;
+  }
+  output[0] = 1;
+
+  return len + 1;
+}
+int32_t l2DecompressImpl_zstd(const char *const input, const int32_t compressedSize, char *const output,
+                              int32_t outputSize, const char type) {
+  if (input[0] == 1) {
+    return ZSTD_decompress(output, outputSize, input + 1, compressedSize - 1);
+  } else if (input[0] == 0) {
+    memcpy(output, input + 1, compressedSize - 1);
+    return compressedSize - 1;
+  }
+  return -1;
+}
+
+int32_t l2ComressInitImpl_xz(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                             uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
+  return 0;
+}
+int32_t l2CompressImpl_xz(const char *const input, const int32_t inputSize, char *const output, int32_t outputSize,
+                          const char type, int8_t lvl) {
+  size_t len = FL2_compress(output + 1, outputSize - 1, input, inputSize, 0);
+  if (len > inputSize) {
+    output[0] = 0;
+    memcpy(output + 1, input, inputSize);
+    return inputSize + 1;
+  }
+  output[0] = 1;
+  return len + 1;
+}
+int32_t l2DecompressImpl_xz(const char *const input, const int32_t compressedSize, char *const output,
+                            int32_t outputSize, const char type) {
+  if (input[0] == 1) {
+    return FL2_decompress(output, outputSize, input + 1, compressedSize - 1);
+  } else if (input[0] == 0) {
+    memcpy(output, input + 1, compressedSize - 1);
+    return compressedSize - 1;
+  }
+  return -1;
+}
+#endif
+
+TCompressL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressPlain2, tsDecompressPlain2},
+                                     {"SIMPLE-8B", NULL, tsCompressINTImp2, tsDecompressINTImp2},
+                                     {"DELTAI", NULL, tsCompressTimestampImp2, tsDecompressTimestampImp2},
+                                     {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
+                                     {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2}};
+
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
+TCompressL2FnSet compressL2Dict[] = {
+    {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
+    {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zlib", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zstd", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
+    {"xz", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4}};
+#else
+TCompressL2FnSet compressL2Dict[] = {
+    {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
+    {"lz4", l2ComressInitImpl_lz4, l2CompressImpl_lz4, l2DecompressImpl_lz4},
+    {"zlib", l2ComressInitImpl_zlib, l2CompressImpl_zlib, l2DecompressImpl_zlib},
+    {"zstd", l2ComressInitImpl_zstd, l2CompressImpl_zstd, l2DecompressImpl_zstd},
+    {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
+    {"xz", l2ComressInitImpl_xz, l2CompressImpl_xz, l2DecompressImpl_xz}};
+
 #endif
 
 static const int32_t TEST_NUMBER = 1;
 #define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)
 #define SIMPLE8B_MAX_INT64 ((uint64_t)1152921504606846974LL)
 
-#define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
+#define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
 #ifdef TD_TSZ
 bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
-                       int32_t ifAdtFse, const char* compressor) {
+int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals,
+                       uint32_t intervals, int32_t ifAdtFse, const char *compressor) {
   // config
   lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
@@ -334,6 +575,35 @@ int32_t tsDecompressBoolImp(const char *const input, const int32_t nelements, ch
 
   return nelements;
 }
+int32_t tsCompressBoolImp2(const char *const input, const int32_t nelements, char *const output, char const type) {
+  return tsCompressBoolImp(input, nelements, output);
+}
+int32_t tsDecompressBoolImp2(const char *const input, const int32_t nelements, char *const output, char const type) {
+  return tsDecompressBoolImp(input, nelements, output);
+}
+
+int32_t tsCompressDoubleImp2(const char *const input, const int32_t nelements, char *const output, char const type) {
+  if (type == TSDB_DATA_TYPE_FLOAT) {
+    return tsCompressFloatImp(input, nelements, output);
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+    return tsCompressDoubleImp(input, nelements, output);
+  }
+  return -1;
+}
+int32_t tsDecompressDoubleImp2(const char *const input, const int32_t nelements, char *const output, char const type) {
+  if (type == TSDB_DATA_TYPE_FLOAT) {
+    return tsDecompressFloatImp(input, nelements, output);
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+    return tsDecompressDoubleImp(input, nelements, output);
+  }
+  return -1;
+}
+int32_t tsCompressINTImp2(const char *const input, const int32_t nelements, char *const output, const char type) {
+  return tsCompressINTImp(input, nelements, output, type);
+}
+int32_t tsDecompressINTImp2(const char *const input, const int32_t nelements, char *const output, const char type) {
+  return tsDecompressINTImp(input, nelements, output, type);
+}
 
 #if 0
 /* Run Length Encoding(RLE) Method */
@@ -422,14 +692,16 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
     /* It is not compressed by LZ4 algorithm */
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
-  } else {
+  } else if (input[1] == 2) {
     uError("Invalid decompress string indicator:%d", input[0]);
     return -1;
   }
+  return -1;
 }
 
 /* --------------------------------------------Timestamp Compression ---------------------------------------------- */
 // TODO: Take care here, we assumes little endian encoding.
+//
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
   int32_t longBytes = LONG_BYTES;
@@ -603,6 +875,25 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
   }
 
   return nelements * longBytes;
+}
+
+int32_t tsCompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type) {
+  int32_t bytes = tDataTypes[type].bytes * nelements;
+  output[0] = 0;
+  memcpy(output + 1, input, bytes);
+  return bytes + 1;
+}
+int32_t tsDecompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type) {
+  int32_t bytes = tDataTypes[type].bytes * nelements;
+  memcpy(output, input + 1, bytes);
+  return bytes;
+}
+int32_t tsCompressTimestampImp2(const char *const input, const int32_t nelements, char *const output, const char type) {
+  return tsCompressTimestampImp(input, nelements, output);
+}
+int32_t tsDecompressTimestampImp2(const char *const input, const int32_t nelements, char *const output,
+                                  const char type) {
+  return tsDecompressTimestampImp(input, nelements, output);
 }
 
 /* --------------------------------------------Double Compression ---------------------------------------------- */
@@ -861,7 +1152,7 @@ uint32_t decodeFloatValue(const char *const input, int32_t *const ipos, uint8_t 
   return diff;
 }
 
-static void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float* ostream) {
+static void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float *ostream) {
   uint8_t  flags = 0;
   int32_t  ipos = 1;
   int32_t  opos = 0;
@@ -899,8 +1190,8 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
     tsDecompressFloatImplAvx2(input, nelements, output);
   } else if (tsSIMDEnable && tsAVX512Enable) {
     tsDecompressFloatImplAvx512(input, nelements, output);
-  } else { // alternative implementation without SIMD instructions.
-    tsDecompressFloatHelper(input, nelements, (float*)output);
+  } else {  // alternative implementation without SIMD instructions.
+    tsDecompressFloatHelper(input, nelements, (float *)output);
   }
 
   return nelements * FLOAT_BYTES;
@@ -2134,9 +2425,9 @@ int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
     int32_t len = tsCompressTimestampImp(pIn, nEle, pBuf);
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
-    ASSERTS(0, "compress algo not one or two stage");
-    return -1;
+    // tDataTypeCompress[TSDB_DATA_TYPE_TIMESTAMP].compFunc(pIn, nIn, nEle, pOut, nOut, );
   }
+  return 0;
 }
 
 int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
@@ -2393,4 +2684,389 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
     ASSERTS(0, "compress algo invalid");
     return -1;
   }
+}
+
+#define FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, alg, pBuf, nBuf, type, compress)                               \
+  do {                                                                                                                \
+    DEFINE_VAR(alg)                                                                                                   \
+    if (l1 != L1_DISABLED && l2 == L2_DISABLED) {                                                                     \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%s, type:%s", compressL1Dict[l1].name, "disabled", "disabled",          \
+               tDataTypes[type].name);                                                                                \
+        return compressL1Dict[l1].comprFn(pIn, nEle, pOut, type);                                                     \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, compress:%s, level:%s, type:%s", compressL1Dict[l1].name, "disabled", "disabled",         \
+               tDataTypes[type].name);                                                                                \
+        return compressL1Dict[l1].decomprFn(pIn, nEle, pOut, type);                                                   \
+      }                                                                                                               \
+    } else if (l1 != L1_DISABLED && l2 != L2_DISABLED) {                                                              \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%d, type:%s, l1:%d", compressL1Dict[l1].name, compressL2Dict[l2].name,  \
+               lvl, tDataTypes[type].name, l1);                                                                       \
+        int32_t len = compressL1Dict[l1].comprFn(pIn, nEle, pBuf, type);                                              \
+        return compressL2Dict[l2].comprFn(pBuf, len, pOut, nOut, type, lvl);                                          \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", compressL1Dict[l1].name, compressL2Dict[l2].name, lvl, \
+               tDataTypes[type].name);                                                                                \
+        if (compressL2Dict[l2].decomprFn(pIn, nIn, pBuf, nBuf, type) < 0) return -1;                                  \
+        return compressL1Dict[l1].decomprFn(pBuf, nEle, pOut, type);                                                  \
+      }                                                                                                               \
+    } else if (l1 == L1_DISABLED && l2 != L2_DISABLED) {                                                              \
+      if (compress) {                                                                                                 \
+        uTrace("encode:%s, compress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,                 \
+               tDataTypes[type].name);                                                                                \
+        return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, lvl);                                           \
+      } else {                                                                                                        \
+        uTrace("dencode:%s, dcompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
+               tDataTypes[type].name);                                                                                \
+        return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                              \
+      }                                                                                                               \
+    } else {                                                                                                          \
+      ASSERT(0);                                                                                                      \
+    }                                                                                                                 \
+    return -1;                                                                                                        \
+  } while (1)
+
+/*************************************************************************
+ *                  REGULAR COMPRESSION 2
+ *************************************************************************/
+// Timestamp =====================================================
+int32_t tsCompressTimestamp2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                             void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TIMESTAMP, 1);
+}
+
+int32_t tsDecompressTimestamp2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                               void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TIMESTAMP, 0);
+}
+
+// Float =====================================================
+int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+  DEFINE_VAR(cmprAlg)
+  if (lvl != 0 && lossyFloat) {
+    return tsCompressFloatLossyImp(pIn, nEle, pOut);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 1);
+}
+
+int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+  DEFINE_VAR(cmprAlg)
+  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
+    return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 0);
+}
+
+// Double =====================================================
+int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+  DEFINE_VAR(cmprAlg)
+  if (lvl != 0 && lossyDouble) {
+    // lossy mode
+    return tsCompressDoubleLossyImp(pIn, nEle, pOut);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DOUBLE, 1);
+}
+
+int32_t tsDecompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf) {
+  DEFINE_VAR(cmprAlg)
+  if (lvl != 0 && HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
+    // decompress lossy
+    return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DOUBLE, 0);
+}
+
+// Binary =====================================================
+int32_t tsCompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+  DEFINE_VAR(cmprAlg)
+  if (l2 == L2_DISABLED) {
+    l2 = 0;
+  }
+  return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, TSDB_DATA_TYPE_BINARY, lvl);
+}
+
+int32_t tsDecompressString2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf) {
+  // return 0;
+  DEFINE_VAR(cmprAlg)
+  if (l2 == L2_DISABLED) {
+    l2 = 0;
+  }
+  return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, TSDB_DATA_TYPE_BINARY);
+}
+
+// Bool =====================================================
+int32_t tsCompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                        int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_RLE) {
+    SET_COMPRESS(L1_RLE, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 1);
+}
+
+int32_t tsDecompressBool2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_RLE) {
+    SET_COMPRESS(L1_RLE, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BOOL, 0);
+}
+
+// Tinyint =====================================================
+int32_t tsCompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 1);
+}
+
+int32_t tsDecompressTinyint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                             void *pBuf, int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_TINYINT, 0);
+}
+
+// Smallint =====================================================
+int32_t tsCompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 1);
+}
+
+int32_t tsDecompressSmallint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                              void *pBuf, int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_SMALLINT, 0);
+}
+
+// Int =====================================================
+int32_t tsCompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                       int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 1);
+}
+
+int32_t tsDecompressInt2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+  uint32_t tCmprAlg = 0;
+  DEFINE_VAR(cmprAlg)
+  if (l1 != L1_SIMPLE_8B) {
+    SET_COMPRESS(L1_SIMPLE_8B, l2, lvl, tCmprAlg);
+  } else {
+    tCmprAlg = cmprAlg;
+  }
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, tCmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_INT, 0);
+}
+
+// Bigint =====================================================
+int32_t tsCompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BIGINT, 1);
+}
+
+int32_t tsDecompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BIGINT, 0);
+}
+
+// int32_t tsFindCompressAlg(int8_t dataType, uint8_t compress, TCompressL1FnSet *l1Fn, TCompressL2FnSet *l2Fn);
+
+// int32_t tsCompressImpl(int8_t type, void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
+//                        void *pBuf, int32_t nBuf) {
+//   TCompressL1FnSet fn1;
+//   TCompressL2FnSet fn2;
+
+//   if (tsFindCompressAlg(type, cmprAlg, &fn1, &fn2)) return -1;
+
+//   int32_t len = 0;
+//   uint8_t l1 = COMPRESS_L1_TYPE_U8(cmprAlg);
+//   uint8_t l2 = COMPRESS_L2_TYPE_U8(cmprAlg);
+//   uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(cmprAlg);
+
+//   if (l2 == L2_DISABLED) {
+//     len = fn1.comprFn(pIn, nEle, pOut, type);
+//   } else {
+//     len = fn1.comprFn(pIn, nEle, pBuf, type);
+//     len = fn2.comprFn(pBuf, len, pOut, nOut, type, lvl);
+//   }
+//   return len;
+// }
+// int32_t tsDecompressImpl(int8_t type, void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t
+// cmprAlg,
+//                          void *pBuf, int32_t nBuf) {
+//   TCompressL1FnSet fn1;
+//   TCompressL2FnSet fn2;
+
+//   if (tsFindCompressAlg(type, cmprAlg, &fn1, &fn2) != 0) return -1;
+
+//   uint8_t  l1 = COMPRESS_L1_TYPE_U8(cmprAlg);
+//   uint8_t  l2 = COMPRESS_L2_TYPE_U8(cmprAlg);
+//   uint8_t  lvl = COMPRESS_L2_TYPE_LEVEL_U8(cmprAlg);
+//   uint32_t len = 0;
+//   if (l2 == L2_DISABLED) {
+//     len = fn1.decomprFn(pIn, nEle, pOut, type);
+//   } else {
+//     len = fn2.decomprFn(pIn, nIn, pBuf, nBuf, type);
+//     if (len < 0) return -1;
+//     len = fn1.decomprFn(pBuf, nEle, pOut, type);
+//   }
+//   return len;
+// }
+
+// int32_t tsFindCompressAlg(int8_t dataType, uint8_t compress, TCompressL1FnSet *l1Fn, TCompressL2FnSet *l2Fn) {
+//   uint8_t l1 = COMPRESS_L1_TYPE_U8(compress);
+//   uint8_t l2 = COMPRESS_L2_TYPE_U8(compress);
+//   uint8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(compress);
+
+//   static int32_t l1Sz = sizeof(compressL1Dict) / sizeof(compressL1Dict[0]);
+//   if (l1 >= l1Sz) return -1;
+
+//   static int32_t l2Sz = sizeof(compressL2Dict) / sizeof(compressL2Dict[0]);
+//   if (l2 >= l2Sz) return -1;
+
+//   *l1Fn = compressL1Dict[l1];
+//   *l2Fn = compressL2Dict[l2];
+//   return 0;
+// }
+
+// typedef struct {
+//   int8_t  dtype;
+//   SArray *l1Set;
+//   SArray *l2Set;
+// } TCompressCompatible;
+
+// SHashObj *algSet = NULL;
+
+// int32_t tsCompressSetInit() {
+//   algSet = taosHashInit(24, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+//   for (int i = TSDB_DATA_TYPE_NULL; i < TSDB_DATA_TYPE_MAX; i++) {
+//     TCompressCompatible p;
+//     p.dtype = i;
+//     p.l1Set = taosArrayInit(4, sizeof(int8_t));
+//     p.l2Set = taosArrayInit(4, sizeof(int8_t));
+
+//     for (int8_t j = L1_DISABLED; j < L1_MAX; j++) {
+//       taosArrayPush(p.l1Set, &j);
+//     }
+
+//     for (int8_t j = L2_DISABLED; j < L2_MAX; j++) {
+//       taosArrayPush(p.l2Set, &j);
+//     }
+
+//     taosHashPut(algSet, &i, sizeof(i), &p, sizeof(TCompressCompatible));
+//   }
+//   return 0;
+// }
+// int32_t tsCompressSetDestroy() {
+//   void *p = taosHashIterate(algSet, NULL);
+//   while (p) {
+//     TCompressCompatible *v = p;
+//     taosArrayDestroy(v->l1Set);
+//     taosArrayDestroy(v->l2Set);
+
+//     taosHashIterate(algSet, p);
+//   }
+//   return 0;
+// }
+
+// int32_t tsValidCompressAlgByDataTypes(int8_t type, int8_t compress) {
+//   // compress alg
+//   int8_t l1 = COMPRESS_L1_TYPE_U8(compress);
+//   int8_t l2 = COMPRESS_L2_TYPE_U8(compress);
+//   int8_t lvl = COMPRESS_L2_TYPE_LEVEL_U8(compress);
+
+//   TCompressCompatible *p = taosHashGet(algSet, &type, sizeof(type));
+//   if (p == NULL) return -1;
+
+//   if (p->dtype != type) return -1;
+
+//   if (taosArraySearch(p->l1Set, &l1, compareInt8Val, 0) == NULL) {
+//     return -1;
+//   }
+
+//   if (taosArraySearch(p->l2Set, &l2, compareInt8Val, 0) == NULL) {
+//     return -1;
+//   }
+//   return 0;
+// }
+
+int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level) {
+  DEFINE_VAR(cmprAlg)
+  *l1Alg = l1;
+  *l2Alg = l2;
+  *level = lvl;
+  return 0;
+}
+int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, uint8_t lvlDiabled, uint8_t lvlDefault,
+                       uint32_t *dst) {
+  uint8_t ol1 = COMPRESS_L1_TYPE_U32(oldCmpr);
+  uint8_t ol2 = COMPRESS_L2_TYPE_U32(oldCmpr);
+  uint8_t olvl = COMPRESS_L2_TYPE_LEVEL_U32(oldCmpr);
+
+  uint8_t nl1 = COMPRESS_L1_TYPE_U32(newCmpr);
+  uint8_t nl2 = COMPRESS_L2_TYPE_U32(newCmpr);
+  uint8_t nlvl = COMPRESS_L2_TYPE_LEVEL_U32(newCmpr);
+  if (nl1 != 0 && ol1 != nl1) {
+    SET_COMPRESS(nl1, ol2, olvl, *dst);
+    return 1;
+  } else if (nl2 != 0 && ol2 != nl2) {
+    if (nl2 == l2Disabled) {
+      SET_COMPRESS(ol1, nl2, lvlDiabled, *dst);
+    } else {
+      if (ol2 == l2Disabled) {
+        SET_COMPRESS(ol1, nl2, lvlDefault, *dst);
+      } else {
+        SET_COMPRESS(ol1, nl2, olvl, *dst);
+      }
+    }
+    return 1;
+  } else if (nlvl != 0 && olvl != nlvl) {
+    SET_COMPRESS(ol1, ol2, nlvl, *dst);
+    return 1;
+  }
+  return 0;
 }

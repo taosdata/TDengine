@@ -247,7 +247,10 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tBlockDataCompress(reader->blockData, NO_COMPRESSION, reader->buffers, reader->buffers + 4);
+  SColCompressInfo info;
+
+  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = NO_COMPRESSION};
+  code = tBlockDataCompress(reader->blockData, (void*)&cmprInfo, reader->buffers, reader->buffers + 4);
   TSDB_CHECK_CODE(code, lino, _exit);
   // TSDB_CHECK_CODE(code, lino, _exit);
 

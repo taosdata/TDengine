@@ -14,6 +14,7 @@
  */
 
 #include "tsdbDataFileRW.h"
+#include "meta.h"
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -205,6 +206,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
   for (int32_t i = 0; i < 10; i++) {  // int64_t
+
     SCompressInfo cinfo = {
         .cmprAlg = brinBlk->cmprAlg,
         .dataType = TSDB_DATA_TYPE_BIGINT,
@@ -368,7 +370,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
           break;
         }
 
-        code = tGetBlockCol(&br, &blockCol);
+        code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -391,7 +393,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
             break;
           }
 
-          code = tGetBlockCol(&br, &blockCol);
+          code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
@@ -431,7 +433,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
         break;
       }
 
-      code = tGetBlockCol(&br, &blockCol);
+      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -782,7 +784,7 @@ int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxV
   return 0;
 }
 
-int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
+int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmprAlg, int64_t *fileSize,
                                TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range) {
   if (brinBlock->numOfRecords == 0) return 0;
 
@@ -951,6 +953,8 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   SBuffer *buffers = writer->buffers;
   SBuffer *assist = writer->buffers + 4;
 
+  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = writer->config->cmprAlg};
+
   SBrinRecord record[1] = {{
       .suid = bData->suid,
       .uid = bData->uid,
@@ -982,8 +986,10 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
 
   tsdbWriterUpdVerRange(&writer->ctx->range, record->minVer, record->maxVer);
 
-  // to .data file
-  code = tBlockDataCompress(bData, writer->config->cmprAlg, buffers, assist);
+  code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, bData->suid != 0 ? bData->suid : bData->uid,
+                        &cmprInfo.pColCmpr);
+
+  code = tBlockDataCompress(bData, &cmprInfo, buffers, assist);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   record->blockKeySize = buffers[0].size + buffers[1].size;
@@ -1026,6 +1032,8 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
+  taosHashCleanup(cmprInfo.pColCmpr);
+
   return code;
 }
 

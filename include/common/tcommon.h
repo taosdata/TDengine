@@ -15,8 +15,7 @@
 
 #ifndef _TD_COMMON_DEF_H_
 #define _TD_COMMON_DEF_H_
-
-#include "taosdef.h"
+// #include "taosdef.h"
 #include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
@@ -258,9 +257,9 @@ typedef struct SColumnInfoData {
     char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
-  SColumnInfo info;     // column info
-  bool        hasNull;  // if current column data has null value.
-  bool        reassigned; // if current column data is reassigned.
+  SColumnInfo info;        // column info
+  bool        hasNull;     // if current column data has null value.
+  bool        reassigned;  // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
@@ -274,13 +273,13 @@ typedef struct SQueryTableDataCond {
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
-  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
+  bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-void    colDataDestroy(SColumnInfoData* pColData);
+void colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
 // the following structure shared by parser and executor
@@ -366,8 +365,8 @@ typedef struct {
     float       f;
   };
   size_t length;
-  bool keyEscaped;
-  bool valueEscaped;
+  bool   keyEscaped;
+  bool   valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -388,7 +387,6 @@ typedef struct SSortExecInfo {
 typedef struct SNonSortExecInfo {
   int32_t blkNums;
 } SNonSortExecInfo;
-
 
 typedef struct STUidTagInfo {
   char*    name;
@@ -412,7 +410,7 @@ typedef struct STUidTagInfo {
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
 
-int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 
 #define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN 32

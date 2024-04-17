@@ -28,17 +28,18 @@
 extern "C" {
 #endif
 
-typedef struct SSchema  SSchema;
-typedef struct SSchema2 SSchema2;
-typedef struct STColumn STColumn;
-typedef struct STSchema STSchema;
-typedef struct SValue   SValue;
-typedef struct SColVal  SColVal;
-typedef struct SRow     SRow;
-typedef struct SRowIter SRowIter;
-typedef struct STagVal  STagVal;
-typedef struct STag     STag;
-typedef struct SColData SColData;
+typedef struct SSchema    SSchema;
+typedef struct SSchema2   SSchema2;
+typedef struct SSchemaExt SSchemaExt;
+typedef struct STColumn   STColumn;
+typedef struct STSchema   STSchema;
+typedef struct SValue     SValue;
+typedef struct SColVal    SColVal;
+typedef struct SRow       SRow;
+typedef struct SRowIter   SRowIter;
+typedef struct STagVal    STagVal;
+typedef struct STag       STag;
+typedef struct SColData   SColData;
 
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
@@ -56,9 +57,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i) & 7)
+#define MOD_8(i)          ((i)&7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i) & 3)
+#define MOD_4(i)          ((i)&3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -149,18 +150,18 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
 
 // SColData ================================
 typedef struct {
-  int8_t  cmprAlg;  // filled by caller
-  int8_t  columnFlag;
-  int8_t  flag;
-  int8_t  dataType;
-  int16_t columnId;
-  int32_t numOfData;
-  int32_t bitmapOriginalSize;
-  int32_t bitmapCompressedSize;
-  int32_t offsetOriginalSize;
-  int32_t offsetCompressedSize;
-  int32_t dataOriginalSize;
-  int32_t dataCompressedSize;
+  uint32_t cmprAlg;  // filled by caller
+  int8_t   columnFlag;
+  int8_t   flag;
+  int8_t   dataType;
+  int16_t  columnId;
+  int32_t  numOfData;
+  int32_t  bitmapOriginalSize;
+  int32_t  bitmapCompressedSize;
+  int32_t  offsetOriginalSize;
+  int32_t  offsetCompressedSize;
+  int32_t  dataOriginalSize;
+  int32_t  dataCompressedSize;
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
@@ -339,10 +340,10 @@ struct SValueColumn {
 };
 
 typedef struct {
-  int8_t  dataType;      // filled by caller
-  int8_t  cmprAlg;       // filled by caller
-  int32_t originalSize;  // filled by caller
-  int32_t compressedSize;
+  int32_t  dataType;      // filled by caller
+  uint32_t cmprAlg;       // filled by caller
+  int32_t  originalSize;  // filled by caller
+  int32_t  compressedSize;
 } SCompressInfo;
 
 int32_t tCompressData(void          *input,       // input
