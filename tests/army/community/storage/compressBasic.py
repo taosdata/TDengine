@@ -195,6 +195,16 @@ class TDTestCase(TBase):
                 sql = f"alter table {tbname} modify column {col} LEVEL '{level}';"
                 tdSql.execute(sql)
                 self.writeData(1000)
+
+        # alter error 
+        sqls = {
+            "alter table nodb.nostb modify column ts LEVEL 'high';",
+            "alter table db.stb modify column ts encode 'simple8b';",
+            "alter table db.stb modify column c1 compress 'errorcompress';",
+            "alter table db.stb modify column c2 level 'errlevel';",
+            "alter table db.errstb modify column c3 compress 'xz';"
+        }
+        tdSql.errors(sqls)
  
 
     def validCreate(self):
@@ -215,6 +225,24 @@ class TDTestCase(TBase):
 
         # check alter and write
         self.checkAlter()
+
+    def checkCorrect(self):
+        # check data correct
+        tbname = f"{self.db}.{self.stb}"
+        # count
+        sql = f"select count(*) from {tbname}"
+        count = tdSql.getFirstValue(sql)
+        step = 100000
+        offset = 0
+
+        while offset < count:
+            sql = f"select * from {tbname} limit {step} offset {offset}"
+            tdSql.query(sql)
+            self.autoGen.dataCorrect(tdSql.res, tdSql.getRows(), step)
+            offset += step
+            tdLog.info(f"check data correct rows={offset}")
+
+        tdLog.info(F"check {tbname} rows {count} data correct successfully.")
 
  
     # run
@@ -239,10 +267,8 @@ class TDTestCase(TBase):
         self.flushDb()
         self.writeData(1000)
 
-        # check data correct
-        sql = f"select * from {self.db}.{self.stb}"
-        tdSql.query(sql)
-        self.autoGen.dataCorrect(tdSql.res, tdSql.getRows(), 10000)
+        # check corrent
+        self.checkCorrect()
 
         tdLog.success(f"{__file__} successfully executed")
 
