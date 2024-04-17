@@ -7800,7 +7800,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   int32_t colSize = taosArrayGetSize(pReq->pCols);
   if (tEncodeI32(&encoder, colSize) < 0) return -1;
   for (int32_t i = 0; i < colSize; ++i) {
-    SField *pField = taosArrayGet(pReq->pCols, i);
+    SFieldWithOptions *pField = taosArrayGet(pReq->pCols, i);
     if (tEncodeI8(&encoder, pField->type) < 0) return -1;
     if (tEncodeI8(&encoder, pField->flags) < 0) return -1;
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
