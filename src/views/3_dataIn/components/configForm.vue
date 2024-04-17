@@ -105,7 +105,7 @@
           </template>
         </section>
         <ConfigForm
-          v-if="item.hide && !item.hideall"
+          v-if="item.hide && !item.hideall && data[item.field]"
           :key="item.label"
           :config="item.children"
           :data="data[item.field]"

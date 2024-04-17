@@ -4,7 +4,7 @@
       <section class="msg_sec">
         <div
           class="block-title"
-          v-if="$store.state.app.currentDBType == 'avevaHistorian'"
+          v-if="$store.state.app.supportSQL"
         >
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
@@ -21,8 +21,7 @@
                   prop="msgbody"
                   >
                   <el-input
-                    :disabled="
-                      $store.state.app.currentDBType == 'avevaHistorian'"
+                    :disabled="!!$store.state.app.supportSQL"
                     class="msgbody"
                     v-model="msgForm.msgbody"
                     :placeholder="$t('datasource.transformer.msgbodytip')"
@@ -44,14 +43,14 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" plain size="small" @click="getMsgBody" :disabled="$store.state.app.currentDBType !== 'avevaHistorian'">{{
+              <el-button type="primary" plain size="small" @click="getMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button>
             </el-col>
             <el-col
               name="third"
               :class="['mt5','msg-right']"
-              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+              v-if="!$store.state.app.supportSQL"
             >
               <el-upload
                 class="upload-demo"
@@ -73,7 +72,7 @@
             <el-col
               name="first"
               :class="['mt5','msg-right']"
-              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+              v-if="!$store.state.app.supportSQL"
             >
             <el-button size="small" @click="clearMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.type1")
@@ -86,8 +85,7 @@
       <section class="extract">
         <div class="block-title top">
           <span>{{
-            $store.state.app.currentDBType == "csv" ||
-            $store.state.app.currentDBType == "avevaHistorian"
+            $store.state.app.currentDBType == "csv" || $store.state.app.supportSQL
               ? $t("datasource.transformer.identified")
               : $t("datasource.transformer.parse")
           }}</span>
@@ -101,20 +99,14 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              v-if="
-                $store.state.app.currentDBType !== 'avevaHistorian' &&
-                $store.state.app.currentDBType !== 'csv'
-              "
+              v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
               ><i class="el-icon-info" @click="handleClickPop('1')"></i>
             </span>
           </el-popover>
         </div>
         <div
           class="extrac-parse"
-          v-if="
-            $store.state.app.currentDBType !== 'csv' &&
-            $store.state.app.currentDBType !== 'avevaHistorian'
-          "
+          v-if="$store.state.app.currentDBType !== 'csv' && !$store.state.app.supportSQL"
         >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
@@ -623,7 +615,6 @@ export default {
   },
   data() {
     return {
-      activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       parseTypes: ["regex", "json"],
@@ -760,11 +751,6 @@ export default {
     },
   },
   async mounted() {
-    if (this.$store.state.app.currentDBType == "avevaHistorian") {
-      this.activeName = "second";
-    } else {
-      this.activeName = "first";
-    }
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
@@ -976,7 +962,7 @@ export default {
         }
         let topparser = null;
 
-        if (this.$store.state.app.currentDBType == "avevaHistorian") {
+        if (this.$store.state.app.supportSQL) {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
           topparser = {
@@ -1075,9 +1061,7 @@ export default {
                   !this.kafkaDefaultCols.includes(item.name)
                 ) {
                   return item;
-                } else if (
-                  this.$store.state.app.currentDBType == "avevaHistorian"
-                ) {
+                } else if (this.$store.state.app.supportSQL) {
                   return item;
                 }
               })
@@ -1182,7 +1166,7 @@ export default {
 
     //编辑回显数据--编辑状态不自动显示result table
     async echoParser(value) {
-      if (this.$store.state.app.currentDBType == "avevaHistorian") {
+      if (this.$store.state.app.supportSQL) {
         let dsn = this.$store.state.app.historiandsn;
         dsn += `&sample_data_limit=${this.limitOffset}`
         let result = await getHistorianMsgbody(
@@ -1526,7 +1510,7 @@ export default {
         },
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : this.$store.state.app.currentDBType == "avevaHistorian"
+          : this.$store.state.app.supportSQL
           ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
@@ -1588,7 +1572,7 @@ export default {
 
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : this.$store.state.app.currentDBType == "avevaHistorian"
+          : this.$store.state.app.supportSQL
           ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
@@ -1916,7 +1900,7 @@ export default {
                 ) {
                   return val;
                 } else if (
-                  this.$store.state.app.currentDBType == "avevaHistorian"
+                  this.$store.state.app.supportSQL
                 ) {
                   return val;
                 } else {
@@ -2214,16 +2198,6 @@ export default {
           this.initColumnLists(val.filter((item) => item.name != "ts"));
         } else {
           this.initColumnLists(val);
-        }
-      },
-    },
-    "$store.state.app.currentDBType": {
-      deep: true,
-      handler(val) {
-        if (val == "avevaHistorian") {
-          this.activeName = "second";
-        } else {
-          this.activeName = "first";
         }
       },
     },

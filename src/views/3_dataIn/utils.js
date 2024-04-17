@@ -25,7 +25,8 @@ const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
 export const optionsField = uuid();
-const groupsField = uuid();
+const groupsFieldBeforeConnection = uuid();
+const groupsFieldAfterConnection = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const historianLiveTable = 'Runtime.dbo.Live'
@@ -125,17 +126,17 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       parser
     };
     currentType = id;
-    let connectivityCheck = id != 'csv' && id != 'kafka' && id != 'mqtt'
+
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
-    handleConnectivityCheck(connectivityCheck,paramsConfig)
     handleDatasets(datasets, paramsConfig);
-    handleGroups(groups, paramsConfig);
-    if (id == 'kafka' || id == 'mqtt') {
-      handleConnectivityCheck(connectivityCheck=true,paramsConfig)
+    handleGroups(groups, paramsConfig, true);
+    if (id != 'csv') {
+      handleConnectivityCheck(paramsConfig)
     }
+    handleGroups(groups, paramsConfig, false);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
@@ -153,13 +154,11 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
   }, {});
 }
 
-function handleConnectivityCheck(connectivityCheck, paramsConfig) {
-  if (!connectivityCheck) return;
-  const children = [];
+function handleConnectivityCheck(paramsConfig) {
   paramsConfig.push({
     field: 'checkConnectivity',
     type: 'checkConnectivity',
-    children
+    children: []
   });
 }
 
@@ -699,17 +698,20 @@ function handleDatasets(datasets, paramsConfig) {
     }
 ]
  */
-function handleGroups(groups, paramsConfig) {
+function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
   if (!groups) return;
   groups = groups.sort((a, b) => a.display_order - b.display_order);
   const children = [];
   paramsConfig.push({
-    label: 'Groups',
-    field: groupsField,
+    label: 'Groups-' + (beforeConnectionCheck ? 'before' : 'after'),
+    field: beforeConnectionCheck ? groupsFieldBeforeConnection : groupsFieldAfterConnection,
     hide: true,
     children
   });
   groups.forEach(group => {
+    if ((beforeConnectionCheck && !group.connection_option) || (!beforeConnectionCheck && group.connection_option)) {
+      return;
+    }
     const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2 } = group;
     const paramChildren = [];
     const config = { label: name, field: uuid(), description: d1 ?? d2, children: paramChildren };
@@ -762,7 +764,7 @@ function handleGroups(groups, paramsConfig) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
-      if (currentType == 'avevaHistorian' && paramConfig.field == 'mode') {
+      if ((currentType == 'avevaHistorian' || currentType == 'mysql') && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
@@ -1010,7 +1012,8 @@ export function getDsnData(data, definition) {
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
-  getGroupsQuery(data[groupsField], queryArr);
+  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr);
+  getGroupsQuery(data[groupsFieldAfterConnection], queryArr);
   getDatasetsQuery(data[datasetsField], data, queryArr);
   getAdvancedQuery(data[advancedField],queryArr)
   if (queryArr.length) {
@@ -1268,7 +1271,7 @@ export async function handleDownload(filePath, fileName) {
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {
-  let groups = data[groupsField]
+  let groups = Object.assign({}, data[groupsFieldBeforeConnection] || {}, data[groupsFieldAfterConnection] || {}); 
   let obj = {}
   if (!groups) return {};
   for (let key in groups) {
