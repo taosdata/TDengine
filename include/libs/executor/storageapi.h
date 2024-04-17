@@ -60,7 +60,7 @@ typedef struct SMetaEntry {
       int32_t  commentLen;
       char*    comment;
       tb_uid_t suid;
-      uint8_t* pTags;
+      void*    pTags;
     } ctbEntry;
     struct {
       int64_t        btime;

@@ -114,14 +114,178 @@ int metaDecodeEntry(SDecoder *decoder, SMetaEntry *entry) {
   return 0;
 }
 
-static int32_t metaEntryInit(const SMetaEntry *from, SMetaEntry **entry) {
-  // TODO
+static int32_t tSchemaWrapperClone(const SSchemaWrapper *from, SSchemaWrapper *to) {
+  to->nCols = from->nCols;
+  to->version = from->version;
+  to->pSchema = taosMemoryMalloc(to->nCols * sizeof(SSchema));
+  if (to->pSchema == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  memcpy(to->pSchema, from->pSchema, to->nCols * sizeof(SSchema));
   return 0;
 }
 
-static int32_t metaEntryDestroy(SMetaEntry *entry) {
-  // TODO
+static int32_t tSchemaWrapperCloneDestroy(SSchemaWrapper *schema) {
+  taosMemoryFree(schema->pSchema);
   return 0;
+}
+
+static int32_t tTagClone(const STag *from, STag **to) {
+  *to = taosMemoryMalloc(sizeof(STag) + from->len);
+  if (*to == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  memcpy(*to, from, sizeof(STag) + from->len);
+  return 0;
+}
+
+static int32_t tTagCloneDestroy(STag *tag) {
+  taosMemoryFree(tag);
+  return 0;
+}
+
+int32_t metaEntryCloneDestroy(SMetaEntry *entry) {
+  if (entry == NULL) return 0;
+  taosMemoryFree(entry->name);
+  if (entry->type == TSDB_SUPER_TABLE) {
+    tSchemaWrapperCloneDestroy(&entry->stbEntry.schemaRow);
+    tSchemaWrapperCloneDestroy(&entry->stbEntry.schemaTag);
+  } else if (entry->type == TSDB_CHILD_TABLE) {
+    taosMemoryFree(entry->ctbEntry.comment);
+    tTagCloneDestroy((STag *)entry->ctbEntry.pTags);
+  } else if (entry->type == TSDB_NORMAL_TABLE) {
+    taosMemoryFree(entry->ntbEntry.comment);
+    tSchemaWrapperCloneDestroy(&entry->ntbEntry.schemaRow);
+  } else {
+    ASSERT(0);
+  }
+  taosMemoryFree(entry);
+  return 0;
+}
+
+int32_t metaEntryClone(const SMetaEntry *from, SMetaEntry **entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if ((*entry = taosMemoryCalloc(1, sizeof(SMetaEntry))) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
+
+  (*entry)->version = from->version;
+  (*entry)->type = from->type;
+  (*entry)->flags = from->flags;
+  (*entry)->uid = from->uid;
+  (*entry)->name = taosStrdup(from->name);
+  if ((*entry)->name == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
+
+  if (from->type == TSDB_SUPER_TABLE) {
+    code = tSchemaWrapperClone(&from->stbEntry.schemaRow, &(*entry)->stbEntry.schemaRow);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tSchemaWrapperClone(&from->stbEntry.schemaTag, &(*entry)->stbEntry.schemaTag);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    (*entry)->stbEntry.rsmaParam = from->stbEntry.rsmaParam;
+  } else if (from->type == TSDB_CHILD_TABLE) {
+    (*entry)->ctbEntry.btime = from->ctbEntry.btime;
+    (*entry)->ctbEntry.ttlDays = from->ctbEntry.ttlDays;
+    (*entry)->ctbEntry.commentLen = from->ctbEntry.commentLen;
+    (*entry)->ctbEntry.comment = taosMemoryMalloc(from->ctbEntry.commentLen);
+    if ((*entry)->ctbEntry.comment == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    }
+    memcpy((*entry)->ctbEntry.comment, from->ctbEntry.comment, from->ctbEntry.commentLen);
+    (*entry)->ctbEntry.suid = from->ctbEntry.suid;
+    code = tTagClone((const STag *)from->ctbEntry.pTags, (STag **)&(*entry)->ctbEntry.pTags);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else if (from->type == TSDB_NORMAL_TABLE) {
+    (*entry)->ntbEntry.btime = from->ntbEntry.btime;
+    (*entry)->ntbEntry.ttlDays = from->ntbEntry.ttlDays;
+    (*entry)->ntbEntry.commentLen = from->ntbEntry.commentLen;
+    (*entry)->ntbEntry.comment = taosMemoryMalloc(from->ntbEntry.commentLen);
+    if ((*entry)->ntbEntry.comment == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    }
+    memcpy((*entry)->ntbEntry.comment, from->ntbEntry.comment, from->ntbEntry.commentLen);
+    (*entry)->ntbEntry.ncid = from->ntbEntry.ncid;
+    code = tSchemaWrapperClone(&from->ntbEntry.schemaRow, &(*entry)->ntbEntry.schemaRow);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    ASSERT(0);
+  }
+
+_exit:
+  if (code) {
+    metaError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    metaEntryCloneDestroy(*entry);
+    *entry = NULL;
+  }
+  return code;
+}
+
+int32_t metaGetTableEntryByUidImpl(SMeta *meta, int64_t uid, SMetaEntry **entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *value = NULL;
+  int32_t valueSize = 0;
+
+  // get latest version
+  if (tdbTbGet(meta->pUidIdx, &uid, sizeof(uid), &value, &valueSize) != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _exit);
+  }
+
+  // get encoded entry
+  SUidIdxVal *uidIdxVal = (SUidIdxVal *)value;
+  if (tdbTbGet(meta->pTbDb,
+               &(STbDbKey){
+                   .uid = uid,
+                   .version = uidIdxVal->version,
+               },
+               sizeof(STbDbKey), &value, &valueSize) != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+  }
+
+  // decode entry
+  SMetaEntry dEntry = {0};
+  SDecoder   decoder = {0};
+
+  tDecoderInit(&decoder, value, valueSize);
+
+  if (metaDecodeEntry(&decoder, &dEntry) != 0) {
+    tDecoderClear(&decoder);
+    TSDB_CHECK_CODE(code = TSDB_CODE_MSG_DECODE_ERROR, lino, _exit);
+  }
+
+  // clone entry
+  code = metaEntryClone(&dEntry, entry);
+  if (code) {
+    tDecoderClear(&decoder);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  tDecoderClear(&decoder);
+
+_exit:
+  tdbFree(value);
+  return code;
+}
+
+int32_t metaGetTableEntryByNameImpl(SMeta *meta, const char *name, SMetaEntry **entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *value = NULL;
+  int32_t valueSize = 0;
+
+  if (tdbTbGet(meta->pNameIdx, name, strlen(name) + 1, &value, &valueSize) != 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _exit);
+  }
+
+  code = metaGetTableEntryByUidImpl(meta, *(int64_t *)value, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  tdbFree(value);
+  return code;
 }
 
 // =======================
@@ -693,11 +857,57 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
-  metaEntryDestroy(superTableEntry);
+  metaEntryCloneDestroy(superTableEntry);
   return code;
 }
 
 static int32_t metaDropTagIdx(SMeta *meta, const SMetaEntry *childTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/* btime.idx */
+static int32_t metaUpsertBtimeIdx(SMeta *meta, const SMetaEntry *entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaDropBtimeIdx(SMeta *meta, const SMetaEntry *entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/* ttl.idx */
+static int32_t metaUpsertTtlIdx(SMeta *meta, const SMetaEntry *entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  // TODO
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaDropTtlIdx(SMeta *meta, const SMetaEntry *entry) {
   int32_t code = 0;
   int32_t lino = 0;
   // TODO
@@ -861,7 +1071,7 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
-  metaEntryDestroy(savedEntry);
+  metaEntryCloneDestroy(savedEntry);
   return code;
 }
 

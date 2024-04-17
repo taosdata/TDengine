@@ -58,8 +58,8 @@ extern int32_t   tMsgDict[];
 extern int32_t   tMsgRangeDict[];
 typedef uint16_t tmsg_t;
 
-#define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
-#define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
+#define TMSG_SEG_CODE(TYPE) (((TYPE) & 0xff00) >> 8)
+#define TMSG_SEG_SEQ(TYPE)  ((TYPE) & 0xff)
 
 #define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
@@ -204,7 +204,7 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_TAG(f)        (((f & (~(TSDB_COL_NULL))) & TSDB_COL_TAG) != 0)
 #define TSDB_COL_IS_NORMAL_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
 #define TSDB_COL_IS_UD_COL(f)     ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
-#define TSDB_COL_REQ_NULL(f)      (((f)&TSDB_COL_NULL) != 0)
+#define TSDB_COL_REQ_NULL(f)      (((f) & TSDB_COL_NULL) != 0)
 
 #define TD_SUPER_TABLE  TSDB_SUPER_TABLE
 #define TD_CHILD_TABLE  TSDB_CHILD_TABLE
@@ -303,7 +303,7 @@ typedef enum ENodeType {
   QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
-  // the order of following constants must match that of variable sysTableShowAdapter 
+  // the order of following constants must match that of variable sysTableShowAdapter
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
   QUERY_NODE_SHOW_MODULES_STMT,
@@ -3773,12 +3773,12 @@ typedef struct {
 } SMqHbReq;
 
 typedef struct {
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  int8_t         noPrivilege;
+  char   topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t noPrivilege;
 } STopicPrivilege;
 
 typedef struct {
-  SArray* topicPrivileges;   // SArray<STopicPrivilege>
+  SArray* topicPrivileges;  // SArray<STopicPrivilege>
 } SMqHbRsp;
 
 typedef struct {
