@@ -1031,6 +1031,44 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
+int32_t tqStreamProgressRetrieveReq(STQ *pTq, SRpcMsg *pMsg) {
+  char*               msgStr = pMsg->pCont;
+  char*               msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
+  int32_t             msgLen = pMsg->contLen - sizeof(SMsgHead);
+  int32_t             code = 0;
+  SStreamProgressReq  req;
+  char*               pRspBuf = taosMemoryCalloc(1, sizeof(SMsgHead) + sizeof(SStreamProgressRsp));
+  SStreamProgressRsp* pRsp = POINTER_SHIFT(pRspBuf, sizeof(SMsgHead));
+  if (!pRspBuf) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
+
+  code = tDeserializeStreamProgressReq(msgBody, msgLen, &req);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tqGetStreamExecInfo(pTq->pVnode, req.streamId, &pRsp->progressDelay, &pRsp->fillHisFinished);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pRsp->fetchIdx = req.fetchIdx;
+    pRsp->subFetchIdx = req.subFetchIdx;
+    pRsp->vgId = req.vgId;
+    pRsp->streamId = req.streamId;
+    tSerializeStreamProgressRsp(pRsp, sizeof(SStreamProgressRsp) + sizeof(SMsgHead), pRsp);
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
+    rsp.pCont = pRspBuf;
+    pRspBuf = NULL;
+    rsp.contLen = sizeof(SMsgHead) + sizeof(SStreamProgressRsp);
+    tmsgSendRsp(&rsp);
+  }
+
+_OVER:
+  if (pRspBuf) {
+    taosMemoryFree(pRspBuf);
+  }
+  return code;
+}
+
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;

@@ -110,6 +110,7 @@ enum {
   HEARTBEAT_KEY_TMQ,
   HEARTBEAT_KEY_DYN_VIEW,
   HEARTBEAT_KEY_VIEWINFO,
+  HEARTBEAT_KEY_TSMA,
 };
 
 typedef enum _mgmt_table {
@@ -145,6 +146,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAM_TASKS,
   TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_VIEWS,
+  TSDB_MGMT_TABLE_TSMAS,
   TSDB_MGMT_TABLE_COMPACT,
   TSDB_MGMT_TABLE_COMPACT_DETAIL,
   TSDB_MGMT_TABLE_GRANTS_FULL,
@@ -247,6 +249,7 @@ typedef enum ENodeType {
   QUERY_NODE_VIEW,
   QUERY_NODE_WINDOW_OFFSET,
   QUERY_NODE_COUNT_WINDOW,
+  QUERY_NODE_TSMA_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -368,6 +371,10 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_GRANTS_FULL_STMT,
   QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
   QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
+  QUERY_NODE_SHOW_TSMAS_STMT,
+  QUERY_NODE_CREATE_TSMA_STMT,
+  QUERY_NODE_SHOW_CREATE_TSMA_STMT,
+  QUERY_NODE_DROP_TSMA_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -440,9 +447,9 @@ typedef enum ENodeType {
 } ENodeType;
 
 typedef struct {
-  int32_t vgId;
-  char*   dbFName;
-  char*   tbName;
+  int32_t     vgId;
+  const char* dbFName;
+  const char* tbName;
 } SBuildTableInput;
 
 typedef struct {
@@ -1397,8 +1404,14 @@ int32_t tDeserializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp
 void    tFreeSDnodeListRsp(SDnodeListRsp* pRsp);
 
 typedef struct {
-  SUseDbRsp* useDbRsp;
-  SDbCfgRsp* cfgRsp;
+  SArray* pTsmas;  // SArray<STableTSMAInfo*>
+} STableTSMAInfoRsp;
+
+typedef struct {
+  SUseDbRsp*         useDbRsp;
+  SDbCfgRsp*         cfgRsp;
+  STableTSMAInfoRsp* pTsmaRsp;
+  int32_t            dbTsmaVersion;
 } SDbHbRsp;
 
 typedef struct {
@@ -2597,6 +2610,7 @@ typedef struct {
   SArray*  pVgroupVerList;
   // 3.3.0.0
   SArray*  pCols;  // array of SField
+  int64_t  smaId;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -3561,6 +3575,10 @@ typedef struct {
   char*   ast;
   int64_t deleteMark;
   int64_t lastTs;
+  int64_t normSourceTbUid; // the Uid of source tb if its a normal table, otherwise 0
+  SArray* pVgroupVerList;
+  int8_t  recursiveTsma;
+  char    baseTsmaName[TSDB_TABLE_FNAME_LEN]; // base tsma name for recursively created tsma
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -4184,6 +4202,104 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+typedef struct {
+  char name[TSDB_TABLE_FNAME_LEN]; // table name or tsma name
+  bool fetchingWithTsmaName; // if we are fetching with tsma name
+}STableTSMAInfoReq;
+
+int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);
+int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq);
+
+typedef struct {
+  int32_t  funcId;
+  col_id_t colId;
+} STableTSMAFuncInfo;
+
+typedef struct {
+  char     name[TSDB_TABLE_NAME_LEN];
+  uint64_t tsmaId;
+  char     targetTb[TSDB_TABLE_NAME_LEN];
+  char     targetDbFName[TSDB_DB_FNAME_LEN];
+  char     tb[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t suid;
+  uint64_t destTbUid;
+  uint64_t dbId;
+  int32_t  version;
+  int64_t  interval;
+  int8_t   unit;
+  SArray*  pFuncs;  // SArray<STableTSMAFuncInfo>
+  SArray*  pTags; // SArray<SSchema>
+  SArray*  pUsedCols; // SArray<SSchema>
+  char*    ast;
+
+  int64_t streamUid;
+  int64_t reqTs;
+  int64_t rspTs;
+  int64_t delayDuration; // ms
+  bool    fillHistoryFinished;
+} STableTSMAInfo;
+
+int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);
+int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pRsp);
+int32_t tCloneTbTSMAInfo(STableTSMAInfo* pInfo, STableTSMAInfo** pRes);
+void    tFreeTableTSMAInfo(void* p);
+void    tFreeAndClearTableTSMAInfo(void* p);
+void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
+
+#define STSMAHbRsp STableTSMAInfoRsp
+#define tSerializeTSMAHbRsp tSerializeTableTSMAInfoRsp
+#define tDeserializeTSMAHbRsp tDeserializeTableTSMAInfoRsp
+#define tFreeTSMAHbRsp tFreeTableTSMAInfoRsp
+
+typedef struct SStreamProgressReq {
+  int64_t streamId;
+  int32_t vgId;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressReq;
+
+int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq);
+int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgressReq* pReq);
+
+typedef struct SStreamProgressRsp {
+  int64_t streamId;
+  int32_t vgId;
+  bool    fillHisFinished;
+  int64_t progressDelay;
+  int32_t fetchIdx;
+  int32_t subFetchIdx;
+} SStreamProgressRsp;
+
+int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);
+int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgressRsp* pRsp);
+
+typedef struct SDropCtbWithTsmaSingleVgReq {
+  SVgroupInfo vgInfo;
+  SArray*     pTbs; // SVDropTbReq
+} SMDropTbReqsOnSingleVg;
+
+int32_t tEncodeSMDropTbReqOnSingleVg(SEncoder* pEncoder, const SMDropTbReqsOnSingleVg* pReq);
+int32_t tDecodeSMDropTbReqOnSingleVg(SDecoder* pDecoder, SMDropTbReqsOnSingleVg* pReq);
+void    tFreeSMDropTbReqOnSingleVg(void* p);
+
+typedef struct SDropTbsReq {
+  SArray* pVgReqs; // SMDropTbReqsOnSingleVg
+} SMDropTbsReq;
+
+int32_t tSerializeSMDropTbsReq(void* buf, int32_t bufLen, const SMDropTbsReq* pReq);
+int32_t tDeserializeSMDropTbsReq(void* buf, int32_t bufLen, SMDropTbsReq* pReq);
+void    tFreeSMDropTbsReq(void*);
+
+typedef struct SVFetchTtlExpiredTbsRsp {
+  SArray* pExpiredTbs;  // SVDropTbReq
+  int32_t vgId;
+} SVFetchTtlExpiredTbsRsp;
+
+int32_t tEncodeVFetchTtlExpiredTbsRsp(SEncoder* pCoder, const SVFetchTtlExpiredTbsRsp* pRsp);
+int32_t tDecodeVFetchTtlExpiredTbsRsp(SDecoder* pCoder, SVFetchTtlExpiredTbsRsp* pRsp);
+
+void tFreeFetchTtlExpiredTbsRsp(void* p);
 
 #pragma pack(pop)
 

@@ -519,6 +519,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_TSMAS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowTableTagsStmt));
@@ -561,6 +562,12 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateViewStmt));
     case QUERY_NODE_DROP_VIEW_STMT:
       return makeNode(type, sizeof(SDropViewStmt));
+    case QUERY_NODE_CREATE_TSMA_STMT:
+      return makeNode(type, sizeof(SCreateTSMAStmt));
+    case QUERY_NODE_DROP_TSMA_STMT:
+      return makeNode(type, sizeof(SDropTSMAStmt));
+    case QUERY_NODE_TSMA_OPTIONS:
+      return makeNode(type, sizeof(STSMAOptions));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -809,6 +816,8 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pReal->pMeta);
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
+      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroy(pReal->tsmaTargetTbInfo);
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -908,6 +917,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pDelay);
       nodesDestroyNode(pOptions->pWatermark);
       nodesDestroyNode(pOptions->pDeleteMark);
+      break;
+    }
+    case QUERY_NODE_TSMA_OPTIONS: {
+      STSMAOptions* pOptions = (STSMAOptions*)pNode;
+      nodesDestroyList(pOptions->pFuncs);
+      nodesDestroyNode(pOptions->pInterval);
       break;
     }
     case QUERY_NODE_LEFT_VALUE:  // no pointer field
@@ -1184,7 +1199,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT: {
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_TSMAS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1271,6 +1287,15 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_VIEW_STMT:
       break;
+    case QUERY_NODE_CREATE_TSMA_STMT: {
+      SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pOptions);
+      if (pStmt->pReq) {
+        tFreeSMCreateSmaReq(pStmt->pReq);
+        taosMemoryFreeClear(pStmt->pReq);
+      }
+      break;
+                                      }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1285,6 +1310,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
+      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1740,6 +1767,16 @@ int32_t nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc) {
   return nodesListStrictAppendList(*pTarget, pSrc);
 }
 
+int32_t    nodesListMakePushFront(SNodeList** pList, SNode* pNode) {
+  if (*pList == NULL) {
+    *pList = nodesMakeList();
+    if (*pList == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListPushFront(*pList, pNode);
+}
 
 int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
@@ -1756,6 +1793,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
     p->pNext = pList->pHead;
   }
   pList->pHead = p;
+  pList->pTail = pList->pTail ? pList->pTail : p;
   ++(pList->length);
   return TSDB_CODE_SUCCESS;
 }
@@ -2609,4 +2647,71 @@ bool nodesIsStar(SNode* pNode) {
 bool nodesIsTableStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNode2)) {
+  if ((*pList)->length == 1) return;
+
+  uint32_t inSize = 1;
+  SListCell* pHead = (*pList)->pHead;
+  while (1) {
+    SListCell* p = pHead;
+    pHead = NULL;
+    SListCell* pTail = NULL;
+
+    uint32_t nMerges = 0;
+    while (p) {
+      ++nMerges;
+      SListCell* q = p;
+      uint32_t pSize = 0;
+      for (uint32_t i = 0; i < inSize; ++i) {
+        ++pSize;
+        q = q->pNext;
+        if (!q) {
+          break;
+        }
+      }
+
+      uint32_t qSize = inSize;
+
+      while (pSize > 0 || (qSize > 0 && q)) {
+        SListCell* pCell;
+        if (pSize == 0) {
+          pCell = q;
+          q = q->pNext;
+          --qSize;
+        } else if (qSize == 0 || !q) {
+          pCell = p;
+          p = p->pNext;
+          --pSize;
+        } else if (comp(q->pNode, p->pNode) >= 0) {
+          pCell = p;
+          p = p->pNext;
+          --pSize;
+        } else {
+          pCell = q;
+          q = q->pNext;
+          --qSize;
+        }
+
+        if (pTail) {
+          pTail->pNext = pCell;
+          pCell->pPrev = pTail;
+        } else {
+          pHead = pCell;
+          pHead->pPrev = NULL;
+        }
+        pTail = pCell;
+      }
+      p = q;
+    }
+    pTail->pNext = NULL;
+
+    if (nMerges <= 1) {
+      (*pList)->pHead = pHead;
+      (*pList)->pTail = pTail;
+      return;
+    }
+    inSize *= 2;
+  }
 }

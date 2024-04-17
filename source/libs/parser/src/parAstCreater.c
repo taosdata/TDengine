@@ -246,6 +246,16 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
+  trimEscape(pTsmaToken);
+  if (NULL == pTsmaToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pTsmaToken->n >= TSDB_TABLE_NAME_LEN - strlen(TSMA_RES_STB_POSTFIX)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSMA_NAME_TOO_LONG);
+  }
+  return pCxt->errCode == TSDB_CODE_SUCCESS;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
@@ -459,6 +469,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
                        int32_t paramNum) {
   void* value = NULL;
   switch (opt) {
+    case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
     case HINT_NO_BATCH_SCAN: {
       if (paramNum > 0) {
@@ -583,6 +594,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_HASH_JOIN;
+        break;
+      case TK_SKIP_TSMA:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SKIP_TSMA;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1890,7 +1909,7 @@ static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
-         QUERY_NODE_SHOW_VIEWS_STMT == type;
+         QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -2834,5 +2853,88 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
     strcpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
   }
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
+                            SNode* pRealTable, SNode* pInterval) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTsmaName(pCxt, tsmaName)) {
+    nodesDestroyNode(pInterval);
+    return NULL;
+  }
+
+  SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreExists = ignoreExists;
+  if (!pOptions) {
+    // recursive tsma
+    pStmt->pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+    if (!pStmt->pOptions) {
+      nodesDestroyNode(pInterval);
+      nodesDestroyNode((SNode*)pStmt);
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+      return NULL;
+    }
+    pStmt->pOptions->recursiveTsma = true;
+  } else {
+    pStmt->pOptions = (STSMAOptions*)pOptions;
+  }
+  pStmt->pOptions->pInterval = pInterval;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->tsmaName, tsmaName);
+
+  SRealTableNode* pTable = (SRealTableNode*)pRealTable;
+  memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+  memcpy(pStmt->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->originalTbName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pStmt;
+}
+
+SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
+  CHECK_PARSER_STATUS(pCxt);
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  if (!pOptions) {
+    //nodesDestroyList(pTSMAFuncs);
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+    return NULL;
+  }
+  pOptions->pFuncs = pFuncs;
+  return (SNode*)pOptions;
+}
+
+SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  return (SNode*)pOptions;
+}
+
+SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropTSMAStmt* pStmt = (SDropTSMAStmt*)nodesMakeNode(QUERY_NODE_DROP_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreNotExists = ignoreNotExists;
+  SRealTableNode* pTableNode = (SRealTableNode*)pRealTable;
+
+  memcpy(pStmt->tsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SShowStmt* pStmt = (SShowStmt*)nodesMakeNode(QUERY_NODE_SHOW_TSMAS_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->pDbName = dbName;
   return (SNode*)pStmt;
 }

@@ -5037,12 +5037,11 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
   int32_t step = asc ? 1 : -1;
-
   int64_t ts = 0;
   if (asc) {
-    ts = (pReader->info.window.skey > INT64_MIN)? pReader->info.window.skey-1:pReader->info.window.skey;
+    ts = (pReader->info.window.skey > INT64_MIN) ? pReader->info.window.skey - 1 : pReader->info.window.skey;
   } else {
-    ts = (pReader->info.window.ekey < INT64_MAX)? pReader->info.window.ekey + 1:pReader->info.window.ekey;
+    ts = (pReader->info.window.ekey < INT64_MAX) ? pReader->info.window.ekey + 1 : pReader->info.window.ekey;
   }
   resetAllDataBlockScanInfo(pStatus->pTableMap, ts, step);
 

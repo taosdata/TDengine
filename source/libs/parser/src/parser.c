@@ -244,6 +244,10 @@ int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock
       code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
       break;
     }
+    case QUERY_NODE_CREATE_TSMA_STMT: {
+      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
+      break;
+    }
     default:
       break;
   }
@@ -270,12 +274,16 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
 #ifdef TD_ENTERPRISE
     taosArrayDestroy(pCatalogReq->pView);
 #endif
+    taosArrayDestroy(pCatalogReq->pTableTSMAs);
+    taosArrayDestroy(pCatalogReq->pTSMAs);
   } else {
     taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
 #ifdef TD_ENTERPRISE
     taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
 #endif  
+    taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
+    taosArrayDestroyEx(pCatalogReq->pTSMAs, destoryTablesReq);
   }
   taosArrayDestroy(pCatalogReq->pUdf);
   taosArrayDestroy(pCatalogReq->pIndex);

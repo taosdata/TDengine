@@ -41,6 +41,10 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
+
+static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
+static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
+
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq);
@@ -101,6 +105,13 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_STOP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_RESET_RSP, mndTransProcessRsp);
+
+  // for msgs inside mnode
+  // TODO change the name
+  mndSetMsgHandle(pMnode, TDMT_STREAM_CREATE, mndProcessCreateStreamReqFromMNode);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_CREATE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_DROP, mndProcessDropStreamReqFromMNode);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_DROP_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
@@ -335,7 +346,10 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
   pObj->version = 1;
-  pObj->smaId = 0;
+  if (pCreate->smaId > 0) {
+    pObj->subTableWithoutMd5 = 1;
+  }
+  pObj->smaId = pCreate->smaId;
   pObj->indexForMultiAggBalance = -1;
 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
@@ -1210,6 +1224,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       mError("stream:%s not exist failed to drop", dropReq.name);
       tFreeMDropStreamReq(&dropReq);
       return -1;
+    }
+  }
+
+  if (pStream->smaId != 0) {
+    void    *pIter = NULL;
+    SSmaObj *pSma = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
+    while (pIter) {
+      if (pSma && pSma->uid == pStream->smaId) {
+        sdbRelease(pMnode->pSdb, pSma);
+        sdbRelease(pMnode->pSdb, pStream);
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        tFreeMDropStreamReq(&dropReq);
+        terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+        return -1;
+      }
+      if (pSma) sdbRelease(pMnode->pSdb, pSma);
+      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
     }
   }
 
@@ -2371,4 +2403,26 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   }
 
   return 0;
+}
+
+static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq) {
+  int32_t code = mndProcessCreateStreamReq(pReq);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    pReq->info.rsp = rpcMallocCont(1);
+    pReq->info.rspLen = 1;
+    pReq->info.noResp = false;
+    pReq->code = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq) {
+  int32_t code = mndProcessDropStreamReq(pReq);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    pReq->info.rsp = rpcMallocCont(1);
+    pReq->info.rspLen = 1;
+    pReq->info.noResp = false;
+    pReq->code = code;
+  }
+  return code;
 }
