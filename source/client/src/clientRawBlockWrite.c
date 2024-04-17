@@ -24,9 +24,6 @@
 #define LOG_ID_TAG   "connId:0x%"PRIx64",reqId:0x%"PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos,pRequest->requestId
 
-#define SET_ERROR_MSG(MSG, ...) \
-  if (errstr != NULL) snprintf(errstr, errstrLen, MSG, ##__VA_ARGS__)
-
 static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
 
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
@@ -1577,7 +1574,7 @@ static void* getRawDataFromRes(void *pRetrieve){
   return rawData;
 }
 
-static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen, char* errstr, int32_t errstrLen) {
+static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   if(taos == NULL || data == NULL){
     terrno = TSDB_CODE_INVALID_PARA;
     SET_ERROR_MSG("taos:%p or data:%p is NULL", taos, data);
@@ -1683,8 +1680,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen, char
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
     void* rawData = getRawDataFromRes(pRetrieve);
-    char  err[128] = {0};
-    code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, fields, pSW->nCols, true, err, sizeof(err));
+    char  err[ERR_MSG_LEN] = {0};
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
@@ -1998,6 +1995,7 @@ void tmq_free_raw(tmq_raw_data raw) {
   if (raw.raw_type == RES_TYPE__TMQ || raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
   }
+  memset(terrMsg, 0, ERR_MSG_LEN);
 }
 
 int32_t tmq_write_raw_with_errstr(TAOS* taos, tmq_raw_data raw, char* errstr, int32_t errstrLen) {
