@@ -181,7 +181,7 @@ void         tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn not
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                                SArray* pFuncTypeList, SColumnInfo* pkCol, int32_t numOfPks);
+                                SArray *pFuncTypeList, SColumnInfo* pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
@@ -331,6 +331,10 @@ struct SVnodeCfg {
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
 #define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
+
+#define TABLE_COL_COMPRESSED          ((int8_t)0x2)
+#define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)
+#define TABLE_SET_COL_COMPRESSED(FLG) ((FLG) |= TABLE_COL_COMPRESSED)
 
 #ifdef __cplusplus
 }

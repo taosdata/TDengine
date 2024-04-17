@@ -1538,7 +1538,11 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize);
+    int32_t schemaExtSize = 0;
+    if (useCompress(output->ctbMeta.tableType)) {
+      schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
     qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
@@ -1547,6 +1551,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     memcpy((*pOutput)->tbMeta, output->tbMeta, metaSize);
+    if (useCompress(output->ctbMeta.tableType)) {
+      (*pOutput)->tbMeta->schemaExt = (SSchemaExt *)((char *)(*pOutput)->tbMeta + metaSize);
+      memcpy((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
+    } else {
+      (*pOutput)->tbMeta->schemaExt = NULL;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1652,16 +1662,31 @@ static void* ctgCloneDbInfo(void* pSrc) {
 
 static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableMeta(void* pSrc) {
-  STableMeta* pMeta = pSrc;
-  int32_t size = sizeof(STableMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
-  STableMeta* pDst = taosMemoryMalloc(size);
-  if (NULL == pDst) {
-    return NULL;
-  }
-  memcpy(pDst, pSrc, size);
-  return pDst;
-}
+// static void* ctgCloneTableMeta(void* pSrc) {
+//   STableMeta* pMeta = pSrc;
+//   int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+//   STableMeta* pDst = taosMemoryMalloc(sizeof(STableMeta));
+//   if (NULL == pDst) {
+//     return NULL;
+//   }
+//   void* pSchema = taosMemoryMalloc(total * sizeof(SSchema));
+//   if (NULL == pSchema) {
+//     taosMemoryFree(pDst);
+//     return NULL;
+//   }
+//   void* pSchemaExt = taosMemoryMalloc(pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt));
+//   if (NULL == pSchemaExt) {
+//     taosMemoryFree(pSchema);
+//     taosMemoryFree(pDst);
+//     return NULL;
+//   }
+//   memcpy(pDst, pSrc, sizeof(STableMeta));
+//   pDst->schema = pSchema;
+//   pDst->schemaExt = pSchemaExt;
+//   memcpy(pDst->schema, pMeta->schema, total * sizeof(SSchema));
+//   memcpy(pDst->schemaExt, pMeta->schemaExt, pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt));
+//   return pDst;
+// }
 
 static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
@@ -1717,14 +1742,14 @@ static void* ctgCloneQnodeList(void* pSrc) { return taosArrayDup((const SArray*)
 
 static void ctgFreeQnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableCfg(void* pSrc) {
-  STableCfg* pDst = taosMemoryMalloc(sizeof(STableCfg));
-  if (NULL == pDst) {
-    return NULL;
-  }
-  memcpy(pDst, pSrc, sizeof(STableCfg));
-  return pDst;
-}
+// static void* ctgCloneTableCfg(void* pSrc) {
+//   STableCfg* pDst = taosMemoryMalloc(sizeof(STableCfg));
+//   if (NULL == pDst) {
+//     return NULL;
+//   }
+//   memcpy(pDst, pSrc, sizeof(STableCfg));
+//   return pDst;
+// }
 
 static void ctgFreeTableCfg(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 

@@ -121,11 +121,7 @@ int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
         return ret > 0 ? 1 : -1;
       }
     } else {
-      if (p1->pks[0].val == p2->pks[0].val) {
-        return 0;
-      } else {
-        return tValueCompare(&p1->pks[0], &p2->pks[0]);
-      }
+      return tValueCompare(&p1->pks[0], &p2->pks[0]);
     }
   }
 }

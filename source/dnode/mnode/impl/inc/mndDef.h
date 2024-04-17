@@ -485,33 +485,38 @@ typedef struct {
 } SIdxObj;
 
 typedef struct {
-  char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  tagVer;
-  int32_t  colVer;
-  int32_t  smaVer;
-  int32_t  nextColId;
-  int64_t  maxdelay[2];
-  int64_t  watermark[2];
-  int32_t  ttl;
-  int32_t  numOfColumns;
-  int32_t  numOfTags;
-  int32_t  numOfFuncs;
-  int32_t  commentLen;
-  int32_t  ast1Len;
-  int32_t  ast2Len;
-  SArray*  pFuncs;
-  SSchema* pColumns;
-  SSchema* pTags;
-  char*    comment;
-  char*    pAst1;
-  char*    pAst2;
-  SRWLatch lock;
-  int8_t   source;
+  col_id_t colId;
+  int32_t  cmprAlg;
+} SCmprObj;
+typedef struct {
+  char      name[TSDB_TABLE_FNAME_LEN];
+  char      db[TSDB_DB_FNAME_LEN];
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int64_t   uid;
+  int64_t   dbUid;
+  int32_t   tagVer;
+  int32_t   colVer;
+  int32_t   smaVer;
+  int32_t   nextColId;
+  int64_t   maxdelay[2];
+  int64_t   watermark[2];
+  int32_t   ttl;
+  int32_t   numOfColumns;
+  int32_t   numOfTags;
+  int32_t   numOfFuncs;
+  int32_t   commentLen;
+  int32_t   ast1Len;
+  int32_t   ast2Len;
+  SArray*   pFuncs;
+  SSchema*  pColumns;
+  SSchema*  pTags;
+  char*     comment;
+  char*     pAst1;
+  char*     pAst2;
+  SRWLatch  lock;
+  int8_t    source;
+  SColCmpr* pCmpr;
 } SStbObj;
 
 typedef struct {

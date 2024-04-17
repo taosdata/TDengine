@@ -42,6 +42,18 @@ extern int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, 
                                     int32_t encryptAlgorithm, char* encryptKey);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char* encryptKey);
 
+typedef struct SColCompressInfo SColCompressInfo;
+struct SColCompressInfo {
+  SHashObj *pColCmpr;
+  uint32_t  defaultCmprAlg;
+};
+typedef struct SColCompressInfo2 SColCompressInfo2;
+struct SColCompressInfo2 {
+  SHashObj *pColCmpr;
+  int32_t   defaultCmprAlg;
+};
+
+// int32_t tsdbGetCompressByUid(void *meta, tb_uid_t uid, struct SColCompressInfo *info);
 #ifdef __cplusplus
 }
 #endif
