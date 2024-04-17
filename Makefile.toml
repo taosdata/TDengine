@@ -373,7 +373,6 @@ if eq ${os} "windows"
   exec powershell -command "Expand-Archive -Force '${file}' '${upx_dir}/'"
 	exec powershell -command "Move-Item '${upx_dir}/upx-${version}-win64/upx.exe' '${upx_dir}/'"
 else
-  
   if is_path_exists "${upx_dir}/upx"
     echo "* UPX binary already exists"
     exit 0
@@ -405,7 +404,7 @@ upx_run ${1} ${2}
 """
 
 [tasks.deploy-taosx]
-# dependencies = ["taosx"]
+dependencies = ["taosx"]
 script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
