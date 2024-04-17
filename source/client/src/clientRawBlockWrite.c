@@ -1711,7 +1711,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   return code;
 }
 
-static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen, char* errstr, int32_t errstrLen) {
+static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   if(taos == NULL || data == NULL){
     terrno = TSDB_CODE_INVALID_PARA;
     SET_ERROR_MSG("taos:%p or data:%p is NULL", taos, data);
@@ -1860,8 +1860,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen, 
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
     void* rawData = getRawDataFromRes(pRetrieve);
-    char err[128] = {0};
-    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, sizeof(err));
+    char err[ERR_MSG_LEN] = {0};
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
@@ -1998,7 +1998,7 @@ void tmq_free_raw(tmq_raw_data raw) {
   memset(terrMsg, 0, ERR_MSG_LEN);
 }
 
-int32_t tmq_write_raw_with_errstr(TAOS* taos, tmq_raw_data raw, char* errstr, int32_t errstrLen) {
+int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   if (!taos) {
     goto end;
   }
@@ -2018,16 +2018,12 @@ int32_t tmq_write_raw_with_errstr(TAOS* taos, tmq_raw_data raw, char* errstr, in
   } else if (raw.raw_type == TDMT_VND_DELETE) {
     return taosDeleteData(taos, raw.raw, raw.raw_len);
   } else if (raw.raw_type == RES_TYPE__TMQ) {
-    return tmqWriteRawDataImpl(taos, raw.raw, raw.raw_len, errstr, errstrLen);
+    return tmqWriteRawDataImpl(taos, raw.raw, raw.raw_len);
   } else if (raw.raw_type == RES_TYPE__TMQ_METADATA) {
-    return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len, errstr, errstrLen);
+    return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len);
   }
 
   end:
   terrno = TSDB_CODE_INVALID_PARA;
   return terrno;
-}
-
-int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
-  return tmq_write_raw_with_errstr(taos, raw, NULL, 0);
 }
