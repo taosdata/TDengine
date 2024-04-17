@@ -591,6 +591,7 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     if (ret == EXEC_AFTER_IDLE) {
       ASSERT(pInput == NULL && numOfBlocks == 0);
       setTaskSchedInfo(pTask, MIN_INVOKE_INTERVAL);
+      return 0;
     } else {
       if (pInput == NULL) {
         ASSERT(numOfBlocks == 0);
