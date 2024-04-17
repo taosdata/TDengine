@@ -1600,6 +1600,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   if (streamStateValueIsStale(p)) {
     goto _EXCEPT;
   }
+
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
   if (key.len == 0) {
@@ -1633,13 +1634,13 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
         goto _EXCEPT;
       }
       key.len = rawLen;
-      taosMemoryFree(pCompressData);
 
       if (dest) {
         *dest = buf;
       } else {
         taosMemoryFree(buf);
       }
+      taosMemoryFree(pCompressData);
     } else {
       if (dest != NULL) {
         p = taosDecodeBinary(p, (void**)dest, key.len);
