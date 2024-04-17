@@ -20,6 +20,7 @@
 #define STREAM_RESULT_DUMP_THRESHOLD      300
 #define STREAM_RESULT_DUMP_SIZE_THRESHOLD (1048576 * 1)   // 1MiB result data
 #define STREAM_SCAN_HISTORY_TIMESLICE     1000            // 1000 ms
+#define MIN_INVOKE_INTERVAL               50              // 50ms
 
 static int32_t streamTransferStateDoPrepare(SStreamTask* pTask);
 
@@ -580,16 +581,21 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
       return 0;
     }
 
-    if (taosGetTimestampMs() - pTask->status.lastExecTs < 50) {
+    if (taosGetTimestampMs() - pTask->status.lastExecTs < MIN_INVOKE_INTERVAL) {
       stDebug("s-task:%s invoke with high frequency, idle and retry exec in 50ms", id);
-      setTaskSchedInfo(pTask, 50);
+      setTaskSchedInfo(pTask, MIN_INVOKE_INTERVAL);
       return 0;
     }
 
-    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
-    if (pInput == NULL) {
-      ASSERT(numOfBlocks == 0);
-      return 0;
+    EExtractDataCode ret = streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
+    if (ret == EXEC_AFTER_IDLE) {
+      ASSERT(pInput == NULL && numOfBlocks == 0);
+      setTaskSchedInfo(pTask, MIN_INVOKE_INTERVAL);
+    } else {
+      if (pInput == NULL) {
+        ASSERT(numOfBlocks == 0);
+        return 0;
+      }
     }
 
     // dispatch checkpoint msg to all downstream tasks

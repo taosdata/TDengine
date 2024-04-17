@@ -79,7 +79,7 @@ else
 endi
 
 
-
+sql drop index sma_index_name1
 
 print --> drop stb
 sql drop table stb;
@@ -120,6 +120,7 @@ else
   endi
 endi
 
+sql drop index sma_index_name1
 print --> drop stb
 sql drop table stb;
 

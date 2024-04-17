@@ -47,6 +47,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_varchar.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
@@ -112,6 +113,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -948,6 +954,7 @@
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
+,,y,script,./test.sh -f tsim/join/join.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
 ,,y,script,./test.sh -f tsim/parser/join_manyblocks.sim

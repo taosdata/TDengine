@@ -1584,6 +1584,7 @@ class TDTestCase(TDTestCase):
          
         self.dropandcreateDB_random("nested", 1)
         self.modify_tables()
+        tdSql.execute('alter local "countAlwaysReturnValue" "0"')
                
         for i in range(2):
             self.tag_count_all() 

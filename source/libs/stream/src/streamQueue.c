@@ -145,7 +145,7 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
   }
 }
 
-int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                     int32_t* blockSize) {
   const char* id = pTask->id.idStr;
   int32_t     taskLevel = pTask->info.taskLevel;
@@ -157,13 +157,13 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, id))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
-    return TSDB_CODE_SUCCESS;
+    return EXEC_AFTER_IDLE;
   }
 
   while (1) {
     if (streamTaskShouldPause(pTask) || streamTaskShouldStop(pTask)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", id, *numOfBlocks);
-      return TSDB_CODE_SUCCESS;
+      return EXEC_CONTINUE;
     }
 
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputq.queue);
@@ -179,7 +179,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         streamTaskPutbackToken(pTask->outputInfo.pTokenBucket);
       }
 
-      return TSDB_CODE_SUCCESS;
+      return EXEC_CONTINUE;
     }
 
     // do not merge blocks for sink node and check point data block
@@ -196,7 +196,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         *blockSize = 0;
         *numOfBlocks = 1;
         *pInput = qItem;
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       } else { // previous existed blocks needs to be handle, before handle the checkpoint msg block
         stDebug("s-task:%s %s msg extracted, handle previous blocks, numOfBlocks:%d", id, p, *numOfBlocks);
         *blockSize = streamQueueItemGetSize(*pInput);
@@ -205,7 +205,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         }
 
         streamQueueProcessFail(pTask->inputq.queue);
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       }
     } else {
       if (*pInput == NULL) {
@@ -226,7 +226,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
           }
 
           streamQueueProcessFail(pTask->inputq.queue);
-          return TSDB_CODE_SUCCESS;
+          return EXEC_CONTINUE;
         }
 
         *pInput = newRet;
@@ -243,7 +243,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
           streamTaskConsumeQuota(pTask->outputInfo.pTokenBucket, *blockSize);
         }
 
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       }
     }
   }

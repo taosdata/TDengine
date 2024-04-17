@@ -23,6 +23,7 @@ extern "C" {
 #include "nodes.h"
 #include "tmsg.h"
 #include "tvariant.h"
+#include "tsimplehash.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -79,6 +80,7 @@ typedef struct SColumnNode {
   uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
+  bool        isPrimTs;
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
@@ -103,10 +105,16 @@ typedef struct STargetNode {
   SNode*    pExpr;
 } STargetNode;
 
+#define VALUE_FLAG_IS_DURATION    (1 << 0)
+#define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
+
+#define IS_DURATION_VAL(_flag) ((_flag) & VALUE_FLAG_IS_DURATION)
+#define IS_TIME_OFFSET_VAL(_flag) ((_flag) & VALUE_FLAG_IS_TIME_OFFSET)
+
 typedef struct SValueNode {
   SExprNode node;  // QUERY_NODE_VALUE
   char*     literal;
-  bool      isDuration;
+  int32_t   flag;
   bool      translate;
   bool      notReserved;
   bool      isNull;
@@ -133,6 +141,8 @@ typedef enum EHintOption {
   HINT_PARTITION_FIRST,
   HINT_PARA_TABLES_SORT,
   HINT_SMALLDATA_TS_SORT,
+  HINT_HASH_JOIN,
+  HINT_SKIP_TSMA,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -168,6 +178,8 @@ typedef struct SFunctionNode {
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
+  bool       hasOriginalFunc;
+  int32_t    originalFuncId;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -181,6 +193,11 @@ typedef struct STableNode {
 
 struct STableMeta;
 
+typedef struct STsmaTargetCTbInfo {
+  char     tableName[TSDB_TABLE_NAME_LEN]; // child table or normal table name
+  uint64_t uid;
+} STsmaTargetTbInfo;
+
 typedef struct SRealTableNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
@@ -189,6 +206,9 @@ typedef struct SRealTableNode {
   double             ratio;
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
+  SArray*            pTsmas;
+  SArray*            tsmaTargetTbVgInfo; // SArray<SVgroupsInfo*>, used for child table or normal table only
+  SArray*            tsmaTargetTbInfo; // SArray<STsmaTargetTbInfo>, used for child table or normal table only
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -206,11 +226,30 @@ typedef struct SViewNode {
   int8_t             cacheLastMode;
 } SViewNode;
 
+#define JOIN_JLIMIT_MAX_VALUE  1024
+
+#define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
+#define IS_SEMI_JOIN(_stype) ((_stype) == JOIN_STYPE_SEMI)
+#define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
+#define IS_ASOF_JOIN(_stype) ((_stype) == JOIN_STYPE_ASOF)
+
 typedef enum EJoinType { 
-  JOIN_TYPE_INNER = 1,
+  JOIN_TYPE_INNER = 0,
   JOIN_TYPE_LEFT,
   JOIN_TYPE_RIGHT,
+  JOIN_TYPE_FULL,
+  JOIN_TYPE_MAX_VALUE
 } EJoinType;
+
+typedef enum EJoinSubType {
+  JOIN_STYPE_NONE = 0,
+  JOIN_STYPE_OUTER,
+  JOIN_STYPE_SEMI,
+  JOIN_STYPE_ANTI,
+  JOIN_STYPE_ASOF,
+  JOIN_STYPE_WIN,
+  JOIN_STYPE_MAX_VALUE
+} EJoinSubType;
 
 typedef enum EJoinAlgorithm { 
   JOIN_ALGO_UNKNOWN = 0,
@@ -223,13 +262,18 @@ typedef enum EDynQueryType {
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
-  STableNode table;  // QUERY_NODE_JOIN_TABLE
-  EJoinType  joinType;
-  bool       hasSubQuery;
-  bool       isLowLevelJoin;
-  SNode*     pLeft;
-  SNode*     pRight;
-  SNode*     pOnCond;
+  STableNode   table;  // QUERY_NODE_JOIN_TABLE
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;
+  SNode*       addPrimCond;
+  bool         hasSubQuery;
+  bool         isLowLevelJoin;
+  SNode*       pParent;
+  SNode*       pLeft;
+  SNode*       pRight;
+  SNode*       pOnCond;
 } SJoinTableNode;
 
 typedef enum EGroupingSetType { GP_TYPE_NORMAL = 1 } EGroupingSetType;
@@ -305,6 +349,7 @@ typedef enum EFillMode {
 
 typedef enum ETimeLineMode {
   TIME_LINE_NONE = 1,
+  TIME_LINE_BLOCK,
   TIME_LINE_MULTI,
   TIME_LINE_GLOBAL,
 } ETimeLineMode;
@@ -338,6 +383,13 @@ typedef struct SCaseWhenNode {
   SNodeList* pWhenThenList;
 } SCaseWhenNode;
 
+typedef struct SWindowOffsetNode {
+  ENodeType type;          // QUERY_NODE_WINDOW_OFFSET
+  SNode*    pStartOffset;  // SValueNode
+  SNode*    pEndOffset;    // SValueNode
+} SWindowOffsetNode;
+
+
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
@@ -362,6 +414,7 @@ typedef struct SSelectStmt {
   uint8_t       precision;
   int32_t       selectFuncNum;
   int32_t       returnRows;  // EFuncReturnRows
+  ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
   bool          isEmptyResult;
   bool          isSubquery;
@@ -385,6 +438,7 @@ typedef struct SSelectStmt {
   bool          onlyHasKeepOrderFunc;
   bool          groupSort;
   bool          tagScan;
+  bool          joinContains;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -400,6 +454,7 @@ typedef struct SSetOperator {
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
   ETimeLineMode    timeLineResMode;  
+  bool             joinContains;
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -537,12 +592,15 @@ typedef struct SQuery {
   bool            stableQuery;
 } SQuery;
 
+void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
+                            SNodeList** pCols);                            
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
@@ -578,6 +636,12 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
+
+char* getJoinTypeString(EJoinType type);
+char* getJoinSTypeString(EJoinSubType type);
+char* getFullJoinTypeString(EJoinType type, EJoinSubType stype);
+int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
+
 
 #ifdef __cplusplus
 }
