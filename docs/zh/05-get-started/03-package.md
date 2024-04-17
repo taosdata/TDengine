@@ -124,6 +124,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 1. 从列表中下载获得 exe 安装程序；
    <PkgListV3 type={3}/>
 2. 运行可执行程序来安装 TDengine。
+Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的下载。想要使用TDengine 服务端的 Windows 版本，请联系销售升级为企业版本。
 
 </TabItem>
 <TabItem label="macOS 安装" value="macos">

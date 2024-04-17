@@ -124,6 +124,8 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 1. Download the Windows installation package.
    <PkgListV3 type={3}/>
 2. Run the downloaded package to install TDengine.
+Note: From version 3.0.1.7, only TDengine client pacakge can be downloaded for Windows platform. If you want to run TDengine servers on Windows, please contact our sales team to upgrade to TDengine Enterprise. 
+
 
 </TabItem>
 <TabItem label="macOS" value="macos">
