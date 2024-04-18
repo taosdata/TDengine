@@ -1,6 +1,6 @@
 ---
 id: postgres
-name: Postgres
+name: PostgreSQL
 type: uri
 description: |
   PostgreSQL is a very powerful, open-source client/server relational database management system that has many features found in large commercial RDBMSs, including transactions, subselects, triggers, views, referential integrity, and sophisticated locking functionality.
@@ -45,7 +45,6 @@ authentication:
 
 groups:
   - name: Connection options
-    collapsible: true
     display_order: 1
     description: Other connection options.
     connection_option: true
@@ -68,23 +67,6 @@ groups:
             - ALLOW
             - PREFER
             - REQUIRE
-            - VERIFY_CA
-            - VERIFY_FULL
-      - name: ssl_ca
-        display: CA Certificate
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_cert
-        display: Client Certificate file
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_key
-        display: Client Key file
-        required: true
-        hint:
-          type: file
   - name: Data Collection
     display_order: 2
     description: Data collection related configuration items.

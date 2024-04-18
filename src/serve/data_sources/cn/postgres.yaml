@@ -1,6 +1,6 @@
 ---
 id: postgres
-name: Postgres
+name: PostgreSQL
 type: uri
 description: |
   PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统， 有很多在大型商业RDBMS中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。
@@ -43,7 +43,6 @@ authentication:
 
 groups:
   - name: 连接选项
-    collapsible: true
     display_order: 1
     description: 其他数据库连接选项。
     connection_option: true
@@ -66,23 +65,6 @@ groups:
             - ALLOW
             - PREFER
             - REQUIRE
-            - VERIFY_CA
-            - VERIFY_FULL
-      - name: ssl_ca
-        display: CA 证书
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_cert
-        display: 客户端证书
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_key
-        display: 客户端 Key
-        required: true
-        hint:
-          type: file
   - name: SQL 查询
     display_order: 2
     description: 数据采集相关配置项。
