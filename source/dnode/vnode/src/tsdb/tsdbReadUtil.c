@@ -191,6 +191,10 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return terrno;
       }
+
+      if (!asc) {
+        pKey->numOfPKs = 2;
+      }
     }
   }
 
