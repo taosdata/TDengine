@@ -100,6 +100,11 @@ void blFreeBlobDataImpl(void *ptr) {
 int32_t blChopDataIntoChunks(SBlobData *pBlob, const void *pData, int32_t length) {
   uint32_t chunkSize = tBlobChunkSize(pBlob->hdr.chunkLvl);
   uint32_t aSize = tBlobChunkNum(length, chunkSize);
+  if (taosArrayEnsureCap(pBlob->pChunks, aSize) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
   uint32_t offset = 0;
   for (int32_t i = 0; i < aSize; i++) {
     SBlobChunk *pChunk = taosArrayReserve(pBlob->pChunks, 1);
@@ -262,6 +267,7 @@ int32_t tGetBlobData(uint8_t *p, SBlobData *pBlob) {
 
   const int32_t chunkSize = tBlobChunkSize(pBlob->hdr.chunkLvl);
   const int32_t aSize = tBlobChunkNum(pBlob->hdr.length, chunkSize);
+  taosArrayEnsureCap(pBlob->pChunks, aSize);
   ASSERT(pBlob->pChunks != NULL);
 
   for (int32_t j = 0; j < aSize; j++) {
