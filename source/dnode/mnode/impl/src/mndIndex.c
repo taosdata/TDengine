@@ -668,6 +668,7 @@ _OVER:
   if (newStb.pTags != NULL) {
     taosMemoryFree(newStb.pTags);
     taosMemoryFree(newStb.pColumns);
+    taosMemoryFree(newStb.pCmpr);
   }
   mndTransDrop(pTrans);
   return code;
@@ -784,6 +785,7 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
 _OVER:
   taosMemoryFree(newObj.pTags);
   taosMemoryFree(newObj.pColumns);
+  taosMemoryFree(newObj.pCmpr);
 
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);

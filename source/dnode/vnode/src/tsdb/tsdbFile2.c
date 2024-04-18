@@ -267,29 +267,25 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
 }
 
 static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
-  if (fobj->f->type != TSDB_FTYPE_DATA) {
+  if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
     remove_file(fobj->fname);
     return;
   }
 
   if (!remove_all) {
-    if (fobj->f->lcn < 1) {
-      remove_file(fobj->fname);
+    // remove local last chunk file
+    char lc_path[TSDB_FILENAME_LEN];
+    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+
+    char *dot = strrchr(lc_path, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", lc_path);
       return;
-    } else {
-      // remove local last chunk file
-      char lc_path[TSDB_FILENAME_LEN];
-      tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
-
-      char *dot = strrchr(lc_path, '.');
-      if (!dot) {
-        tsdbError("unexpected path: %s", lc_path);
-        return;
-      }
-      snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
-
-      remove_file(lc_path);
     }
+    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+    remove_file(lc_path);
+
   } else {
     // delete by data file prefix
     char lc_path[TSDB_FILENAME_LEN];
