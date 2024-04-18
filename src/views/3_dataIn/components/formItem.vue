@@ -353,6 +353,7 @@ export default {
           break;
         case "avevaHistorian":
         case "mysql":
+        case "postgres":
           this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
           this.date2 = new Date(groupsData?.endDateTime) ?? 0;
           break;
