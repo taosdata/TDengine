@@ -861,7 +861,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
   return 0;
 }
 // opt ins_tables
-int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
+static int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SBtimeIdxKey btimeKey = {0};
   if (metaBuildBtimeIdxKey(&btimeKey, pME) < 0) {
     return 0;
@@ -872,14 +872,14 @@ int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbUpsert(pMeta->pBtimeIdx, &btimeKey, sizeof(btimeKey), NULL, 0, pMeta->txn);
 }
 
-int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
+static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SBtimeIdxKey btimeKey = {0};
   if (metaBuildBtimeIdxKey(&btimeKey, pME) < 0) {
     return 0;
   }
   return tdbTbDelete(pMeta->pBtimeIdx, &btimeKey, sizeof(btimeKey), pMeta->txn);
 }
-int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
+static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SNcolIdxKey ncolKey = {0};
   if (metaBuildNColIdxKey(&ncolKey, pME) < 0) {
     return 0;
@@ -887,7 +887,7 @@ int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbUpsert(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), NULL, 0, pMeta->txn);
 }
 
-int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
+static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SNcolIdxKey ncolKey = {0};
   if (metaBuildNColIdxKey(&ncolKey, pME) < 0) {
     return 0;
