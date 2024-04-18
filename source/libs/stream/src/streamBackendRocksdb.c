@@ -14,6 +14,7 @@
  */
 
 #include "streamBackendRocksdb.h"
+#include "lz4.h"
 #include "streamInt.h"
 #include "tcommon.h"
 #include "tref.h"
@@ -1550,48 +1551,107 @@ void destroyCompare(void* arg) {
 }
 
 int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
-  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .data = (char*)(value)};
+  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .rawLen = vlen, .compress = 0, .data = (char*)(value)};
   int32_t      len = 0;
+  char*        dst = NULL;
+  if (vlen > 512) {
+    dst = taosMemoryCalloc(1, vlen + 128);
+    int32_t dstCap = vlen + 128;
+    int32_t compressedSize = LZ4_compress_default((char*)value, dst, vlen, dstCap);
+    if (compressedSize < vlen) {
+      key.compress = 1;
+      key.len = compressedSize;
+      value = dst;
+    }
+    stDebug("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
+  }
+
   if (*dest == NULL) {
-    char* p = taosMemoryCalloc(1, sizeof(int64_t) + sizeof(int32_t) + key.len);
+    char* p = taosMemoryCalloc(
+        1, sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len);
     char* buf = p;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
     *dest = p;
   } else {
     char* buf = *dest;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
   }
+  taosMemoryFree(dst);
+
   return len;
 }
+
 /*
  *  ret >= 0 : found valid value
  *  ret < 0 : error or timeout
  */
 int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
+  int32_t      code = -1;
   SStreamValue key = {0};
   char*        p = value;
+
+  char* pCompressData = NULL;
+  char* pOutput = NULL;
   if (streamStateValueIsStale(p)) {
     goto _EXCEPT;
   }
+
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
-  if (vlen != (sizeof(int64_t) + sizeof(int32_t) + key.len)) {
-    stError("vlen: %d, read len: %d", vlen, key.len);
+  if (key.len == 0) {
+    code = 0;
     goto _EXCEPT;
   }
-  if (key.len != 0 && dest != NULL) p = taosDecodeBinary(p, (void**)dest, key.len);
+  if (vlen == (sizeof(key.unixTimestamp) + sizeof(key.len) + key.len)) {
+    // compatiable with previous data
+    p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+  } else {
+    p = taosDecodeFixedI32(p, &key.rawLen);
+    p = taosDecodeFixedI8(p, &key.compress);
+    if (vlen != (sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len)) {
+      stError("vlen: %d, read len: %d", vlen, key.len);
+      goto _EXCEPT;
+    }
+    if (key.compress == 1) {
+      p = taosDecodeBinary(p, (void**)&pCompressData, key.len);
+      pOutput = taosMemoryCalloc(1, key.rawLen);
+      int32_t rawLen = LZ4_decompress_safe(pCompressData, pOutput, key.len, key.rawLen);
+      if (rawLen != key.rawLen) {
+        stError("read invalid read, rawlen: %d, currlen: %d", key.rawLen, key.len);
+        goto _EXCEPT;
+      }
+      key.len = rawLen;
+    } else {
+      p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+    }
+  }
 
   if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
+
+  code = 0;
+  if (dest) {
+    *dest = pOutput;
+    pOutput = NULL;
+  }
+  taosMemoryFree(pCompressData);
+  taosMemoryFree(pOutput);
   return key.len;
 
 _EXCEPT:
   if (dest != NULL) *dest = NULL;
   if (ttl != NULL) *ttl = 0;
-  return -1;
+
+  taosMemoryFree(pOutput);
+  taosMemoryFree(pCompressData);
+  return code;
 }
 
 const char* compareDefaultName(void* arg) {
