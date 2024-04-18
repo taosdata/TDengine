@@ -136,7 +136,7 @@ impl PointConfig {
         if stable.is_some() {
             validate_table_column_name("stable name", stable.as_ref().unwrap())?;
         }
-         
+
         // 遍历tag_values，校验tag_values中的tag_name是否合法
         if tag_values.is_some() {
             for (tag_name, _) in tag_values.as_ref().unwrap() {
