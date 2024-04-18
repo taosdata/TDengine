@@ -4518,7 +4518,8 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
       goto _err;
     }
 
-    // open reader failure may cause the flag alway to be READER_STATUS_SUSPEND, so we need to set it A.S.A.P
+    // open reader failure may cause the flag still to be READER_STATUS_SUSPEND, which may cause suspend reader failure.
+    // So we need to set it A.S.A.P
     pReader->flag = READER_STATUS_NORMAL;
 
     if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
