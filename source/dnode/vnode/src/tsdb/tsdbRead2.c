@@ -4276,6 +4276,9 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
       goto _err;
     }
 
+    // open reader failure may cause the flag alway to be READER_STATUS_SUSPEND, so we need to set it A.S.A.P
+    pReader->flag = READER_STATUS_NORMAL;
+
     if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
       code = doOpenReaderImpl(pReader);
       if (code != TSDB_CODE_SUCCESS) {
@@ -4306,7 +4309,6 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
     }
   }
 
-  pReader->flag = READER_STATUS_NORMAL;
   tsdbDebug("reader: %p resumed uid %" PRIu64 ", numOfTable:%" PRId32 ", in this query %s", pReader,
             pBlockScanInfo ? (*pBlockScanInfo)->uid : 0, numOfTables, pReader->idStr);
   return code;
