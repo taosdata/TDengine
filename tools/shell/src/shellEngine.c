@@ -730,6 +730,10 @@ bool shellIsShowWhole(const char *sql) {
   if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
+  // explain
+  if (taosStrCaseStr(sql, "explain ") != NULL) {
+    return true;
+  }
 
   return false;
 }

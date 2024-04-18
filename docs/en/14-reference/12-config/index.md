@@ -231,6 +231,16 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Default Value | 0          |
 | Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
 
+### multiResultFunctionStarReturnTags
+
+| Attribute     | Description                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                     |
+| Meaning       | When querying a super table, whether last(\*)/last_row(\*)/first(\*) returns tags is affected by this parameter. When querying a normal table or subtable, this parameter has no effect. |
+| Value Range   | 0: do not return tags, 1: return tags |
+| Default Value | 0          |
+| Notes         |  When this parameter is set to 0, last(\*)/last_row(\*)/first(\*) only returns the columns of the super table; When it is 1, return the columns and tags of the super table.               |
+
 ## Locale Parameters
 
 ### timezone

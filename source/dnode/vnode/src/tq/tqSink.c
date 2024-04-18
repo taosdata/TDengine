@@ -71,8 +71,8 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
-      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0) {
-        buildCtbNameAddGroupId(name, groupId);
+      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0 && stbFullName) {
+        buildCtbNameAddGroupId(stbFullName, name, groupId);
       }
     } else if (stbFullName) {
       name = buildCtbNameByGroupId(stbFullName, groupId);
@@ -182,10 +182,10 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
     if (newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName) &&
-        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0) {
+        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0 && stbFullName) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
-      buildCtbNameAddGroupId(pCreateTableReq->name, gid);
+      buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
 //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
@@ -324,6 +324,7 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id) {
   int32_t oldLen = taosArrayGetSize(pExisted->aRowP);
   int32_t newLen = taosArrayGetSize(pNew->aRowP);
+  int32_t numOfPk = 0;
 
   int32_t j = 0, k = 0;
   SArray* pFinal = taosArrayInit(oldLen + newLen, POINTER_BYTES);
@@ -335,17 +336,40 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   while (j < newLen && k < oldLen) {
     SRow* pNewRow = taosArrayGetP(pNew->aRowP, j);
     SRow* pOldRow = taosArrayGetP(pExisted->aRowP, k);
-    if (pNewRow->ts <= pOldRow->ts) {
+    if (pNewRow->ts < pOldRow->ts) {
       taosArrayPush(pFinal, &pNewRow);
       j += 1;
-
-      if (pNewRow->ts == pOldRow->ts) {
-        k += 1;
-        tRowDestroy(pOldRow);
-      }
-    } else {
+    } else if (pNewRow->ts > pOldRow->ts) {
       taosArrayPush(pFinal, &pOldRow);
       k += 1;
+    } else {
+        // check for the existance of primary key
+        if (pNewRow->numOfPKs == 0) {
+          taosArrayPush(pFinal, &pNewRow);
+          k += 1;
+          j += 1;
+          tRowDestroy(pOldRow);
+        } else {
+          numOfPk = pNewRow->numOfPKs;
+
+          SRowKey kNew, kOld;
+          tRowGetKey(pNewRow, &kNew);
+          tRowGetKey(pOldRow, &kOld);
+
+          int32_t ret = tRowKeyCompare(&kNew, &kOld);
+          if (ret <= 0) {
+            taosArrayPush(pFinal, &pNewRow);
+            j += 1;
+
+            if (ret == 0) {
+              k += 1;
+              tRowDestroy(pOldRow);
+            }
+          } else {
+            taosArrayPush(pFinal, &pOldRow);
+            k += 1;
+          }
+        }
     }
   }
 
@@ -363,8 +387,8 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   taosArrayDestroy(pExisted->aRowP);
   pExisted->aRowP = pFinal;
 
-  tqTrace("s-task:%s rows merged, final rows:%d, uid:%" PRId64 ", existed auto-create table:%d, new-block:%d", id,
-          (int32_t)taosArrayGetSize(pFinal), pExisted->uid, (pExisted->pCreateTbReq != NULL),
+  tqTrace("s-task:%s rows merged, final rows:%d, pk:%d uid:%" PRId64 ", existed auto-create table:%d, new-block:%d",
+          id, (int32_t)taosArrayGetSize(pFinal), numOfPk, pExisted->uid, (pExisted->pCreateTbReq != NULL),
           (pNew->pCreateTbReq != NULL));
 
   tdDestroySVCreateTbReq(pNew->pCreateTbReq);
@@ -546,20 +570,35 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     taosArrayClear(pVals);
 
     int32_t dataIndex = 0;
+    int64_t ts = 0;
+
     for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
       const STColumn* pCol = &pTSchema->columns[k];
+
+      // primary timestamp column, for debug purpose
       if (k == 0) {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
-        void*            colData = colDataGetData(pColData, j);
-        tqTrace("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, *(int64_t*)colData);
+        ts = *(int64_t*)colDataGetData(pColData, j);
+        tqTrace("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, ts);
       }
 
       if (IS_SET_NULL(pCol)) {
+        if (pCol->flags & COL_IS_KEY) {
+          qError("ts:%" PRId64 " Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
+                 pCol->colId, pCol->type);
+          break;
+        }
         SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
         taosArrayPush(pVals, &cv);
       } else {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
         if (colDataIsNull_s(pColData, j)) {
+          if (pCol->flags & COL_IS_KEY) {
+            qError("ts:%" PRId64 "Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
+                   ts, pCol->colId, pCol->type);
+            break;
+          }
+
           SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
           taosArrayPush(pVals, &cv);
           dataIndex++;
@@ -567,13 +606,14 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           void* colData = colDataGetData(pColData, j);
           if (IS_STR_DATA_TYPE(pCol->type)) {
             // address copy, no value
-            SValue  sv = (SValue){.nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            SValue sv =
+                (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           } else {
-            SValue sv;
+            SValue sv = {.type = pCol->type};
             memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
-            SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
+            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             taosArrayPush(pVals, &cv);
           }
           dataIndex++;
@@ -671,10 +711,14 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     } else {
-      if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1 &&
-          !isAutoTableName(dstTableName) && !alreadyAddGroupId(dstTableName) && groupId != 0) {
+      if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
+          !alreadyAddGroupId(dstTableName) && groupId != 0) {
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
-        buildCtbNameAddGroupId(dstTableName, groupId);
+        if(pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+          buildCtbNameAddGroupId(NULL, dstTableName, groupId);
+        }else if(pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+          buildCtbNameAddGroupId(stbFullName, dstTableName, groupId);
+        }
       }
     }
 
@@ -750,8 +794,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
   return TDB_CODE_SUCCESS;
 }
 
-int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                                 SSubmitTbData* pTableData, const char* id) {
+int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
+                               SSubmitTbData* pTableData, const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
 
   tqDebug("s-task:%s sink data pipeline, build submit msg from %dth resBlock, including %d rows, dst suid:%" PRId64, id,

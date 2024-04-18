@@ -79,6 +79,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   int32_t     nKey = 0;
   int32_t     nData = 0;
   STbDbKey    key;
+  SMetaInfo   info;
 
   *ppData = NULL;
   for (;;) {
@@ -91,7 +92,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
       goto _exit;
     }
 
-    if (key.version < pReader->sver) {
+    if (key.version < pReader->sver  //
+        || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
       tdbTbcMoveToNext(pReader->pTbc);
       continue;
     }
@@ -466,6 +468,20 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
   return c;
 }
 
+void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid){
+  bool ret = false;
+  SSchemaWrapper *schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+    ret = true;
+  }
+  tDeleteSchemaWrapper(schema);
+  ctx->hasPrimaryKey = ret;
+}
+
+bool taosXGetTablePrimaryKey(SSnapContext* ctx){
+  return ctx->hasPrimaryKey;
+}
+
 int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
   int32_t ret = 0;
   void*   pKey = NULL;
@@ -512,6 +528,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.schemaTag = me.stbEntry.schemaTag;
     req.schemaRow.version = 1;
     req.schemaTag.version = 1;
+    req.colCmpr = me.colCmpr;
 
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
@@ -587,6 +604,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.uid = me.uid;
     req.commentLen = -1;
     req.ntb.schemaRow = me.ntbEntry.schemaRow;
+    req.colCmpr = me.colCmpr;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {

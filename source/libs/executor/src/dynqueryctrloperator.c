@@ -48,7 +48,7 @@ static void destroyStbJoinTableList(SStbJoinTableList* pListHead) {
 }
 
 static void destroyStbJoinDynCtrlInfo(SStbJoinDynCtrlInfo* pStbJoin) {
-  qError("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64 ", leftCacheNum:%" PRId64 ", rightCacheNum:%" PRId64, 
+  qDebug("dynQueryCtrl exec info, prevBlk:%" PRId64 ", prevRows:%" PRId64 ", postBlk:%" PRId64 ", postRows:%" PRId64 ", leftCacheNum:%" PRId64 ", rightCacheNum:%" PRId64, 
          pStbJoin->execInfo.prevBlkNum, pStbJoin->execInfo.prevBlkRows, pStbJoin->execInfo.postBlkNum, 
          pStbJoin->execInfo.postBlkRows, pStbJoin->execInfo.leftCacheNum, pStbJoin->execInfo.rightCacheNum);
 
@@ -432,7 +432,7 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
   int64_t*                    rightUid = pPrev->pListHead->pRightUid + rowIdx;
   int32_t                     code = TSDB_CODE_SUCCESS;
 
-  qError("start %" PRId64 ":%" PRId64 "th stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, 
+  qDebug("start %" PRId64 ":%" PRId64 "th stbJoin, left:%d,%" PRIu64 " - right:%d,%" PRIu64, 
       rowIdx, pPrev->tableNum, *leftVg, *leftUid, *rightVg, *rightUid);
 
   updatePostJoinCurrTableInfo(&pInfo->stbJoin);
@@ -457,7 +457,7 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     }
   }
 
-  bool initParam = pSrcParam0 ? true : false;  
+  bool initParam = pSrcParam0 ? true : false;
   if (TSDB_CODE_SUCCESS == code) {
     code = buildGroupCacheOperatorParam(&pGcParam0, 0, *leftVg, *leftUid, pPost->leftNeedCache, pSrcParam0);
     pSrcParam0 = NULL;
@@ -524,7 +524,7 @@ static int32_t notifySeqJoinTableCacheEnd(SOperatorInfo* pOperator, SStbJoinPost
   int32_t         vgId = leftTable ? pPost->leftVgId : pPost->rightVgId;
   int64_t         uid = leftTable ? pPost->leftCurrUid : pPost->rightCurrUid;
 
-  qError("notify table %" PRIu64 " in vgId %d downstreamId %d cache end", uid, vgId, downstreamId);
+  qDebug("notify table %" PRIu64 " in vgId %d downstreamId %d cache end", uid, vgId, downstreamId);
 
   int32_t code = buildGroupCacheNotifyOperatorParam(&pGcParam, downstreamId, vgId, uid);
   if (TSDB_CODE_SUCCESS != code) {
@@ -758,7 +758,7 @@ static void postProcessStbJoinTableHash(SOperatorInfo* pOperator) {
   }
 
   pStbJoin->execInfo.leftCacheNum = tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache);
-  qError("more than 1 ref build table num %" PRId64, (int64_t)tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache));
+  qDebug("more than 1 ref build table num %" PRId64, (int64_t)tSimpleHashGetSize(pStbJoin->ctx.prev.leftCache));
 
   // debug only
   iter = 0;

@@ -22,6 +22,14 @@
 #include "systable.h"
 #include "functionMgt.h"
 
+char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
+           /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
+/*INNER*/  {"Inner Join",         NULL,                  NULL,                 NULL,                  NULL,                  NULL},
+/*LEFT*/   {"Left Join",          "Left Join",           "Left Semi Join",     "Left Anti Join",      "Left ASOF Join",      "Left Window Join"},
+/*RIGHT*/  {"Right Join",         "Right Join",          "Right Semi Join",    "Right Anti Join",     "Right ASOF Join",     "Right Window Join"},
+/*FULL*/   {"Full Join",          "Full Join",           NULL,                 NULL,                  NULL,                  NULL},
+};
+
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
 int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
 
@@ -35,6 +43,33 @@ char *qExplainGetDynQryCtrlType(EDynQueryType type) {
 
   return "unknown task";
 }
+
+char* qExplainGetAsofOpStr(int32_t opType) {
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN:
+      return ">";
+    case OP_TYPE_GREATER_EQUAL:
+      return ">=";
+    case OP_TYPE_LOWER_THAN:
+      return "<";
+    case OP_TYPE_LOWER_EQUAL:
+      return "<=";
+    case OP_TYPE_EQUAL:
+      return "=";    
+    default:
+      return "UNKNOWN";
+  }
+}
+
+char* qExplainGetTimerangeTargetStr(int32_t target) {
+  static char* targetName[] = {"", "Left", "Right", "Left/Right"};
+  if (target <= 0 || target > 3) {
+    return "Unknown";
+  }
+
+  return targetName[target];
+}
+
 
 void qExplainFreeResNode(SExplainResNode *resNode) {
   if (NULL == resNode) {
@@ -375,6 +410,14 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
             QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
           }
         }
+
+        if (pTagScanNode->scan.node.pConditions) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pTagScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }        
       }
       break;
     }
@@ -593,7 +636,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SSortMergeJoinPhysiNode *pJoinNode = (SSortMergeJoinPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, EXPLAIN_JOIN_STRING(pJoinNode->joinType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, gJoinTypeStr[pJoinNode->joinType][pJoinNode->subType]);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -605,6 +648,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pJoinNode->node.inputTsOrder));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_JOIN_ALGO, "Merge");
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -620,6 +664,36 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
+        if (IS_ASOF_JOIN(pJoinNode->subType) || IS_WINDOW_JOIN(pJoinNode->subType)) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_PARAM_FORMAT);
+          if (IS_ASOF_JOIN(pJoinNode->subType)) {
+            EXPLAIN_ROW_APPEND(EXPLAIN_ASOF_OP_FORMAT, qExplainGetAsofOpStr(pJoinNode->asofOpType));
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (NULL != pJoinNode->pWindowOffset) {
+            SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pJoinNode->pWindowOffset;
+            SValueNode* pStart = (SValueNode*)pWinOffset->pStartOffset;
+            SValueNode* pEnd = (SValueNode*)pWinOffset->pEndOffset;
+            EXPLAIN_ROW_APPEND(EXPLAIN_WIN_OFFSET_FORMAT, pStart->literal, pEnd->literal);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (NULL != pJoinNode->pJLimit) {
+            SLimitNode* pJLimit = (SLimitNode*)pJoinNode->pJLimit;
+            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+          if (IS_WINDOW_JOIN(pJoinNode->subType)) {
+            EXPLAIN_ROW_APPEND(EXPLAIN_SEQ_WIN_GRP_FORMAT, pJoinNode->seqWinGroup);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          }
+
+          EXPLAIN_ROW_APPEND(EXPLAIN_GRP_JOIN_FORMAT, pJoinNode->grpJoin);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_END();
+          
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
         if (pJoinNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
           QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
@@ -628,16 +702,48 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);
-        QRY_ERR_RET(
-            nodesNodeToSQL(pJoinNode->pPrimKeyCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-        if (pJoinNode->pOtherOnCond) {
-          EXPLAIN_ROW_APPEND(" AND ");
-          QRY_ERR_RET(
-              nodesNodeToSQL(pJoinNode->pOtherOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        if (NULL != pJoinNode->pPrimKeyCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_PRIM_CONDITIONS_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pPrimKeyCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
         }
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
+
+        if (NULL != pJoinNode->pEqLeft && pJoinNode->pEqLeft->length > 0) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_EQ_LEFT_FORMAT);
+          SNode* pCol = NULL;
+          FOREACH(pCol, pJoinNode->pEqLeft) {
+            EXPLAIN_ROW_APPEND("`%s`.`%s` ", ((SColumnNode*)pCol)->tableAlias, ((SColumnNode*)pCol)->colName);
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (NULL != pJoinNode->pEqRight && pJoinNode->pEqRight->length > 0) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_JOIN_EQ_RIGHT_FORMAT);
+          SNode* pCol = NULL;
+          FOREACH(pCol, pJoinNode->pEqRight) {
+            EXPLAIN_ROW_APPEND("`%s`.`%s` ", ((SColumnNode*)pCol)->tableAlias, ((SColumnNode*)pCol)->colName);
+          }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (NULL != pJoinNode->pFullOnCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);
+          QRY_ERR_RET(
+                nodesNodeToSQL(pJoinNode->pFullOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
+        }
+
+        if (NULL != pJoinNode->pColOnCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_COL_ON_CONDITIONS_FORMAT);
+          QRY_ERR_RET(
+                nodesNodeToSQL(pJoinNode->pColOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));   
+        }
       }
       break;
     }
@@ -1575,7 +1681,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:{
       SHashJoinPhysiNode *pJoinNode = (SHashJoinPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, EXPLAIN_JOIN_STRING(pJoinNode->joinType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_JOIN_FORMAT, gJoinTypeStr[pJoinNode->joinType][pJoinNode->subType]);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1587,6 +1693,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pJoinNode->node.inputTsOrder));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_JOIN_ALGO, "Hash");
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -1602,19 +1709,11 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        if (pJoinNode->node.pConditions || pJoinNode->pFilterConditions) {
+        if (pJoinNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
-          if (pJoinNode->node.pConditions) {
-            QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
-                                       TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
-          if (pJoinNode->pFilterConditions) {
-            if (pJoinNode->node.pConditions) {
-              EXPLAIN_ROW_APPEND(" AND ");
-            }
-            QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pFilterConditions, tbuf + VARSTR_HEADER_SIZE,
-                                       TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
-          }
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
@@ -1642,8 +1741,21 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
               nodesNodeToSQL(pJoinNode->pTagEqCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
           conditionsGot = true;  
         }
+        if (pJoinNode->pFullOnCond) {
+          if (conditionsGot) {
+            EXPLAIN_ROW_APPEND(" AND ");
+          }
+          QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pFullOnCond, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        }        
         EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));    
+
+        if (pJoinNode->timeRangeTarget) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TABLE_TIMERANGE_FORMAT, qExplainGetTimerangeTargetStr(pJoinNode->timeRangeTarget), pJoinNode->timeRange.skey, pJoinNode->timeRange.ekey);
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));    
+        }
       }
       break;
     }

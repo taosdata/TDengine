@@ -78,20 +78,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
-          terrno = TSDB_CODE_SUCCESS;
-          raftStoreNextTerm(ths);
-          if (terrno != TSDB_CODE_SUCCESS) {
-            sError("vgId:%d, failed to update term, reason:%s", ths->vgId, tstrerror(terrno));
-            return -1;
-          }
-          if (syncNodeAssignedLeader2Leader(ths) != 0) {
-            sError("vgId:%d, failed to change state from assigned leader to leader", ths->vgId);
-            return -1;
-          }
-
-          taosThreadMutexLock(&ths->arbTokenMutex);
-          syncUtilGenerateArbToken(ths->myNodeInfo.nodeId, ths->vgId, ths->arbToken);
-          taosThreadMutexUnlock(&ths->arbTokenMutex);
+          syncNodeStepDown(ths, pMsg->term);
         }
       } else {
         (void)syncLogBufferCommit(ths->pLogBuf, ths, commitIndex);

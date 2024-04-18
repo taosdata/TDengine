@@ -19,8 +19,8 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
-  pRsp->reqOffset = pOffset;
-  pRsp->rspOffset = pOffset;
+  tOffsetCopy(&pRsp->reqOffset, &pOffset);
+  tOffsetCopy(&pRsp->rspOffset, &pOffset);
 
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
@@ -40,8 +40,8 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
-  pRsp->reqOffset = pOffset;
-  pRsp->rspOffset = pOffset;
+  tOffsetCopy(&pRsp->reqOffset, &pOffset);
+  tOffsetCopy(&pRsp->rspOffset, &pOffset);
 
   pRsp->withTbName = 1;
   pRsp->withSchema = 1;
@@ -81,7 +81,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   *pBlockReturned = false;
   // In this vnode, data has been polled by consumer for this topic, so let's continue from the last offset value.
   if (pOffset != NULL) {
-    *pOffsetVal = pOffset->val;
+    tOffsetCopy(pOffsetVal, &pOffset->val);
 
     char formatBuf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);
@@ -98,7 +98,8 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         if (pHandle->fetchMeta) {
           tqOffsetResetToMeta(pOffsetVal, 0);
         } else {
-          tqOffsetResetToData(pOffsetVal, 0, 0);
+          SValue val = {0};
+          tqOffsetResetToData(pOffsetVal, 0, 0, val);
         }
       } else {
         walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
@@ -157,7 +158,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     taosWUnLockLatch(&pTq->lock);
   }
 
-  dataRsp.reqOffset = *pOffset;  // reqOffset represents the current date offset, may be changed if wal not exists
+  tOffsetCopy(&dataRsp.reqOffset, pOffset);  // reqOffset represents the current date offset, may be changed if wal not exists
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -207,7 +208,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
               ",ts:%" PRId64,
               pRequest->consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
               metaRsp.rspOffset.ts);
-      taosMemoryFree(metaRsp.metaRsp);
+      tDeleteMqMetaRsp(&metaRsp);
       goto end;
     }
 
@@ -219,7 +220,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
       goto end;
     } else {
-      *offset = taosxRsp.rspOffset;
+      tOffsetCopy(offset, &taosxRsp.rspOffset);
     }
   }
 
@@ -290,7 +291,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         goto end;
       }
 
-      if (totalRows >= 4096 || (taosGetTimestampMs() - st > 1000)) {
+      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > 1000)) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
         code = tqSendDataRsp(
             pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp,
@@ -309,33 +310,37 @@ end:
 }
 
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
-  STqOffsetVal reqOffset = pRequest->reqOffset;
+  int32_t code = 0;
+  STqOffsetVal reqOffset = {0};
+  tOffsetCopy(&reqOffset, &pRequest->reqOffset);
 
-  // 1. reset the offset if needed
+  // reset the offset if needed
   if (IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type)) {
-    // handle the reset offset cases, according to the consumer's choice.
     bool    blockReturned = false;
-    int32_t code = extractResetOffsetVal(&reqOffset, pTq, pHandle, pRequest, pMsg, &blockReturned);
+    code = extractResetOffsetVal(&reqOffset, pTq, pHandle, pRequest, pMsg, &blockReturned);
     if (code != 0) {
-      return code;
+      goto END;
     }
 
     // empty block returned, quit
     if (blockReturned) {
-      return 0;
+      goto END;
     }
   } else if (reqOffset.type == 0) {  // use the consumer specified offset
     uError("req offset type is 0");
-    return TSDB_CODE_TMQ_INVALID_MSG;
+    code =  TSDB_CODE_TMQ_INVALID_MSG;
+    goto END;
   }
 
-  // this is a normal subscribe requirement
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    return extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
+    code = extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
   } else {
-    // for taosx
-    return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
+    code = extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &reqOffset);
   }
+
+END:
+  tOffsetDestroy(&reqOffset);
+  return code;
 }
 
 static void initMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int64_t consumerId, int64_t sver,
@@ -501,6 +506,10 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
   }
 
   // extract the required source task for a given stream, identified by streamId
+  streamMetaRLock(pMeta);
+
+  numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     if (pId->streamId != streamId) {
@@ -522,6 +531,11 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     *fhFinished = !HAS_RELATED_FILLHISTORY_TASK(pTask);
 
     int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
+    if (ver == -1) {
+      ver = pTask->chkInfo.processedVer;
+    } else {
+      ver--;
+    }
 
     SVersionRange verRange = {0};
     walReaderValidVersionRange(pTask->exec.pWalReader, &verRange.minVer, &verRange.maxVer);
@@ -536,13 +550,17 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
     int64_t latest = 0;
 
     code = walFetchHead(pReader, ver);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS) {
       cur = pReader->pHead->head.ingestTs;
     }
 
-    code = walFetchHead(pReader, verRange.maxVer);
-    if (code != TSDB_CODE_SUCCESS) {
-      latest = pReader->pHead->head.ingestTs;
+    if (ver == verRange.maxVer) {
+      latest = cur;
+    } else {
+      code = walFetchHead(pReader, verRange.maxVer);
+      if (code == TSDB_CODE_SUCCESS) {
+        latest = pReader->pHead->head.ingestTs;
+      }
     }
 
     if (pDelay != NULL) {  // delay in ms
@@ -551,6 +569,8 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
 
     walCloseReader(pReader);
   }
+
+  streamMetaRUnLock(pMeta);
 
   return TSDB_CODE_SUCCESS;
 }

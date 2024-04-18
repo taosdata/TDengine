@@ -64,6 +64,8 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
     }
+    cJSON* isPk = cJSON_CreateBool(s->flags & COL_IS_KEY);
+    cJSON_AddItemToObject(column, "isPrimarykey", isPk);
     cJSON_AddItemToArray(columns, column);
   }
   cJSON_AddItemToObject(json, "columns", columns);
@@ -710,11 +712,13 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   // build create stable
-  pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SField));
+  pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SFieldWithOptions));
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema* pSchema = req.schemaRow.pSchema + i;
-    SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
+    SFieldWithOptions   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
+    // todo get active compress param
+    setDefaultOptionsForField(&field);
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
@@ -1625,7 +1629,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   rspObj.resType = RES_TYPE__TMQ;
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp);
+  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;
@@ -1754,7 +1758,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   rspObj.resType = RES_TYPE__TMQ_METADATA;
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp);
+  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;

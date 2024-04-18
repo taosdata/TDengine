@@ -123,6 +123,7 @@ int32_t    nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t    nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t    nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc);
 int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
+int32_t    nodesListMakePushFront(SNodeList** pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 void       nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
@@ -169,6 +170,7 @@ int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
+void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 
 #ifdef __cplusplus
 }

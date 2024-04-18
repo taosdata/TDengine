@@ -276,15 +276,17 @@ int32_t syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   int32_t ret = -1;
+  int32_t errcode = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
+  void*   pHead = NULL;
+  int32_t contLen = 0;
 
   SVArbSetAssignedLeaderReq req = {0};
   if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead), pRpcMsg->contLen, &req) != 0) {
     sError("vgId:%d, failed to deserialize SVArbSetAssignedLeaderReq", ths->vgId);
     terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    errcode = terrno;
+    goto _OVER;
   }
-
-  int32_t errcode = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
 
   if (ths->arbTerm > req.arbTerm) {
     sInfo("vgId:%d, skip to set assigned leader, msg with lower term, local:%" PRId64 "msg:%" PRId64, ths->vgId,
@@ -294,16 +296,25 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) == 0) {
-    if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-      raftStoreNextTerm(ths);
-      if (terrno != TSDB_CODE_SUCCESS) {
-        sError("vgId:%d, failed to set next term since:%s", ths->vgId, terrstr());
-        goto _OVER;
-      }
-      syncNodeBecomeAssignedLeader(ths);
+  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
+    sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+          req.memberToken);
+    goto _OVER;
+  }
+
+  if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+    terrno = TSDB_CODE_SUCCESS;
+    raftStoreNextTerm(ths);
+    if (terrno != TSDB_CODE_SUCCESS) {
+      sError("vgId:%d, failed to set next term since:%s", ths->vgId, terrstr());
+      errcode = terrno;
+      goto _OVER;
     }
-    errcode = TSDB_CODE_SUCCESS;
+    syncNodeBecomeAssignedLeader(ths);
+
+    if (syncNodeAppendNoop(ths) < 0) {
+      sError("vgId:%d, assigned leader failed to append noop entry since %s", ths->vgId, terrstr());
+    }
   }
 
   SVArbSetAssignedLeaderRsp rsp = {0};
@@ -311,25 +322,32 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   rsp.memberToken = req.memberToken;
   rsp.vgId = ths->vgId;
 
-  int32_t contLen = tSerializeSVArbSetAssignedLeaderRsp(NULL, 0, &rsp);
+  contLen = tSerializeSVArbSetAssignedLeaderRsp(NULL, 0, &rsp);
   if (contLen <= 0) {
     sError("vgId:%d, failed to serialize SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     goto _OVER;
   }
-  void* pHead = rpcMallocCont(contLen);
+  pHead = rpcMallocCont(contLen);
   if (!pHead) {
     sError("vgId:%d, failed to malloc memory for SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     goto _OVER;
   }
   if (tSerializeSVArbSetAssignedLeaderRsp(pHead, contLen, &rsp) <= 0) {
     sError("vgId:%d, failed to serialize SVArbSetAssignedLeaderRsp", ths->vgId);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    errcode = terrno;
     rpcFreeCont(pHead);
     goto _OVER;
   }
 
+  errcode = TSDB_CODE_SUCCESS;
+  ret = 0;
+
+_OVER:;
   SRpcMsg rspMsg = {
       .code = errcode,
       .pCont = pHead,
@@ -339,9 +357,6 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   tmsgSendRsp(&rspMsg);
 
-  ret = 0;
-
-_OVER:
   tFreeSVArbSetAssignedLeaderReq(&req);
   return ret;
 }
@@ -487,20 +502,6 @@ int32_t syncEndSnapshot(int64_t rid) {
   syncNodeRelease(pSyncNode);
   return code;
 }
-
-#ifdef BUILD_NO_CALL
-int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    sError("sync step down error");
-    return -1;
-  }
-
-  syncNodeStepDown(pSyncNode, newTerm);
-  syncNodeRelease(pSyncNode);
-  return 0;
-}
-#endif
 
 bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
@@ -1056,6 +1057,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->arbTerm = -1;
   taosThreadMutexInit(&pSyncNode->arbTokenMutex, NULL);
   syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncInfo->vgId, pSyncNode->arbToken);
+  sInfo("vgId:%d, arb token:%s", pSyncNode->vgId, pSyncNode->arbToken);
 
   // init peersNum, peers, peersId
   pSyncNode->peersNum = pSyncNode->raftCfg.cfg.totalReplicaNum - 1;
@@ -1261,7 +1263,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   // start in syncNodeStart
   // start raft
-  // syncNodeBecomeFollower(pSyncNode);
 
   int64_t timeNow = taosGetTimestampMs();
   pSyncNode->startTime = timeNow;
@@ -1832,20 +1833,6 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
     // persist cfg
     syncWriteCfgFile(pSyncNode);
-
-#if 0
-    // change isStandBy to normal (election timeout)
-    if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-      syncNodeBecomeLeader(pSyncNode, "");
-
-      // Raft 3.6.2 Committing entries from previous terms
-      syncNodeAppendNoop(pSyncNode);
-      // syncMaybeAdvanceCommitIndex(pSyncNode);
-
-    } else {
-      syncNodeBecomeFollower(pSyncNode, "");
-    }
-#endif
   } else {
     // persist cfg
     syncWriteCfgFile(pSyncNode);
@@ -1858,18 +1845,6 @@ _END:
 }
 
 // raft state change --------------
-#ifdef BUILD_NO_CALL
-void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
-  if (term > raftStoreGetTerm(pSyncNode)) {
-    raftStoreSetTerm(pSyncNode, term);
-    char tmpBuf[64];
-    snprintf(tmpBuf, sizeof(tmpBuf), "update term to %" PRId64, term);
-    syncNodeBecomeFollower(pSyncNode, tmpBuf);
-    raftStoreClearVote(pSyncNode);
-  }
-}
-#endif
-
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > raftStoreGetTerm(pSyncNode)) {
     raftStoreSetTerm(pSyncNode, term);
@@ -1887,13 +1862,19 @@ void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
     sNTrace(pSyncNode, "step down, new-term:%" PRId64 ", current-term:%" PRId64, newTerm, currentTerm);
   } while (0);
 
+  if (pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+    taosThreadMutexLock(&pSyncNode->arbTokenMutex);
+    syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncNode->vgId, pSyncNode->arbToken);
+    sInfo("vgId:%d, step down as assigned leader, new arbToken:%s", pSyncNode->vgId, pSyncNode->arbToken);
+    taosThreadMutexUnlock(&pSyncNode->arbTokenMutex);
+  }
+
   if (currentTerm < newTerm) {
     raftStoreSetTerm(pSyncNode, newTerm);
     char tmpBuf[64];
     snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRId64, newTerm);
     syncNodeBecomeFollower(pSyncNode, tmpBuf);
     raftStoreClearVote(pSyncNode);
-
   } else {
     if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
       syncNodeBecomeFollower(pSyncNode, "step down");
@@ -2153,28 +2134,6 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
 
   sNTrace(pSyncNode, "follower to candidate");
 }
-
-#ifdef BUILD_NO_CALL
-void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
-  syncNodeBecomeFollower(pSyncNode, "leader to follower");
-  SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become follower from leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
-        pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
-
-  sNTrace(pSyncNode, "leader to follower");
-}
-
-void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  syncNodeBecomeFollower(pSyncNode, "candidate to follower");
-  SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become follower from candidate. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
-        pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
-
-  sNTrace(pSyncNode, "candidate to follower");
-}
-#endif
 
 int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER);

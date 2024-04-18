@@ -31,7 +31,6 @@ typedef struct SStreamFileState SStreamFileState;
 typedef SList                   SStreamSnapshot;
 
 typedef void*   (*_state_buff_get_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
-typedef int32_t (*_state_buff_put_fn)(void* pRowBuff, const void* pKey, size_t keyLen, const void* data, size_t dataLen);
 typedef int32_t (*_state_buff_remove_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
 typedef int32_t (*_state_buff_remove_by_pos_fn)(SStreamFileState* pState, SRowBuffPos* pPos);
 typedef void    (*_state_buff_cleanup_fn)(void* pRowBuff);
@@ -40,6 +39,8 @@ typedef void*   (*_state_buff_create_statekey_fn)(SRowBuffPos* pPos, int64_t num
 typedef int32_t (*_state_file_remove_fn)(SStreamFileState* pFileState, const void* pKey);
 typedef int32_t (*_state_file_get_fn)(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen);
 typedef int32_t (*_state_file_clear_fn)(SStreamState* pState);
+
+typedef int32_t (*_state_fun_get_fn) (SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 
 typedef int32_t (*range_cmpr_fn)(const SSessionKey* pWin1, const SSessionKey* pWin2);
 
@@ -64,7 +65,7 @@ int32_t          recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
 
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
-int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState);
+int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState);
 void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
 
 void* getRowStateBuff(SStreamFileState* pFileState);
@@ -104,6 +105,10 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
 // count window
 int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
 int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+
+//function
+int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
+int32_t getFunctionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 
 #ifdef __cplusplus
 }
