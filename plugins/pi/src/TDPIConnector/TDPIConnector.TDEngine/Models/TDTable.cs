@@ -15,6 +15,7 @@ namespace TDPIConnector.TDEngine.Models
             Name = name;
             PointId = pointId;
             STableName = sTableName;
+            ColumnType = columnType;
             Columns = columns;
         }
 

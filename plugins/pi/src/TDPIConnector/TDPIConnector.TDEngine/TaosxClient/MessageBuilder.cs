@@ -41,6 +41,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public List<StructType> records = new List<StructType>();
 
         public StringArray.Builder tableNameArrowArray;
+        public StringArray.Builder tableUniqKeyArrowArray;
         public TimestampArray.Builder tsArrowArray;
 
         public Dictionary<string, StringArray.Builder> valArrowArrayList

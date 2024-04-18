@@ -27,8 +27,8 @@ namespace TDPIConnector.Core
         };
         class ScanPointList
         {
-            public List<ScanTemplateForPoint> Template = new List<ScanTemplateForPoint>();
-            public List<ScanPoint> PointList = new List<ScanPoint>();
+            public List<ScanTemplateForPoint> Templates = new List<ScanTemplateForPoint>();
+            public List<ScanPoint> Points = new List<ScanPoint>();
         }
         class ScanAFPointList
         {
@@ -39,7 +39,7 @@ namespace TDPIConnector.Core
         {
             public List<ScanElementTemplate> Templates = new List<ScanElementTemplate>();
             public List<ScanSingleElement> SingleElements = new List<ScanSingleElement>();
-            public List<ScanElement> elements = new List<ScanElement>();
+            public List<ScanElement> Elements = new List<ScanElement>();
         }
         class ScanPointTags
         {
@@ -56,6 +56,8 @@ namespace TDPIConnector.Core
             public int ID;
             public string Name;
             public string Path;
+            public string Type;
+            public string TDType;
             public string Template;
         }
         public class ScanAttributeValue
@@ -77,6 +79,7 @@ namespace TDPIConnector.Core
             public string Name;
             public string Path;
             public string Type;
+            public string TDType;
             public string UOMABB;
             public string UOM;
             public string Template;
@@ -192,23 +195,24 @@ namespace TDPIConnector.Core
             HashSet<string> existTemplate = new HashSet<string>();
 
             foreach (var point in points) {
-                string uk = GeneratePointSuperTableUniKey(point);
                 var tName =  GeneratePointSuperTableName(point);
-                if (!existTemplate.Contains(uk)) {
-                    existTemplate.Add(uk);
+                if (!existTemplate.Contains(tName)) {
+                    existTemplate.Add(tName);
                     ScanTemplateForPoint t = new ScanTemplateForPoint();
                     t.TemplateName = tName;
                     t.TDType = PointTypeConverter.Convert(point.PointType);
                     t.Type = point.PointType;
                     t.Tags = PIPointWrapper.GetPointSavedAttrsType();
-                    piInfo.Template.Add(t);
+                    piInfo.Templates.Add(t);
                 }
                 ScanPoint p = new ScanPoint();
                 p.Path = point.GetPath();
                 p.ID = point.ID;
                 p.Name = point.Name;
+                p.Type = point.PointType;
+                p.TDType = PointTypeConverter.Convert(point.PointType);
                 p.Template = tName;
-                piInfo.PointList.Add(p);
+                piInfo.Points.Add(p);
             }
 
             var json = JsonConvert.SerializeObject(piInfo);
@@ -224,18 +228,14 @@ namespace TDPIConnector.Core
                 return "start param error, filterMode not found!";
             }
         }
-        public string GetAFPointTemplateUniKey(AFAttributeWrapper attr)
-        {
-            return GetAFPointTemplateName(attr) + "_" + attr.Type;
-        }
+
         public string GetAFPointTemplateName(AFAttributeWrapper attr)
         {
-            var type = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
             if (attr.Uom != null) { 
-                return "TS_" + type + "_" + attr.Uom; 
+                return "TS_" + attr.Type.Name + "_" + attr.Uom; 
             } else
             {
-                return "TS_" + type;
+                return "TS_" + attr.Type;
             }
         }
         internal string GetScanAFPointInfoByElements(IEnumerable<AFElementWrapper> elements)
@@ -253,14 +253,13 @@ namespace TDPIConnector.Core
                     foreach (var attr in element.Attributes)
                     {
                         if (attr.IsTDengineTag()) continue;
-                        string uk = GetAFPointTemplateUniKey(attr);
                         var templateName = GetAFPointTemplateName(attr);
-                        if (!existTemplate.Contains(uk))
+                        if (!existTemplate.Contains(templateName))
                         {
-                            existTemplate.Add(uk);
+                            existTemplate.Add(templateName);
                             ScanTemplateForAFPoint temp = new ScanTemplateForAFPoint();
                             temp.TemplateName = templateName;
-                            temp.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type); ;
+                            temp.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
                             temp.Type = attr.Type.Name;
                             temp.UOMABB = attr.Uom;
                             temp.UOM = attr.UomName;
@@ -281,6 +280,7 @@ namespace TDPIConnector.Core
                                 point.ID = attr.PIPoint.PointId;
                                 point.Name = attr.PIPoint.Name;
                                 point.Type = attr.Type.Name;
+                                point.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
                                 point.UOMABB = attr.Uom;
                                 point.UOM = attr.UomName;
                                 point.Template = templateName;
@@ -373,7 +373,7 @@ namespace TDPIConnector.Core
                     e.Path = element.GetPath();
                     e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
                     e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
-                    elmentInfo.elements.Add(e);
+                    elmentInfo.Elements.Add(e);
                 }
             }
             var json = JsonConvert.SerializeObject(elmentInfo);
@@ -489,11 +489,7 @@ namespace TDPIConnector.Core
         }
         public string GeneratePointSuperTableName(PIPointWrapper point)
         {    
-            return "TS_" + PointTypeConverter.Convert(point.PointType);
-        }
-        public string GeneratePointSuperTableUniKey(PIPointWrapper point)
-        {
-            return point.PointType;
+            return "TS_" + point.PointType;
         }
     }
 }
