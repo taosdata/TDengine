@@ -25,8 +25,9 @@
 #include "tref.h"
 #include "tsched.h"
 
-#define INDEX_NUM_OF_THREADS 5
-#define INDEX_QUEUE_SIZE     200
+#define INDEX_NUM_OF_THREADS    5
+#define INDEX_MAX_NUM_OF_THREAD 10
+#define INDEX_QUEUE_SIZE        200
 
 #define INDEX_DATA_BOOL_NULL      0x02
 #define INDEX_DATA_TINYINT_NULL   0x80
@@ -61,7 +62,9 @@ static void indexDestroy(void* sIdx);
 void indexInit(int32_t threadNum) {
   indexThreads = threadNum;
   if (indexThreads <= 1) indexThreads = INDEX_NUM_OF_THREADS;
+  if (indexThreads >= INDEX_MAX_NUM_OF_THREAD) indexThreads = INDEX_MAX_NUM_OF_THREAD;
 }
+
 void indexEnvInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, indexThreads, "index", NULL);
