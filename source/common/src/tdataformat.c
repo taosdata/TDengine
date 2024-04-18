@@ -2234,7 +2234,7 @@ static int32_t tColDataUpdateValue72(SColData *pColData, uint8_t *pData, uint32_
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
-      if (IS_STR_DATA_TYPE(pColData->type)) {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
         pColData->nData = pColData->aOffset[pColData->nVal];
       } else {
         pColData->nData -= TYPE_BYTES[pColData->type];
