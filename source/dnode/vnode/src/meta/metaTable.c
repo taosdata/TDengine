@@ -948,7 +948,34 @@ static int metaAddTagIndex(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  SSchemaWrapper *tagSchema = &entry->stbEntry.schemaTag;
+
+  if (entry->type != TSDB_SUPER_TABLE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
+  }
+
+  int iCol = 0;
+  for (; iCol < tagSchema->nCols; iCol++) {
+    SSchema *schema = tagSchema->pSchema + iCol;
+    if (strcmp(schema->name, request->tagName) == 0) {
+      break;
+    }
+  }
+
+  if (iCol >= tagSchema->nCols) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_NOT_EXISTS, lino, _exit);
+  }
+
+  if (tagSchema->nCols == 1 && tagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
+  }
+
+  if (IS_IDX_ON(tagSchema->pSchema + iCol)) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_ALREADY_EXISTS, lino, _exit);
+  }
+
+  tagSchema->version++;
+  SSCHMEA_SET_IDX_ON(tagSchema->pSchema + iCol);
 
 _exit:
   if (code) {
@@ -956,73 +983,7 @@ _exit:
   }
   return code;
 #if 0
-  SMetaEntry  stbEntry = {0};
-  void       *pVal = NULL;
-  int         nVal = 0;
-  int         ret;
-  int         c;
-  tb_uid_t    uid, suid;
-  int64_t     oversion;
-  const void *pData = NULL;
-  int         nData = 0;
-  SDecoder    dc = {0};
-
-  if (request->tagName == NULL) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  // search name index
-  ret = tdbTbGet(meta->pNameIdx, request->tbName, strlen(request->tbName) + 1, &pVal, &nVal);
-  if (ret < 0) {
-    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-    return -1;
-  } else {
-    uid = *(tb_uid_t *)pVal;
-    tdbFree(pVal);
-    pVal = NULL;
-  }
-
-  if (tdbTbGet(meta->pUidIdx, &uid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
-    ret = -1;
-    goto _err;
-  }
-  suid = ((SUidIdxVal *)pVal)[0].suid;
-
-  STbDbKey tbDbKey = {0};
-  tbDbKey.uid = suid;
-  tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
-  tdbTbGet(meta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal);
-  tDecoderInit(&dc, pVal, nVal);
-  ret = metaDecodeEntry(&dc, &stbEntry);
-  if (ret < 0) {
-    goto _err;
-  }
-
   // Get target schema info
-  SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-    goto _err;
-  }
-  SSchema *pCol = NULL;
-  int32_t  iCol = 0;
-  for (;;) {
-    pCol = NULL;
-    if (iCol >= pTagSchema->nCols) break;
-    pCol = &pTagSchema->pSchema[iCol];
-    if (strcmp(pCol->name, request->tagName) == 0) break;
-    iCol++;
-  }
-
-  if (iCol == 0) {
-    terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-    goto _err;
-  }
-  if (pCol == NULL) {
-    terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
-    goto _err;
-  }
 
   /*
    * iterator all pTdDbc by uid and version
@@ -1077,15 +1038,6 @@ _exit:
   }
   tdbTbcClose(pCtbIdxc);
   return 0;
-
-_err:
-  // tDecoderClear(&dc1);
-  // tDecoderClear(&dc2);
-  // if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
-  // if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
-  // tdbTbcClose(pTbDbc);
-  // tdbTbcClose(pUidIdxc);
-  return -1;
 #endif
 }
 
@@ -1098,7 +1050,35 @@ static int metaDropTagIndex(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *reques
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  SSchemaWrapper *tagSchema = &entry->stbEntry.schemaTag;
+
+  if (entry->type != TSDB_SUPER_TABLE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
+  }
+
+  int iCol = 0;
+  for (; iCol < tagSchema->nCols; iCol++) {
+    SSchema *schema = tagSchema->pSchema + iCol;
+    if (strcmp(schema->name, request->tagName) == 0) {
+      break;
+    }
+  }
+
+  if (iCol >= tagSchema->nCols) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_NOT_EXISTS, lino, _exit);
+  }
+
+  // the first column index should not be dropped
+  if (iCol == 0) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
+  }
+
+  if (!IS_IDX_ON(tagSchema->pSchema + iCol)) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_ALREADY_EXISTS, lino, _exit);
+  }
+
+  tagSchema->version++;
+  tagSchema->pSchema[iCol].flags &= ~COL_IDX_ON;
 
 _exit:
   if (code) {
@@ -1106,78 +1086,6 @@ _exit:
   }
   return code;
 #if 0
-  SMetaEntry  stbEntry = {0};
-  void       *pVal = NULL;
-  int         nVal = 0;
-  int         ret;
-  int         c;
-  tb_uid_t    suid;
-  int64_t     oversion;
-  const void *pData = NULL;
-  int         nData = 0;
-  SDecoder    dc = {0};
-
-  if (request->tagName == NULL) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  // search name index
-  ret = tdbTbGet(meta->pNameIdx, request->tbName, strlen(request->tbName) + 1, &pVal, &nVal);
-  if (ret < 0) {
-    terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-    return -1;
-  }
-  suid = *(tb_uid_t *)pVal;
-  tdbFree(pVal);
-  pVal = NULL;
-
-  if (tdbTbGet(meta->pUidIdx, &suid, sizeof(tb_uid_t), &pVal, &nVal) == -1) {
-    ret = -1;
-    goto _err;
-  }
-
-  STbDbKey tbDbKey = {0};
-  tbDbKey.uid = suid;
-  tbDbKey.version = ((SUidIdxVal *)pVal)[0].version;
-  tdbTbGet(meta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pVal, &nVal);
-
-  tDecoderInit(&dc, pVal, nVal);
-  ret = metaDecodeEntry(&dc, &stbEntry);
-  if (ret < 0) {
-    goto _err;
-  }
-
-  // Get targe schema info
-  SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-    goto _err;
-  }
-  SSchema *pCol = NULL;
-  int32_t  iCol = 0;
-  for (;;) {
-    pCol = NULL;
-    if (iCol >= pTagSchema->nCols) break;
-    pCol = &pTagSchema->pSchema[iCol];
-    if (strcmp(pCol->name, request->tagName) == 0) break;
-    iCol++;
-  }
-  if (iCol == 0) {
-    // cannot drop 1th tag index
-    terrno = -1;
-    goto _err;
-  }
-  if (pCol == NULL) {
-    terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
-    goto _err;
-  }
-
-  if (IS_IDX_ON(pCol)) {
-    terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
-    goto _err;
-  }
-
   SArray *tagIdxList = taosArrayInit(512, sizeof(SMetaPair));
 
   TBC *pTagIdxc = NULL;
