@@ -235,7 +235,7 @@ impl TaskConfig {
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
         } else {
-            anyhow::anyhow!("invalid sql template, missing start and end");
+            anyhow::bail!("invalid sql template, missing start and end");
         }
 
         // sharding by time
@@ -300,7 +300,7 @@ mod tests {
         let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_sql().unwrap();
+        let sql = config.task.generate_sql()?;
         dbg!(&sql);
         assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
         assert!(sql.contains("STR_TO_DATE('2021-01-02 00:00:00','%Y-%m-%d %H:%i:%s')"));
