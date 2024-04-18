@@ -230,6 +230,7 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
     streamTaskStartMonitorCheckRsp(pTask);
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
+    streamTaskCompleteCheck(&pTask->taskCheckInfo, pTask->id.idStr);
     doProcessDownstreamReadyRsp(pTask);
   }
 }

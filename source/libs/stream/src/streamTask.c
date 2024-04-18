@@ -24,6 +24,8 @@
 #define CHECK_NOT_RSP_DURATION 10*1000 // 10 sec
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
+static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
+static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -951,7 +953,7 @@ int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOut
 
   if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
     pInfo->notReadyTasks = 1;
-  } else {
+  } else if (pOutputInfo->type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     pInfo->notReadyTasks = taosArrayGetSize(pOutputInfo->shuffleDispatcher.dbInfo.pVgroupInfos);
     ASSERT(pInfo->notReadyTasks == pOutputInfo->shuffleDispatcher.dbInfo.vgNum);
   }
@@ -1139,6 +1141,7 @@ static void rspMonitorFn(void* param, void* tmrId) {
   int32_t numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
   int32_t numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
 
+  // fault tasks detected, not try anymore
   if (((numOfReady + numOfFault + numOfNotReady + numOfTimeout) == taosArrayGetSize(pInfo->pList)) && (numOfFault > 0)) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug(
@@ -1151,6 +1154,24 @@ static void rspMonitorFn(void* param, void* tmrId) {
     taosArrayDestroy(pTimeoutList);
 
     streamTaskCompleteCheck(pInfo, pTask->id.idStr);
+    return;
+  }
+
+  // checking of downstream tasks has been stopped by other threads
+  if (pInfo->inCheckProcess == 0) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug(
+        "s-task:%s status:%s vgId:%d stopped by other threads to check downstream process, notReady:%d, fault:%d, "
+        "timeout:%d, ready:%d ref:%d",
+        pTask->id.idStr, pStat->name, vgId, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
+
+    // add the not-ready tasks into the final task status result buf, along with related fill-history task if exists.
+    streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pInfo->startTs, now, false);
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      SHistoryTaskInfo* pHTaskInfo = &pTask->hTaskInfo;
+      streamMetaAddTaskLaunchResult(pTask->pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId, pInfo->startTs, now, false);
+    }
     return;
   }
 

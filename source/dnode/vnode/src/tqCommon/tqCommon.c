@@ -200,6 +200,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
+  streamTaskCompleteCheck(&pTask->taskCheckInfo, pTask->id.idStr);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -213,6 +214,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     } else {
       tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
       streamTaskUpdateEpsetInfo(*ppHTask, req.pNodeList);
+      streamTaskResetStatus(*ppHTask);
+      streamTaskCompleteCheck(&(*ppHTask)->taskCheckInfo, (*ppHTask)->id.idStr);
     }
   }
 
