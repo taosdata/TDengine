@@ -43,7 +43,7 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" plain size="small" @click="getMsgBody">{{
+              <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL" @click="getMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button>
             </el-col>

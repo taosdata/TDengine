@@ -230,9 +230,7 @@ const mutations = {
   },
   SET_CURRENT_DBTYPE:(state,data)=>{
     state.currentDBType=data
-    if (data == 'avevaHistorian' || data == 'mysql') {
-      state.supportSQL = true
-    }
+    state.supportSQL = (data == 'avevaHistorian' || data == 'mysql' || data == 'postgres')
   },
   SET_CURRENT_RESUME:(state,data)=>{
     state.currentResume=data
