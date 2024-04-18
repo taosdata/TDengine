@@ -186,8 +186,11 @@ typedef enum {
   CONN_TYPE_TDENGINE_3_0,
   CONN_TYPE_MAX = 10,  // max connType before importing dynamic DataIns
   // add future data ins here
+  CONN_TYPE_MYSQL = 10,
+  CONN_TYPE_POSTGRES = 11,
+  CONN_TYPE_ORACLE = 12,
   // CONN_TYPE_FUTURE_DATA_IN = 10,
-  CONN_TYPE_DYN_MAX = 10,
+  CONN_TYPE_DYN_MAX = 13,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
@@ -300,7 +303,8 @@ typedef struct {
       uint64_t distribute : 36;  // second
       uint64_t granted : 1;
       uint64_t officialVersion : 1;
-      uint64_t padding : 2;
+      uint64_t endecrypt : 1;
+      uint64_t padding : 1;
       uint64_t validDays : 8;
       uint64_t version : 16;
     };
@@ -318,6 +322,9 @@ typedef struct {
   // variant fields
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
+
+  // extension
+  char *encrypt;
 } SGrantUniqObj;
 
 // taosGrant -> obj(init 0/-2/-1/...) -> fetch inputs and fill into obj -> encodeLen -> malloc(encodeLen+HeadLen(8+6))
