@@ -334,6 +334,87 @@ static int32_t metaTagIdxKeyDestroy(STagIdxKey *key) {
   return 0;
 }
 
+static int32_t metaCreateTagColumnIndex(SMeta *meta, int64_t suid, int64_t uid, const STag *tags,
+                                        const SSchema *column) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  void   *tagData = NULL;
+  int32_t tagDataSize;
+  STagVal tv = {
+      .cid = column->colId,
+  };
+
+  if (tTagGet(tags, &tv)) {
+    if (IS_VAR_DATA_TYPE(column->type)) {
+      tagData = tv.pData;
+      tagDataSize = tv.nData;
+    } else {
+      tagData = &tv.i64;
+      tagDataSize = tDataTypes[column->type].bytes;
+    }
+  } else if (!IS_VAR_DATA_TYPE(column->type)) {
+    tagDataSize = tDataTypes[column->type].bytes;
+  }
+
+  STagIdxKey *key = NULL;
+  int32_t     size = 0;
+  code = metaTagIdxKeyBuild(meta, suid, column->colId, column->type, tagData, tagDataSize, uid, &key, &size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (tdbTbUpsert(meta->pTagIdx, key, size, NULL, 0, meta->txn) != 0) {
+    metaTagIdxKeyDestroy(key);
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+  }
+  metaTagIdxKeyDestroy(key);
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaDropTagColumnIndex(SMeta *meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  void   *tagData = NULL;
+  int32_t tagDataSize;
+  STagVal tv = {
+      .cid = column->colId,
+  };
+
+  if (tTagGet(tags, &tv)) {
+    if (IS_VAR_DATA_TYPE(column->type)) {
+      tagData = tv.pData;
+      tagDataSize = tv.nData;
+    } else {
+      tagData = &tv.i64;
+      tagDataSize = tDataTypes[column->type].bytes;
+    }
+  } else if (!IS_VAR_DATA_TYPE(column->type)) {
+    tagDataSize = tDataTypes[column->type].bytes;
+  }
+
+  STagIdxKey *key = NULL;
+  int32_t     size = 0;
+  code = metaTagIdxKeyBuild(meta, suid, column->colId, column->type, tagData, tagDataSize, uid, &key, &size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (tdbTbDelete(meta->pTagIdx, key, size, meta->txn) != 0) {
+    metaTagIdxKeyDestroy(key);
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+  }
+  metaTagIdxKeyDestroy(key);
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t metaUpsertNormalTagIndex(SMeta *meta, const SMetaEntry *childTableEntry,
                                         const SMetaEntry *superTableEntry) {
   int32_t code = 0;
@@ -347,35 +428,8 @@ static int32_t metaUpsertNormalTagIndex(SMeta *meta, const SMetaEntry *childTabl
       continue;
     }
 
-    const SSchema *column = &tagSchema->pSchema[i];
-
-    void   *tagData = NULL;
-    int32_t tagDataSize;
-    STagVal tv = {.cid = column->colId};
-
-    if (tTagGet(tags, &tv)) {
-      if (IS_VAR_DATA_TYPE(column->type)) {
-        tagData = tv.pData;
-        tagDataSize = tv.nData;
-      } else {
-        tagData = &tv.i64;
-        tagDataSize = tDataTypes[column->type].bytes;
-      }
-    } else if (!IS_VAR_DATA_TYPE(column->type)) {
-      tagDataSize = tDataTypes[column->type].bytes;
-    }
-
-    STagIdxKey *key = NULL;
-    int32_t     size = 0;
-    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, column->colId, column->type, tagData, tagDataSize,
-                              childTableEntry->uid, &key, &size);
+    code = metaCreateTagColumnIndex(meta, superTableEntry->uid, childTableEntry->uid, tags, &tagSchema->pSchema[i]);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (tdbTbUpsert(meta->pTagIdx, key, size, NULL, 0, meta->txn) != 0) {
-      metaTagIdxKeyDestroy(key);
-      TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
-    }
-    metaTagIdxKeyDestroy(key);
   }
 
 _exit:
@@ -950,14 +1004,13 @@ _exit:
   return code;
 }
 
-static int32_t metaHandleSuperTableEntryDelete(SMeta *meta, const SMetaEntry *superTableEntry) {
+static int32_t metaGetChildTableUidList(SMeta *meta, int64_t suid, SArray **childTableUids) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *key = NULL;
   int32_t keySize = 0;
 
-  SArray *childTables = taosArrayInit(0, sizeof(int64_t));
-  if (childTables == NULL) {
+  if ((*childTableUids = taosArrayInit(0, sizeof(int64_t))) == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
@@ -968,7 +1021,7 @@ static int32_t metaHandleSuperTableEntryDelete(SMeta *meta, const SMetaEntry *su
 
   if (tdbTbcMoveTo(cursor,
                    &(SCtbIdxKey){
-                       .suid = superTableEntry->uid,
+                       .suid = suid,
                        .uid = INT64_MIN,
                    },
                    sizeof(SCtbIdxKey), NULL) >= 0) {
@@ -978,20 +1031,36 @@ static int32_t metaHandleSuperTableEntryDelete(SMeta *meta, const SMetaEntry *su
       }
 
       SCtbIdxKey *ctbIdxKey = (SCtbIdxKey *)key;
-      if (ctbIdxKey->suid < superTableEntry->uid) {
+      if (ctbIdxKey->suid < suid) {
         continue;
-      } else if (ctbIdxKey->suid > superTableEntry->uid) {
+      } else if (ctbIdxKey->suid > suid) {
         break;
       } else {
-        taosArrayPush(childTables, &ctbIdxKey->uid);
+        taosArrayPush(*childTableUids, &ctbIdxKey->uid);
       }
     }
   }
   tdbTbcClose(cursor);
 
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  tdbFree(key);
+  return code;
+}
+
+static int32_t metaHandleSuperTableEntryDelete(SMeta *meta, const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SArray *childTableUids = NULL;
+  code = metaGetChildTableUidList(meta, superTableEntry->uid, &childTableUids);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // drop child tables
-  for (int i = 0; i < taosArrayGetSize(childTables); i++) {
-    int64_t     uid = *(int64_t *)taosArrayGet(childTables, i);
+  for (int i = 0; i < taosArrayGetSize(childTableUids); i++) {
+    int64_t     uid = *(int64_t *)taosArrayGet(childTableUids, i);
     SMetaEntry *childTableEntry = NULL;
 
     // TODO
@@ -1010,7 +1079,7 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
-  taosArrayDestroy(childTables);
+  taosArrayDestroy(childTableUids);
   return code;
 }
 
@@ -1075,29 +1144,63 @@ _exit:
   return code;
 }
 
-static int32_t metaCreateIndexOnTag(SMeta *meta) {
+static int32_t metaCreateIndexOnTag(SMeta *meta, const SMetaEntry *superTableEntry, int32_t columnIndex) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  SArray *childTableUids = NULL;
+  code = metaGetChildTableUidList(meta, superTableEntry->uid, &childTableUids);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  for (int32_t i = 0; i < taosArrayGetSize(childTableUids); i++) {
+    int64_t uid = *(int64_t *)taosArrayGet(childTableUids, i);
+
+    SMetaEntry *childTableEntry = NULL;
+    code = metaGetTableEntryByUidImpl(meta, uid, &childTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    ASSERT(childTableEntry->type == TSDB_CHILD_TABLE);
+
+    code = metaCreateTagColumnIndex(meta, superTableEntry->uid, childTableEntry->uid, childTableEntry->ctbEntry.pTags,
+                                    &superTableEntry->stbEntry.schemaTag.pSchema[columnIndex]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  taosArrayDestroy(childTableUids);
   return code;
 }
 
-static int32_t metaDropIndexOnTag(SMeta *meta) {
+static int32_t metaDropIndexOnTag(SMeta *meta, const SMetaEntry *superTableEntry, int32_t columnIndex) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  SArray *childTableUids = NULL;
+  code = metaGetChildTableUidList(meta, superTableEntry->uid, &childTableUids);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  for (int32_t i = 0; i < taosArrayGetSize(childTableUids); i++) {
+    int64_t uid = *(int64_t *)taosArrayGet(childTableUids, i);
+
+    SMetaEntry *childTableEntry = NULL;
+    code = metaGetTableEntryByUidImpl(meta, uid, &childTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    ASSERT(childTableEntry->type == TSDB_CHILD_TABLE);
+
+    code = metaDropTagColumnIndex(meta, superTableEntry->uid, childTableEntry->uid, childTableEntry->ctbEntry.pTags,
+                                  &superTableEntry->stbEntry.schemaTag.pSchema[columnIndex]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  taosArrayDestroy(childTableUids);
   return code;
 }
 
@@ -1137,23 +1240,23 @@ static int32_t metaHandleSuperTableEntryUpdate(SMeta *meta, const SMetaEntry *en
     while (i < tagSchema->nCols && j < tagSchemaOld->nCols) {
       if (tagSchema->pSchema[i].colId == tagSchemaOld->pSchema[j].colId) {  // may update the column
         if (IS_IDX_ON(&tagSchema->pSchema[i]) && !IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaCreateIndexOnTag(meta);
+          code = metaCreateIndexOnTag(meta, entry, i);
           TSDB_CHECK_CODE(code, lino, _exit);
         } else if (!IS_IDX_ON(&tagSchema->pSchema[i]) && IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaDropIndexOnTag(meta);
+          code = metaDropIndexOnTag(meta, oldEntry, j);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
         i++;
         j++;
       } else if (tagSchema->pSchema[i].colId < tagSchemaOld->pSchema[j].colId) {  // add a column
         if (IS_IDX_ON(&tagSchema->pSchema[i])) {
-          code = metaCreateIndexOnTag(meta);
+          code = metaCreateIndexOnTag(meta, entry, i);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
         i++;
       } else {  // delete a tag column
         if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaDropIndexOnTag(meta);
+          code = metaDropIndexOnTag(meta, oldEntry, j);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
         j++;
@@ -1162,14 +1265,14 @@ static int32_t metaHandleSuperTableEntryUpdate(SMeta *meta, const SMetaEntry *en
 
     for (; i < tagSchema->nCols; i++) {
       if (IS_IDX_ON(&tagSchema->pSchema[i])) {
-        code = metaCreateIndexOnTag(meta);
+        code = metaCreateIndexOnTag(meta, entry, i);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
     for (; j < tagSchemaOld->nCols; j++) {
       if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-        code = metaDropIndexOnTag(meta);
+        code = metaDropIndexOnTag(meta, oldEntry, j);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
