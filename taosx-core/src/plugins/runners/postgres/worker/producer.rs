@@ -16,7 +16,7 @@ impl Producer {
         }
     }
 
-    pub async fn produce(&self, tx: &Sender<PostgresConfig>) -> anyhow::Result<()> {
+    pub async fn produce(&self, tx: Sender<PostgresConfig>) -> anyhow::Result<()> {
         let start = self.config.task.start;
         let end = match self.config.task.end {
             Some(end) => end,
@@ -90,7 +90,7 @@ mod tests {
         });
 
         let producer = Producer::new(&config);
-        producer.produce(&tx).await.unwrap();
+        producer.produce(tx).await.unwrap();
 
         // let tasks = consumer.await.unwrap();
 

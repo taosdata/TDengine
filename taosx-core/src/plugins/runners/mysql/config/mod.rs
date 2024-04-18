@@ -235,7 +235,7 @@ impl TaskConfig {
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
         } else {
-            anyhow::anyhow!("invalid sql template, missing start and end");
+            anyhow::bail!("invalid sql template, missing start and end");
         }
 
         // sharding by time

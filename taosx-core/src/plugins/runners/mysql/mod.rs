@@ -77,7 +77,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
 
     // generate sql
-    let sql = config.task.generate_sql().unwrap();
+    let sql = config.task.generate_sql()?;
     tracing::info!(
         "get sample data, sql: {}, limit: {}",
         sql,

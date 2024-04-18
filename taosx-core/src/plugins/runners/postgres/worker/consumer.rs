@@ -84,7 +84,7 @@ impl Consumer {
         let mut batch_count: u64 = 1;
         while let Ok(mut config) = receiver.recv_async().await {
             let end = config.task.end.unwrap_or_else(Utc::now);
-            let sql = config.task.generate_sql().unwrap();
+            let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
 
             // set sub task id
@@ -186,7 +186,7 @@ mod tests {
 
         // produce task
         let producer = Producer::new(&config);
-        producer.produce(&tx).await.unwrap();
+        producer.produce(tx).await.unwrap();
 
         // wait for consumer
         let _ = consumer.await;
