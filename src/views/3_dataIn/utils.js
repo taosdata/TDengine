@@ -764,7 +764,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
-      if ((currentType == 'avevaHistorian' || currentType == 'mysql' || data == 'postgres') && paramConfig.field == 'mode') {
+      if ((currentType == 'avevaHistorian' || currentType == 'mysql' || currentType == 'postgres') && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
