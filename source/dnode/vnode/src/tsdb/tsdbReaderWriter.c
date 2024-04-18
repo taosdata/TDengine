@@ -31,6 +31,10 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       char lc_path[TSDB_FILENAME_LEN];
       tstrncpy(lc_path, path, TSDB_FQDN_LEN);
 
+      int32_t     vid = 0;
+      const char *object_name = taosDirEntryBaseName((char *)path);
+      sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+
       char *dot = strrchr(lc_path, '.');
       if (!dot) {
         tsdbError("unexpected path: %s", lc_path);
