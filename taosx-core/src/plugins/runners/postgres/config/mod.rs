@@ -300,7 +300,7 @@ mod tests {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_sql()?;
+        let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
         assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
         assert!(sql.contains("STR_TO_DATE('2021-01-02 00:00:00','%Y-%m-%d %H:%i:%s')"));
