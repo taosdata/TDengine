@@ -112,6 +112,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "s3ChunkSize", pCfg->s3ChunkSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "s3KeepLocal", pCfg->s3KeepLocal) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "s3Compact", pCfg->s3Compact) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
