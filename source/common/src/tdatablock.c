@@ -1524,8 +1524,6 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
   }
 
   if (IS_VAR_DATA_TYPE(pBlock->info.pks[0].type)) {
-    uInfo("1====free pk:%p, %p pBlock", pBlock->info.pks[0].pData, pBlock);
-    uInfo("2====free pk:%p, %p pBlock", pBlock->info.pks[1].pData, pBlock);
     taosMemoryFreeClear(pBlock->info.pks[0].pData);
     taosMemoryFreeClear(pBlock->info.pks[1].pData);
   }
@@ -1705,10 +1703,6 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     p->pData = taosMemoryCalloc(1, pDataBlock->info.pks[1].nData);
     p->nData = pDataBlock->info.pks[1].nData;
     memcpy(p->pData, pDataBlock->info.pks[1].pData, p->nData);
-    uInfo("===========clone block, with varchar, %p, 0---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[0].pData, pDataBlock, pDataBlock->info.pks[0].pData);
-    uInfo("===========clone block, with varchar, %p, 1---addr:%p, src:%p, %p", pBlock, pBlock->info.pks[1].pData, pDataBlock, pDataBlock->info.pks[1].pData);
-  } else {
-    uInfo("===========clone block without varchar pk, %p, src:%p", pBlock, pDataBlock);
   }
 
   if (copyData) {

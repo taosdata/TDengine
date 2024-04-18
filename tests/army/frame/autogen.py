@@ -8,18 +8,21 @@ import threading
 import random
 import string
 import time
+import math
 
 
 #
 # Auto Gen class
 #
+
+# genDataMode  fillone fillts others
 class AutoGen:
-    def __init__(self, startTs = 1600000000000, step = 1000, batch = 100, fillOne=False):
+    def __init__(self, startTs = 1600000000000, step = 1000, batch = 500, genDataMode="others"):
         self.startTs    = startTs
         self.ts         = startTs
         self.step       = step
         self.batch_size = batch
-        self.fillOne    = fillOne
+        self.genDataMode  = genDataMode
         seed = time.time() % 10000
         random.seed(seed)
 
@@ -35,20 +38,22 @@ class AutoGen:
     #  _columns_sql
     def gen_columns_sql(self, pre, cnt, binary_len, nchar_len):
         types = [ 
-            'timestamp',
-            'tinyint',
+            'timestamp',  # 0
+            'tinyint',    
+            'tinyint unsigned', # 3
             'smallint',
-            'tinyint unsigned',
             'smallint unsigned',
-            'int',
-            'bigint',
+            'int', # 5
             'int unsigned',
+            'bigint',    # 7
             'bigint unsigned',
-            'float',
-            'double',
+            'float',     # 9
+            'double',    # 10
             'bool',
-            f'varchar({binary_len})',
-            f'nchar({nchar_len})'
+            f'binary({binary_len})',  # 12
+            f'varbinary({binary_len})',
+            f'nchar({nchar_len})',
+            f'varchar({nchar_len})'
         ]
 
         sqls = ""
@@ -71,18 +76,24 @@ class AutoGen:
         for c in marr:
             data = ""
             if c == 0 : # timestamp
-                data = "%d" % (self.ts + i)
-            elif c <= 4 : # small
-                data = "%d"%(i%128)
-            elif c <= 8 : # int
+                data = "%d" % (i)
+            elif c <= 2 : # tinyint
+                data = "%d"%(i%0x7F)
+            elif c <= 4 : # smallint
+                data = "%d"%(i%0x7FFF)
+            elif c <= 6 : # int32
+                data = f"{i%0x7FFFFFFF}"
+            elif c <= 8 : # bigint
                 data = f"{i}"
             elif c <= 10 : # float
                 data = "%f"%(i+i/1000)
             elif c <= 11 : # bool
                 data = "%d"%(i%2)
-            elif c == 12 : # binary
+            elif c <= 13 : # binary
                 data = '"' + self.random_string(self.bin_len) + '"'
-            elif c == 13 : # binary
+            elif c == 16 : # geometry
+                data = f'"point({i} {i})"'
+            else : # nchar varchar 
                 data = '"' + self.random_string(self.nch_len) + '"'
 
             if datas != "":
@@ -106,6 +117,76 @@ class AutoGen:
                 datas += '1'
         
         return datas
+    
+    # gen tags data
+    def fillts_data(self, ts, marr):
+        datas = ""   
+        for c in marr:
+            data = ""
+            if c == 0 : # timestamp
+                data = "%d" % (ts)
+            elif c <= 2 : # tinyint
+                data = "%d"%(ts%100)
+            elif c <= 4 : # smallint
+                data = "%d"%(ts%10000)
+            elif c <= 6 : # int32
+                data = f"{ts%1000000000}"
+            elif c <= 8 : # bigint
+                data = f"{ts}"
+            elif c == 9 : # float
+                data = "%f"%(ts%10000000 )
+            elif c == 10 : # double
+                data = "%f"%(ts%1000000000000000)
+            elif c <= 11 : # bool
+                data = "%d"%(ts%2)
+            elif c == 16 : # geometry
+                data = f'"point({ts%100} {ts%1000})"'
+            else : # string binary nchar varchar
+                data = f"'{ts}'"
+            if datas != "":
+                datas += ","
+            datas += data
+        
+        return datas
+    
+    # check row correct
+    def rowCorrect(self, ts, value, c): 
+        if c == 0 : # timestamp
+            ival = int(value.timestamp() * 1000)
+            return (ival == ts, ts)
+        elif c <= 2 : # tinyint
+            return  (value == ts%100, ts%100)
+        elif c <= 4 : # smallint
+            return (value == ts%10000, ts%10000)
+        elif c <= 6 : # int
+            return (value == ts%1000000000, ts%1000000000)
+        elif c <= 8 : # bigint
+            return (value == ts, ts)
+        elif c == 9 : # float
+            fval = (ts%10000000)
+            return (abs(value - fval) < 0.01, fval)
+        elif c == 10 : # double
+            fval = (ts%1000000000000000)
+            return (abs(value - fval) < 0.0001, fval)
+        elif c <= 11 : # bool
+            return (value == ts%2, ts%2)
+        elif c == 16 : # geometry
+            return (value == f'point({ts%100} {ts%1000})', f'point({ts%100} {ts%1000})')
+        else : # string binary nchar varchar
+            return (int(value) == ts, f"{ts}")
+
+
+    # check row data correct
+    def dataCorrect(self, res, rowCnt, showStep = 1000):
+        colCnt = len(self.mcols)
+        for i in range(rowCnt):
+            for j in range(colCnt):
+                ts = int(res[i][0].timestamp() * 1000)
+                ret, value = self.rowCorrect(ts, res[i][j+1], self.mcols[j]) # j + 1 , remove first ts column
+                if ret == False:
+                    tdLog.exit(f"rowCorrect check failed. i={i} j={j} data={res[i][j+1]} expect={value}")
+            if i > 0 and i % showStep == 0:
+                tdLog.info(f"check data correct rows {i}")
 
 
     # generate specail wide random string
@@ -142,27 +223,32 @@ class AutoGen:
 
     def insert_data_child(self, child_name, cnt, batch_size, step):        
         values = ""
-        print("insert child data")
         ts = self.ts
 
         # loop do
         for i in range(cnt):
-            if self.fillOne :
+            # gen other col data
+            if self.genDataMode == "fillone":
                 value = self.fillone_data(i, self.mcols)
-            else:
-                value = self.gen_data(i, self.mcols)
-            ts += step
+            elif self.genDataMode == "fillts":
+                value = self.fillts_data(ts, self.mcols)
+            else:    
+                value = self.gen_data(ts, self.mcols)
+
+            # check to execute sql
             values += f"({ts},{value}) "
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
                 sql = f"insert into {self.dbname}.{child_name} values {values}"
                 tdSql.execute(sql)
                 values = ""
 
+            # move next
+            ts += step    
+
         # end batch
         if values != "":
             sql = f"insert into {self.dbname}.{child_name} values {values}"
             tdSql.execute(sql)
-            tdLog.info(f" insert data i={i}")
             values = ""
 
         tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")

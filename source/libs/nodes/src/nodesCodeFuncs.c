@@ -77,6 +77,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DatabaseOptions";
     case QUERY_NODE_TABLE_OPTIONS:
       return "TableOptions";
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return "ColumnOptions";
     case QUERY_NODE_INDEX_OPTIONS:
       return "IndexOptions";
     case QUERY_NODE_EXPLAIN_OPTIONS:
@@ -4948,7 +4950,7 @@ static const char* jkColumnDefColName = "ColName";
 static const char* jkColumnDefDataType = "DataType";
 static const char* jkColumnDefComments = "Comments";
 static const char* jkColumnDefSma = "Sma";
-static const char* jkColumnDefIsPK = "IsPK";
+static const char* jkColumnDefOptions = "ColumnOptions";
 
 static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnDefNode* pNode = (const SColumnDefNode*)pObj;
@@ -4958,13 +4960,10 @@ static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkColumnDefDataType, dataTypeToJson, &pNode->dataType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkColumnDefComments, pNode->comments);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkColumnDefSma, pNode->sma);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkColumnDefIsPK, pNode->is_pk);
+    code = tjsonAddObject(pJson, jkColumnDefOptions, nodeToJson, pNode->pOptions);
   }
 
   return code;
@@ -4978,13 +4977,10 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
     code = tjsonToObject(pJson, jkColumnDefDataType, jsonToDataType, &pNode->dataType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkColumnDefComments, pNode->comments);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnDefSma, &pNode->sma);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkColumnDefIsPK, &pNode->is_pk);
+    code = jsonToNodeObject(pJson, jkColumnDefOptions,  (SNode**)&pNode->pOptions);
   }
   return code;
 }
@@ -5287,6 +5283,26 @@ static int32_t jsonToTableOptions(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkTableOptionsSma, &pNode->pSma);
   }
 
+  return code;
+}
+
+static const char* jkColumnOptionsEncode = "encode";
+static const char* jkColumnOptionsCompress = "compress";
+static const char* jkColumnOptionsLevel = "level";
+static int32_t     columnOptionsToJson(const void* pObj, SJson* pJson) {
+  const SColumnOptions* pNode = (const SColumnOptions*)pObj;
+  int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  return code;
+}
+
+static int32_t jsonToColumnOptions(const SJson* pJson, void* pObj) {
+  SColumnOptions* pNode = (SColumnOptions*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkColumnOptionsEncode, pNode->encode);
+  code = tjsonGetStringValue(pJson, jkColumnOptionsCompress, pNode->compress);
+  code = tjsonGetStringValue(pJson, jkColumnOptionsLevel, pNode->compressLevel);
   return code;
 }
 
@@ -7483,6 +7499,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return databaseOptionsToJson(pObj, pJson);
     case QUERY_NODE_TABLE_OPTIONS:
       return tableOptionsToJson(pObj, pJson);
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return columnOptionsToJson(pObj, pJson);
     case QUERY_NODE_INDEX_OPTIONS:
       return indexOptionsToJson(pObj, pJson);
     case QUERY_NODE_EXPLAIN_OPTIONS:
@@ -7826,6 +7844,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDatabaseOptions(pJson, pObj);
     case QUERY_NODE_TABLE_OPTIONS:
       return jsonToTableOptions(pJson, pObj);
+    case QUERY_NODE_COLUMN_OPTIONS:
+      return jsonToColumnOptions(pJson, pObj);
     case QUERY_NODE_INDEX_OPTIONS:
       return jsonToIndexOptions(pJson, pObj);
     case QUERY_NODE_EXPLAIN_OPTIONS:

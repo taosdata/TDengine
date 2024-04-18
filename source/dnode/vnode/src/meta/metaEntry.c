@@ -15,6 +15,50 @@
 
 #include "meta.h"
 
+int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColCmprWrapper *pw = &pME->colCmpr;
+  if (tEncodeI32v(pCoder, pw->nCols) < 0) return -1;
+  if (tEncodeI32v(pCoder, pw->version) < 0) return -1;
+  uDebug("encode cols:%d", pw->nCols);
+
+  for (int32_t i = 0; i < pw->nCols; i++) {
+    SColCmpr *p = &pw->pColCmpr[i];
+    if (tEncodeI16v(pCoder, p->id) < 0) return -1;
+    if (tEncodeU32(pCoder, p->alg) < 0) return -1;
+  }
+  return 0;
+}
+int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
+  SColCmprWrapper *pWrapper = &pME->colCmpr;
+  if (tDecodeI32v(pDecoder, &pWrapper->nCols) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pWrapper->version) < 0) return -1;
+  uDebug("dencode cols:%d", pWrapper->nCols);
+
+  pWrapper->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColCmpr));
+  if (pWrapper->pColCmpr == NULL) return -1;
+
+  for (int i = 0; i < pWrapper->nCols; i++) {
+    SColCmpr *p = &pWrapper->pColCmpr[i];
+    if (tDecodeI16v(pDecoder, &p->id) < 0) goto END;
+    if (tDecodeU32(pDecoder, &p->alg) < 0) goto END;
+  }
+  return 0;
+END:
+  // taosMemoryFree(pWrapper->pColCmpr);
+  return -1;
+}
+static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
+                                                         SSchemaWrapper *pSchema) {
+  pCmpr->nCols = pSchema->nCols;
+  pCmpr->pColCmpr = (SColCmpr *)tDecoderMalloc(pDecoder, pCmpr->nCols * sizeof(SColCmpr));
+  for (int32_t i = 0; i < pCmpr->nCols; i++) {
+    SColCmpr *pColCmpr = &pCmpr->pColCmpr[i];
+    SSchema  *pColSchema = &pSchema->pSchema[i];
+    pColCmpr->id = pColSchema->colId;
+    pColCmpr->alg = createDefaultColCmprByType(pColSchema->type);
+  }
+}
+
 int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -55,6 +99,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
     return -1;
   }
+  if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -102,8 +147,19 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeTSma(pCoder, pME->smaEntry.tsma, true) < 0) return -1;
   } else {
     metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
-
     return -1;
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    uDebug("set type: %d, tableName:%s", pME->type, pME->name);
+    if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
+    TABLE_SET_COL_COMPRESSED(pME->flags);
+  } else {
+    uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
+    if (pME->type == TSDB_SUPER_TABLE) {
+      metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow);
+    }
   }
 
   tEndDecode(pCoder);
