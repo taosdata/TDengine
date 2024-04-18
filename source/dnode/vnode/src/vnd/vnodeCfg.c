@@ -51,6 +51,9 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .hashEnd = 0,
                                    .hashMethod = 0,
                                    .sttTrigger = TSDB_DEFAULT_SST_TRIGGER,
+                                   .s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE,
+                                   .s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL,
+                                   .s3Compact = TSDB_DEFAULT_S3_COMPACT,
                                    .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
@@ -106,6 +109,9 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keepTimeOffset", pCfg->tsdbCfg.keepTimeOffset) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3ChunkSize", pCfg->s3ChunkSize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3KeepLocal", pCfg->s3KeepLocal) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3Compact", pCfg->s3Compact) < 0) return -1;
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -154,9 +160,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo) < 0) return -1;
-  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d",
-        pCfg->vgId, pCfg->syncCfg.replicaNum,
-         pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex, pCfg->syncCfg.changeVersion);
+  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", pCfg->vgId,
+         pCfg->syncCfg.replicaNum, pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex, pCfg->syncCfg.changeVersion);
   for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
     SJson     *info = tjsonCreateObject();
     SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];
@@ -315,6 +320,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
   if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE * 1024) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
+  }
+
+  tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
+  if (code < 0) {
+    pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
+  }
+  tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
+  if (code < 0) {
+    pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
+  }
+  tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);
+  if (code < 0) {
+    pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   }
 
   return 0;

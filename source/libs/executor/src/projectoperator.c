@@ -231,7 +231,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   // set current group id
   pLimitInfo->currentGroupId = groupId;
   bool limitReached = applyLimitOffset(pLimitInfo, pBlock, pOperator->pTaskInfo);
-  if (pBlock->info.rows == 0) {
+  if (pBlock->info.rows == 0 && 0 != pLimitInfo->limit.limit) {
     return PROJECT_RETRIEVE_CONTINUE;
   } else {
     if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
@@ -352,7 +352,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
         // continue merge data, ignore the group id
         blockDataMerge(pFinalRes, pRes);
-        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold) {
+        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;
         }
       }
@@ -387,12 +387,12 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-  }
-
   if (pProjectInfo->outputIgnoreGroup) {
     p->info.id.groupId = 0;
+  }
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
   }
 
   return (p->info.rows > 0) ? p : NULL;

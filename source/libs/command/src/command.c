@@ -79,6 +79,18 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 5);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 6);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 7);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
@@ -88,7 +100,8 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
-static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta, int8_t biMode) {
+static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta,
+                                          int8_t biMode) {
   int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
   blockDataEnsureCapacity(pBlock, blockCap);
   pBlock->info.rows = 0;
@@ -101,7 +114,19 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
   // Note
   SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
-  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
+  // encode
+  SColumnInfoData* pCol5 = NULL;
+  // compress
+  SColumnInfoData* pCol6 = NULL;
+  // level
+  SColumnInfoData* pCol7 = NULL;
+  if (useCompress(pMeta->tableType)) {
+    pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
+    pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
+    pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
+  }
+
+  char buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
       continue;
@@ -113,11 +138,35 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     if (TSDB_VIEW_TABLE != pMeta->tableType) {
-      STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+      if (i >= pMeta->tableInfo.numOfColumns) {
+        STR_TO_VARSTR(buf, "TAG");
+      } else if (i == 1 && pMeta->schema[i].flags & COL_IS_KEY) {
+        STR_TO_VARSTR(buf, "PRIMARY KEY")
+      } else {
+        STR_TO_VARSTR(buf, "");
+      }
     } else {
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
+    if (useCompress(pMeta->tableType)) {
+      if (i < pMeta->tableInfo.numOfColumns) {
+        STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, columnCompressStr(COMPRESS_L2_TYPE_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pMeta->schemaExt[i].compress)));
+        colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+      } else {
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol5, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol6, pBlock->info.rows, buf, false);
+        STR_TO_VARSTR(buf, "");
+        colDataSetVal(pCol7, pBlock->info.rows, buf, false);
+      }
+    }
+
     ++(pBlock->info.rows);
   }
   if (pMeta->tableType == TSDB_SUPER_TABLE && biMode != 0) {
@@ -148,7 +197,11 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType)) {
+      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
+    } else {
+      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+    }
   }
   blockDataDestroy(pBlock);
   return code;
@@ -307,12 +360,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
         "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
         "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
         "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " KEEP_TIME_OFFSET %d",
+        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " KEEP_TIME_OFFSET %d S3_CHUNKSIZE %d S3_KEEPLOCAL %dm S3_COMPACT %d",
         dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
         pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
         pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
         1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize,
-        pCfg->keepTimeOffset);
+        pCfg->keepTimeOffset, pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact);
 
     if (retentions) {
       len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -488,7 +541,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
-    char     type[32];
+    char     type[32 + 60];  // 60 byte for compress info
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
@@ -496,7 +549,17 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    if (useCompress(pCfg->tableType)) {
+      sprintf(type + strlen(type), " ENCODE \'%s\'", columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
+      sprintf(type + strlen(type), " COMPRESS \'%s\'", columnCompressStr(COMPRESS_L2_TYPE_U32(pCfg->pSchemaExt[i].compress)));
+      sprintf(type + strlen(type), " LEVEL \'%s\'", columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
+    }
+    if (!(pSchema->flags & COL_IS_KEY)) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+    } else {
+      char* pk = "PRIMARY KEY";
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
+    }
   }
 }
 
@@ -747,6 +810,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   }
 
   SViewMeta* pMeta = pStmt->pViewMeta;
+  ASSERT(pMeta);
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s", pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
   varDataLen(buf2) = (len > 65535) ? 65535 : len;

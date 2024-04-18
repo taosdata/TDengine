@@ -78,7 +78,9 @@ typedef struct SMetaEntry {
     } smaEntry;
   };
 
-  uint8_t* pBuf;
+  uint8_t*        pBuf;
+
+  SColCmprWrapper colCmpr;  // col compress alg
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -132,7 +134,7 @@ typedef struct SMetaTableInfo {
 } SMetaTableInfo;
 
 typedef struct SSnapContext {
-  SMeta*    pMeta;  // todo remove it
+  SMeta*    pMeta;
   int64_t   snapVersion;
   void*     pCur;
   int64_t   suid;
@@ -143,6 +145,7 @@ typedef struct SSnapContext {
   int32_t   index;
   int8_t    withMeta;
   int8_t    queryMeta;  // true-get meta, false-get data
+  bool      hasPrimaryKey;
 } SSnapContext;
 
 typedef struct {
@@ -191,7 +194,7 @@ typedef struct TsdReader {
 typedef struct SStoreCacheReader {
   int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                          SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                         SArray *pFuncTypeList);
+                         SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
   void    *(*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                            SArray *pTableUidList);
@@ -220,6 +223,8 @@ typedef struct SStoreTqReader {
   int32_t (*tqReaderAddTables)();
   int32_t (*tqReaderRemoveTables)();
 
+  void (*tqSetTablePrimaryKey)();
+  bool (*tqGetTablePrimaryKey)();
   bool (*tqReaderIsQueriedTable)();
   bool (*tqReaderCurrentBlockConsumed)();
 
@@ -231,6 +236,8 @@ typedef struct SStoreTqReader {
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
+  bool    (*taosXGetTablePrimaryKey)(SSnapContext *ctx);
+  void    (*taosXSetTablePrimaryKey)(SSnapContext *ctx, int64_t uid);
   int32_t (*setForSnapShot)(SSnapContext* ctx, int64_t uid);
   int32_t (*destroySnapshot)(SSnapContext* ctx);
   SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
@@ -328,7 +335,7 @@ typedef struct SStateStore {
   int32_t (*streamStateGetByPos)(SStreamState* pState, void* pos, void** pVal);
   int32_t (*streamStateDel)(SStreamState* pState, const SWinKey* key);
   int32_t (*streamStateClear)(SStreamState* pState);
-  void (*streamStateSetNumber)(SStreamState* pState, int32_t number);
+  void (*streamStateSetNumber)(SStreamState* pState, int32_t number, int32_t tsIdex);
   int32_t (*streamStateSaveInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
   int32_t (*streamStateGetInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
@@ -363,7 +370,8 @@ typedef struct SStateStore {
   int32_t (*streamStateSessionAllocWinBuffByNextPosition)(SStreamState* pState, SStreamStateCur* pCur,
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
-  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
+                                              void** ppVal, int32_t* pVLen);
   int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
   SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);

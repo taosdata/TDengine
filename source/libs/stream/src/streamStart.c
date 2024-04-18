@@ -44,7 +44,7 @@ static void              tryLaunchHistoryTask(void* param, void* tmrId);
 static void              doProcessDownstreamReadyRsp(SStreamTask* pTask);
 
 int32_t streamTaskSetReady(SStreamTask* pTask) {
-  int32_t     numOfDowns = streamTaskGetNumOfDownstream(pTask);
+  int32_t           numOfDowns = streamTaskGetNumOfDownstream(pTask);
   SStreamTaskState* p = streamTaskGetStatus(pTask);
 
   if ((p->state == TASK_STATUS__SCAN_HISTORY) && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
@@ -109,7 +109,7 @@ static void doReExecScanhistory(void* param, void* tmrId) {
   }
 }
 
-int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) {
+int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
   int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
   if (numOfTicks <= 0) {
     numOfTicks = 1;
@@ -398,8 +398,7 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   if (pTask->status.taskStatus == TASK_STATUS__HALT) {
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
 
-    // halt it self for count window stream task until the related
-    // fill history task completd.
+    // halt it self for count window stream task until the related fill history task completed.
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
@@ -869,8 +868,10 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
-    pRange->minVer = walScanStartVer;
-    pRange->maxVer = nextProcessVer - 1;
+    pTask->step2Range.minVer = walScanStartVer;
+    pTask->step2Range.maxVer = nextProcessVer - 1;
+    stDebug("s-task:%s set step2 verRange:%" PRId64 "-%" PRId64 ", step1 verRange:%" PRId64 "-%" PRId64, pTask->id.idStr,
+            pTask->step2Range.minVer, pTask->step2Range.maxVer, pRange->minVer, pRange->maxVer);
     return false;
   }
 }

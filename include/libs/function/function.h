@@ -29,6 +29,7 @@ struct SResultRowEntryInfo;
 
 struct SFunctionNode;
 typedef struct SScalarParam SScalarParam;
+typedef struct SStreamState SStreamState;
 
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
@@ -118,6 +119,7 @@ typedef struct SInputColumnInfoData {
   int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
+  SColumnInfoData  *pPrimaryKey;      // primary key column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
   uint64_t uid;  // table uid, used to set the tag value when building the final query result for selectivity functions.
@@ -126,7 +128,7 @@ typedef struct SInputColumnInfoData {
 typedef struct SSerializeDataHandle {
   struct SDiskbasedBuf *pBuf;
   int32_t               currentPage;
-  void                 *pState;
+  SStreamState          *pState;
 } SSerializeDataHandle;
 
 // incremental state storage
@@ -164,7 +166,7 @@ typedef struct STdbState {
   void               *txn;
 } STdbState;
 
-typedef struct {
+struct SStreamState {
   STdbState               *pTdbState;
   struct SStreamFileState *pFileState;
   int32_t                  number;
@@ -173,12 +175,50 @@ typedef struct {
   int64_t                  streamId;
   int64_t                  streamBackendRid;
   int8_t                   dump;
-} SStreamState;
+  int32_t                  tsIndex;
+};
 
 typedef struct SFunctionStateStore {
   int32_t (*streamStateFuncPut)(SStreamState *pState, const SWinKey *key, const void *value, int32_t vLen);
   int32_t (*streamStateFuncGet)(SStreamState *pState, const SWinKey *key, void **ppVal, int32_t *pVLen);
 } SFunctionStateStore;
+
+typedef struct SFuncInputRow {
+  TSKEY ts;
+  bool isDataNull;
+  char* pData;
+  char* pPk;
+
+  SSDataBlock* block; // prev row block or src block
+  int32_t rowIndex; // prev row block ? 0 : rowIndex in srcBlock
+
+  //TODO:
+  // int32_t startOffset; // for diff, derivative
+  // SPoint1 startPoint; // for twa
+} SFuncInputRow;
+
+typedef struct SFuncInputRowIter {
+  bool  hasPrev;
+ 
+  SInputColumnInfoData* pInput;
+  SColumnInfoData* pDataCol;
+  SColumnInfoData* pPkCol;
+  TSKEY* tsList;
+  int32_t rowIndex;
+  int32_t inputEndIndex;
+  SSDataBlock* pSrcBlock;
+
+  TSKEY prevBlockTsEnd;
+  bool prevIsDataNull;
+  char* pPrevData;
+  char* pPrevPk;
+  SSDataBlock* pPrevRowBlock; // pre one row block
+
+  uint64_t groupId;
+  bool hasGroupId;
+
+  bool finalRow;
+} SFuncInputRowIter;
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
@@ -209,6 +249,9 @@ typedef struct SqlFunctionCtx {
   int32_t              exprIdx;
   char                *udfName;
   SFunctionStateStore *pStore;
+  bool                 hasPrimaryKey;
+  SFuncInputRowIter    rowIter;
+  bool                 bInputFinished;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

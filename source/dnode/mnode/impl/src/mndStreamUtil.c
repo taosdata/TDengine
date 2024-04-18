@@ -114,7 +114,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     }
 
     char buf[256] = {0};
-    EPSET_TO_STR(&entry.epset, buf);
+    epsetToStr(&entry.epset, buf, tListLen(buf));
 
     mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
     taosArrayPush(pVgroupListSnapshot, &entry);
@@ -133,7 +133,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     entry.nodeId = SNODE_HANDLE;
 
     char buf[256] = {0};
-    EPSET_TO_STR(&entry.epset, buf);
+    epsetToStr(&entry.epset, buf, tListLen(buf));
     mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
     taosArrayPush(pVgroupListSnapshot, &entry);
     sdbRelease(pSdb, pObj);
@@ -302,7 +302,7 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   }
 
   char buf[256] = {0};
-  EPSET_TO_STR(&epset, buf);
+  epsetToStr(&epset, buf, tListLen(buf));
   mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
 
   code = setTransAction(pTrans, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0);

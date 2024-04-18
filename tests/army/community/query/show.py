@@ -38,7 +38,7 @@ class TDTestCase(TBase):
         self.childtable_count = 10
         self.insert_rows = 10000
 
-        self.autoGen = AutoGen(startTs = 1600000000000*1000*1000, batch=500, fillOne=True)
+        self.autoGen = AutoGen(startTs = 1600000000000*1000*1000, batch=500, genDataMode = "fillone")
         self.autoGen.create_db(self.db, 2, 3, "precision 'ns'")
         self.autoGen.create_stable(stbname = self.stb, tag_cnt = 5, column_cnt = 20, binary_len = 10, nchar_len = 5)
         self.autoGen.create_child(self.stb, "child", self.childtable_count)

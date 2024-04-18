@@ -23,6 +23,69 @@ typedef struct STaskUpdateEntry {
   int32_t transId;
 } STaskUpdateEntry;
 
+static STaskId replaceStreamTaskId(SStreamTask* pTask) {
+  ASSERT(pTask->info.fillHistory);
+  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+
+  pTask->id.streamId = pTask->streamTaskId.streamId;
+  pTask->id.taskId = pTask->streamTaskId.taskId;
+
+  return id;
+}
+
+static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
+  ASSERT(pTask->info.fillHistory);
+  pTask->id.taskId = pId->taskId;
+  pTask->id.streamId = pId->streamId;
+}
+
+int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode) {
+  int32_t vgId = pMeta->vgId;
+  STaskId taskId = {0};
+
+  if (pTask->info.fillHistory) {
+    taskId = replaceStreamTaskId(pTask);
+  }
+
+  pTask->pState = streamStateOpen(pMeta->path, pTask, false, -1, -1);
+  if (pTask->pState == NULL) {
+    tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+    return -1;
+  } else {
+    tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+  }
+
+  if (pTask->info.fillHistory) {
+    restoreStreamTaskId(pTask, &taskId);
+  }
+
+  SReadHandle handle = {
+      .checkpointId = pTask->chkInfo.checkpointId,
+      .pStateBackend = pTask->pState,
+      .fillHistory = pTask->info.fillHistory,
+      .winRange = pTask->dataRange.window,
+  };
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    handle.vnode = pVnode;
+    handle.initTqReader = 1;
+  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    handle.numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
+  }
+
+  initStorageAPI(&handle.api);
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
+    if (pTask->exec.pExecutor == NULL) {
+      tqError("s-task:%s failed to create exec taskInfo, failed to expand task", pTask->id.idStr);
+      return -1;
+    }
+    qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   int32_t vgId = pMeta->vgId;
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -807,6 +870,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   int32_t         vgId = pMeta->vgId;
+  bool            scanWal = false;
 
   streamMetaWLock(pMeta);
   if (pStartInfo->taskStarting == 1) {
@@ -831,10 +895,18 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
         pStartInfo->restartCount = 0;
         tqDebug("vgId:%d all tasks are ready, reset restartCounter 0, not restart tasks", vgId);
       }
+
+      scanWal = true;
     }
   }
 
   streamMetaWUnLock(pMeta);
+
+  if (scanWal && (vgId != SNODE_HANDLE)) {
+    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
+    tqScanWalAsync(pMeta->ahandle, true);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

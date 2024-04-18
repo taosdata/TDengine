@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
+#define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
+
+
+
 #ifdef __cplusplus
 }
 #endif

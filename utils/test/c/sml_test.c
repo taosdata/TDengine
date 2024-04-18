@@ -1841,12 +1841,119 @@ int sml_td18789_Test() {
   return code;
 }
 
+int sml_td29373_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists td29373");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists td29373");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use td29373");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create table pktable (ts timestamp, f1 int primary key, f2 binary(10)) tags (t1 int)");
+  taos_free_result(pRes);
+
+  // case 1
+  const char *sql[] = {
+      "pktable,t1=1 f1=283i32,f2=b\"hello\" 1632299372000",
+      "pktable,t1=2 f1=232i32,f2=b\"he3llo\" 1632299373000",
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  // case 2
+  const char *sql1[] = {
+      "pktable,t1=2 f2=b\"he3llo\",f1=232i32 1632299373000",
+      "pktable,t1=1 f1=283i32,f2=b\"hello\" 1632299372000"
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  // case 3
+  pRes = taos_query(taos, "create table pktablejson (ts timestamp, f1 int primary key, f2 binary(10)) tags (`host` varchar(8), dc varchar(8))");
+  taos_free_result(pRes);
+  const char *sql2[] = { ""
+      "[\n"
+      "  {\n"
+      "    \"metric\": \"pktablejson\",\n"
+      "    \"timestamp\": 1346846400001,\n"
+      "    \"value\": 18,\n"
+      "    \"tags\": {\n"
+      "      \"host\": \"web01\",\n"
+      "      \"dc\": \"lga\"\n"
+      "    }\n"
+      "  },\n"
+      "  {\n"
+      "    \"metric\": \"pktablejson\",\n"
+      "    \"timestamp\": 1346846400002,\n"
+      "    \"value\": 9,\n"
+      "    \"tags\": {\n"
+      "      \"host\": \"web02\",\n"
+      "      \"dc\": \"lga\"\n"
+      "    }\n"
+      "  }\n"
+      "]"
+  };
+  char *sql3[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql3[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql3[i], sql2[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql3, sizeof(sql3) / sizeof(sql3[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql3[i]);
+  }
+
+  // case 4
+  const char *sql4[] = {
+      "pktablejson  1479496100 1.3E0 host=web01 dc=eth0",
+      "pktablejson  1479496100 1.2E0 dc=web01 host=eth0",
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql4, sizeof(sql4) / sizeof(sql4[0]), TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_SML_NOT_SUPPORT_PK);
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   }
 
   int ret = 0;
+  ret = sml_td29373_Test();
+  ASSERT(ret);
   ret = sml_td24559_Test();
   ASSERT(!ret);
   ret = sml_td18789_Test();

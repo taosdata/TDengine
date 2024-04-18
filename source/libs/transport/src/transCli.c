@@ -1553,7 +1553,7 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
+      taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
     }
   }
   return;
@@ -2188,7 +2188,7 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   STransConnCtx* pCtx = pMsg->ctx;
   STraceId*      trace = &pMsg->msg.info.traceId;
   char           tbuf[512] = {0};
-  EPSET_TO_STR(&pCtx->epSet, tbuf);
+  epsetToStr(&pCtx->epSet, tbuf, tListLen(tbuf));
   tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
           pCtx->retryNextInterval);
   return;
@@ -2421,7 +2421,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (hasEpSet) {
     if (rpcDebugFlag & DEBUG_TRACE) {
       char tbuf[512] = {0};
-      EPSET_TO_STR(&pCtx->epSet, tbuf);
+      epsetToStr(&pCtx->epSet, tbuf, tListLen(tbuf));
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
