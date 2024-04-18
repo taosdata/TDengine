@@ -3,13 +3,22 @@
     <el-collapse v-model="activeCollapse" accordion class="connection">
       <el-collapse-item name='one'>
         <template slot="title">
-          <el-button
-            :loading="checkLoading"
-            type="primary"
-            size="small"
-            @click.capture.stop="clickCheckBtn"
-            >{{ $t("dataIn.check") }}
-          </el-button>
+          <el-tooltip
+            placement="top" effect="light" :open-delay="0"
+          >
+            <template slot="content">
+              <div>{{ $t('dataIn.communityCheckTip') }}</div>
+              <a :href="`http://docs.${urlPart}.com/enterprise`" target="_blank">{{ `http://docs.${urlPart}.com/enterprise`}}</a>
+            </template>
+            <el-button
+              :loading="checkLoading"
+              :disabled="$COMMUNITY"
+              type="primary"
+              size="small"
+              @click.capture.stop="clickCheckBtn"
+              >{{ $t("dataIn.check") }}
+            </el-button>
+          </el-tooltip>
         </template>
         <Result
           v-show="JSON.stringify(checkResult) !== '{}'"
@@ -46,6 +55,9 @@ export default {
     },
     isEdit() {
       return this.sourceParent.isEditable;
+    },
+    urlPart() {
+      return this.$i18n.locale.includes('en') ? "tdengine" : "taosdata";
     },
   },
   watch: {

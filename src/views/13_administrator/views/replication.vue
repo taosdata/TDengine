@@ -1,10 +1,10 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable" style="font-size:14px;">
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
         {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
+      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="60" prop="id">
@@ -54,7 +54,7 @@
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
           <el-switch :value="!['stopping','stopped'].includes(scope.row.status.toLowerCase())" active-color="#13ce66"
-            inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)"></el-switch>
+            inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)" :disabled="$COMMUNITY"></el-switch>
           <!-- <el-button
             plain
             size="small"
@@ -73,7 +73,7 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button>-->
-          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete"></el-button>
+          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete" :disabled="$COMMUNITY"></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -128,7 +128,8 @@ import {
 import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/taosbenchmark.vue";
-import { parsinginZone } from '@/utils'
+import { parsinginZone } from '@/utils';
+import { replicationMockData } from '@/const'
 export default {
   data() {
     return {
@@ -335,8 +336,12 @@ export default {
     },
   },
   created() {
-    this.getDatabases();
-    this.getReplication();
+    if (this.$COMMUNITY) {
+      this.topicList = replicationMockData
+    } else {
+      this.getDatabases();
+      this.getReplication();
+    }
   },
 };
 </script>

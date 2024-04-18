@@ -74,7 +74,7 @@ export default {
       return Object.hasOwnProperty.call(obj, key);
     },
     reloadTable() {
-      if (this.currentName == "dbsource") {
+      if (this.currentName == "dbsource" && !this.$COMMUNITY) {
         this.$nextTick(() => {
           this.$refs.table.refresh();
         });

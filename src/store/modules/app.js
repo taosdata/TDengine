@@ -104,6 +104,7 @@ const state = {
   complete: false,// 判断数据点位数据是否准备完成 
   ticket: '',
   limitOffset: 5,
+  showSystemMes: true, // 辅助判断是否展示联系团队的弹框
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -131,6 +132,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_SHOW_SYSTEM_MES:(state,data) => {
+    state.showSystemMes=data
+  },
   SET_TICKET:(state,data) => {
     state.ticket=data
   },

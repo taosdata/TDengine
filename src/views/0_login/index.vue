@@ -18,7 +18,7 @@
         </article>
       </div>
 
-      <div class="login-content">
+      <div class="login-content" v-if="registered">
         <div class="login-title">
           <span class="dynamic-title">{{ $t("systemTitle") }}</span>
         </div>
@@ -47,12 +47,57 @@
           </el-form-item>
         </el-form>
       </div>
+      <div class="login-content" v-else>
+        <div class="login-title">
+          <span class="dynamic-title">{{ $t("register.title") }}</span>
+        </div>
+        <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
+          class="demo-dynamic">
+          <div style="margin-bottom: 20px">
+            <p class="lable-form">
+              <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
+            </p>
+            <el-form-item prop="phone_email" label>
+              <el-input v-model="registerValidateForm.phone_email"></el-input>
+            </el-form-item>
+          </div>
+          <div>
+            <p class="lable-form">
+              <span>{{ $t("register.verificationCode") }}</span>
+            </p>
+            <el-form-item label prop="verification_code">
+              <el-input v-model="registerValidateForm.verification_code" @keyup.enter.native="submitRegisterForm('registerValidateForm')" >
+                <el-button type="primary" slot="append" @click="handlerCaptcha">{{ $t("register.getVerificationCode") }}</el-button>
+              </el-input>
+            </el-form-item>
+          </div>
+
+          <el-form-item style="margin-bottom: 30px">
+            <el-button type="primary" @click="submitRegisterForm('registerValidateForm')" class="signin" v-loading="loading">{{
+              $t("register.signin") }}</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
     </section>
 
     <div class="copyright" v-if="!oemName">
 
       <span>{{ $t("copyright") }}</span>
     </div>
+    <el-dialog title="获取验证码" :visible.sync="visible" width="400px" center>
+      <el-form size="small" ref="captchaForm" :model="captchaForm" :rules="captchaRulus">
+        <el-form-item label="">
+          <el-input v-model="captchaForm.captchaCode" autocomplete="off">;
+            <span slot="append">
+              <img height="24px" :src="imageUrl" />
+            </span>
+          </el-input>
+        </el-form-item>
+      </el-form>
+    <div slot="footer" class="dialog-footer" style="text-align: right">
+      <el-button type="primary" size="small" @click="handlerVerificationCode">{{ $t('confirm') }}</el-button>
+    </div>
+  </el-dialog>
   </div>
 </template>
 <script>
@@ -62,7 +107,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
+import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
 import Vue from 'vue'
 
@@ -78,6 +123,17 @@ export default {
       } else {
 
 
+        callback();
+      }
+    };
+    var validatePhoneEmail = (rule, value, callback) => {
+      if (value === "") {
+        if (this.isLocaleLanguageEn) {
+          callback(new Error(this.$t("register.emailTips")));
+        } else {
+          callback(new Error(this.$t("register.phoneTips")));
+        }
+      } else {
         callback();
       }
     };
@@ -118,7 +174,48 @@ export default {
       },
       dataJson,
       encryptedPwd: "",
+      registerValidateForm: {
+        phone_email: "",
+        verification_code: "",
+      },
+      captchaForm: {
+        captchaCode: '',
+      },
+      registered: true,
+      visible: false,
+      imageUrl: "",
+      captchaRulus: {
+        captchaCode: [
+          {
+            required: true,
+            message: this.$t("required")
+          }
+        ]
+      },
+      registerFormRules: {
+        verification_code: [
+          {
+            required: true,
+            message: this.$t("register.verificationCodeTips"),
+            trigger: "blur",
+          },
+        ],
+        phone_email: [
+          {
+            required: true,
+            validator: validatePhoneEmail,
+            trigger: "blur",
+          },
+        ],
+      },
+
+      ts: new Date().getTime()
     };
+  },
+  computed: {
+    isLocaleLanguageEn() {
+      return this.$i18n.locale.includes('en')
+    }
   },
   methods: {
     submitForm(formName) {
@@ -267,11 +364,80 @@ export default {
         this.$error(err?.desc);
       }
     },
+    async getIsbinding() {
+      try {
+        const result = await fetchIsbinding();
+        if (result && result.code == 0) {
+          // this.registered = result.data;
+        }
+        // test 用
+        this.registered = false;
+      } catch (error) {
+        console.log('error',error);
+      }
+    },
+    async handlerCaptcha() {
+      // 弹出获取图形验证码的弹框
+      this.captchaForm.captchaCode = '';
+      this.visible = true;
+      const result = await fetchCaptcha(this.registerValidateForm.phone_email,this.ts)
+     
+      // 有正确的结果才弹框     
+      if (result) {
+        this.visible = true;
+        let imageUrl = URL.createObjectURL(result);
+        this.imageUrl = imageUrl;
+      }
+    },
+    async handlerVerificationCode() {
+      // 调用获取手机验证码的接口
+      // 图形验证码必须填才能调用
+      console.log('88998');
+      this.$refs.captchaForm.validate(async (valid) => {
+        console.log('huijiii');
+        if (!valid) return;
+        const result = await fetchVerificationCode(this.registerValidateForm.phone_email,this.captchaForm.captchaCode,this.ts)
+        if (result && result.code == 0) {
+          this.$message.success('手机验证码发送成功');
+          this.visible = false;
+          console.log('手机验证码', result.data);
+        }
+      })
+    },
+    submitRegisterForm(formName) {
+      this.$refs[formName].validate(async (valid) => {
+        if (valid) {
+          this.loading = true;
+          // 提交注册接口
+          const result = await getVerificationResult(this.registerValidateForm)
+          if (result && result.code == 0) {
+            switch (result.data) {
+              case 'pass':
+                // 如果校验通过，则注册成功 切换到登陆框
+                this.registered = true;
+                break;
+              case 'None':
+                this.$message.error('不存在给当前手机号发送的验证码; 需要重新获取验证码')
+                break;
+              case 'Error':
+                this.$message.error('输入的验证码错误')
+              break;
+            } 
+          }
+          this.loading = false;
+        } else {
+          return false;
+        }
+      });
+    },
   },
   async created() {
     await this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
+    if (this.$COMMUNITY) {
+      await this.getIsbinding();
+    }
 
   },
   mounted() {
@@ -283,7 +449,7 @@ export default {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
       }
-    });
+    })
     const timer = setTimeout(() => {
       Vue.prototype.$message = Message;
     }, 1500)

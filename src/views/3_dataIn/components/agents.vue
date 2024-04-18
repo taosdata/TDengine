@@ -11,7 +11,7 @@
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
       > -->
-        <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+        <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
           $t("taosagents.createnewagent")
         }}</el-button>
       </div>
@@ -290,6 +290,7 @@ import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
 import AddAgent from "./addAgent.vue";
+import { agentMockData } from "@/const";
 export default {
   name: "Agent",
   components: { AgentDoc, AddAgent },
@@ -604,8 +605,13 @@ export default {
     },
   },
   created() {
-    this.getAgents();
-    this.getConnectorTypes();
+    if (this.$COMMUNITY) {
+      this.agentList = agentMockData;
+      this.agentActivities = agentMockData.agentActivities
+    } else {
+      this.getAgents();
+      this.getConnectorTypes();
+    }
   },
   watch: {
     "$store.state.app.agentLists": {

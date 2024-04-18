@@ -6,11 +6,11 @@
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
-        :disabled="loading"
+        :disabled="loading || $COMMUNITY"
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" style="font-size: 14px">{{
+      <el-button plain @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
         $t("taosuser.activationLicense")
       }}</el-button>
     </div>
