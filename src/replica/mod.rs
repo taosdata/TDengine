@@ -18,6 +18,7 @@ type ReplicaId = String;
 
 /// Default replica group name.
 const DEFAULT_REPLICA_GROUP: &str = "__replica__";
+const DEFAULT_TOPIC_PREFIX: &str = "__replica__";
 
 /// Label name for replica id.
 const REPLICA_LABEL_ID: &str = "rid";
@@ -103,8 +104,14 @@ pub enum ReplicaCommands {
         /// Custom topic template for replication.
         ///
         /// Replica task will use `{database}` as the topic name by default.
+        #[clap(long, default_value = DEFAULT_TOPIC_PREFIX, alias = "topic-prefix")]
+        topic_prefix: Option<String>,
+
+        /// Whether to keep topic or not when remove replication.
+        ///
+        /// By default, the topic will be removed when remove replication.
         #[clap(long)]
-        topic: Option<String>,
+        keep_topic_after_remove: bool,
 
         /// Custom consumer group for replication.
         ///
@@ -235,17 +242,12 @@ impl Replica {
         self.sink.pool()
     }
 
-    fn source_dsn_for(
-        &self,
-        database: &str,
-        topic: Option<&str>,
-        group: Option<&str>,
-    ) -> taos::Dsn {
+    fn source_dsn_for(&self, database: &str, topic: &str, group: Option<&str>) -> taos::Dsn {
         let mut tmq = self.source.dsn().clone();
         tmq.subject.replace(database.to_string());
         tmq.set("replica", "");
         tmq.set("timeout", "never");
-        if let Some(topic) = topic {
+        if topic != database {
             tmq.set("use.topic.name", topic);
         }
         tmq.set("group.id", group.unwrap_or(DEFAULT_REPLICA_GROUP));
@@ -515,8 +517,9 @@ impl ReplicaConfig {
         replica: &Replica,
         tasks: &[ReplicaTask],
         databases: &[String],
-        topic: Option<&str>,
+        topic_prefix: Option<&str>,
         group: Option<&str>,
+        keep_topic_after_remove: bool,
     ) -> anyhow::Result<()> {
         let source = replica.source_pool();
         let source_conn = source.get().await?;
@@ -592,7 +595,12 @@ impl ReplicaConfig {
                 (source_db, sink_db) = (database.as_str(), database.as_str());
             }
             let url = format!("{}/tasks", self.server);
-            let source = replica.source_dsn_for(source_db, topic, group);
+            let topic = format!(
+                "{}{}",
+                topic_prefix.unwrap_or(DEFAULT_TOPIC_PREFIX),
+                source_db
+            );
+            let source = replica.source_dsn_for(source_db, &topic, group);
             let sink = replica.sink_dsn_for(sink_db);
             let body = serde_json::json!({
                 "name": format!("replica-{database}"),
@@ -604,9 +612,10 @@ impl ReplicaConfig {
                     format!("{}::{}", REPLICA_LABEL_SOURCE, replica.canonical_source()),
                     format!("{}::{}", REPLICA_LABEL_SINK, replica.canonical_sink()),
                     format!("{}::{}", REPLICA_LABEL_DATABASE, database),
-                    format!("{}::{}", REPLICA_LABEL_TOPIC, topic.unwrap_or(source_db)),
+                    format!("{}::{}", REPLICA_LABEL_TOPIC, topic),
                     format!("{}::{}", REPLICA_LABEL_GROUP, group.unwrap_or(DEFAULT_REPLICA_GROUP)),
-                ]
+                ],
+                "oneshot_topic": if keep_topic_after_remove { None } else { Some(topic) },
             });
 
             println!("  creating replica task for `{}`", database);
@@ -894,8 +903,9 @@ impl Cli {
                 sink,
                 id,
                 databases,
-                topic,
+                topic_prefix,
                 group,
+                keep_topic_after_remove,
             } => {
                 let (replica, tasks) = match (source.zip(sink), id) {
                     (Some((source, sink)), Some(id)) => {
@@ -961,8 +971,9 @@ impl Cli {
                         &replica,
                         &tasks,
                         &databases,
-                        topic.as_deref(),
+                        topic_prefix.as_deref(),
                         group.as_deref(),
+                        keep_topic_after_remove,
                     )
                     .await?;
             }
