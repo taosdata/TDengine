@@ -1235,7 +1235,7 @@ void DestoryThreadLocalRegComp() {
   if (NULL != pOldPattern) {
     regfree(&pRegex);
     taosMemoryFree(pOldPattern);
-    pOldPattern == NULL;
+    pOldPattern = NULL;
   }
 }
 
