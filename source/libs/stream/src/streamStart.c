@@ -83,7 +83,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   return 0;
 }
 
-static void doReExecScanhistory(void* param, void* tmrId) {
+static void doExecScanhistoryInFuture(void* param, void* tmrId) {
   SStreamTask* pTask = param;
   pTask->schedHistoryInfo.numOfTicks -= 1;
 
@@ -105,7 +105,7 @@ static void doReExecScanhistory(void* param, void* tmrId) {
     // release the task.
     streamMetaReleaseTask(pTask->pMeta, pTask);
   } else {
-    taosTmrReset(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer, &pTask->schedHistoryInfo.pTimer);
+    taosTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer, &pTask->schedHistoryInfo.pTimer);
   }
 }
 
@@ -131,9 +131,9 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
   stDebug("s-task:%s scan-history resumed in %.2fs, ref:%d", pTask->id.idStr, numOfTicks * 0.1, ref);
 
   if (pTask->schedHistoryInfo.pTimer == NULL) {
-    pTask->schedHistoryInfo.pTimer = taosTmrStart(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer);
+    pTask->schedHistoryInfo.pTimer = taosTmrStart(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer);
   } else {
-    taosTmrReset(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer, &pTask->schedHistoryInfo.pTimer);
+    taosTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer, &pTask->schedHistoryInfo.pTimer);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -184,12 +184,20 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
   ASSERT(pTask->status.downstreamReady == 0);
 
+  int32_t code = streamTaskStartCheckDownstream(&pTask->taskCheckInfo, pTask->id.idStr);
+  if (code != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
+  streamTaskInitTaskCheckInfo(&pTask->taskCheckInfo, &pTask->outputInfo, taosGetTimestampMs());
+
   // serialize streamProcessScanHistoryFinishRsp
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->outputInfo.fixedDispatcher.nodeId;
     req.downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
-    pTask->checkReqId = req.reqId;
+
+    streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
             " window:%" PRId64 "-%" PRId64 " req:0x%" PRIx64,
@@ -197,93 +205,33 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
             pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
     streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId, &pTask->outputInfo.fixedDispatcher.epSet);
+
+    streamTaskStartMonitorCheckRsp(pTask);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
-    pTask->notReadyTasks = numOfVgs;
-    if (pTask->checkReqIds == NULL) {
-      pTask->checkReqIds = taosArrayInit(numOfVgs, sizeof(int64_t));
-    } else {
-      taosArrayClear(pTask->checkReqIds);
-    }
-
     stDebug("s-task:%s check %d downstream tasks, ver:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64,
             pTask->id.idStr, numOfVgs, pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey);
 
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.reqId = tGenIdPI64();
-      taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
+
+      streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
+
       stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
               pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-  } else {
+
+    streamTaskStartMonitorCheckRsp(pTask);
+  } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
     doProcessDownstreamReadyRsp(pTask);
   }
-}
-
-static STaskRecheckInfo* createRecheckInfo(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
-  STaskRecheckInfo* pInfo = taosMemoryCalloc(1, sizeof(STaskRecheckInfo));
-  if (pInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pInfo->pTask = pTask;
-  pInfo->req = (SStreamTaskCheckReq){
-      .reqId = pRsp->reqId,
-      .streamId = pRsp->streamId,
-      .upstreamTaskId = pRsp->upstreamTaskId,
-      .upstreamNodeId = pRsp->upstreamNodeId,
-      .downstreamTaskId = pRsp->downstreamTaskId,
-      .downstreamNodeId = pRsp->downstreamNodeId,
-      .childId = pRsp->childId,
-      .stage = pTask->pMeta->stage,
-  };
-
-  return pInfo;
-}
-
-static void destroyRecheckInfo(STaskRecheckInfo* pInfo) {
-  if (pInfo != NULL) {
-    taosTmrStop(pInfo->checkTimer);
-    pInfo->checkTimer = NULL;
-    taosMemoryFree(pInfo);
-  }
-}
-
-static void recheckDownstreamTasks(void* param, void* tmrId) {
-  STaskRecheckInfo* pInfo = param;
-  SStreamTask*      pTask = pInfo->pTask;
-
-  SStreamTaskCheckReq* pReq = &pInfo->req;
-
-  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    stDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) stage:%" PRId64 " (recheck)", pTask->id.idStr,
-            pTask->info.nodeId, pReq->downstreamTaskId, pReq->downstreamNodeId, pReq->stage);
-    streamSendCheckMsg(pTask, pReq, pReq->downstreamNodeId, &pTask->outputInfo.fixedDispatcher.epSet);
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
-
-    int32_t numOfVgs = taosArrayGetSize(vgInfo);
-    for (int32_t i = 0; i < numOfVgs; i++) {
-      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-      if (pVgInfo->taskId == pReq->downstreamTaskId) {
-        stDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) stage:%" PRId64 " (recheck)", pTask->id.idStr,
-                pTask->info.nodeId, pReq->downstreamTaskId, pReq->downstreamNodeId, pReq->stage);
-        streamSendCheckMsg(pTask, pReq, pReq->downstreamNodeId, &pVgInfo->epSet);
-      }
-    }
-  }
-
-  destroyRecheckInfo(pInfo);
-  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-  stDebug("s-task:%s complete send check in timer, ref:%d", pTask->id.idStr, ref);
 }
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
@@ -439,7 +387,12 @@ static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
 
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
-  const char* id = pTask->id.idStr;
+
+  int64_t         now = taosGetTimestampMs();
+  const char*     id = pTask->id.idStr;
+  STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
+  int32_t         total = streamTaskGetNumOfDownstream(pTask);
+  int32_t         left = -1;
 
   if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, do not do check downstream again", id);
@@ -447,47 +400,21 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   }
 
   if (pRsp->status == TASK_DOWNSTREAM_READY) {
-    if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      bool    found = false;
-      int32_t numOfReqs = taosArrayGetSize(pTask->checkReqIds);
-      for (int32_t i = 0; i < numOfReqs; i++) {
-        int64_t reqId = *(int64_t*)taosArrayGet(pTask->checkReqIds, i);
-        if (reqId == pRsp->reqId) {
-          found = true;
-          break;
-        }
-      }
+    streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
 
-      if (!found) {
-        return -1;
-      }
-
-      int32_t left = atomic_sub_fetch_32(&pTask->notReadyTasks, 1);
-      ASSERT(left >= 0);
-
-      if (left == 0) {
-        pTask->checkReqIds = taosArrayDestroy(pTask->checkReqIds);;
-
-        doProcessDownstreamReadyRsp(pTask);
-      } else {
-        int32_t total = taosArrayGetSize(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
-        stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
-                pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
-      }
+    if (left == 0) {
+      doProcessDownstreamReadyRsp(pTask);  // all downstream tasks are ready, set the complete check downstream flag
+      streamTaskCompleteCheck(pInfo, id);
     } else {
-      ASSERT(pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH);
-      if (pRsp->reqId != pTask->checkReqId) {
-        return -1;
-      }
-
-      doProcessDownstreamReadyRsp(pTask);
+      stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
+              pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
     }
   } else {  // not ready, wait for 100ms and retry
+    streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
     if (pRsp->status == TASK_UPSTREAM_NEW_STAGE || pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
       if (pRsp->status == TASK_UPSTREAM_NEW_STAGE) {
         stError("s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%" PRId64
-                ", current stage:%" PRId64
-                ", not check wait for downstream task nodeUpdate, and all tasks restart",
+                ", current stage:%" PRId64 ", not check wait for downstream task nodeUpdate, and all tasks restart",
                 id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
         addIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
       } else {
@@ -499,7 +426,6 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       }
 
       int32_t startTs = pTask->execInfo.checkTs;
-      int64_t now = taosGetTimestampMs();
       streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, now, false);
 
       // automatically set the related fill-history task to be failed.
@@ -507,13 +433,11 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         STaskId* pId = &pTask->hTaskInfo.id;
         streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
       }
-    } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
-      STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
 
-      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-      stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%" PRId64 ", retry in 100ms, ref:%d ", id,
-              pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage, ref);
-      pInfo->checkTimer = taosTmrStart(recheckDownstreamTasks, CHECK_DOWNSTREAM_INTERVAL, pInfo, streamTimer);
+    } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
+      ASSERT(left > 0);
+      stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
+              pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
     }
   }
 

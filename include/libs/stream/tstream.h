@@ -432,6 +432,22 @@ typedef struct SUpstreamInfo {
   int32_t numOfClosed;
 } SUpstreamInfo;
 
+typedef struct SDownstreamStatusInfo {
+  int64_t reqId;
+  int32_t taskId;
+  int64_t rspTs;
+  int32_t status;
+} SDownstreamStatusInfo;
+
+typedef struct STaskCheckInfo {
+  SArray*       pList;
+  int64_t       startTs;
+  int32_t       notReadyTasks;
+  int32_t       inCheckProcess;
+  tmr_h         checkRspTmr;
+  TdThreadMutex checkInfoLock;
+} STaskCheckInfo;
+
 struct SStreamTask {
   int64_t             ver;
   SStreamTaskId       id;
@@ -455,14 +471,12 @@ struct SStreamTask {
   SStreamState*       pState;         // state backend
   SArray*             pRspMsgList;
   SUpstreamInfo       upstreamInfo;
+  STaskCheckInfo      taskCheckInfo;
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
 
-  int32_t             notReadyTasks;
   int32_t             numOfWaitingUpstream;
-  int64_t             checkReqId;
-  SArray*             checkReqIds;  // shuffle
   int32_t             refCnt;
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
@@ -831,6 +845,15 @@ void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
+
+int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs);
+int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id);
+int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
+                                  int32_t* pNotReady, const char* id);
+void    streamTaskCleanCheckInfo(STaskCheckInfo* pInfo);
+int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id);
+int32_t streamTaskCompleteCheck(STaskCheckInfo* pInfo, const char* id);
+int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
