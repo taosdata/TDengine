@@ -1075,7 +1075,7 @@ _exit:
   return code;
 }
 
-static int32_t metaHandleEntryUpdate(SMeta *meta, const SMetaEntry *entry) {
+static int32_t metaCreateIndexOnTag(SMeta *meta) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -1085,6 +1085,180 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  return code;
+}
+
+static int32_t metaDropIndexOnTag(SMeta *meta) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleSuperTableEntryUpdate(SMeta *meta, const SMetaEntry *entry, const SMetaEntry *oldEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // change schema
+  if (entry->stbEntry.schemaRow.version != oldEntry->stbEntry.schemaRow.version) {
+    ASSERT(entry->stbEntry.schemaRow.version == oldEntry->stbEntry.schemaRow.version + 1);
+
+    /* schema.db */
+    code = metaUpsertSchema(meta, entry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // TODO
+
+#if 0
+    if (entry->stbEntry.schemaRow.nCols < oldEntry->stbEntry.schemaRow.nCols) {  // delete a column
+      ASSERT(entry->stbEntry.schemaRow.nCols + 1 == oldEntry->stbEntry.schemaRow.nCols);
+      // TODO: deal with cache
+    } else if (entry->stbEntry.schemaRow.nCols > oldEntry->stbEntry.schemaRow.nCols) {  // add a column
+      ASSERT(entry->stbEntry.schemaRow.nCols == oldEntry->stbEntry.schemaRow.nCols + 1);
+      // TODO: deal with cache
+    }
+#endif
+  }
+
+  // change tag schema
+  if (entry->stbEntry.schemaTag.version != oldEntry->stbEntry.schemaRow.version) {
+    ASSERT(entry->stbEntry.schemaTag.version == oldEntry->stbEntry.schemaRow.version + 1);
+
+    const SSchemaWrapper *tagSchema = &entry->stbEntry.schemaTag;
+    const SSchemaWrapper *tagSchemaOld = &oldEntry->stbEntry.schemaTag;
+
+    int32_t i = 0, j = 0;
+    while (i < tagSchema->nCols && j < tagSchemaOld->nCols) {
+      if (tagSchema->pSchema[i].colId == tagSchemaOld->pSchema[j].colId) {  // may update the column
+        if (IS_IDX_ON(&tagSchema->pSchema[i]) && !IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
+          code = metaCreateIndexOnTag(meta);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        } else if (!IS_IDX_ON(&tagSchema->pSchema[i]) && IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
+          code = metaDropIndexOnTag(meta);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        i++;
+        j++;
+      } else if (tagSchema->pSchema[i].colId < tagSchemaOld->pSchema[j].colId) {  // add a column
+        if (IS_IDX_ON(&tagSchema->pSchema[i])) {
+          code = metaCreateIndexOnTag(meta);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        i++;
+      } else {  // delete a tag column
+        if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
+          code = metaDropIndexOnTag(meta);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        j++;
+      }
+    }
+
+    for (; i < tagSchema->nCols; i++) {
+      if (IS_IDX_ON(&tagSchema->pSchema[i])) {
+        code = metaCreateIndexOnTag(meta);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
+    for (; j < tagSchemaOld->nCols; j++) {
+      if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
+        code = metaDropIndexOnTag(meta);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleChildTableEntryUpdate(SMeta *meta, const SMetaEntry *entry, const SMetaEntry *oldEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleNormalTableEntryUpdate(SMeta *meta, const SMetaEntry *entry, const SMetaEntry *oldEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (entry->ntbEntry.schemaRow.version != oldEntry->ntbEntry.schemaRow.version) {  // schema changed
+    ASSERT(entry->ntbEntry.schemaRow.version == oldEntry->ntbEntry.schemaRow.version + 1);
+
+    /* schema.db */
+    code = metaUpsertSchema(meta, entry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (entry->ntbEntry.schemaRow.nCols < oldEntry->ntbEntry.schemaRow.nCols) {  // delete a column
+      ASSERT(entry->ntbEntry.schemaRow.nCols + 1 == oldEntry->ntbEntry.schemaRow.nCols);
+      // TODO: deal with cache
+    } else if (entry->ntbEntry.schemaRow.nCols > oldEntry->ntbEntry.schemaRow.nCols) {  // add a column
+      ASSERT(entry->ntbEntry.schemaRow.nCols == oldEntry->ntbEntry.schemaRow.nCols + 1);
+      // TODO: deal with cache
+    }
+
+    meta->pVnode->config.vndStats.numOfNTimeSeries +=
+        (entry->ntbEntry.schemaRow.nCols - oldEntry->ntbEntry.schemaRow.nCols);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleEntryUpdate(SMeta *meta, const SMetaEntry *entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SMetaEntry *oldEntry = NULL;
+
+  code = metaGetTableEntryByUidImpl(meta, entry->uid, &oldEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  ASSERT(oldEntry->type == entry->type);
+  ASSERT(oldEntry->version < entry->version);
+
+  if (entry->type == TSDB_SUPER_TABLE) {
+    code = metaHandleSuperTableEntryUpdate(meta, entry, oldEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else if (entry->type == TSDB_CHILD_TABLE) {
+    code = metaHandleChildTableEntryUpdate(meta, entry, oldEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else if (entry->type == TSDB_NORMAL_TABLE) {
+    code = metaHandleNormalTableEntryUpdate(meta, entry, oldEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    ASSERT(0);
+  }
+
+  /* uid.idx */
+  code = metaUpsertUidIdx(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  metaEntryCloneDestroy(oldEntry);
   return code;
 }
 
@@ -1163,6 +1337,10 @@ static int32_t metaHandleEntryInsert(SMeta *meta, const SMetaEntry *entry) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  /* uid.idx */
+  code = metaUpsertUidIdx(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   /* name.idx */
   code = metaUpsertNameIdx(meta, entry);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -1209,10 +1387,6 @@ int32_t metaHandleEntry(SMeta *meta, const SMetaEntry *entry) {
     if (tdbTbGet(meta->pUidIdx, &entry->uid, sizeof(entry->uid), NULL, NULL) == 0) {
       isExist = true;
     }
-
-    /* uid.idx */
-    code = metaUpsertUidIdx(meta, entry);
-    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (isExist) {  // alter
       code = metaHandleEntryUpdate(meta, entry);

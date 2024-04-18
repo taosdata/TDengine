@@ -1795,68 +1795,87 @@ _drop_super_table:
 #endif
 }
 
+static int32_t metaValidateAlterSuperTableReq(SMeta *meta, SVCreateStbReq *request) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SMetaEntry *superTableEntry = NULL;
+
+  if (request->name == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
+
+  code = metaGetTableEntryByNameImpl(meta, request->name, &superTableEntry);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_STB_NOT_EXIST, lino, _exit);
+  }
+
+  if (superTableEntry->type != TSDB_SUPER_TABLE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_STB_NOT_EXIST, lino, _exit);
+  }
+
+  if (request->suid != superTableEntry->uid) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
+  }
+
+  if (request->schemaRow.version < superTableEntry->stbEntry.schemaRow.version) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
+
+  if (request->schemaTag.version < superTableEntry->stbEntry.schemaTag.version) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
+
+  if (request->schemaRow.version == superTableEntry->stbEntry.schemaRow.version &&
+      request->schemaTag.version == superTableEntry->stbEntry.schemaTag.version) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  metaEntryCloneDestroy(superTableEntry);
+  return code;
+}
+
 int32_t metaAlterSuperTable(SMeta *meta, int64_t version, SVCreateStbReq *request) {
-  SMetaEntry  oStbEntry = {0};
-  SMetaEntry  nStbEntry = {0};
-  TBC        *pUidIdxc = NULL;
-  TBC        *pTbDbc = NULL;
-  const void *pData;
-  int         nData;
-  int64_t     oversion;
-  SDecoder    dc = {0};
-  int32_t     ret;
-  int32_t     c = -2;
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  tdbTbcOpen(meta->pUidIdx, &pUidIdxc, NULL);
-  ret = tdbTbcMoveTo(pUidIdxc, &request->suid, sizeof(tb_uid_t), &c);
-  if (ret < 0 || c) {
-    tdbTbcClose(pUidIdxc);
+  // validate
+  code = metaValidateAlterSuperTableReq(meta, request);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    return -1;
+  // handle
+  SMetaEntry entry = {
+      .version = version,
+      .type = TSDB_SUPER_TABLE,
+      .uid = request->suid,
+      .name = request->name,
+      .stbEntry.schemaRow = request->schemaRow,
+      .stbEntry.schemaTag = request->schemaTag,
+
+  };
+  code = metaHandleEntry(meta, &entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    metaError("vgId:%d alter super table failed at line %d since %s, name:%s uid:%" PRId64 " version:%" PRId64,
+              TD_VID(meta->pVnode), lino, tstrerror(code), request->name, request->suid, version);
+  } else {
+    metaInfo("vgId:%d alter super table success, name:%s uid:%" PRId64 " version:%" PRId64, TD_VID(meta->pVnode),
+             request->name, request->suid, version);
   }
+  return (terrno = code);
 
-  ret = tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
-  if (ret < 0) {
-    tdbTbcClose(pUidIdxc);
-
-    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    return -1;
-  }
-
-  oversion = ((SUidIdxVal *)pData)[0].version;
-
-  tdbTbcOpen(meta->pTbDb, &pTbDbc, NULL);
-  ret = tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = request->suid, .version = oversion}), sizeof(STbDbKey), &c);
-  if (!(ret == 0 && c == 0)) {
-    tdbTbcClose(pUidIdxc);
-    tdbTbcClose(pTbDbc);
-
-    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    metaError("meta/table: invalide ret: %" PRId32 " or c: %" PRId32 "alter stb failed.", ret, c);
-    return -1;
-  }
-
-  ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
-  if (ret < 0) {
-    tdbTbcClose(pUidIdxc);
-    tdbTbcClose(pTbDbc);
-
-    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    return -1;
-  }
-
+#if 0
   oStbEntry.pBuf = taosMemoryMalloc(nData);
   memcpy(oStbEntry.pBuf, pData, nData);
   tDecoderInit(&dc, oStbEntry.pBuf, nData);
   metaDecodeEntry(&dc, &oStbEntry);
 
-  nStbEntry.version = version;
-  nStbEntry.type = TSDB_SUPER_TABLE;
-  nStbEntry.uid = request->suid;
-  nStbEntry.name = request->name;
-  nStbEntry.stbEntry.schemaRow = request->schemaRow;
-  nStbEntry.stbEntry.schemaTag = request->schemaTag;
 
   int     nCols = request->schemaRow.nCols;
   int     onCols = oStbEntry.stbEntry.schemaRow.nCols;
@@ -1897,12 +1916,6 @@ int32_t metaAlterSuperTable(SMeta *meta, int64_t version, SVCreateStbReq *reques
     metaSaveToSkmDb(meta, &nStbEntry);
   }
 
-  // update table.db
-  metaSaveToTbDb(meta, &nStbEntry);
-
-  // update uid index
-  metaUpdateUidIdx(meta, &nStbEntry);
-
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
   if (updStat) {
@@ -1916,15 +1929,7 @@ int32_t metaAlterSuperTable(SMeta *meta, int64_t version, SVCreateStbReq *reques
     meta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
     metaTimeSeriesNotifyCheck(meta);
   }
-
-  meta->changed = true;
-
-_exit:
-  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
-  tDecoderClear(&dc);
-  tdbTbcClose(pTbDbc);
-  tdbTbcClose(pUidIdxc);
-  return 0;
+#endif
 }
 
 static int32_t metaAddTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request) {
