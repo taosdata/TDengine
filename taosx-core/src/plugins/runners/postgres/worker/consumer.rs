@@ -186,7 +186,7 @@ mod tests {
 
         // produce task
         let producer = Producer::new(&config);
-        producer.produce(&tx).await.unwrap();
+        producer.produce(tx).await.unwrap();
 
         // wait for consumer
         let _ = consumer.await;

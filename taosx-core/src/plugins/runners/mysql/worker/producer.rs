@@ -90,7 +90,7 @@ mod tests {
         });
 
         let producer = Producer::new(&config);
-        producer.produce(&tx).await.unwrap();
+        producer.produce(tx).await.unwrap();
 
         // let tasks = consumer.await.unwrap();
 
