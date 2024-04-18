@@ -893,11 +893,9 @@ static int32_t metaUpsertTagIdx(SMeta *meta, const SMetaEntry *childTableEntry) 
   int32_t     lino = 0;
   SMetaEntry *superTableEntry = NULL;
 
-  // 1. TODO: get corresponding super table entry
-  // code = metaGetTableEntry(meta, childTableEntry->ctbEntry.suid, &superTableEntry);
-  // TSDB_CHECK_CODE(code, lino, _exit);
+  code = metaGetTableEntryByUidImpl(meta, childTableEntry->ctbEntry.suid, &superTableEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  // 2. add index
   SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
   if (tagSchema->nCols == 1 && tagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     code = metaUpsertJsonTagIndex(meta, childTableEntry, superTableEntry);
@@ -1285,16 +1283,57 @@ _exit:
   return code;
 }
 
-static int32_t metaHandleChildTableEntryUpdate(SMeta *meta, const SMetaEntry *entry, const SMetaEntry *oldEntry) {
-  int32_t code = 0;
-  int32_t lino = 0;
+extern int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-  // TODO
+static int32_t metaHandleChildTableEntryUpdate(SMeta *meta, const SMetaEntry *childTableEntry,
+                                               const SMetaEntry *oldChildTableEntry) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SArray     *tagValArray = NULL;
+  SArray     *tagValArrayOld = NULL;
+  SMetaEntry *superTableEntry = NULL;
+
+  ASSERT(childTableEntry->ctbEntry.suid == oldChildTableEntry->ctbEntry.suid);
+
+  code = metaGetTableEntryByUidImpl(meta, childTableEntry->ctbEntry.suid, &superTableEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+  for (int32_t i = 0; i < tagSchema->nCols; i++) {
+    STagIdxKey *key = NULL;
+    int32_t     keySize = 0;
+    STagIdxKey *keyOld = NULL;
+    int32_t     keyOldSize = 0;
+
+#if 0
+    code = metaTagIdxKeyBuild(meta, superTableEntry, childTableEntry, i, &key, &keySize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = metaTagIdxKeyBuild(meta, superTableEntry, oldChildTableEntry, i, &keyOld, keyOldSize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+#endif
+
+    if (tagIdxKeyCmpr(key, keySize, keyOld, keyOldSize) != 0) {
+#if 0
+      code = metaDropTagColumnIndex(SMeta * meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = metaCreateTagColumnIndex(SMeta * meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column);
+      TSDB_CHECK_CODE(code, lino, _exit);
+#endif
+    }
+
+    metaTagIdxKeyDestroy(key);
+    metaTagIdxKeyDestroy(keyOld);
+  }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  taosArrayDestroy(tagValArray);
+  taosArrayDestroy(tagValArrayOld);
+  metaEntryCloneDestroy(superTableEntry);
   return code;
 }
 

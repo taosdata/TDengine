@@ -2233,27 +2233,34 @@ static int32_t metaValidateAlterTableReq(SMeta *meta, SVAlterTbReq *request, SMe
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (request->action == TSDB_ALTER_TABLE_ADD_COLUMN) {
+    // TSDB_NORMAL_TABLE
     code = metaAddTableColumn(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_DROP_COLUMN) {
+    // TSDB_NORMAL_TABLE
     code = metaDropTableColumn(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES) {
+    // TSDB_NORMAL_TABLE
     code = metaUpdateTableColumnBytes(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME) {
+    // TSDB_NORMAL_TABLE
     code = metaUpdateTableColumnName(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
+    // TSDB_CHILD_TABLE
     code = metaUpdateTableTagValue(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     code = metaUpdateTableOptions(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_ADD_TAG_INDEX) {
+    // TSDB_CHILD_TABLE(NOT REASONABLE)
     code = metaAddTagIndex(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_DROP_TAG_INDEX) {
+    // TSDB_CHILD_TABLE(NOT REASONABLE)
     code = metaDropTagIndex(meta, *entry, request);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
