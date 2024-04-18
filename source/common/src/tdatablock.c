@@ -2381,7 +2381,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
         }
       }
       SRow* pRow = NULL;
-      if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+      if ((terrno = tRowBuild(pVals, pTSchema, &pRow, NULL)) < 0) {
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }

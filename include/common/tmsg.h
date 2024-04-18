@@ -501,6 +501,12 @@ typedef struct {
   int32_t vgId;
 } SMsgHead;
 
+typedef struct STlv {
+  int16_t type;
+  int32_t len;
+  char    value[];
+} STlv;
+
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
@@ -4183,6 +4189,12 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 
+typedef enum {
+  E_TLV_SUBMIT_TB_DATA = 0,
+  E_TLV_SUBMIT_OID_DATA = 1,
+  E_TLV_SUBMIT_BLOB_DATA = 2,
+} ESubmitReqTlvFlag;
+
 typedef struct {
   int32_t        flags;
   SVCreateTbReq* pCreateTbReq;
@@ -4197,9 +4209,17 @@ typedef struct {
 } SSubmitTbData;
 
 typedef struct {
+  SArray* aOids;  // SArray<SBlobOidInfo>
+} SSubmitOidData;
+
+typedef struct {
+  SArray* aBlobs;  // SArray<SBlobData*>
+} SSubmitBlobData;
+
+typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
-  SArray* aSubmitOids;
-  SArray* aSubmitBlobs;
+  SArray* aSubmitOidData;   // SArray<SSubmitOidData>
+  SArray* aSubmitBlobData;  // SArray<SSubmitBlobData>
 } SSubmitReq2;
 
 typedef struct {
@@ -4208,9 +4228,25 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
+int32_t tEncodeSubmitReq2Msg(int32_t vgId, const SSubmitReq2* pReq, void** pData, uint32_t* pLen);
+int32_t tDecodeSubmitReq2(void* pData, uint32_t len, int64_t version, SSubmitReq2* pReq);
+
 int32_t tEncodeSubmitTbDataReq(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSubmitTbDataReq(SDecoder* pCoder, SSubmitReq2* pReq);
+
+int32_t     tSubmitReq2MsgVersion(const SSubmitReq2* pReq, bool* hasExOid, bool* hasExBlob);
+static bool tSubmitReq2MsgWithTlv(int32_t version) { return version > 1; }
+
+int32_t tEncodeSubmitOidDataReq(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSubmitOidDataReq(SDecoder* pCoder, SSubmitReq2* pReq);
+
+int32_t tEncodeSubmitBlobDataReq(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSubmitBlobDataReq(SDecoder* pCoder, SSubmitReq2* pReq);
+
 void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
+void    tDestroySubmitBlobData(void* ptr);
+void    tDestroySubmitOidData(void* ptr);
+
 void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {

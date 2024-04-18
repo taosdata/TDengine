@@ -621,7 +621,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     }
 
     SRow* pRow = NULL;
-    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow);
+    code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
       pTableData->aRowP = taosArrayDestroy(pTableData->aRowP);

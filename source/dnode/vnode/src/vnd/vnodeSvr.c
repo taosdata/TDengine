@@ -356,18 +356,37 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 _exit:
   return code;
 }
+
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
-
+  int32_t         offset = 0;
+  SSubmitReq2Msg *pReq = (void *)pMsg->pCont;
   SDecoder *pCoder = &(SDecoder){0};
 
-  if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
+  offset += sizeof(SSubmitReq2Msg);
+  int32_t tbDataSize = pMsg->contLen - offset;
+
+  int64_t version = be64toh(pReq->version);
+  if (version != 1 && version != 2) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
+  bool withTlv = tSubmitReq2MsgWithTlv(version);
+  if (withTlv) {
+    STlv   *pTlv = (STlv *)POINTER_SHIFT(pMsg->pCont, offset);
+    int16_t tlvType = be16toh(pTlv->type);
+    int32_t tlvLen = be32toh(pTlv->len);
+
+    if (tlvType != E_TLV_SUBMIT_TB_DATA) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    offset += sizeof(STlv);
+    tbDataSize = tlvLen;
+  }
+  tDecoderInit(pCoder, POINTER_SHIFT(pMsg->pCont, offset), tbDataSize);
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -1581,7 +1600,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
         SRow **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
-        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow);
+        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, NULL);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -1634,8 +1653,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  int64_t         version = be64toh(pMsg->version);
-  if (0 == version) {
+  int64_t         msgVersion = be64toh(pMsg->version);
+  if (0 == msgVersion) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
@@ -1646,19 +1665,16 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-  } else if (1 == version) {
+  } else {
     // decode
     pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
     len -= sizeof(SSubmitReq2Msg);
-    SDecoder dc = {0};
-    tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitTbDataReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq2(pReq, len, msgVersion, pSubmitReq) != 0) {
+      vError("vgId:%d, %s failed to decode req since %s, version:%" PRId64 ", msgVer:%" PRId64, TD_VID(pVnode),
+             __func__, tstrerror(terrno), ver, msgVersion);
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
-    tDecoderClear(&dc);
-  } else {
-    ASSERTS(0, "invalid version:%d", pMsg->version);
   }
 
   // scan
@@ -1870,6 +1886,7 @@ _exit:
 
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+    // TODO: process pReq of msgVersion 2
     code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
   /*

@@ -119,7 +119,7 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
-int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SArray *bOffsets);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);

@@ -197,11 +197,13 @@ typedef struct STableDataCxt {
   STableMeta*    pMeta;
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;
-  SArray*        pValues;
+  SArray*        pValues;  // SArray<SColVal>
   SSubmitTbData* pData;
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
+  SArray*        pBlobs;    // SArray<SBlobData*>
+  SArray*        bOffsets;  // SArray<int32_t>
 } STableDataCxt;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);

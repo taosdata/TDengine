@@ -424,12 +424,34 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   taosHashCleanup(pTableCxtHash);
 }
 
-static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild) {
+static int32_t initVgSubmitData(SVgroupDataCxt* pVgCxt) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (NULL == pVgCxt->pData->aSubmitOidData) {
+    pVgCxt->pData->aSubmitOidData = taosArrayInit(128, sizeof(SSubmitOidData));
+    if (NULL == pVgCxt->pData->aSubmitOidData) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (NULL == pVgCxt->pData->aSubmitBlobData) {
+    pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SSubmitBlobData));
+    if (NULL == pVgCxt->pData->aSubmitBlobData) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild) {
+  if (initVgSubmitData(pVgCxt) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // push data to submit, rebuild empty data for next submit
@@ -439,6 +461,16 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   } else {
     taosMemoryFreeClear(pTableCxt->pData);
   }
+
+  // push blob to submit
+  SSubmitBlobData blobData = {.aBlobs = pTableCxt->pBlobs};
+  if (taosArrayPush(pVgCxt->pData->aSubmitBlobData, &blobData) == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+  pTableCxt->pBlobs = NULL;
+  taosArrayDestroy(pTableCxt->bOffsets);
+  pTableCxt->bOffsets = NULL;
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
@@ -559,35 +591,6 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
   return code;
 }
 
-static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uint32_t* pLen) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  uint32_t len = 0;
-  void*    pBuf = NULL;
-  tEncodeSize(tEncodeSubmitTbDataReq, pReq, len, code);
-  if (TSDB_CODE_SUCCESS == code) {
-    SEncoder encoder;
-    len += sizeof(SSubmitReq2Msg);
-    pBuf = taosMemoryMalloc(len);
-    if (NULL == pBuf) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    ((SSubmitReq2Msg*)pBuf)->header.vgId = htonl(vgId);
-    ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
-    ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
-    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    code = tEncodeSubmitTbDataReq(&encoder, pReq);
-    tEncoderClear(&encoder);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pData = pBuf;
-    *pLen = len;
-  } else {
-    taosMemoryFree(pBuf);
-  }
-  return code;
-}
-
 static void destroyVgDataBlocks(void* p) {
   SVgDataBlocks* pVg = p;
   taosMemoryFree(pVg->pData);
@@ -614,7 +617,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       //      uError("td23101 3vgId:%d, numEps:%d", src->vgId, dst->vg.epSet.numOfEps);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
+      code = tEncodeSubmitReq2Msg(src->vgId, src->pData, &dst->pData, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS);

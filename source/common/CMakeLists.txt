@@ -44,6 +44,7 @@ target_link_libraries(
     common
     PUBLIC os
     PUBLIC util
+    PUBLIC blob
     INTERFACE api
 )
 

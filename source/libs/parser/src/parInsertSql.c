@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "blob.h"
 #include "geosWrapper.h"
 #include "parInsertUtil.h"
 #include "parToken.h"
@@ -440,33 +441,36 @@ static int32_t parseHexBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, in
   if (pToken->type != TK_NK_STRING) {
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
+  SBlobEntry* pBlob = NULL;
 
   if (isHex(pToken->z, pToken->n)) {
     if (!isValidateHex(pToken->z, pToken->n)) {
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
 
-    void*    data = NULL;
-    uint32_t size = 0;
-    if (taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0) {
+    int32_t sLen = pToken->n / 2;
+    pBlob = taosMemoryCalloc(sizeof(SBlobEntry) + sLen, 1);
+    if (pBlob == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-
-    if (size + VARSTR_HEADER_SIZE > bytes) {
-      taosMemoryFree(data);
-      return TSDB_CODE_PAR_VALUE_TOO_LONG;
-    }
-    *pData = data;
-    *nData = size;
+    pBlob->flag = EBLOB_FLAG_DATA;
+    pBlob->varData.len = taosHex2AsciiImpl(pToken->z, pToken->n, pBlob->varData.data, sLen);
   } else {
-    *pData = taosMemoryCalloc(1, pToken->n);
-    int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
-    *nData = len;
-
-    if (*nData + VARSTR_HEADER_SIZE > bytes) {
-      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    pBlob = taosMemoryCalloc(sizeof(SBlobEntry) + pToken->n, 1);
+    if (pBlob == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
+    pBlob->flag = EBLOB_FLAG_DATA;
+    pBlob->varData.len = trimString(pToken->z, pToken->n, pBlob->varData.data, pToken->n);
   }
+
+  int32_t size = tBlobEntrySize(pBlob);
+  if (size + VARSTR_HEADER_SIZE > bytes) {
+    taosMemoryFree(pBlob);
+    return TSDB_CODE_PAR_VALUE_TOO_LONG;
+  }
+  *pData = (void*)pBlob;
+  *nData = size;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1417,6 +1421,44 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t insProcessBlobsTableDataCxt(STableDataCxt* pTableCxt) {
+  SColVal* pTsVal = taosArrayGet(pTableCxt->pValues, 0);
+  if (pTsVal->value.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return TSDB_CODE_FAILED;
+  }
+
+  TSKEY ts = 0;
+  memcpy(&ts, &pTsVal->value.val, sizeof(TSKEY));
+  int32_t nColVal = taosArrayGetSize(pTableCxt->pValues);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  for (int32_t iColVal = 1; iColVal < nColVal; ++iColVal) {
+    SColVal* pColVal = taosArrayGet(pTableCxt->pValues, iColVal);
+    if (pColVal->value.type == TSDB_DATA_TYPE_BLOB) {
+      // TODO: separate the blob data from the table data only when the blob data is too large
+      if (pTableCxt->pBlobs == NULL) {
+        pTableCxt->pBlobs = taosArrayInit(16, sizeof(SBlobData*));
+        if (NULL == pTableCxt->pBlobs) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+      if (pTableCxt->bOffsets == NULL) {
+        pTableCxt->bOffsets = taosArrayInit(16, sizeof(int32_t));
+        if (NULL == pTableCxt->bOffsets) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+      SBlobData** ppBlob = taosArrayReserve(pTableCxt->pBlobs, 1);
+      if (NULL == ppBlob) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      code = blReWriteBlobData(pColVal, ts, ppBlob);
+      if (code != 0) return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
   if (0 == (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT)) {
     return TSDB_CODE_SUCCESS;
@@ -1998,7 +2040,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
   if (code == TSDB_CODE_SUCCESS) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
-    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
+    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, NULL);
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);
@@ -2015,8 +2057,21 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   return code;
 }
 
-static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
-                       SToken* pToken) {
+static int32_t insUpdateBlobOidOffsets(STableDataCxt* pTableCxt, int32_t idx, int32_t nOffsets) {
+  int32_t n = taosArrayGetSize(pTableCxt->bOffsets);
+  if (n != taosArrayGetSize(pTableCxt->pBlobs)) {
+    return TSDB_CODE_FAILED;
+  }
+  for (int32_t i = nOffsets; i < n; ++i) {
+    int32_t*   pOffset = taosArrayGet(pTableCxt->bOffsets, i);
+    SBlobData* pBlob = taosArrayGet(pTableCxt->pBlobs, i);
+    pBlob->hdr.oid.i.idx = idx;
+    pBlob->hdr.oid.i.offset = *pOffset;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow, SToken* pToken) {
   SBoundColInfo* pCols = &pTableCxt->boundColsInfo;
   bool           isParseBindParam = false;
   SSchema*       pSchemas = getTableColumnSchema(pTableCxt->pMeta);
@@ -2066,12 +2121,19 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+    code = insProcessBlobsTableDataCxt(pTableCxt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+    int32_t idx = taosArrayGetSize(pTableCxt->pData->aRowP);
+    int32_t nOffsets = taosArrayGetSize(pTableCxt->bOffsets);
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
-    code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, pTableCxt->bOffsets);
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);
       insCheckTableDataOrder(pTableCxt, &key);
+      code = insUpdateBlobOidOffsets(pTableCxt, idx, nOffsets);
     }
   }
 

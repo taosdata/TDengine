@@ -197,7 +197,7 @@ void clearColValArraySml(SArray* pCols) {
 
 int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
-  int    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+  int    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, NULL);
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
@@ -396,7 +396,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
     }
 
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
-    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+    ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, NULL);
     if (TSDB_CODE_SUCCESS != ret) {
       buildInvalidOperationMsg(&pBuf, "tRowBuild error");
       goto end;

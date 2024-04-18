@@ -32,6 +32,7 @@ typedef int8_t   col_type_t;
 typedef int32_t  col_bytes_t;
 typedef int32_t  schema_ver_t;
 typedef int32_t  func_id_t;
+typedef int64_t  TdOidT;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -274,6 +275,7 @@ typedef struct {
 #define IS_STR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_BLOB))
+#define IS_BLOB_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BLOB)
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)

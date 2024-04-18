@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tmsg.h"
+#include "blob.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -9580,6 +9581,191 @@ _exit:
   return code;
 }
 
+static int32_t tEncodeSizeOfSubmitReq2Msg(const SSubmitReq2 *pReq, uint32_t *pTotalSize, uint32_t *pTbDataSize,
+                                          uint32_t *pOidDataSize, uint32_t *pBlobDataSize) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  uint32_t len = 0;
+  bool     hasExOid = false;
+  bool     hasExBlob = false;
+  int32_t  version = tSubmitReq2MsgVersion(pReq, &hasExOid, &hasExBlob);
+
+  uint32_t size = sizeof(SSubmitReq2Msg);
+  bool     withTlv = tSubmitReq2MsgWithTlv(version);
+  ASSERT(withTlv || !(hasExOid || hasExBlob));
+
+  if (withTlv) {
+    size += sizeof(STlv);
+  }
+  tEncodeSize(tEncodeSubmitTbDataReq, pReq, len, code);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  *pTbDataSize = len;
+  size += len;
+
+  if (hasExOid) {
+    ASSERT(withTlv);
+    size += sizeof(STlv);
+
+    tEncodeSize(tEncodeSubmitOidDataReq, pReq, len, code);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    *pOidDataSize = len;
+    size += len;
+  }
+
+  if (hasExBlob) {
+    ASSERT(withTlv);
+    size += sizeof(STlv);
+
+    tEncodeSize(tEncodeSubmitBlobDataReq, pReq, len, code);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    *pBlobDataSize = len;
+    size += len;
+  }
+
+  *pTotalSize = size;
+  return code;
+}
+
+int32_t tEncodeSubmitReq2Msg(int32_t vgId, const SSubmitReq2 *pReq, void **pData, uint32_t *pLen) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  uint32_t len = 0;
+  void    *pBuf = NULL;
+  int32_t  offset = 0;
+  bool     hasExOid = false;
+  bool     hasExBlob = false;
+  int64_t  version = tSubmitReq2MsgVersion(pReq, &hasExOid, &hasExBlob);
+
+  uint32_t tbDataSize = 0;
+  uint32_t oidDataSize = 0;
+  uint32_t blobDataSize = 0;
+  code = tEncodeSizeOfSubmitReq2Msg(pReq, &len, &tbDataSize, &oidDataSize, &blobDataSize);
+  if (code != TSDB_CODE_SUCCESS) goto _EXIT;
+
+  SEncoder encoder;
+  pBuf = taosMemoryMalloc(len);
+  if (NULL == pBuf) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  ((SSubmitReq2Msg *)pBuf)->header.vgId = htonl(vgId);
+  ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
+  ((SSubmitReq2Msg *)pBuf)->version = htobe64(version);
+  offset += sizeof(SSubmitReq2Msg);
+
+  bool withTlv = tSubmitReq2MsgWithTlv(version);
+  ASSERT(withTlv || !(hasExOid || hasExBlob));
+
+  if (withTlv) {
+    STlv *pTlv = (STlv *)POINTER_SHIFT(pBuf, offset);
+    pTlv->type = htobe16(E_TLV_SUBMIT_TB_DATA);
+    pTlv->len = htobe32(tbDataSize);
+    offset += sizeof(STlv);
+  }
+  tEncoderInit(&encoder, POINTER_SHIFT(pBuf, offset), tbDataSize);
+  code = tEncodeSubmitTbDataReq(&encoder, pReq);
+  tEncoderClear(&encoder);
+  offset += tbDataSize;
+  if (code != TSDB_CODE_SUCCESS) goto _EXIT;
+
+  if (hasExOid) {
+    STlv *pTlv = (STlv *)POINTER_SHIFT(pBuf, offset);
+    pTlv->type = htobe16(E_TLV_SUBMIT_OID_DATA);
+    pTlv->len = htobe32(oidDataSize);
+    offset += sizeof(STlv);
+
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, offset), oidDataSize);
+    code = tEncodeSubmitOidDataReq(&encoder, pReq);
+    tEncoderClear(&encoder);
+    offset += oidDataSize;
+    if (code != TSDB_CODE_SUCCESS) goto _EXIT;
+  }
+
+  if (hasExBlob) {
+    STlv *pTlv = (STlv *)POINTER_SHIFT(pBuf, offset);
+    pTlv->type = htobe16(E_TLV_SUBMIT_BLOB_DATA);
+    pTlv->len = htobe32(blobDataSize);
+    offset += sizeof(STlv);
+
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, offset), blobDataSize);
+    code = tEncodeSubmitBlobDataReq(&encoder, pReq);
+    tEncoderClear(&encoder);
+    offset += blobDataSize;
+    if (code != TSDB_CODE_SUCCESS) goto _EXIT;
+  }
+
+  ASSERT(offset == len || code != TSDB_CODE_SUCCESS);
+_EXIT:
+  if (TSDB_CODE_SUCCESS == code) {
+    *pData = pBuf;
+    *pLen = len;
+  } else {
+    taosMemoryFree(pBuf);
+  }
+  return code;
+}
+
+int32_t tDecodeSubmitReq2(void *pData, uint32_t len, int64_t msgVersion, SSubmitReq2 *pReq) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  offset = 0;
+  SDecoder decoder = {0};
+
+  if (1 == msgVersion) {
+    tDecoderInit(&decoder, pData, len);
+    if (tDecodeSubmitTbDataReq(&decoder, pReq) < 0) {
+      terrno = code = TSDB_CODE_INVALID_MSG;
+      return code;
+    }
+    tDecoderClear(&decoder);
+  } else if (2 == msgVersion) {
+    int32_t offset = 0;
+    do {
+      STlv    *pTlv = (STlv *)POINTER_SHIFT(pData, offset);
+      uint16_t type = be16toh(pTlv->type);
+      uint32_t tlvLen = be32toh(pTlv->len);
+      tDecoderInit(&decoder, POINTER_SHIFT(pData, offset + sizeof(STlv)), tlvLen);
+      switch (type) {
+        case E_TLV_SUBMIT_TB_DATA: {
+          code = tDecodeSubmitTbDataReq(&decoder, pReq);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+          break;
+        }
+        case E_TLV_SUBMIT_OID_DATA: {
+          code = tDecodeSubmitOidDataReq(&decoder, pReq);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+          break;
+        }
+        case E_TLV_SUBMIT_BLOB_DATA: {
+          code = tDecodeSubmitBlobDataReq(&decoder, pReq);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+          break;
+        }
+        default: {
+          terrno = code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
+      }
+      tDecoderClear(&decoder);
+      offset += sizeof(STlv) + tlvLen;
+    } while (offset < len);
+  } else {
+    terrno = code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  return blApplySubmitOidData(pReq);
+}
+
 void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
     return;
@@ -9626,17 +9812,169 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   }
 }
 
-void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
-  if (pReq->aSubmitTbData == NULL) return;
-
-  int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
-  SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
-
-  for (int32_t i = 0; i < nSubmitTbData; i++) {
-    tDestroySubmitTbData(&aSubmitTbData[i], flag);
+static bool tSubmitReq2WithExBlob(const SSubmitReq2 *pReq) {
+  int32_t size = taosArrayGetSize(pReq->aSubmitBlobData);
+  for (int32_t i = 0; i < size; ++i) {
+    SSubmitBlobData *pBlob = taosArrayGet(pReq->aSubmitBlobData, i);
+    if (taosArrayGetSize(pBlob->aBlobs) > 0) {
+      return true;
+    }
   }
-  taosArrayDestroy(pReq->aSubmitTbData);
-  pReq->aSubmitTbData = NULL;
+  return false;
+}
+
+static bool tSubmitReq2WithExOid(const SSubmitReq2 *pReq) {
+  int32_t size = taosArrayGetSize(pReq->aSubmitOidData);
+  for (int32_t i = 0; i < size; ++i) {
+    SSubmitOidData *pOid = taosArrayGet(pReq->aSubmitOidData, i);
+    if (taosArrayGetSize(pOid->aOids) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void tDestroySubmitBlobData(void *ptr) {
+  SSubmitBlobData *pBlobData = ptr;
+  if (NULL == pBlobData) {
+    return;
+  }
+
+  if (pBlobData->aBlobs) {
+    taosArrayDestroyP(pBlobData->aBlobs, blFreeBlobDataImpl);
+    pBlobData->aBlobs = NULL;
+  }
+}
+
+void tDestroySubmitOidData(void *ptr) {
+  SSubmitOidData *pOidData = ptr;
+  if (NULL == pOidData) {
+    return;
+  }
+
+  if (pOidData->aOids) {
+    taosArrayDestroy(pOidData->aOids);
+    pOidData->aOids = NULL;
+  }
+}
+
+void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
+  if (pReq->aSubmitTbData != NULL) {
+    int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
+    SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
+
+    for (int32_t i = 0; i < nSubmitTbData; i++) {
+      tDestroySubmitTbData(&aSubmitTbData[i], flag);
+    }
+    taosArrayDestroy(pReq->aSubmitTbData);
+    pReq->aSubmitTbData = NULL;
+  }
+
+  if (pReq->aSubmitOidData != NULL) {
+    taosArrayDestroyEx(pReq->aSubmitOidData, tDestroySubmitOidData);
+    pReq->aSubmitOidData = NULL;
+  }
+
+  if (pReq->aSubmitBlobData != NULL) {
+    taosArrayDestroyEx(pReq->aSubmitBlobData, tDestroySubmitBlobData);
+    pReq->aSubmitBlobData = NULL;
+  }
+}
+
+int32_t tSubmitReq2MsgVersion(const SSubmitReq2 *pReq, bool *hasExOid, bool *hasExBlob) {
+  *hasExOid = tSubmitReq2WithExOid(pReq);
+  *hasExBlob = tSubmitReq2WithExBlob(pReq);
+  return (hasExOid || hasExBlob) ? 2 : 1;
+}
+
+int32_t tEncodeSubmitOidDataReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  int32_t nSubmitOidData = taosArrayGetSize(pReq->aSubmitOidData);
+  if (tEncodeU64v(pCoder, nSubmitOidData) < 0) return -1;
+  for (uint64_t i = 0; i < nSubmitOidData; i++) {
+    SSubmitOidData *pOidData = taosArrayGet(pReq->aSubmitOidData, i);
+    if (tEncodeSubmitOidData(pCoder, pOidData) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSubmitOidDataReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+
+  // decode
+  if (tStartDecode(pCoder) < 0) {
+    goto _exit;
+  }
+
+  uint64_t nSubmitOidData;
+  if (tDecodeU64v(pCoder, &nSubmitOidData) < 0) {
+    goto _exit;
+  }
+
+  pReq->aSubmitOidData = taosArrayInit(nSubmitOidData, sizeof(SSubmitOidData));
+  if (pReq->aSubmitOidData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (uint64_t i = 0; i < nSubmitOidData; i++) {
+    SSubmitOidData *pOidData = taosArrayReserve(pReq->aSubmitOidData, 1);
+    pOidData->aOids = taosArrayInit(0, sizeof(int64_t));
+    if (pOidData->aOids == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    if (tDecodeSubmitOidData(pCoder, pOidData) < 0) {
+      goto _exit;
+    }
+  }
+
+  tEndDecode(pCoder);
+  code = TSDB_CODE_SUCCESS;
+_exit:
+  if (code) {
+    if (pReq->aSubmitOidData) {
+      taosArrayDestroyEx(pReq->aSubmitOidData, tDestroySubmitOidData);
+    }
+  }
+  return code;
+}
+
+int32_t tEncodeSubmitBlobDataReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  int32_t n = tPutSubmitBlobDataArr(pCoder->data ? pCoder->data + pCoder->pos : NULL, pReq->aSubmitBlobData);
+  pCoder->pos += n;
+
+  ASSERT(pCoder->data == NULL || pCoder->pos <= pCoder->size);
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSubmitBlobDataReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  if (tStartDecode(pCoder) < 0) {
+    goto _exit;
+  }
+
+  pReq->aSubmitBlobData = taosArrayInit(0, sizeof(SSubmitBlobData));
+  int32_t n = tGetSubmitBlobDataArr(pCoder->data ? pCoder->data + pCoder->pos : NULL, pReq->aSubmitBlobData);
+  pCoder->pos += n;
+
+  ASSERT(pCoder->pos <= pCoder->size);
+  tEndDecode(pCoder);
+  code = TSDB_CODE_SUCCESS;
+_exit:
+  if (code) {
+    if (pReq->aSubmitBlobData) {
+      taosArrayDestroyEx(pReq->aSubmitBlobData, tDestroySubmitBlobData);
+      pReq->aSubmitBlobData = NULL;
+    }
+  }
+  return code;
 }
 
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {

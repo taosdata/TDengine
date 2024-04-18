@@ -13,7 +13,7 @@ target_include_directories(
 
 target_link_libraries(
         parser
-        PRIVATE os util nodes catalog function scalar geometry transport qcom
+        PRIVATE os util nodes catalog function scalar geometry transport qcom blob
 )
 
 if(${BUILD_TEST})

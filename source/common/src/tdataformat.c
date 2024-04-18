@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
+#include "blob.h"
 #include "tRealloc.h"
 #include "tdatablock.h"
 #include "tlog.h"
@@ -66,6 +67,21 @@ static int32_t tPutPrimaryKeyIndex(uint8_t *p, const SPrimaryKeyIndex *index) {
   n += tPutI8(p ? p + n : p, index->type);
   n += tPutU32v(p ? p + n : p, index->offset);
   return n;
+}
+
+static int32_t tMarkBlobOidOffset(uint8_t *ptr, uint8_t *b, SBlobEntry *pBlob, SArray *bOffsets) {
+  if (pBlob->flag != EBLOB_FLAG_OID) {
+    return 0;
+  }
+  if (bOffsets == NULL) {
+    return 0;
+  }
+  int32_t offset = ptr + offsetof(SBlobEntry, oid) - b;
+  if (taosArrayPush(bOffsets, &offset) == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  return 0;
 }
 
 static int32_t tGetPrimaryKeyIndex(uint8_t *p, SPrimaryKeyIndex *index) {
@@ -258,7 +274,7 @@ _exit:
 }
 
 static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
-                                 SRow **ppRow) {
+                                 SRow **ppRow, SArray *bOffsets) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
@@ -306,6 +322,9 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
             varlen += tPutU32v(varlen, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData) {
               memcpy(varlen, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+              if (IS_BLOB_DATA_TYPE(schema->columns[i].type)) {
+                tMarkBlobOidOffset(varlen, (*ppRow)->data, (SBlobEntry *)colValArray[colValIndex].value.pData, bOffsets);
+              }
               varlen += colValArray[colValIndex].value.nData;
             }
           } else {
@@ -343,7 +362,7 @@ static FORCE_INLINE void tRowBuildKVRowSetIndex(uint8_t flag, SKVIdx *indices, u
   indices->nCol++;
 }
 
-static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema, SRow **ppRow) {
+static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema, SRow **ppRow, SArray *bOffsets) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->kvRowSize);
@@ -384,6 +403,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
             memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+            if (IS_BLOB_DATA_TYPE(schema->columns[i].type)) {
+              tMarkBlobOidOffset(payload + payloadSize, (*ppRow)->data, (SBlobEntry *)colValArray[colValIndex].value.pData, bOffsets);
+            }
             payloadSize += colValArray[colValIndex].value.nData;
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
@@ -409,7 +431,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   return 0;
 }
 
-int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SArray *bOffsets) {
   int32_t           code;
   SRowBuildScanInfo sinfo;
 
@@ -417,9 +439,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   if (code) return code;
 
   if (sinfo.tupleRowSize <= sinfo.kvRowSize) {
-    code = tRowBuildTupleRow(aColVal, &sinfo, pTSchema, ppRow);
+    code = tRowBuildTupleRow(aColVal, &sinfo, pTSchema, ppRow, bOffsets);
   } else {
-    code = tRowBuildKVRow(aColVal, &sinfo, pTSchema, ppRow);
+    code = tRowBuildKVRow(aColVal, &sinfo, pTSchema, ppRow, bOffsets);
   }
   return code;
 }
@@ -618,7 +640,7 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
   }
 
   // build
-  code = tRowBuild(aColVal, pTSchema, &pRow);
+  code = tRowBuild(aColVal, pTSchema, &pRow, NULL);
   if (code) goto _exit;
 
   taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
