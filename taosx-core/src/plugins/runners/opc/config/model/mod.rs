@@ -133,15 +133,14 @@ impl PointConfig {
         let value_type = parse_type(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
-        if stable.is_some() && !validate_table_column_name(stable.as_ref().unwrap()) {
-            bail!("invalid stable: [{}]", stable.unwrap());
+        if stable.is_some() {
+            validate_table_column_name("stable name", stable.as_ref().unwrap())?;
         }
+         
         // 遍历tag_values，校验tag_values中的tag_name是否合法
         if tag_values.is_some() {
             for (tag_name, _) in tag_values.as_ref().unwrap() {
-                if !validate_table_column_name(tag_name) {
-                    bail!("invalid tag_name: [{}]", tag_name);
-                }
+                validate_table_column_name("tag name", tag_name)?;
             }
         }
 
@@ -177,9 +176,7 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
     } else {
         value.to_string()
     };
-    if !validate_table_column_name(&tbname) {
-        bail!("invalid tbname: [{}]", tbname);
-    }
+    validate_table_column_name("table name", &tbname)?;
 
     match tbname.is_empty() {
         true => bail!("tbname cannot be empty"),
@@ -343,13 +340,11 @@ fn parse_columns(
 
     // value => value_col
     let value = parse_value_col(header, row);
+    let value_name = value.alias.as_ref().unwrap();
+    validate_table_column_name("column name", value_name)?;
+
     if value.transform.is_some() {
         // 校验表达式
-        let value_name = value.alias.as_ref().unwrap();
-        if !validate_table_column_name(value_name) {
-            bail!("invalid value column name: [{}]", value_name);
-        }
-
         let value_transform = value.transform.as_ref().unwrap();
         check_math_expression(value_name, value_transform).map_err(|e| {
             anyhow::anyhow!(
@@ -366,9 +361,7 @@ fn parse_columns(
     if quality.is_some() {
         let quality_column = quality.unwrap();
         let quality_name = quality_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(quality_name) {
-            bail!("invalid quality column name: [{}]", quality_name);
-        }
+        validate_table_column_name("quality column name", quality_name)?;
         columns.push(quality_column);
     }
 
@@ -389,9 +382,8 @@ fn parse_columns(
     if received_ts.is_some() {
         let received_ts_column = received_ts.unwrap();
         let ts_name = received_ts_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(ts_name) {
-            bail!("invalid received_ts column name: [{}]", ts_name);
-        }
+        validate_table_column_name("received_ts column name", ts_name)?;
+
         if received_ts_column.transform.is_some() {
             // 校验表达式
             let ts_transform = received_ts_column.transform.as_ref().unwrap();
@@ -409,9 +401,8 @@ fn parse_columns(
     if original_ts.is_some() {
         let original_ts_column = original_ts.unwrap();
         let ts_name = original_ts_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(ts_name) {
-            bail!("invalid original_ts column name: [{}]", ts_name);
-        }
+        validate_table_column_name("original_ts column name", ts_name)?;
+
         if original_ts_column.transform.is_some() {
             // 校验表达式
             let ts_transform = original_ts_column.transform.as_ref().unwrap();
