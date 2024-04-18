@@ -1056,17 +1056,17 @@ static void tmqMgmtInit(void) {
   }
 }
 
-#define SET_ERROR_MSG(MSG) \
+#define SET_ERROR_MSG_TMQ(MSG) \
   if (errstr != NULL) snprintf(errstr, errstrLen, MSG);
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (conf == NULL) {
-    SET_ERROR_MSG("configure is null")
+    SET_ERROR_MSG_TMQ("configure is null")
     return NULL;
   }
   taosThreadOnce(&tmqInit, tmqMgmtInit);
   if (tmqInitRes != 0) {
     terrno = tmqInitRes;
-    SET_ERROR_MSG("tmq timer init error")
+    SET_ERROR_MSG_TMQ("tmq timer init error")
     return NULL;
   }
 
@@ -1074,7 +1074,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("failed to create consumer, groupId:%s, code:%s", conf->groupId, terrstr());
-    SET_ERROR_MSG("malloc tmq failed")
+    SET_ERROR_MSG_TMQ("malloc tmq failed")
     return NULL;
   }
 
@@ -1090,7 +1090,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
       conf->groupId[0] == 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-    SET_ERROR_MSG("malloc tmq element failed or group is empty")
+    SET_ERROR_MSG_TMQ("malloc tmq element failed or group is empty")
     goto _failed;
   }
 
@@ -1123,7 +1123,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
     tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
-    SET_ERROR_MSG("init t_sem failed")
+    SET_ERROR_MSG_TMQ("init t_sem failed")
     goto _failed;
   }
 
@@ -1132,13 +1132,13 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq->pTscObj == NULL) {
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
     tsem_destroy(&pTmq->rspSem);
-    SET_ERROR_MSG("init tscObj failed")
+    SET_ERROR_MSG_TMQ("init tscObj failed")
     goto _failed;
   }
 
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
   if (pTmq->refId < 0) {
-    SET_ERROR_MSG("add tscObj ref failed")
+    SET_ERROR_MSG_TMQ("add tscObj ref failed")
     goto _failed;
   }
 
