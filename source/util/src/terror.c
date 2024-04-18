@@ -27,10 +27,11 @@ typedef struct {
 } STaosError;
 
 static threadlocal int32_t tsErrno;
-static threadlocal char tsErrMsg[ERR_MSG_LEN] = {0};
+static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
+static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
-char*    taosGetErrMsg() { return tsErrMsg; }
+char*    taosGetErrMsg() { return tsErrMsgDetail; }
 
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
@@ -723,11 +724,13 @@ const char* tstrerror(int32_t err) {
     } else if (err < val) {
       e = mid;
     } else if (err == val) {
-      char tmp[ERR_MSG_LEN]= {0};
-      strncpy(tmp, tsErrMsg, ERR_MSG_LEN);
-
-      snprintf(tsErrMsg, ERR_MSG_LEN, "%s,%s", errors[mid].str, tmp);
-      return (const char*)tsErrMsg;
+      if(strlen(tsErrMsgDetail) == 0){
+        return errors[mid].str;
+      } else{
+        memset(tsErrMsgReturn, 0, ERR_MSG_LEN);
+        snprintf(tsErrMsgReturn, ERR_MSG_LEN, "%s,%s", errors[mid].str, tsErrMsgDetail);
+        return (const char*)tsErrMsgReturn;
+      }
     } else {
       break;
     }
