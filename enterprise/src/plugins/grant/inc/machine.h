@@ -185,11 +185,11 @@ typedef enum {
   CONN_TYPE_TDENGINE_2_6,
   CONN_TYPE_TDENGINE_3_0,
   CONN_TYPE_MAX = 10,  // max connType before importing dynamic DataIns
-  // add future data ins here
   CONN_TYPE_MYSQL = 10,
   CONN_TYPE_POSTGRES = 11,
   CONN_TYPE_ORACLE = 12,
-  // CONN_TYPE_FUTURE_DATA_IN = 10,
+  // add future data ins here
+  // CONN_TYPE_FUTURE_DATA_IN = XX,
   CONN_TYPE_DYN_MAX = 13,
 } EGrantConnType;
 
