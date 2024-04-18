@@ -156,10 +156,12 @@
 #define GRANT_LOG_MAX_MACHINE 300
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6", "td3.0"};
+    "opc_da",   "opc_ua", "pi",    "kafka", "influxdb", "mqtt",  "avevahistorian",
+    "opentsdb", "td2.6",  "td3.0", "mysql", "postgres", "oracle"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
-    "OPC_DA", "OPC_UA", "Pi", "Kafka", "InfluxDB", "MQTT", "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0"};
+    "OPC_DA",   "OPC_UA",      "Pi",          "Kafka", "InfluxDB",   "MQTT",  "avevaHistorian",
+    "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "storage", "backup_restore"};
@@ -680,7 +682,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
         GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
         
         knownDataInAssigned[j] = 1;
-        taosArrayRemove(pObj->pDataIns, i);
+        taosArrayRemove(pObj->pDataIns, i--);
       }
     }
   }
