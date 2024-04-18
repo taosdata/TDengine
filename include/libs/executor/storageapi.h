@@ -78,7 +78,9 @@ typedef struct SMetaEntry {
     } smaEntry;
   };
 
-  uint8_t* pBuf;
+  uint8_t*        pBuf;
+
+  SColCmprWrapper colCmpr;  // col compress alg
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -368,7 +370,8 @@ typedef struct SStateStore {
   int32_t (*streamStateSessionAllocWinBuffByNextPosition)(SStreamState* pState, SStreamStateCur* pCur,
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
-  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
+                                              void** ppVal, int32_t* pVLen);
   int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
   SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);

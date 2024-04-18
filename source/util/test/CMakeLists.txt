@@ -32,6 +32,7 @@ ENDIF()
 #ENDIF ()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
@@ -116,3 +117,10 @@ add_test(
     NAME bufferTest
     COMMAND bufferTest
 )
+
+#add_executable(decompressTest "decompressTest.cpp")
+#target_link_libraries(decompressTest os util common gtest_main)
+#add_test(
+#    NAME decompressTest 
+#    COMMAND decompressTest
+#)
