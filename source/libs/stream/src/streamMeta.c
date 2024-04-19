@@ -1288,7 +1288,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    stDebug("vgId:%d s-task:%s set closing flag", vgId, pTask->id.idStr);
+    stDebug("vgId:%d s-task:%s set task closing flag", vgId, pTask->id.idStr);
     streamTaskStop(pTask);
   }
 
@@ -1645,6 +1645,13 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
     int64_t el = endTs - startTs;
     qDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
            pMeta->vgId, taskId, ready, el);
+    streamMetaWUnLock(pMeta);
+    return 0;
+  }
+
+  void* p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+  if (p == NULL) {  // task does not exists in current vnode, not record the complete info
+    qError("vgId:%d s-task:0x%x not exists discard the check downstream info", pMeta->vgId, taskId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
