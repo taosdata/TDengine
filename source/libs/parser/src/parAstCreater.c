@@ -246,6 +246,16 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
+  trimEscape(pTsmaToken);
+  if (NULL == pTsmaToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pTsmaToken->n >= TSDB_TABLE_NAME_LEN - strlen(TSMA_RES_STB_POSTFIX)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSMA_NAME_TOO_LONG);
+  }
+  return pCxt->errCode == TSDB_CODE_SUCCESS;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
@@ -459,6 +469,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
                        int32_t paramNum) {
   void* value = NULL;
   switch (opt) {
+    case HINT_SKIP_TSMA:
     case HINT_BATCH_SCAN:
     case HINT_NO_BATCH_SCAN: {
       if (paramNum > 0) {
@@ -583,6 +594,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_HASH_JOIN;
+        break;
+      case TK_SKIP_TSMA:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SKIP_TSMA;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1356,6 +1375,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   return (SNode*)pOptions;
 }
 
@@ -1395,6 +1415,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3KeepLocal = -1;
   pOptions->s3Compact = -1;
   pOptions->withArbitrator = -1;
+  pOptions->encryptAlgorithm = -1;
   return (SNode*)pOptions;
 }
 
@@ -1527,6 +1548,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_KEEP_TIME_OFFSET: {
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_ENCRYPT_ALGORITHM:
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
+      pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
       break;
     }
     default:
@@ -1696,9 +1721,51 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   return pOptions;
 }
 
-SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment, bool bPrimaryKey) {
+SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkColumnName(pCxt, pColName) || !checkComment(pCxt, pComment, false)) {
+  SColumnOptions* pOptions = (SColumnOptions*)nodesMakeNode(QUERY_NODE_COLUMN_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->commentNull = true;
+  pOptions->bPrimaryKey = false;
+  return (SNode*)pOptions;
+}
+
+SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionType type, void* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  switch (type) {
+    case COLUMN_OPTION_ENCODE:
+      memset(((SColumnOptions*)pOptions)->encode, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->encode, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->encode)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
+      break;
+    case COLUMN_OPTION_COMPRESS:
+      memset(((SColumnOptions*)pOptions)->compress, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->compress)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
+      break;
+    case COLUMN_OPTION_LEVEL:
+      memset(((SColumnOptions*)pOptions)->compressLevel, 0, TSDB_CL_COMPRESS_OPTION_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->compressLevel)) {
+        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+      }
+      break;
+      case COLUMN_OPTION_PRIMARYKEY:
+      ((SColumnOptions*)pOptions)->bPrimaryKey = true;
+      break;
+    default:
+      break;
+  }
+  return pOptions;
+}
+
+SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkColumnName(pCxt, pColName)) {
     return NULL;
   }
   if (IS_VAR_DATA_TYPE(dataType.type) && dataType.bytes == 0) {
@@ -1709,11 +1776,8 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   CHECK_OUT_OF_MEM(pCol);
   COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   pCol->dataType = dataType;
-  if (NULL != pComment) {
-    trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
-  }
+  pCol->pOptions = pNode;
   pCol->sma = true;
-  pCol->is_pk = bPrimaryKey;
   return (SNode*)pCol;
 }
 
@@ -1831,6 +1895,20 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
+SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkColumnName(pCxt, pColName)) {
+    return NULL;
+  }
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->pColOptions = (SColumnOptions*)pOptions;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+}
+
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pColName)) {
@@ -1890,7 +1968,7 @@ static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
-         QUERY_NODE_SHOW_VIEWS_STMT == type;
+         QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -2260,6 +2338,14 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
   return (SNode*)pStmt;
+}
+
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
+  SToken config;
+  config.type = TK_NK_STRING;
+  config.z = "\"encrypt_key\"";
+  config.n = strlen(config.z);
+  return createAlterDnodeStmt(pCxt, NULL, &config, pValue);
 }
 
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
@@ -2834,5 +2920,88 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
     strcpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
   }
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
+                            SNode* pRealTable, SNode* pInterval) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTsmaName(pCxt, tsmaName)) {
+    nodesDestroyNode(pInterval);
+    return NULL;
+  }
+
+  SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreExists = ignoreExists;
+  if (!pOptions) {
+    // recursive tsma
+    pStmt->pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+    if (!pStmt->pOptions) {
+      nodesDestroyNode(pInterval);
+      nodesDestroyNode((SNode*)pStmt);
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+      return NULL;
+    }
+    pStmt->pOptions->recursiveTsma = true;
+  } else {
+    pStmt->pOptions = (STSMAOptions*)pOptions;
+  }
+  pStmt->pOptions->pInterval = pInterval;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->tsmaName, tsmaName);
+
+  SRealTableNode* pTable = (SRealTableNode*)pRealTable;
+  memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+  memcpy(pStmt->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->originalTbName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pStmt;
+}
+
+SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
+  CHECK_PARSER_STATUS(pCxt);
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  if (!pOptions) {
+    //nodesDestroyList(pTSMAFuncs);
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+    return NULL;
+  }
+  pOptions->pFuncs = pFuncs;
+  return (SNode*)pOptions;
+}
+
+SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  return (SNode*)pOptions;
+}
+
+SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropTSMAStmt* pStmt = (SDropTSMAStmt*)nodesMakeNode(QUERY_NODE_DROP_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreNotExists = ignoreNotExists;
+  SRealTableNode* pTableNode = (SRealTableNode*)pRealTable;
+
+  memcpy(pStmt->tsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SShowStmt* pStmt = (SShowStmt*)nodesMakeNode(QUERY_NODE_SHOW_TSMAS_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->pDbName = dbName;
   return (SNode*)pStmt;
 }

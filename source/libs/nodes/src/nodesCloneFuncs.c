@@ -130,9 +130,8 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
-  COPY_CHAR_ARRAY_FIELD(comments);
-  COPY_SCALAR_FIELD(sma);
-  COPY_SCALAR_FIELD(is_pk);
+  COPY_SCALAR_FIELD(sma);;
+  CLONE_NODE_FIELD(pOptions);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -224,6 +223,8 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(udfBufSize);
   COPY_SCALAR_FIELD(hasPk);
   COPY_SCALAR_FIELD(pkBytes);
+  COPY_SCALAR_FIELD(hasOriginalFunc);
+  COPY_SCALAR_FIELD(originalFuncId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -483,6 +484,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_OBJECT_FIELD(pFuncTypes, functParamClone);
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
+  COPY_SCALAR_FIELD(needSplit);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -572,6 +574,8 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(srcEndGroupId);
+  COPY_SCALAR_FIELD(numOfSubplans);
   COPY_SCALAR_FIELD(colsMerge);
   COPY_SCALAR_FIELD(needSort);
   COPY_SCALAR_FIELD(groupSort);

@@ -117,8 +117,8 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_METRIC_TAG_NAME_RESULT     "result"
 
 #define VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS "inserted_rows"
-//#define VNODE_METRIC_TAG_VALUE_INSERT "insert"
-//#define VNODE_METRIC_TAG_VALUE_DELETE "delete"
+// #define VNODE_METRIC_TAG_VALUE_INSERT "insert"
+// #define VNODE_METRIC_TAG_VALUE_DELETE "delete"
 
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
@@ -294,6 +294,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaInit();

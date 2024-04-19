@@ -45,6 +45,8 @@ typedef struct {
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
+    bool       skipTsRow;
+    SHashObj  *pColCmprObj;
   } ctx[1];
 
   // reader
@@ -115,6 +117,7 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
 
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
+  
   for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
       committer->ctx->tbid->suid = row->suid;

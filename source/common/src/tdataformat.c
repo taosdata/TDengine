@@ -2450,7 +2450,7 @@ static int32_t tColDataUpdateValue72(SColData *pColData, uint8_t *pData, uint32_
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
-      if (IS_STR_DATA_TYPE(pColData->type)) {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
         pColData->nData = pColData->aOffset[pColData->nVal];
       } else {
         pColData->nData -= TYPE_BYTES[pColData->type];
@@ -4278,7 +4278,7 @@ int32_t tCompressData(void          *input,       // input
   if (info->cmprAlg == NO_COMPRESSION) {
     memcpy(output, input, info->originalSize);
     info->compressedSize = info->originalSize;
-  } else {
+  } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
 
     tBufferInit(&local);
@@ -4310,6 +4310,38 @@ int32_t tCompressData(void          *input,       // input
     }
 
     tBufferDestroy(&local);
+  } else {
+    DEFINE_VAR(info->cmprAlg)
+    if ((l1 == L1_UNKNOWN && l2 == L2_UNKNOWN) || (l1 == L1_DISABLED && l2 == L2_DISABLED)) {
+      memcpy(output, input, info->originalSize);
+      info->compressedSize = info->originalSize;
+      return 0;
+    }
+    SBuffer local;
+
+    tBufferInit(&local);
+    if (buffer == NULL) {
+      buffer = &local;
+    }
+    code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
+
+    info->compressedSize = tDataCompress[info->dataType].compFunc(  //
+        input,                                                      // input
+        info->originalSize,                                         // input size
+        info->originalSize / tDataTypes[info->dataType].bytes,      // number of elements
+        output,                                                     // output
+        outputSize,                                                 // output size
+        info->cmprAlg,                                              // compression algorithm
+        buffer->data,                                               // buffer
+        buffer->capacity                                            // buffer size
+    );
+    if (info->compressedSize < 0) {
+      tBufferDestroy(&local);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+
+    tBufferDestroy(&local);
+    // new col compress
   }
 
   return 0;
@@ -4328,7 +4360,7 @@ int32_t tDecompressData(void                *input,       // input
   if (info->cmprAlg == NO_COMPRESSION) {
     ASSERT(info->compressedSize == info->originalSize);
     memcpy(output, input, info->compressedSize);
-  } else {
+  } else if (info->cmprAlg == ONE_STAGE_COMP || info->cmprAlg == TWO_STAGE_COMP) {
     SBuffer local;
 
     tBufferInit(&local);
@@ -4345,6 +4377,37 @@ int32_t tDecompressData(void                *input,       // input
     }
 
     int32_t decompressedSize = tDataTypes[info->dataType].decompFunc(
+        input,                                                  // input
+        info->compressedSize,                                   // inputSize
+        info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements
+        output,                                                 // output
+        outputSize,                                             // output size
+        info->cmprAlg,                                          // compression algorithm
+        buffer->data,                                           // helper buffer
+        buffer->capacity                                        // extra buffer size
+    );
+    if (decompressedSize < 0) {
+      tBufferDestroy(&local);
+      return TSDB_CODE_COMPRESS_ERROR;
+    }
+
+    ASSERT(decompressedSize == info->originalSize);
+    tBufferDestroy(&local);
+  } else {
+    DEFINE_VAR(info->cmprAlg);
+    if (l1 == L1_DISABLED && l2 == L2_DISABLED) {
+      memcpy(output, input, info->compressedSize);
+      return 0;
+    }
+    SBuffer local;
+
+    tBufferInit(&local);
+    if (buffer == NULL) {
+      buffer = &local;
+    }
+    code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
+
+    int32_t decompressedSize = tDataCompress[info->dataType].decompFunc(
         input,                                                  // input
         info->compressedSize,                                   // inputSize
         info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements

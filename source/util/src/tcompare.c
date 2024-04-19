@@ -1203,28 +1203,57 @@ int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
   return comparestrRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
+static threadlocal regex_t pRegex;
+static threadlocal char    *pOldPattern = NULL;
+static regex_t *threadGetRegComp(const char *pPattern) {
+  if (NULL != pOldPattern) {
+    if( strcmp(pOldPattern, pPattern) == 0) {
+      return &pRegex;
+    } else {
+      DestoryThreadLocalRegComp();
+    }
+  }
+  pOldPattern = taosMemoryMalloc(strlen(pPattern) + 1);
+  if (NULL == pOldPattern) {
+    uError("Failed to Malloc when compile regex pattern %s.", pPattern);
+    return NULL;
+  }
+  strcpy(pOldPattern, pPattern);
+  int32_t cflags = REG_EXTENDED;
+  int32_t ret = regcomp(&pRegex, pPattern, cflags);
+  if (ret != 0) {
+    char msgbuf[256] = {0};
+    regerror(ret, &pRegex, msgbuf, tListLen(msgbuf));
+    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
+    DestoryThreadLocalRegComp();
+    return NULL;
+  }
+  return &pRegex;
+}
+
+void DestoryThreadLocalRegComp() {
+  if (NULL != pOldPattern) {
+    regfree(&pRegex);
+    taosMemoryFree(pOldPattern);
+    pOldPattern = NULL;
+  }
+}
+
 static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   int32_t ret = 0;
-  regex_t regex;
   char    msgbuf[256] = {0};
-
-  int32_t cflags = REG_EXTENDED;
-  if ((ret = regcomp(&regex, pPattern, cflags)) != 0) {
-    regerror(ret, &regex, msgbuf, tListLen(msgbuf));
-
-    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
-    regfree(&regex);
+  regex_t *regex = threadGetRegComp(pPattern);
+  if (regex == NULL) {
     return 1;
   }
 
   regmatch_t pmatch[1];
-  ret = regexec(&regex, pString, 1, pmatch, 0);
+  ret = regexec(regex, pString, 1, pmatch, 0);
   if (ret != 0 && ret != REG_NOMATCH) {
-    regerror(ret, &regex, msgbuf, sizeof(msgbuf));
+    regerror(ret, regex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }
 
-  regfree(&regex);
   return (ret == 0) ? 0 : 1;
 }
 
@@ -1245,7 +1274,6 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   taosMemoryFree(pattern);
 
   return (ret == 0) ? 0 : 1;
-  ;
 }
 
 int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {

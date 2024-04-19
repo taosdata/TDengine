@@ -1000,6 +1000,17 @@ void testConsumeExcluded(int topic_type){
   }
   taos_free_result(pRes);
 }
+
+void testDetailError(){
+  tmq_raw_data raw = {0};
+  raw.raw_type = 2;
+  int32_t code = tmq_write_raw((TAOS *)1, raw);
+  ASSERT(code);
+  const char *err = tmq_err2str(code);
+  char* tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  ASSERT(tmp != NULL);
+}
+
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -1036,5 +1047,6 @@ int main(int argc, char* argv[]) {
 
   testConsumeExcluded(1);
   testConsumeExcluded(2);
+  testDetailError();
   taosCloseFile(&g_fp);
 }

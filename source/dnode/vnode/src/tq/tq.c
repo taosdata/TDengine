@@ -153,10 +153,10 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, req.reqOffset);
-  dataRsp.blockNum = 0;
+  tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  dataRsp.common.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
-  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s, reqId:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
@@ -165,7 +165,7 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   return 0;
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp,
                       int32_t type, int32_t vgId) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
@@ -174,11 +174,11 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
 
   char buf1[TSDB_OFFSET_LEN] = {0};
   char buf2[TSDB_OFFSET_LEN] = {0};
-  tFormatOffset(buf1, TSDB_OFFSET_LEN, &pRsp->reqOffset);
-  tFormatOffset(buf2, TSDB_OFFSET_LEN, &pRsp->rspOffset);
+  tFormatOffset(buf1, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->reqOffset);
+  tFormatOffset(buf2, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->rspOffset);
 
   tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64,
-          vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
+          vgId, pReq->consumerId, pReq->epoch, ((SMqDataRspCommon*)pRsp)->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
 }
@@ -499,7 +499,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRUnLockLatch(&pTq->lock);
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, req.reqOffset);
+  tqInitDataRsp(&dataRsp.common, req.reqOffset);
 
   if (req.useSnapshot == true) {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
@@ -508,10 +508,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
+  dataRsp.common.rspOffset.type = TMQ_OFFSET__LOG;
 
   if (reqOffset.type == TMQ_OFFSET__LOG) {
-    dataRsp.rspOffset.version = reqOffset.version;
+    dataRsp.common.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
     STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
     if (pOffset != NULL) {
@@ -522,17 +522,17 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
         return -1;
       }
 
-      dataRsp.rspOffset.version = pOffset->val.version;
+      dataRsp.common.rspOffset.version = pOffset->val.version;
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%" PRId64, consumerId, vgId,
-             req.subKey, dataRsp.rspOffset.version);
+             req.subKey, dataRsp.common.rspOffset.version);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
+        dataRsp.common.rspOffset.version = sver;  // not consume yet, set the earliest position
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        dataRsp.rspOffset.version = ever;
+        dataRsp.common.rspOffset.version = ever;
       }
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%" PRId64, consumerId, vgId, req.subKey,
-             dataRsp.rspOffset.version);
+             dataRsp.common.rspOffset.version);
     }
   } else {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
@@ -936,7 +936,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
 
     if (retInfo.ret == TASK_SCANHISTORY_REXEC) {
-      streamReExecScanHistoryFuture(pTask, retInfo.idleTime);
+      streamExecScanHistoryInFuture(pTask, retInfo.idleTime);
     } else {
       SStreamTaskState* p = streamTaskGetStatus(pTask);
       ETaskStatus       s = p->state;
@@ -1031,6 +1031,44 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
+int32_t tqStreamProgressRetrieveReq(STQ *pTq, SRpcMsg *pMsg) {
+  char*               msgStr = pMsg->pCont;
+  char*               msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
+  int32_t             msgLen = pMsg->contLen - sizeof(SMsgHead);
+  int32_t             code = 0;
+  SStreamProgressReq  req;
+  char*               pRspBuf = taosMemoryCalloc(1, sizeof(SMsgHead) + sizeof(SStreamProgressRsp));
+  SStreamProgressRsp* pRsp = POINTER_SHIFT(pRspBuf, sizeof(SMsgHead));
+  if (!pRspBuf) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
+
+  code = tDeserializeStreamProgressReq(msgBody, msgLen, &req);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tqGetStreamExecInfo(pTq->pVnode, req.streamId, &pRsp->progressDelay, &pRsp->fillHisFinished);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    pRsp->fetchIdx = req.fetchIdx;
+    pRsp->subFetchIdx = req.subFetchIdx;
+    pRsp->vgId = req.vgId;
+    pRsp->streamId = req.streamId;
+    tSerializeStreamProgressRsp(pRsp, sizeof(SStreamProgressRsp) + sizeof(SMsgHead), pRsp);
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
+    rsp.pCont = pRspBuf;
+    pRspBuf = NULL;
+    rsp.contLen = sizeof(SMsgHead) + sizeof(SStreamProgressRsp);
+    tmsgSendRsp(&rsp);
+  }
+
+_OVER:
+  if (pRspBuf) {
+    taosMemoryFree(pRspBuf);
+  }
+  return code;
+}
+
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
@@ -1064,7 +1102,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   }
 
   if (!pTq->pVnode->restored) {
-    tqDebug("vgId:%d checkpoint-source msg received during restoring, s-task:0x%x ignore it", vgId, req.taskId);
+    tqDebug("vgId:%d checkpoint-source msg received during restoring, checkpointId:%" PRId64
+            ", transId:%d s-task:0x%x ignore it",
+            vgId, req.checkpointId, req.transId, req.taskId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);  // error occurs
@@ -1073,7 +1113,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed", vgId, req.taskId);
+    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
+            " transId:%d it may have been destroyed",
+            vgId, req.taskId, req.checkpointId, req.transId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);  // error occurs
@@ -1085,7 +1127,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     pTask->chkInfo.checkpointingId = req.checkpointId;
     pTask->chkInfo.transId = req.transId;
 
-    tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
+    tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpointId:%" PRId64
             ", transId:%d set it failed",
             pTask->id.idStr, req.checkpointId, req.transId);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1102,7 +1144,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   if (req.mndTrigger == 1) {
     if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
-      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpoint:%" PRId64 ", set it failure",
+      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpointId:%" PRId64 ", set it failure",
               pTask->id.idStr, req.checkpointId);
 
       taosThreadMutexUnlock(&pTask->lock);

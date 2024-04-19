@@ -396,6 +396,7 @@ int32_t getChkpMeta(char* id, char* path, SArray* list) {
   taosMemoryFree(file);
   return code;
 }
+
 int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
@@ -436,6 +437,7 @@ int32_t doUploadChkp(void* param) {
   taosMemoryFree(arg);
   return code;
 }
+
 int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   // async upload
   UPLOAD_TYPE type = getUploadType();

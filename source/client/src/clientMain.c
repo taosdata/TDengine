@@ -343,12 +343,12 @@ void taos_free_result(TAOS_RES *res) {
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
     tDeleteSTaosxRsp(&pRsp->rsp);
-    doFreeReqResultInfo(&pRsp->resInfo);
+    doFreeReqResultInfo(&pRsp->common.resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
     tDeleteMqDataRsp(&pRsp->rsp);
-    doFreeReqResultInfo(&pRsp->resInfo);
+    doFreeReqResultInfo(&pRsp->common.resInfo);
     taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
@@ -417,7 +417,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
-    if (msg->resIter == -1) {
+    if (msg->common.resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
     } else {
       pResultInfo = tmqGetCurResInfo(res);
@@ -936,6 +936,8 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->pTableCfg = taosArrayDup(pSrc->pTableCfg, NULL);
     pTarget->pTableTag = taosArrayDup(pSrc->pTableTag, NULL);
     pTarget->pView = taosArrayDup(pSrc->pView, NULL);
+    pTarget->pTableTSMAs = taosArrayDup(pSrc->pTableTSMAs, NULL);
+    pTarget->pTSMAs = taosArrayDup(pSrc->pTSMAs, NULL);
     pTarget->qNodeRequired = pSrc->qNodeRequired;
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;

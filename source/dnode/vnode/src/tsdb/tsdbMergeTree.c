@@ -828,17 +828,22 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
   SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - offsetof(SLDataIter, node));
   SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - offsetof(SLDataIter, node));
 
-  TSDBKEY key1 = TSDBROW_KEY(&pIter1->rInfo.row);
-  TSDBKEY key2 = TSDBROW_KEY(&pIter2->rInfo.row);
+  SRowKey rkey1, rkey2;
+  tRowGetKeyEx(&pIter1->rInfo.row, &rkey1);
+  tRowGetKeyEx(&pIter2->rInfo.row, &rkey2);
 
-  if (key1.ts < key2.ts) {
+  int32_t ret = tRowKeyCompare(&rkey1, &rkey2);
+  if (ret < 0) {
     return -1;
-  } else if (key1.ts > key2.ts) {
+  } else if (ret > 0) {
     return 1;
   } else {
-    if (key1.version < key2.version) {
+    int64_t ver1 = TSDBROW_VERSION(&pIter1->rInfo.row);
+    int64_t ver2 = TSDBROW_VERSION(&pIter2->rInfo.row);
+
+    if (ver1 < ver2) {
       return -1;
-    } else if (key1.version > key2.version) {
+    } else if (ver1 > ver2) {
       return 1;
     } else {
       return 0;

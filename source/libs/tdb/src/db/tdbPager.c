@@ -14,6 +14,8 @@
  */
 
 #include "tdbInt.h"
+#include "crypt.h"
+#include "tglobal.h"
 /*
 #pragma pack(push, 1)
 typedef struct {
@@ -457,6 +459,49 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
+static char* tdbEncryptPage(SPager *pPager, char* pPageData, int32_t pageSize, const char* function, 
+                            int64_t offset){
+  int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
+  char* encryptKey = pPager->pEnv->encryptKey;
+
+  char* buf = pPageData; 
+
+  if(encryptAlgorithm == DND_CA_SM4){
+    //tdbInfo("CBC_Encrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
+    //ASSERT(strlen(encryptKey) > 0);
+
+    //tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Encrypt", offset, pPage->pData[0]);
+
+    buf = taosMemoryMalloc(pageSize);
+
+    unsigned char		packetData[128];
+
+    int32_t count = 0;
+    while (count < pageSize) {
+      SCryptOpts opts = {0};
+      opts.len = 128;
+      opts.source = pPageData + count;
+      opts.result = packetData;
+      opts.unitLen = 128;
+      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+
+      int32_t newLen = CBC_Encrypt(&opts);
+
+      memcpy(buf + count, packetData, newLen);
+      count += newLen; 
+    }
+    //tdbInfo("CBC tdb offset:%" PRId64 ", Encrypt count:%d %s", offset, count, function);
+
+    //tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d after Encrypt", offset, (uint8_t)buf[0]);
+  }
+
+  return buf;
+}
+
+void tdbFreeEncryptBuf(SPager *pPager, char* buf){
+  int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
+  if(encryptAlgorithm == DND_CA_SM4) taosMemoryFreeClear(buf);
+}
 // recovery dirty pages
 int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
@@ -525,14 +570,19 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    ret = tdbOsWrite(pPager->fd, pageBuf, pPager->pageSize);
+    char* buf = tdbEncryptPage(pPager, pageBuf, pPager->pageSize, __FUNCTION__, offset);
+
+    ret = tdbOsWrite(pPager->fd, buf, pPager->pageSize);
     if (ret < 0) {
       tdbError("failed to write buf due to %s. file: %s, bufsize:%d", strerror(errno), pPager->dbFileName,
                pPager->pageSize);
+      tdbFreeEncryptBuf(pPager, buf);
       terrno = TAOS_SYSTEM_ERROR(errno);
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbFreeEncryptBuf(pPager, buf);
   }
 
   if (tdbOsFSync(pPager->fd) < 0) {
@@ -872,9 +922,43 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
         TDB_UNLOCK_PAGE(pPage);
         return -1;
       }
+
+      int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
+      char* encryptKey = pPager->pEnv->encryptKey;
+
+      if(encryptAlgorithm == DND_CA_SM4){
+        //tdbInfo("CBC_Decrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
+        //ASSERT(strlen(encryptKey) > 0);
+
+        //uint8_t flags = pPage->pData[0];
+        //tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Decrypt", ((i64)pPage->pageSize) * (pgno - 1), flags);
+
+        unsigned char		packetData[128];
+
+        int32_t count = 0;
+        while(count < pPage->pageSize)
+        {
+          SCryptOpts opts = {0};
+          opts.len = 128;
+          opts.source = pPage->pData + count;
+          opts.result = packetData;
+          opts.unitLen = 128;
+          strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+
+          int	newLen = CBC_Decrypt(&opts);
+
+          memcpy(pPage->pData + count, packetData, newLen);
+          count += newLen;
+        }
+        //tdbInfo("CBC tdb offset:%" PRId64 ", Decrypt count:%d %s", ((i64)pPage->pageSize) * (pgno - 1), count, __FUNCTION__);
+
+        //tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d after Decrypt %s", ((i64)pPage->pageSize) * (pgno - 1), pPage->pData[0], __FUNCTION__);
+      }
     } else {
       init = 0;
     }
+
+    //tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d initPage %s", ((i64)pPage->pageSize) * (pgno - 1), pPage->pData[0], __FUNCTION__);
 
     ret = (*initPage)(pPage, arg, init);
     if (ret < 0) {
@@ -960,13 +1044,18 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
 
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
 
-  ret = tdbOsPWrite(pPager->fd, pPage->pData, pPage->pageSize, offset);
+  char* buf = tdbEncryptPage(pPager, pPage->pData, pPage->pageSize, __FUNCTION__, offset);
+
+  ret = tdbOsPWrite(pPager->fd, buf, pPage->pageSize, offset);
   if (ret < 0) {
+    tdbFreeEncryptBuf(pPager, buf);
     tdbError("failed to pwrite page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->dbFileName,
              pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
+  tdbFreeEncryptBuf(pPager, buf);
 
   return 0;
 }
@@ -1025,14 +1114,19 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
       return -1;
     }
 
-    ret = tdbOsWrite(pPager->fd, pageBuf, pPager->pageSize);
+    char* buf = tdbEncryptPage(pPager, pageBuf, pPager->pageSize, __FUNCTION__, offset);
+
+    ret = tdbOsWrite(pPager->fd, buf, pPager->pageSize);
     if (ret < 0) {
       tdbError("failed to write buf due to %s. file: %s, bufsize:%d", strerror(errno), pPager->dbFileName,
                pPager->pageSize);
+      tdbFreeEncryptBuf(pPager, buf);
       terrno = TAOS_SYSTEM_ERROR(errno);
       tdbOsFree(pageBuf);
       return -1;
     }
+
+    tdbFreeEncryptBuf(pPager, buf);
   }
 
   if (tdbOsFSync(pPager->fd) < 0) {

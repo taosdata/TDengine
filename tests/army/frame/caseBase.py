@@ -56,6 +56,9 @@ class TBase:
     def stop(self):
         tdSql.close()
 
+    def createDb(self, options=""):
+        sql = f"create database {self.db} {options}"
+        tdSql.execute(sql, show=True)
 
 #
 #   db action

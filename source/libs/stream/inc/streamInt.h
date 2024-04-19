@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define CHECK_DOWNSTREAM_INTERVAL      100
+#define CHECK_RSP_INTERVAL             300
 #define LAUNCH_HTASK_INTERVAL          100
 #define WAIT_FOR_MINIMAL_INTERVAL      100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK  40
@@ -87,6 +87,11 @@ struct SStreamQueue {
   int8_t      status;
 };
 
+typedef enum {
+  EXEC_CONTINUE = 0x0,
+  EXEC_AFTER_IDLE = 0x1,
+} EExtractDataCode;
+
 extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
@@ -125,7 +130,7 @@ void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
-int32_t           streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                               int32_t* blockSize);
 int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);

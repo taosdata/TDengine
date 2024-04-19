@@ -29,6 +29,17 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
+typedef enum {
+  DND_CA_SM4 = 1,
+} EEncryptAlgor;
+
+typedef enum {
+  DND_CS_TSDB = 1,
+  DND_CS_VNODE_WAL = 2,
+  DND_CS_SDB = 4,
+  DND_CS_MNODE_WAL = 8,
+} EEncryptScope;
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -39,6 +50,12 @@ extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfSupportVnodes;
+extern char     tsEncryptAlgorithm[];
+extern char     tsEncryptScope[];
+extern EEncryptAlgor  tsiEncryptAlgorithm;
+extern EEncryptScope  tsiEncryptScope;
+//extern char     tsAuthCode[];
+extern char     tsEncryptKey[];
 
 // common
 extern int32_t tsMaxShellConns;
@@ -94,8 +111,6 @@ extern char tsSnodeAddress[];  // 127.0.0.1:873
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
-extern int8_t  tsGrant;
-extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 
@@ -103,6 +118,11 @@ extern bool    tsEnableWhiteList;
 extern int64_t tsDndStart;
 extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
+
+// dnode misc
+extern uint32_t tsEncryptionKeyChksum;
+extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -201,6 +221,8 @@ extern char tsSmlTsDefaultName[];
 
 extern int32_t tmqMaxTopicNum;
 extern int32_t tmqRowSize;
+extern int32_t tsMaxTsmaNum;
+extern int32_t tsMaxTsmaCalcDelay;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
