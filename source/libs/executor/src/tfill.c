@@ -93,6 +93,37 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   }
 }
 
+static EDealRes rewritePseudoColumn(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SFillInfo* pFillInfo = pContext;
+    SColumnNode* pCol = (SColumnNode*)(*pNode);
+    TSKEY ts = INT64_MAX;
+    SValueNode* pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    if (NULL == pValue) {
+      return DEAL_RES_ERROR;
+    }
+    pValue->translate = true;
+    pValue->node.resType = pCol->node.resType;
+    if (pCol->colType == COLUMN_TYPE_WINDOW_START) {
+      ts = pFillInfo->currentKey;
+    } else if (pCol->colType == COLUMN_TYPE_WINDOW_END) {
+      SInterval* pInterval = &pFillInfo->interval;
+      ts = taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+    } else if (pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
+      ts = pFillInfo->interval.sliding;
+    } else {
+      nodesDestroyNode((SNode*)pValue);
+      return DEAL_RES_ERROR;
+    }
+    nodesSetValueNodeValue(pValue, &ts);
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*) pValue;
+
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 // fill windows pseudo column, _wstart, _wend, _wduration and return true, otherwise return false
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
                               int32_t rowIndex) {
@@ -119,7 +150,25 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
       return true;
     }
   }
-  return false;
+
+  SNode* pExpr = NULL;
+  if (pCol->pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
+    pExpr = nodesCloneNode((const SNode*)pCol->pExpr->pExpr->_function.pFunctNode);
+  } else if (pCol->pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
+    pExpr = nodesCloneNode((const SNode*)pCol->pExpr->pExpr->_optrRoot.pRootNode);
+  } else {
+    return false;
+  }
+  nodesRewriteExpr(&pExpr, rewritePseudoColumn, pFillInfo);
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateConstants(pExpr, &pNew);
+  bool res = false;
+  if (code == TSDB_CODE_SUCCESS && nodeType(pNew) == QUERY_NODE_VALUE) {
+    colDataSetVal(pDstColInfoData, rowIndex, nodesGetValueFromNode((SValueNode*)pNew), false);
+    res = true;
+  }
+  nodesDestroyNode(pNew);
+  return res;
 }
 
 static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock* pSrcBlock, int64_t ts,

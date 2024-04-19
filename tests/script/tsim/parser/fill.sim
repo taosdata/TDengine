@@ -1321,6 +1321,117 @@ if $data44 != 1.000000000 then
   return -1
 endi
 
+print =======step2
+
+sql drop database if exists test2;
+sql create database test2 vgroups 4;
+sql use test2;
+sql create stable st(ts timestamp,a int,b int,c int,d int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+
+sql insert into t1 values(1648791211000,1,2,3,0);
+
+sql select  _wstart, to_char(_wstart, "yyyy-mm-dd hh24:mi:ss.ms"), count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != @2022-04-01 13:33:20.000@ then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != @2022-04-01 13:33:30.000@ then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != @2022-04-01 13:33:40.000@ then
+  print ======data21=$data21
+  return -1
+endi
+
+sql select  _wstart, to_char(_wend, "yyyy-mm-dd hh24:mi:ss.ms"), count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != @2022-04-01 13:33:30.000@ then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != @2022-04-01 13:33:40.000@ then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != @2022-04-01 13:33:50.000@ then
+  print ======data21=$data21
+  return -1
+endi
+
+sql select  _wstart, cast(_wend as bigint) + 1, count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != 1648791210001.000000000 then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != 1648791220001.000000000 then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != 1648791230001.000000000 then
+  print ======data21=$data21
+  return -1
+endi
+
+sql select  _wstart, to_char(_wend + 2, "yyyy-mm-dd hh24:mi:ss.ms"), count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != @2022-04-01 13:33:30.002@ then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != @2022-04-01 13:33:40.002@ then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != @2022-04-01 13:33:50.002@ then
+  print ======data21=$data21
+  return -1
+endi
+
+sql select  _wstart, 2 + cast(_wend as bigint) + 1, count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != 1648791210003.000000000 then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != 1648791220003.000000000 then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != 1648791230003.000000000 then
+  print ======data21=$data21
+  return -1
+endi
+
+sql select  _wstart, cast(_wend as bigint) + cast(_wstart as bigint) + cast(_wduration as bigint), count(*) c1 from t1 where ts >= 1648791201000 and ts <= 1648791221000 interval(10s) fill(prev);
+
+if $data01 != 3297582420000.000000000 then
+  print ======data01=$data01
+  return -1
+endi
+
+if $data11 != 3297582440000.000000000 then
+  print ======data11=$data11
+  return -1
+endi
+
+if $data21 != 3297582460000.000000000 then
+  print ======data21=$data21
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
