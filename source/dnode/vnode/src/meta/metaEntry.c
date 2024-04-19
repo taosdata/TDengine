@@ -44,7 +44,6 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   }
   return 0;
 END:
-  // taosMemoryFree(pWrapper->pColCmpr);
   return -1;
 }
 static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
