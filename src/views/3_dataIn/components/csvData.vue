@@ -20,7 +20,7 @@
               :auto-upload="true"
               size="small"
             >
-              <el-button slot="trigger" size="small" type="primary">{{
+              <el-button slot="trigger" size="small" type="primary" plain>{{
                 $t("datasource.selectfile")
               }}</el-button>
             </el-upload>

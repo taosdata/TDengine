@@ -16,13 +16,14 @@
           >
             <el-input
               v-model="sourceForm.name"
+              id="name"
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
           <el-form-item :label="$t('type')" prop="type">
             <el-select
               v-model="sourceForm.type"
-              placeholder=""
+              id="type"
               :disabled="!!editId"
               @change="handleType"
             >
@@ -51,6 +52,7 @@
               </el-tooltip>
             </template>
             <el-select
+              id="agent"
               v-model="sourceForm.agent"
               :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
               clearable
@@ -66,6 +68,7 @@
               @click="createAgent"
               type="primary"
               size="small"
+              plain
               class="ml15"
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
@@ -73,6 +76,7 @@
           </el-form-item>
           <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select
+              id="targetDB"
               v-model="sourceForm.targetDB"
               :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
             >
@@ -86,6 +90,7 @@
               @click="createDb"
               type="primary"
               size="small"
+              plain
               class="ml15"
               icon="el-icon-plus"
               >{{ $t("data.createDatabase") }}</el-button
@@ -93,7 +98,7 @@
           </el-form-item>
         </section>
         <ConfigForm
-          v-if="currentDefinition && currentDefinition.config"
+          v-if="currentDefinition && currentDefinition.config && sourceForm.data"
           :config="currentDefinition.config"
           :data="sourceForm.data"
           :parser="currentDefinition.parser"

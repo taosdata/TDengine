@@ -9,8 +9,9 @@
         :parent="parent + field + '.'"
       />
     </template>
+    <!-- 排除tmq中 dsn 自己带的参数，这类 param 特点就是 type=input,没有label  -->
     <el-form-item
-      v-else-if="display"
+      v-else-if="display && (labelText || config.type !== 'input')"
       :label="labelText"
       :label-width="labelWidth"
       :required="required(config)"
@@ -38,6 +39,7 @@
       </template>
       <el-input
         v-if="inputType.includes(config.type)"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :type="config.type"
@@ -46,6 +48,7 @@
       ></el-input>
       <el-input-number
         v-if="config.type == 'number'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :max="config.max"
@@ -54,6 +57,7 @@
       ></el-input-number>
       <el-select
         v-if="config.type == 'select'"
+        :id="parent + field"
         v-model="data[field]"
         v-bind="meta"
         class="ds-select"
@@ -72,6 +76,7 @@
       </el-select>
       <el-switch
         v-if="config.type == 'switch'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :placeholder="config.placeholder"
@@ -79,6 +84,7 @@
       ></el-switch>
       <TimezoneDatePicker
         v-if="config.type == 'time'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :placeholder="config.placeholder"
@@ -346,6 +352,8 @@ export default {
           this.date2 = new Date(groupsData?.end) ?? 0;
           break;
         case "avevaHistorian":
+        case "mysql":
+        case "postgres":
           this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
           this.date2 = new Date(groupsData?.endDateTime) ?? 0;
           break;
