@@ -1,29 +1,42 @@
 <template>
-  <el-upload
-    class="upload-csv"
-    ref="upload"
-    :data="uploadData"
-    :accept="accept"
-    :on-remove="handleRemove"
-    :on-preview="handlePreview"
-    :action="uploadUrl"
-    :multiple="false"
-    :on-success="handleSuccess"
-    :on-change="handleChange"
-    :file-list="files"
-    :auto-upload="true"
-  >
+  <div style="display: flex">
     <el-button
+      v-if="isOpcDataset && !isOpcDsn"
       slot="trigger"
       size="mini"
       type="primary"
+      @click="handleBeforeUpload"
       >{{ $t('support.selectFile') }}</el-button
     >
-  </el-upload>
+    <el-upload
+      class="upload-csv"
+      ref="upload"
+      :data="uploadData"
+      :accept="accept"
+      :on-remove="handleRemove"
+      :on-preview="handlePreview"
+      :action="uploadUrl"
+      :multiple="false"
+      :on-success="handleSuccess"
+      :on-change="handleChange"
+      :file-list="files"
+      :auto-upload="true"
+    >
+      <el-button
+        v-if="!isOpcDataset || isOpcDsn"
+        slot="trigger"
+        size="mini"
+        type="primary"
+        ref="uploadButton"
+        >{{ $t('support.selectFile') }}</el-button
+      >
+    </el-upload>
+  </div>
 </template>
 
 <script>
-import { handleDownload } from '../utils';
+import { handleDownload, getDsnData, getFieldClassMarkName } from '../utils';
+import { validOpcFile } from '@/api/explorer/datain';
 export default {
   props: {
     config: {
@@ -33,13 +46,18 @@ export default {
     value: {
       type: String,
       default: ''
+    },
+    isOpcDataset: {
+      type: Boolean
     }
   },
   inject: ['sourceParent'],
   components: {},
   data() {
     return {
-      files: []
+      files: [],
+      isOpcDsn: false, // 判断 opc 的 dsn 是否填了
+      paramDsn: ''
     };
   },
   computed: {
@@ -57,12 +75,18 @@ export default {
     },
     accept() {
       return this.config.accept || ''
-    }
+    },
+    validFieldList() {
+      const result = [];
+      this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
+      return result;
+    },
   },
   watch: {},
   created() {
-    // if(this.isEdit) {
-    // }
+    if(this.isEdit && this.value) {
+      this.handleValidOpcFile()
+    }
     // 在新增或者编辑时切换 tab 都能保持上传的文件列表
     this.handleFiles()
   },
@@ -76,10 +100,68 @@ export default {
     handlePreview(file) {
       handleDownload(file.path, file.name);
     },
-    handleSuccess(response, file, tmpFiles) {
+    async handleSuccess(response, file, tmpFiles) {
       file.path = response[0];
       this.files = [].concat(file);
       this.update();
+      this.handleValidOpcFile()
+    },
+    async handleValidOpcFile() {
+      if (this.isOpcDataset) {
+        // csv 文件合法性检查
+        const type = this.sourceParent.sourceForm.type
+        const agent = this.sourceParent.sourceForm.agent
+        const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+        this.paramDsn = type === "tmq" ? dsn : type + dsn
+        let result = await validOpcFile(this.paramDsn)
+        // eslint-disable-next-line no-prototype-builtins
+        if (result && result.hasOwnProperty('code')) {
+          this.$message.error(result.message)
+          let res = {
+            valid: false,
+            message: result.message
+          }
+          // 全局的参数用于提交的时候再次判断
+          this.$store.commit('app/SET_VALDIT_OPC_FILE_RES',res)
+        } else {
+          this.$store.commit('app/SET_VALDIT_OPC_FILE_RES',result)
+          this.$message.success(result.message)
+        }
+        this.isOpcDsn = false;
+      }
+    },
+    handleBeforeUpload(event) {
+      this.checkResult = this.$options.data().checkResult;
+      const errorMsg = [];
+      const validFieldList = this.validFieldList.filter(item => document.querySelector(`.source-ui .left-ui .${getFieldClassMarkName(item)}`));
+      this.sourceParent.$refs.form.validateField(validFieldList, valid => {
+        errorMsg.push(valid);
+        if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
+          this.isOpcDsn = true;
+          this.$nextTick(() => {
+            this.$refs.uploadButton.$el.click();
+            this.isOpcDsn = false;
+          })
+        } else {
+          this.isOpcDsn = false;
+          this.paramDsn = "";
+          this.$nextTick(() => {
+            document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+          });
+        }
+      });
+    },
+    getValidFieldList(data, result, parent = 'data') {
+      for (const val of data) {
+        if (val.field == 'checkConnectivity') break;
+        if (val.children) {
+          this.getValidFieldList(val.children, result, parent + '.' + val.field);
+        } else {
+          if (val.required) {
+            result.push(parent + '.' + val.field);
+          }
+        }
+      }
     },
     update() {
       this.$emit(

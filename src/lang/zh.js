@@ -297,6 +297,27 @@ export default {
     metricsName: "指标名称",
     metricsDesc: '描述',
     metricsValue: "指标值",
+    replicationProgress: "同步进度",
+    tbReplicationProgress: "表同步进度",
+    tbName: "表名",
+    tbNameP: "源库名.表名",
+    timeRange: "时间区间",
+    query: "查询",
+    tbHeader: {
+      table: "超级表/普通表", 
+      source: "源最新时间",
+      sink: "目标最新时间", 
+      difference: "源与目标的时间差", 
+      sourceNum: "源数据",
+      sinkNum: "目标数据",
+      topic: "Topic",
+      vgroup: "VGroup",
+      offset: "Offset",
+      latest: "Latest",
+    },
+    vgroupReplicationProgress: "vgroup 消费进度",
+    updateTime: "更新时间：",
+    refresh: "刷新",
     check: "检查连通性",
     communityCheckTip: "仅企业版可用,了解更多请访问",
     resume: "调度策略",
@@ -601,6 +622,7 @@ export default {
     stableName: "超级表名称",
     columns: "列",
     columnNameTip: "列名",
+    clickColumnTip: "点击切换为标签",
     tagNameTip: "标签名",
     subTable: "子表",
     sub_table: "子表",
@@ -1141,17 +1163,24 @@ export default {
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      extractdesc: `<strong>taosX 支持 JSON 或正则表达式解析消息体文本</strong>：<br/>
-      1. <strong>JSON</strong>: 用户使用多个 ; 分隔的字段名（如： name ）或  [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> 提取表达式（形如 "$.path=new_name"，如： $.field.sub=new_name ）从 JSON 对象中提取出多列。<br/>
-      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
-      filterdesc: `<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
-      - <strong>布尔类型</strong>： bool_value 可直接使用 BOOL 类型的变量名作为表达式。<br/>
-      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= 等操作。<br/>
-      - <strong>函数</strong>：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>
-      - <strong>多条件组合</strong>：支持 && 或 || 多条件组合过滤。 `,
-      subextractdesc: `<strong>taosX 支持 Split 或正则表达式解析列</strong>：<br/>
-      1. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
+      extractdesc: `<strong>taosX 目前支持 JSON 和正则表达式解析消息体文本</strong>：<br/>
+      1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
+      2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。<br/><br/>
+      更详细解析规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      filterdesc: `<strong>过滤表达式为 true 的行才被写入 TDengine：</strong><br/>
+      - <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
+      - <strong>字符串类型</strong>：支持函数<em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em>等，例如c.starts_with("taos")，可判断字段<em>c<em>是否以<em>taos</em>为前缀。<br/>
+      - <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
+      - <strong>多条件组合</strong>：支持 && 或 || 多条件组合过滤。<br/><br/>
+      更详细过滤规则请访问<a href="/docs/enterprise/datain/transformation#filter">企业版文档<a>`,
+      expressiondesc: `<strong>taosX 支持映射表达式，将解析、提取、拆分的字段映射到目标超级表中</strong>：<br/>
+      1. <strong>value</strong>：常量，例如<em>1</em>、<em>"taos"</em>；<br/>
+      2. <strong>expr</strong>：数学计算表达式，例如将摄氏度转为华氏度数值，可使用表达式<em>centigrade * 1.8 + 32</em>；<br/>
+      3. <strong>format</strong>：字符串格式化，使用占位符<em>$\{\}</em>来引用字段，例如<em>$\{year\}-$\{month\}-$\{day\}</em>可以格式为日期。<br/><br/>
+      更详细映射规则请访问<a href="/docs/enterprise/datain/transformation#mapping">企业版文档<a>。`,
+      subextractdesc: `<strong>taosX 支持 Split 或正则表达式从列中提取或拆分列</strong>：<br/>
+      1. <strong>Split</strong>: 使用分隔符将字符串分割为多列，需要指定参数<strong>分隔符</strong>和<strong>拆分数量</strong>。例如字段<em>location</em>拆分为2个字段后，字段名为<em>location_0</em>、<em>location_1</em>。<br/>
+      2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更详细请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。<br/>`,
       uploadexe: "请上传csv文件并执行下一步操作",
       sp: "请选则目标超级表",
       septip: "请输入分隔符",
@@ -1180,8 +1209,8 @@ export default {
       msgbody: "示例消息体",
       msgbodytip: "请直接输入 Payload 示例，也可点击右侧按钮从服务器获取 Payload 或者从文件上传 Payload。请注意 Payload 示例 默认只处理 5 行，您可以修改该配置但上限是 100 行。",
       searchSResult: "输入完后按enter键查询",
-      tablenametip: "请输入表名称",
-      mapcalculate: "请先计算mapping值",
+      tablenametip: "请输入子表名称",
+      mapcalculate: "请先计算 mapping 值",
       calculate: "预览",
       emptyColumnName: "列名不能为空：",
       duplicateColumnName: "列名不能重复：",
@@ -1189,6 +1218,10 @@ export default {
       emptySampleValues: "请至少提供一条示例数据",
       stableSelectOrCreateTip: "请选择或创建超级表",
       databaseSelectTip: "请先在上面的基本信息面板中选择目标数据库",
+      defaultValuePlaceholder: "默认值",
+      dataRangeInputTip: "请输入{min}到{max}之间的整数",
+      defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
+      jsonExtractTip: 'JSON 提取表达式编辑器'
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",

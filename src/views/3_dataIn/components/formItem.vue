@@ -19,7 +19,7 @@
       :prop="parent + field"
     >
       <template slot="label">
-        <el-tooltip placement="top" effect="light" :open-delay="0">
+        <el-tooltip placement="top" effect="light" :open-delay="0" v-if="doscShow && !dataSetDocsShow">
           <template slot="content">
             <DocsContent
               v-if="doscShow && !dataSetDocsShow"

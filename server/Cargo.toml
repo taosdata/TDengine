@@ -32,6 +32,10 @@ tracing = "0.1"
 tracing-actix-web = "0.7.2"
 tracing-subscriber = "0.3"
 utoipa = "4.1.0"
+sha2 = "0.10"
+rand = "0.8.4"
+lazy_static = "1.4.0"
+captcha = "0.0.9"
 
 taos = { version = "0.10.19", default-features = false, features = [
 	"ws-rustls",

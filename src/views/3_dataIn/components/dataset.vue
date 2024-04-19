@@ -16,6 +16,7 @@
       <uploadCsv
         v-model="value"
         :config="config"
+        :isOpcDataset="isOpc"
       >
       </uploadCsv>
 

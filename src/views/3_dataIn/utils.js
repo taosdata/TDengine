@@ -77,6 +77,32 @@ export const DefaultOpcTableValue = {
   ]
 };
 
+export function getDataRange(datatype) {
+  switch (datatype) {
+    case 'TINYINT':
+      return [-128, 127, 4]
+    case 'TINYINT UNSIGNED':
+      return [0, 255, 3]
+    case 'SMALLINT':
+      return [-32768, 32767, 6]
+    case 'SMALLINT UNSIGNED':
+      return [0, 65535, 5]
+    case 'INT':
+      return [-2147483648, 2147483647, 11]
+    case 'INT UNSIGNED':
+      return [0, 4294967295, 10]
+    case 'BIGINT':
+      return [-9223372036854775808n, 9223372036854775807n, 20]
+    case 'BIGINT UNSIGNED':
+      return [0, 18446744073709551615n, 20]
+    case 'FLOAT':
+      return [-3.4E38, 3.4E38, 38]
+    case 'DOUBLE':
+      return [-1.7E308, 1.7E308, 308]
+  }
+  return null;
+}
+
 // 根据返回的数据源参数定义生成对应的表单配置
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
@@ -1164,37 +1190,22 @@ function getOptionData(data, queryArr, definition) {
 // 处理 tmq endpoint
 function handleEndpoint(endpoint) {
   if (!endpoint) return '';
-  let result = '';
-  let url = endpoint.replace(/(taos\+|tmq\+)/g, "");
+  let url = endpoint.replace(/^(taos|tmq)\+/, "").replace(/^(http|ws):/, "ws:").replace(/^(https|wss):/, "wss:");
   if (url.includes("://")) {
-    let parsed_url = new URL(url);
-    let scheme = null;
-    if (parsed_url.protocol == "http:") {
-      scheme = "tmq+ws";
-    } else if (parsed_url.protocol == "https:") {
-      scheme = "tmq+wss";
-    } else {
-      scheme = "tmq+" + parsed_url.protocol.replace(":", "");
+    try {
+      let parsed_url = new URL(url);
+      return "tmq+" + parsed_url.toString();
+    } catch (error) {
+      console.log("Invalid URL: ", url, error);
+      // not a valid url, use as is.
+      return "tmq+" + url;
     }
-
-    let host = parsed_url.host;
-    let user =
-      parsed_url.username || localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
-    let pass = parsed_url.password || decrypted || "";
-    return result =
-      scheme +
-      "://" +
-      user +
-      ":" +
-      pass +
-      "@" +
-      host +
-      parsed_url.pathname +
-      parsed_url.search;
   } else {
-    let host = url;
-    return result = "tmq+ws://" + host;
+    if (url.includes("6041")) {
+      return "tmq+ws://" + url;
+    } else {
+      return "tmq://" + url;
+    }
   }
 }
 

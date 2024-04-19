@@ -100,7 +100,8 @@
       "vue/comment-directive": "off"
     },
     "ignorePatterns": [
-      "/WebSocket/**"
+      "/WebSocket/**",
+      "/src/assets/**"
     ]
   },
   "browserslist": [
