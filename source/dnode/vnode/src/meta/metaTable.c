@@ -283,10 +283,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (pReq->colCmpred) {
     TABLE_SET_COL_COMPRESSED(me.flags);
     me.colCmpr = pReq->colCmpr;
-  } else {
-    TABLE_SET_COL_COMPRESSED(me.flags);
-    // TODO(yihao)
-    // SETUP default compress algr
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
