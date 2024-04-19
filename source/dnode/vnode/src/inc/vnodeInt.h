@@ -171,7 +171,6 @@ int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
 
-int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);

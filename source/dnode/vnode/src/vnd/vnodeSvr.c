@@ -2003,7 +2003,7 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
     tDecoderClear(&dc);
     return -1;
   }
-  if (metaAddIndexToSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaAlterSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
