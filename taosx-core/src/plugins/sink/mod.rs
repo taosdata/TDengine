@@ -39,7 +39,7 @@ use taosx_ipc::{
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, trace};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::runners::opc::config::model::TableConfig;
@@ -2018,6 +2018,11 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
+/// Write flat message to TDengine.
+///
+/// # Arguments
+///
+/// - `count` will be increased by the number of rows written. Note that the number of rows written may be less than the number of rows in the message.
 #[framed]
 #[instrument(skip_all, fields(writer.count = count, trace.id = trace_id_str))]
 async fn consume_flat_record(
@@ -2026,8 +2031,6 @@ async fn consume_flat_record(
     record: &FlatMessage,
     count: &mut usize,
     parser: Option<&Parser>,
-    _: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     data_trace_id: u64,
     trace_id_str: &str,
@@ -2152,11 +2155,6 @@ async fn consume_flat_record(
                                             // dbg!(&err);
                                             if let Some(sql) = records.stable_sql() {
                                                 tracing::debug!("flat message stable sql : {sql}");
-                                                if let Some(transferred) = transferred {
-                                                    transferred
-                                                        .stables
-                                                        .fetch_add(1, Ordering::SeqCst);
-                                                }
                                                 match taos
                                                     .as_ref()
                                                     .unwrap()
@@ -2279,12 +2277,6 @@ async fn consume_flat_record(
                                                 //.inspect_err(|err| tracing::warn!("{}", err))?
                                             } else {
                                                 let sql = records.table_sql();
-                                                // dbg!(&sql);
-                                                if let Some(transferred) = transferred {
-                                                    transferred
-                                                        .tables
-                                                        .fetch_add(1, Ordering::SeqCst);
-                                                }
                                                 match taos
                                                     .as_ref()
                                                     .unwrap()
@@ -2409,17 +2401,11 @@ async fn consume_flat_record(
                                             }
                                         }
 
-                                        if let Some(transferred) = transferred {
-                                            transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                        }
                                         break;
                                     }
                                     //.inspect_err(|err| tracing::warn!("{}", err))?
                                 } else {
                                     let sql = records.table_sql();
-                                    if let Some(transferred) = transferred {
-                                        transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                    }
                                     match taos
                                         .as_ref()
                                         .unwrap()
@@ -2518,14 +2504,6 @@ async fn consume_flat_record(
                             metrics.add_written_points(
                                 (raw.nrows() * raw.column_views().len()) as u64,
                             );
-                            if let Some(transferred) = transferred {
-                                transferred
-                                    .records
-                                    .fetch_add(raw.nrows() as _, Ordering::SeqCst);
-                                transferred
-                                    .points
-                                    .fetch_add((raw.nrows() * raw.ncols()) as _, Ordering::SeqCst);
-                            }
                             break;
                         }
                     }
@@ -2742,98 +2720,262 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
 
 #[framed]
 #[instrument(skip_all)]
-async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
+async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     parser: Option<&Parser>,
-    license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
+    _license: Option<&ConnectorLicense>,
+    _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
-    metrics: &IpcMetrics,
+    metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
-    let mut count = 0;
-    let mut batches: u32 = 0;
-    let mut stream = ipc_reader.into_stream();
-    // let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
-    //     tracing::warn!("Receive IPC item error: {err:#}");
-    // });
-    let mut taos = Some(pool.get().await?);
-    while let Some(record) = stream.try_next().await? {
-        metrics.add_received_batches(1);
-        let data_trace_id = create_data_trace_id(stream_trace_id, batches);
-        let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-        })
-        .unwrap();
-        debug!(
-            num.rows = record.num_rows(),
-            "Writing batch {data_trace_id_str}"
+    let count = Arc::new(AtomicUsize::new(0));
+    let context = WriterContext {
+        pool: pool.clone(),
+        parser: parser.map(|parser| Arc::new(parser.clone())),
+        target_precision,
+    };
+    // let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
+    let batch_counter = Arc::new(AtomicU32::new(1));
+
+    let workers = std::env::var("NUM_OF_WRITERS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(
+            std::thread::available_parallelism()
+                .map(|w| w.get())
+                .unwrap_or(8),
         );
-        let last = count;
-        if let Err(err) = consume_flat_record(
-            pool,
-            &mut taos,
-            &record,
-            &mut count,
-            parser,
-            license,
-            transferred,
-            target_precision,
-            data_trace_id,
-            &data_trace_id_str,
-            metrics,
-        )
-        .await
-        {
-            metrics.add_failed_batches(1);
-            error!("Writing batch {batches} error: {err:#}");
-            let written = count - last;
-            let _ = ipc_ack_writer.ack(LushAck {
-                code: 0,
-                message: Some(err.to_string()),
-                context: Some(
-                    json!({
-                        "stream": "flat",
-                        "written":  written,
-                    })
-                    .to_string(),
-                ),
-            });
-            if ipc_error_strategy.will_stop() {
-                Err(err).context("write batch error")?;
-            } else if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
-                Err(err).context("write batch error")?;
-            }
-        } else {
-            metrics.add_processed_batches(1);
-            let _ = ipc_ack_writer
-                .ack(LushAck {
-                    code: 0,
-                    message: None,
-                    context: Some(
-                        json!({
-                            "stream": "flat",
-                            "written":  count - last,
-                        })
-                        .to_string(),
-                    ),
-                })
-                .context("write ack error");
+
+    let (msg_tx, msg_rx) = flume::bounded(workers);
+    let (ack_tx, ack_rx) = flume::bounded(workers * 2);
+
+    let mut writer_set = tokio::task::JoinSet::new();
+
+    writer_set.spawn(async move {
+        while let Ok(ack) = ack_rx.recv_async().await {
+            ipc_ack_writer.ack(ack)?
         }
-        tracing::debug!(
-            trace.id = data_trace_id_str,
-            batch_id = batches,
-            "IPC write batch finished"
-        );
-        batches += 1;
+        anyhow::Ok(())
+    });
+
+    for i in 0..workers {
+        let count = count.clone();
+        let context = context.clone();
+        let msg_rx = msg_rx.clone();
+        let ack_tx = ack_tx.clone();
+        let count = count.clone();
+        let notifier = notifier.clone();
+        let metrics_arc = metrics_arc.clone();
+        let ipc_error_strategy = ipc_error_strategy.clone();
+        let stream_trace_id = stream_trace_id.clone();
+        let batch_counter = batch_counter.clone();
+        writer_set.spawn(async move {
+            let taos = context.pool.get().await?;
+            let mut taos = Some(taos);
+            let metrics = metrics_arc.ipc();
+            let mut worker_written = 0;
+            while let Ok(record) = msg_rx.recv_async().await {
+                let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
+                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
+                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+                trace!("Writing batch {}", data_trace_id_str);
+                let mut written = 0;
+                let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+                })
+                .unwrap();
+                let res = consume_flat_record(
+                    &context.pool,
+                    &mut taos,
+                    &record,
+                    &mut written,
+                    context.parser.as_deref(),
+                    context.target_precision,
+                    data_trace_id,
+                    &data_trace_id_str,
+                    metrics,
+                )
+                .await;
+                worker_written += written;
+                count.fetch_add(written, Ordering::SeqCst);
+                match res {
+                    Err(err) => {
+                        metrics.add_failed_batches(1);
+                        error!("Writing batch {} error: {err:#}", data_trace_id_str);
+                        let ack = LushAck {
+                            code: 0,
+                            message: Some(err.to_string()),
+                            context: Some(
+                                json!({
+                                    "stream": "flat",
+                                    "written":  written,
+                                })
+                                .to_string(),
+                            ),
+                        };
+                        ack_tx.send_async(ack).await.context("ACK writer error")?;
+                        if ipc_error_strategy.will_stop() {
+                            Err(err).context("write batch error")?;
+                        } else if let Err(_) =
+                            notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                        {
+                            Err(err).context("write batch error")?;
+                        }
+                    }
+                    Ok(_) => {
+                        metrics.add_processed_batches(1);
+                        trace!(trace.id = data_trace_id_str, written, "Writing batch done");
+                        let ack = LushAck {
+                            code: 0,
+                            message: None,
+                            context: Some(
+                                json!({
+                                    "stream": "flat",
+                                    "written":  written
+                                })
+                                .to_string(),
+                            ),
+                        };
+                        ack_tx.send_async(ack).await.context("ACK writer error")?;
+                    }
+                }
+            }
+            info!(
+                worker.id = i,
+                worker.written = worker_written,
+                "Flat stream worker {} done",
+                i
+            );
+            return anyhow::Ok(());
+        });
     }
+
+    #[derive(Clone)]
+    struct WriterContext {
+        pool: TaosPool,
+        parser: Option<Arc<Parser>>,
+        target_precision: taos::Precision,
+    }
+
+    let mut stream = ipc_reader.into_stream();
+    while let Some(record) = stream.next().await {
+        metrics_arc.ipc().add_received_batches(1);
+        match record {
+            Ok(record) => {
+                msg_tx.send_async(record).await?;
+            }
+            Err(err) => {
+                ack_tx
+                    .send_async(LushAck {
+                        code: 0xFFFF,
+                        message: Some(format!("Parse message error: {err:#}")),
+                        context: Some(
+                            json!({
+                                "stream": "flat",
+                            })
+                            .to_string(),
+                        ),
+                    })
+                    .await?;
+            }
+        };
+    }
+
+    // The workers will exit when all tx are dropped.
+    drop(msg_tx);
+    drop(ack_tx);
+
+    while let Some(res) = writer_set.join_next().await {
+        res.context("JoinSet spawn flat worker error")?
+            .context("Flat stream worker error")?;
+    }
+
+    // let mut batches: u32 = 0;
+    // let mut stream = ipc_reader.into_stream();
+    // // let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
+    // //     tracing::warn!("Receive IPC item error: {err:#}");
+    // // });
+    // let mut taos = Some(pool.get().await?);
+    // while let Some(record) = stream.try_next().await? {
+    //     metrics.add_received_batches(1);
+    //     let data_trace_id = create_data_trace_id(stream_trace_id, batches);
+    //     let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+    //     let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+    //         std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+    //     })
+    //     .unwrap();
+    //     debug!(
+    //         num.rows = record.num_rows(),
+    //         "Writing batch {data_trace_id_str}"
+    //     );
+    //     let last = count;
+    //     if let Err(err) = consume_flat_record(
+    //         pool,
+    //         &mut taos,
+    //         &record,
+    //         &mut count,
+    //         parser,
+    //         license,
+    //         transferred,
+    //         target_precision,
+    //         data_trace_id,
+    //         &data_trace_id_str,
+    //         metrics,
+    //     )
+    //     .await
+    //     {
+    //         metrics.add_failed_batches(1);
+    //         error!("Writing batch {batches} error: {err:#}");
+    //         let written = count - last;
+    //         let _ = ipc_ack_writer.ack(LushAck {
+    //             code: 0,
+    //             message: Some(err.to_string()),
+    //             context: Some(
+    //                 json!({
+    //                     "stream": "flat",
+    //                     "written":  written,
+    //                 })
+    //                 .to_string(),
+    //             ),
+    //         });
+    //         if ipc_error_strategy.will_stop() {
+    //             Err(err).context("write batch error")?;
+    //         } else if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+    //             Err(err).context("write batch error")?;
+    //         }
+    //     } else {
+    //         metrics.add_processed_batches(1);
+    //         let _ = ipc_ack_writer
+    //             .ack(LushAck {
+    //                 code: 0,
+    //                 message: None,
+    //                 context: Some(
+    //                     json!({
+    //                         "stream": "flat",
+    //                         "written":  count - last,
+    //                     })
+    //                     .to_string(),
+    //                 ),
+    //             })
+    //             .context("write ack error");
+    //     }
+    //     tracing::debug!(
+    //         trace.id = data_trace_id_str,
+    //         batch_id = batches,
+    //         "IPC write batch finished"
+    //     );
+    //     batches += 1;
+    // }
     // may not reached when the task was stopped by user forcely
-    info!("IPC processing done, written totally {count} records");
+    info!(
+        "IPC processing done, written totally {} records",
+        count.load(Ordering::SeqCst)
+    );
     Ok(())
 }
 
@@ -2958,7 +3100,7 @@ impl From<Option<&str>> for IpcErrorStrategy {
 
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
-async fn ipc_process<R: Read + Send + 'static, W: Write>(
+async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
@@ -3057,7 +3199,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 notifier,
                 ipc_error_strategy,
                 stream_trace_id_u64,
-                metrics,
+                metrics_arc.clone(),
             )
             .await?
         }
@@ -3272,9 +3414,7 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
-                    parser, // todo: license
-                    self.license.as_deref(),
-                    self.transferred.as_deref(),
+                    parser,
                     self.target_precision,
                     data_trace_id,
                     trace_id_str,
