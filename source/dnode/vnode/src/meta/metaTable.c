@@ -25,13 +25,8 @@ static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, cons
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
-static int  metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
-static int  metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
-static int  metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
-static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
-static int  metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
 static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
@@ -1189,14 +1184,6 @@ static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbUpsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), pMeta->txn);
 }
 
-static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbUpsert(pMeta->pSuidIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, pMeta->txn);
-}
-
-static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbUpsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), pMeta->txn);
-}
-
 static int metaUpdateTtl(SMeta *pMeta, const SMetaEntry *pME) {
   if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_NORMAL_TABLE) return 0;
 
@@ -1232,13 +1219,6 @@ int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeM
   int ret = metaUpdateChangeTime(pMeta, uid, changeTimeMs);
   metaULock(pMeta);
   return ret;
-}
-
-static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
-
-  return tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags,
-                     ((STag *)(pME->ctbEntry.pTags))->len, pMeta->txn);
 }
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
@@ -1277,6 +1257,7 @@ static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
   if (pTagIdxKey) taosMemoryFree(pTagIdxKey);
 }
 
+#if 0
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   void          *pData = NULL;
   int            nData = 0;
@@ -1358,59 +1339,7 @@ end:
   tdbFree(pData);
   return ret;
 }
-
-static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
-  SEncoder              coder = {0};
-  void                 *pVal = NULL;
-  int                   vLen = 0;
-  int                   rcode = 0;
-  SSkmDbKey             skmDbKey = {0};
-  const SSchemaWrapper *pSW;
-
-  if (pME->type == TSDB_SUPER_TABLE) {
-    pSW = &pME->stbEntry.schemaRow;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    pSW = &pME->ntbEntry.schemaRow;
-  } else {
-    metaError("meta/table: invalide table type: %" PRId8 " save skm db failed.", pME->type);
-    return TSDB_CODE_FAILED;
-  }
-
-  skmDbKey.uid = pME->uid;
-  skmDbKey.sver = pSW->version;
-
-  // if receive tmq meta message is: create stable1 then delete stable1 then create stable1 with multi vgroups
-  if (tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), NULL, NULL) == 0) {
-    return rcode;
-  }
-
-  // encode schema
-  int32_t ret = 0;
-  tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen, ret);
-  if (ret < 0) return -1;
-  pVal = taosMemoryMalloc(vLen);
-  if (pVal == NULL) {
-    rcode = -1;
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  tEncoderInit(&coder, pVal, vLen);
-  tEncodeSSchemaWrapper(&coder, pSW);
-
-  if (tdbTbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, pMeta->txn) < 0) {
-    rcode = -1;
-    goto _exit;
-  }
-
-  metaDebug("vgId:%d, set schema:(%" PRId64 ") sver:%d since %s", TD_VID(pMeta->pVnode), pME->uid, pSW->version,
-            tstrerror(terrno));
-
-_exit:
-  taosMemoryFree(pVal);
-  tEncoderClear(&coder);
-  return rcode;
-}
+#endif
 
 // refactor later
 void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
