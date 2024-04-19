@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use chrono::Local;
+use taos::taos_query::common::RawData;
 use taos::*;
 use tokio::fs::File;
 use tokio::io::AsyncRead;
@@ -34,12 +35,16 @@ pub struct ZFile {
     level: Level,
     current_size: usize,
     max_file_size: u64,
+    api_version: String,
+    server_version: String,
     // version: Version,
 }
 
 async fn new_z_file(
     prefix: impl AsRef<Path>,
     compression_level: async_compression::Level,
+    api_version: &str,
+    server_version: &str,
 ) -> IoResult<ZFileInner> {
     let prefix = prefix.as_ref().to_path_buf();
     let now = Local::now();
@@ -48,7 +53,8 @@ async fn new_z_file(
     let wtr = BufReader::new(file);
     let wtr = async_compression::tokio::write::ZstdEncoder::with_quality(wtr, compression_level);
     let mut file = ZCodec::new(wtr);
-    file.write_head_async(&Header::new(None)).await?;
+    file.write_head_async(&Header::new(api_version, server_version, None))
+        .await?;
     Ok(file)
 }
 
@@ -56,9 +62,11 @@ impl ZFile {
     pub async fn new(
         prefix: impl AsRef<Path>,
         compression_level: async_compression::Level,
+        api_version: &str,
+        server_version: &str,
     ) -> IoResult<Self> {
         let prefix = prefix.as_ref().to_path_buf();
-        let file = new_z_file(&prefix, compression_level).await?;
+        let file = new_z_file(&prefix, compression_level, api_version, server_version).await?;
         let max_file_size = 1 * 1024 * 1024 * 1024;
         Ok(Self {
             file,
@@ -66,6 +74,8 @@ impl ZFile {
             level: compression_level,
             current_size: 0,
             max_file_size,
+            api_version: api_version.to_string(),
+            server_version: server_version.to_string(),
             // version: Version::CURRENT,
         })
     }
@@ -74,7 +84,13 @@ impl ZFile {
         if self.current_size as u64 >= self.max_file_size {
             self.file.flush().await?;
             self.file.shutdown().await?;
-            self.file = new_z_file(&self.prefix, self.level).await?;
+            self.file = new_z_file(
+                &self.prefix,
+                self.level,
+                &self.api_version,
+                &self.server_version,
+            )
+            .await?;
             self.current_size = 0;
         }
         Ok(())
@@ -82,6 +98,12 @@ impl ZFile {
 
     pub async fn write_meta(&mut self, meta: &RawMeta) -> IoResult<()> {
         self.current_size += self.file.write_meta_async(meta).await?;
+        self.check_or_next().await?;
+        Ok(())
+    }
+
+    pub async fn write_raw(&mut self, raw: &RawData) -> IoResult<()> {
+        self.current_size += self.file.write_raw_async(raw).await?;
         self.check_or_next().await?;
         Ok(())
     }
@@ -144,6 +166,11 @@ where
         self.0.write_inlinable(header).await
     }
 
+    pub async fn write_raw_async(&mut self, raw: &RawData) -> std::io::Result<usize> {
+        self.0.write_all(&[DataType::IS_RAW.bits()]).await?;
+        Ok(self.0.write_inlinable(raw).await? + std::mem::size_of::<DataType>())
+    }
+
     pub async fn write_meta_async(&mut self, meta: &RawMeta) -> std::io::Result<usize> {
         self.0.write_all(&[DataType::IS_META.bits()]).await?;
         Ok(self.0.write_inlinable(meta).await? + std::mem::size_of::<DataType>())
@@ -162,6 +189,12 @@ where
     }
 }
 
+pub enum ZMessage {
+    Meta(RawMeta),
+    Data(Vec<RawBlock>),
+    Raw(RawData),
+}
+
 impl<R> ZCodec<R>
 where
     R: AsyncRead + Unpin + Send,
@@ -170,31 +203,40 @@ where
         AsyncInlinable::read_inlined(&mut self.0).await
     }
 
-    pub async fn read_message_async(&mut self) -> IoResult<MessageSet<RawMeta, Vec<RawBlock>>> {
+    pub async fn read_message_async(&mut self) -> IoResult<ZMessage> {
         let msg_type = self.0.read_u8().await?;
         let data_type = DataType::from_bits(msg_type).ok_or(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "invalid data type or broken backup file",
         ))?;
+
         if data_type == DataType::IS_META {
-            return <RawMeta as AsyncInlinable>::read_inlined(&mut self.0)
-                .await
-                .map(MessageSet::Meta);
+            let meta = <taos::RawMeta as taos::AsyncInlinable>::read_inlined(&mut self.0).await?;
+            Ok(ZMessage::Meta(meta))
         } else if data_type == DataType::IS_DATA {
             let mut data = Vec::new();
             loop {
                 if let Some(raw) =
-                    <RawBlock as AsyncInlinable>::read_optional_inlined(&mut self.0).await?
+                    <taos::RawBlock as taos::AsyncInlinable>::read_optional_inlined(&mut self.0)
+                        .await?
                 {
                     data.push(raw);
                 } else {
                     break;
                 }
             }
-
-            Ok(MessageSet::Data(data))
+            Ok(ZMessage::Data(data))
+        } else if data_type == DataType::IS_RAW {
+            let raw = <taos::taos_query::common::RawData as taos::AsyncInlinable>::read_inlined(
+                &mut self.0,
+            )
+            .await?;
+            Ok(ZMessage::Raw(raw))
         } else {
-            unreachable!()
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid data type or broken backup file",
+            ))
         }
     }
 }
@@ -307,7 +349,7 @@ mod tests {
         // let writer =
         let db = "abc1";
         writer
-            .write_head_async(&Header::new(db.to_string()))
+            .write_head_async(&Header::new("1.6.0", "3.3.0.0", db.to_string()))
             .await?;
 
         let mut tmq = TmqBuilder::from_dsn("taos:///?group.id=c")?.build().await?;
@@ -392,11 +434,11 @@ mod tests {
             let res = reader.read_message_async().await;
             match res {
                 Ok(message) => match message {
-                    MessageSet::Meta(meta) => {
+                    ZMessage::Meta(meta) => {
                         dbg!(&meta);
                         taos.write_raw_meta(&meta).await?
                     }
-                    MessageSet::Data(data) => {
+                    ZMessage::Data(data) => {
                         // dbg!(&data);
                         for raw in data {
                             rows += raw.nrows();
@@ -404,6 +446,11 @@ mod tests {
                         }
                         println!("rows: {}", rows);
                         // taos.write_raw_data(data[0]).await?
+                    }
+                    ZMessage::Raw(raw) => {
+                        // dbg!(&raw);
+                        let meta = raw.into();
+                        taos.write_raw_meta(&meta).await?
                     }
                     _ => unreachable!(),
                 },

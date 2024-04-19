@@ -1,1 +1,2 @@
-pub const VERSION_3_3_0: semver::Version = semver::Version::new(3,3,0);
+pub const VERSION_3_0_0: semver::Version = semver::Version::new(3, 0, 0);
+pub const VERSION_3_3_0: semver::Version = semver::Version::new(3, 3, 0);

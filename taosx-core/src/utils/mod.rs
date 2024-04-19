@@ -5,6 +5,7 @@ use futures::TryStreamExt;
 use taos::*;
 
 pub mod breakpoints;
+pub mod constants;
 pub mod files;
 pub mod interval;
 pub mod metrics_db;
@@ -13,7 +14,6 @@ pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod trace;
-pub mod constants;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {

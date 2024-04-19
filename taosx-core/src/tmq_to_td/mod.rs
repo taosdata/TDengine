@@ -5,8 +5,8 @@ use crate::{
     legacy_metric::LegacyToTaosMetrics,
     sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
-    Action,
     utils::constants::VERSION_3_3_0,
+    Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use linked_hash_map::LinkedHashMap;
@@ -684,7 +684,6 @@ pub async fn tmq_to_td(
     let target_taos = target_pool.get().await?;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
-    let jobs = 1;
     for topic in topics {
         let target_database = if let Some(target) = target_database.as_ref() {
             if let Some(sql) = topic.database_sql.as_deref() {

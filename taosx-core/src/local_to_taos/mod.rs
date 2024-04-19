@@ -5,7 +5,11 @@ use taos::*;
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::sync::Semaphore;
 
-use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
+use crate::{
+    taoz::{ZCodec, ZMessage},
+    tmq_to_local::LocalConfig,
+    utils::constants::{VERSION_3_0_0, VERSION_3_3_0},
+};
 
 #[async_backtrace::framed]
 async fn restore(
@@ -22,29 +26,49 @@ async fn restore(
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
     tracing::debug!("[{id}] parse header: {:?}", header);
+
+    let target_version = taos
+        .server_version()
+        .await
+        .context("get server version error")?;
+
+    let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+    if target_version < VERSION_3_0_0 {
+        bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+    }
+    if let Some(source_version) = header.server_version() {
+        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Backup source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
+
     let mut rows = 0;
 
     loop {
         let res = reader.read_message_async().await;
         match res {
             Ok(message) => match message {
-                MessageSet::Meta(meta) => {
+                ZMessage::Meta(meta) => {
                     // dbg!(&meta);
                     if let Err(err) = taos.write_raw_meta(&meta).await {
-                        let err_str = err.to_string();
-                        if err_str.contains("0x032C") {
-                            tracing::warn!("found error 0x032C, retry once");
-                            tokio::time::sleep(Duration::from_nanos(100)).await;
-                            taos.write_raw_meta(&meta).await?;
-                        } else if err_str.contains("0x2603") {
-                            tracing::warn!("found error 0x2603, retry once");
-                            taos.write_raw_meta(&meta).await?;
-                        } else {
-                            Err(err).context("create table error with write_raw")?;
+                        let code: i32 = err.code().into();
+                        match code {
+                            0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                                tracing::debug!("Found recoverable error: {}", err);
+                                tokio::time::sleep(Duration::from_nanos(100)).await;
+                            }
+                            0x2603 => {
+                                tracing::debug!("Found 0x2603 error: {}, retry once", err);
+                                taos.write_raw_meta(&meta).await?;
+                            }
+                            _ => {
+                                Err(err).context("write raw error while restore")?;
+                            }
                         }
                     };
                 }
-                MessageSet::Data(data) => {
+                ZMessage::Data(data) => {
                     for mut raw in data {
                         if let Some(name) = table {
                             raw.with_table_name(name);
@@ -75,7 +99,25 @@ async fn restore(
                     tracing::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
-                _ => unreachable!(),
+                ZMessage::Raw(raw) => {
+                    let meta = raw.into();
+                    if let Err(err) = taos.write_raw_meta(&meta).await {
+                        let code: i32 = err.code().into();
+                        match code {
+                            0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                                tracing::debug!("Found recoverable error: {}", err);
+                                tokio::time::sleep(Duration::from_nanos(100)).await;
+                            }
+                            0x2603 => {
+                                tracing::debug!("Found 0x2603 error: {}, retry once", err);
+                                taos.write_raw_meta(&meta).await?;
+                            }
+                            _ => {
+                                Err(err).context("write raw error while restore")?;
+                            }
+                        }
+                    };
+                }
             },
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
