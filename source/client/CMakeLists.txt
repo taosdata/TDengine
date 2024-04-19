@@ -10,6 +10,8 @@ else()
     add_library(taos SHARED ${CLIENT_SRC})
 endif()
 
+target_compile_options(taos PRIVATE -Wno-error=deprecated-non-prototype)
+
 INCLUDE_DIRECTORIES(jni)
 
 target_include_directories(
@@ -53,6 +55,9 @@ set_target_properties(
 )
 
 add_library(taos_static STATIC ${CLIENT_SRC})
+
+target_compile_options(taos_static PRIVATE -Wno-error=deprecated-non-prototype)
+
 target_include_directories(
     taos_static
     PUBLIC "${TD_SOURCE_DIR}/include/client"

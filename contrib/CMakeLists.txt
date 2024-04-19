@@ -242,11 +242,13 @@ target_include_directories(
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
+target_compile_options(zlibstatic PRIVATE -Wno-error=deprecated-non-prototype)
 target_include_directories(
     zlibstatic
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
 )
+target_compile_options(zlib PRIVATE -Wno-error=deprecated-non-prototype)
 target_include_directories(
     zlib
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib

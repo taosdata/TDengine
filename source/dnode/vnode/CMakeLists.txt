@@ -1,6 +1,9 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
+
+target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
+
 set(
   VNODE_SOURCE_FILES
   "src/vnd/vnodeOpen.c"
