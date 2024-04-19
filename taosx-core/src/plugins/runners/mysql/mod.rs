@@ -28,7 +28,7 @@ mod worker;
 pub const MYSQL_ID: &str = "mysql";
 pub const MYSQL_NAME: &str = "MySQL";
 
-/// check historian dsn is valid
+/// check mysql dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
@@ -128,7 +128,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     Ok(ds_sample_in)
 }
 
-/// migrate or synchronize data from historian to taos
+/// migrate or synchronize data from mysql to taos
 pub async fn mysql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
