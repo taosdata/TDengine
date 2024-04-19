@@ -130,7 +130,7 @@ typedef struct {
 } StreamMetaTaskState;
 
 int32_t streamMetaOpenTdb(SStreamMeta* pMeta) {
-  if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
+  if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0, 0, NULL) < 0) {
     return -1;
     // goto _err;
   }

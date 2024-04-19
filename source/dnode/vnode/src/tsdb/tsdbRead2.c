@@ -25,15 +25,6 @@
 #define ASCENDING_TRAVERSE(o)       (o == TSDB_ORDER_ASC)
 #define getCurrentKeyInSttBlock(_r) (&((_r)->currentKey))
 
-#define tRowGetKeyEx(_pRow, _pKey)                                \
-  do {                                                            \
-    if ((_pRow)->type == TSDBROW_ROW_FMT) {                       \
-      tRowGetKey((_pRow)->pTSRow, (_pKey));                       \
-    } else {                                                      \
-      tColRowGetKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
-    }                                                             \
-  } while (0)
-
 typedef struct {
   bool overlapWithNeighborBlock;
   bool hasDupTs;
@@ -103,26 +94,10 @@ int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
     return 1;
   }
 
-  ASSERT(p1->numOfPKs == p2->numOfPKs);
-
   if (p1->numOfPKs == 0) {
     return 0;
   } else {
-    if (IS_VAR_DATA_TYPE(p1->pks[0].type)) {
-      int32_t len = TMIN(p1->pks[0].nData, p2->pks[0].nData);
-      int32_t ret = strncmp((char*)p1->pks[0].pData, (char*)p2->pks[0].pData, len);
-      if (ret == 0) {
-        if (p1->pks[0].nData == p2->pks[0].nData) {
-          return 0;
-        } else {
-          return p1->pks[0].nData > p2->pks[0].nData ? 1 : -1;
-        }
-      } else {
-        return ret > 0 ? 1 : -1;
-      }
-    } else {
-      return tValueCompare(&p1->pks[0], &p2->pks[0]);
-    }
+    return tRowKeyCompare(p1, p2);
   }
 }
 
@@ -1635,6 +1610,11 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttB
   doUnpinSttBlock(pSttBlockReader);
   if (hasVal) {
     SRowKey* pNext = getCurrentKeyInSttBlock(pSttBlockReader);
+
+    if (IS_VAR_DATA_TYPE(pSttKey->pks[0].type)) {
+      tsdbInfo("current pk:%s, next pk:%s", pSttKey->pks[0].pData, pNext->pks[0].pData);
+    }
+
     if (pkCompEx(pSttKey, pNext) != 0) {
       code = doAppendRowFromFileBlock(pReader->resBlockInfo.pResBlock, pReader, fRow->pBlockData, fRow->iRow);
       *copied = (code == TSDB_CODE_SUCCESS);
@@ -2327,8 +2307,11 @@ int32_t mergeRowsInSttBlocks(SSttBlockReader* pSttBlockReader, STableBlockScanIn
 
   TSDBROW* pRow = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
   TSDBROW  fRow = {.iRow = pRow->iRow, .type = TSDBROW_COL_FMT, .pBlockData = pRow->pBlockData};
-  tsdbTrace("fRow ptr:%p, %d, uid:%" PRIu64 ", ts:%" PRId64 " %s", pRow->pBlockData, pRow->iRow, pSttBlockReader->uid,
-            fRow.pBlockData->aTSKEY[fRow.iRow], pReader->idStr);
+
+  if (IS_VAR_DATA_TYPE(pScanInfo->lastProcKey.pks[0].type)) {
+    tsdbTrace("fRow ptr:%p, %d, uid:%" PRIu64 ", ts:%" PRId64 " pk:%s %s", pRow->pBlockData, pRow->iRow, pSttBlockReader->uid,
+              fRow.pBlockData->aTSKEY[fRow.iRow], pScanInfo->lastProcKey.pks[0].pData, pReader->idStr);
+  }
 
   int32_t code =
       tryCopyDistinctRowFromSttBlock(&fRow, pSttBlockReader, pScanInfo, &pScanInfo->lastProcKey, pReader, &copied);

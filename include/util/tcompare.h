@@ -83,6 +83,7 @@ int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
+void    DestoryThreadLocalRegComp();
 
 int32_t comparewcsRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight);

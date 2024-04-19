@@ -70,7 +70,9 @@ typedef struct SDatabaseOptions {
   int8_t      cacheModel;
   int32_t     cacheLastSize;
   int8_t      compressionLevel;
+  int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;

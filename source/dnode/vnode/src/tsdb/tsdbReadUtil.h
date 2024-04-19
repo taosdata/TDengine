@@ -38,6 +38,15 @@ extern "C" {
     (_k)->ekey.ts = INT64_MIN; \
   } while (0);
 
+#define tRowGetKeyEx(_pRow, _pKey)                                \
+  do {                                                            \
+    if ((_pRow)->type == TSDBROW_ROW_FMT) {                       \
+      tRowGetKey((_pRow)->pTSRow, (_pKey));                       \
+    } else {                                                      \
+      tColRowGetKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
+    }                                                             \
+  } while (0)
+
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
