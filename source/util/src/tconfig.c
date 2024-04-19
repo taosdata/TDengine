@@ -21,8 +21,8 @@
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
-#include "tutil.h"
 #include "tunit.h"
+#include "tutil.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -315,19 +315,19 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
 static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool resetArray) {
   SConfigItem *pDebugFlagItem = cfgGetItem(pCfg, "debugFlag");
   if (resetArray) {
-      // reset
-      if (pDebugFlagItem == NULL) return -1;
+    // reset
+    if (pDebugFlagItem == NULL) return -1;
 
-      // logflag names that should 'not' be set by 'debugFlag'
+    // logflag names that should 'not' be set by 'debugFlag'
+    if (pDebugFlagItem->array == NULL) {
+      pDebugFlagItem->array = taosArrayInit(16, sizeof(SLogVar));
       if (pDebugFlagItem->array == NULL) {
-        pDebugFlagItem->array = taosArrayInit(16, sizeof(SLogVar));
-        if (pDebugFlagItem->array == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
-          return -1;
-        }
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
       }
-      taosArrayClear(pDebugFlagItem->array);
-      return 0;
+    }
+    taosArrayClear(pDebugFlagItem->array);
+    return 0;
   }
 
   // update
@@ -406,8 +406,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     case CFG_DTYPE_BOOL: {
       int32_t ival = (int32_t)atoi(pVal);
       if (ival != 0 && ival != 1) {
-        uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name,
-               cfgDtypeStr(pItem->dtype), ival);
+        uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name, cfgDtypeStr(pItem->dtype), ival);
         terrno = TSDB_CODE_OUT_OF_RANGE;
         return -1;
       }
@@ -691,6 +690,89 @@ void cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
   *pLen = len;
 }
 
+void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
+  if (dump) {
+    printf("                     s3 config");
+    printf("\n");
+    printf("=================================================================");
+    printf("\n");
+  } else {
+    uInfo("                     s3 config");
+    uInfo("=================================================================");
+  }
+
+  char src[CFG_SRC_PRINT_LEN + 1] = {0};
+  char name[CFG_NAME_PRINT_LEN + 1] = {0};
+
+  int32_t size = taosArrayGetSize(pCfg->array);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigItem *pItem = taosArrayGet(pCfg->array, i);
+    if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
+    if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
+    if (dump && strncmp(pItem->name, "s3", 2) != 0) continue;
+    tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
+    for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
+      if (src[j] == 0) src[j] = ' ';
+    }
+
+    tstrncpy(name, pItem->name, CFG_NAME_PRINT_LEN);
+    for (int32_t j = 0; j < CFG_NAME_PRINT_LEN; ++j) {
+      if (name[j] == 0) name[j] = ' ';
+    }
+
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        if (dump) {
+          printf("%s %s %u\n", src, name, pItem->bval);
+        } else {
+          uInfo("%s %s %u", src, name, pItem->bval);
+        }
+
+        break;
+      case CFG_DTYPE_INT32:
+        if (dump) {
+          printf("%s %s %d\n", src, name, pItem->i32);
+        } else {
+          uInfo("%s %s %d", src, name, pItem->i32);
+        }
+        break;
+      case CFG_DTYPE_INT64:
+        if (dump) {
+          printf("%s %s %" PRId64 "\n", src, name, pItem->i64);
+        } else {
+          uInfo("%s %s %" PRId64, src, name, pItem->i64);
+        }
+        break;
+      case CFG_DTYPE_DOUBLE:
+      case CFG_DTYPE_FLOAT:
+        if (dump) {
+          printf("%s %s %.2f\n", src, name, pItem->fval);
+        } else {
+          uInfo("%s %s %.2f", src, name, pItem->fval);
+        }
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+      case CFG_DTYPE_NONE:
+        if (dump) {
+          printf("%s %s %s\n", src, name, pItem->str);
+        } else {
+          uInfo("%s %s %s", src, name, pItem->str);
+        }
+        break;
+    }
+  }
+
+  if (dump) {
+    printf("=================================================================\n");
+  } else {
+    uInfo("=================================================================");
+  }
+}
+
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
     printf("                     global config");
@@ -738,7 +820,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         break;
       case CFG_DTYPE_INT64:
         if (dump) {
-          printf("%s %s %" PRId64"\n", src, name, pItem->i64);
+          printf("%s %s %" PRId64 "\n", src, name, pItem->i64);
         } else {
           uInfo("%s %s %" PRId64, src, name, pItem->i64);
         }
@@ -964,16 +1046,38 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     paGetToken(name + olen + 1, &value, &vlen);
     if (vlen == 0) continue;
     value[vlen] = 0;
+    
+    if (strcasecmp(name, "encryptScope") == 0) {
+      char* tmp = NULL;
+      int32_t len = 0;
+      char newValue[1024] = {0};
 
-    paGetToken(value + vlen + 1, &value2, &vlen2);
-    if (vlen2 != 0) {
-      value2[vlen2] = 0;
-      paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
-      if (vlen3 != 0) value3[vlen3] = 0;
+      strcpy(newValue, value);
+      
+      int32_t count = 1;
+      while(vlen < 1024){
+        paGetToken(value + vlen + 1 * count, &tmp, &len);
+        if(len == 0) break;
+        tmp[len] = 0;
+        strcpy(newValue + vlen, tmp);
+        vlen += len;
+        count++;
+      }
+
+      code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
+    else{
+      paGetToken(value + vlen + 1, &value2, &vlen2);
+      if (vlen2 != 0) {
+        value2[vlen2] = 0;
+        paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+        if (vlen3 != 0) value3[vlen3] = 0;
+      }
 
-    code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+      code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+    }
 
     if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);

@@ -32,10 +32,10 @@
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
 
-static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
-static int32_t  mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
+static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
+static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *pRaw);
 
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
@@ -276,6 +276,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
   createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
   createReq.keepTimeOffset = pDb->cfg.keepTimeOffset;
+  createReq.s3ChunkSize = pDb->cfg.s3ChunkSize;
+  createReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
+  createReq.s3Compact = pDb->cfg.s3Compact;
   createReq.minRows = pDb->cfg.minRows;
   createReq.maxRows = pDb->cfg.maxRows;
   createReq.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
@@ -304,6 +307,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashSuffix = pDb->cfg.hashSuffix;
   createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
   createReq.changeVersion = ++(pVgroup->syncConfChangeVer);
+  createReq.encryptAlgorithm = pDb->cfg.encryptAlgorithm;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica *pReplica = NULL;
@@ -399,6 +403,8 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.minRows = pDb->cfg.minRows;
   alterReq.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
+  alterReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
+  alterReq.s3Compact = pDb->cfg.s3Compact;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);

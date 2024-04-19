@@ -79,7 +79,7 @@ int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
 int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);
 
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
-int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision);
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow);
 
 int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, int8_t dayligth);
 void    deltaToUtcInitOnce();
@@ -88,6 +88,7 @@ char    getPrecisionUnit(int32_t precision);
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
 int64_t convertTimeFromPrecisionToUnit(int64_t ts, int32_t fromPrecision, char toUnit);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
+int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 

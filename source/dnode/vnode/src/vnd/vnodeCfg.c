@@ -15,6 +15,7 @@
 
 #include "tutil.h"
 #include "vnd.h"
+#include "tglobal.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -51,6 +52,9 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .hashEnd = 0,
                                    .hashMethod = 0,
                                    .sttTrigger = TSDB_DEFAULT_SST_TRIGGER,
+                                   .s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE,
+                                   .s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL,
+                                   .s3Compact = TSDB_DEFAULT_S3_COMPACT,
                                    .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
@@ -106,6 +110,10 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keepTimeOffset", pCfg->tsdbCfg.keepTimeOffset) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3ChunkSize", pCfg->s3ChunkSize) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3KeepLocal", pCfg->s3KeepLocal) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "s3Compact", pCfg->s3Compact) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -126,6 +134,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
       tjsonAddItemToArray(pNodeRetentions, pNodeRetention);
     }
   }
+  if (tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -133,6 +142,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
@@ -154,9 +165,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo) < 0) return -1;
-  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d",
-        pCfg->vgId, pCfg->syncCfg.replicaNum,
-         pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex, pCfg->syncCfg.changeVersion);
+  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", pCfg->vgId,
+         pCfg->syncCfg.replicaNum, pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex, pCfg->syncCfg.changeVersion);
   for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
     SJson     *info = tjsonCreateObject();
     SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];
@@ -236,6 +246,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeRetention, "keep", (pCfg->tsdbCfg.retentions)[i].keep, code);
     tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
   }
+  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
+  if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    }
+  }
+#endif
   tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod, code);
@@ -250,6 +273,32 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
+  if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(pCfg->walCfg.encryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    }
+  }
+#endif
+  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
+  if (code < 0) return -1;
+#if defined(TD_ENTERPRISE)
+  if(pCfg->tdbEncryptAlgorithm == DND_CA_SM4){
+    if(tsEncryptKey[0] == 0){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    }
+  }
+#endif
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
@@ -315,6 +364,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
   if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE * 1024) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
+  }
+
+  tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->s3ChunkSize, code);
+  if (code < 0) {
+    pCfg->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
+  }
+  tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->s3KeepLocal, code);
+  if (code < 0) {
+    pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
+  }
+  tjsonGetNumberValue(pJson, "s3Compact", pCfg->s3Compact, code);
+  if (code < 0) {
+    pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   }
 
   return 0;

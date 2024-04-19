@@ -22,6 +22,7 @@ target_link_libraries(
     tdb
     PUBLIC os
     PUBLIC util
+    PUBLIC crypt
 )
 
 # for test

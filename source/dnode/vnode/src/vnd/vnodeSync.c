@@ -579,12 +579,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
       int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
       if (numOfTasks > 0) {
-        if (pMeta->startInfo.taskStarting == 1) {
+        if (pMeta->startInfo.startAllTasks == 1) {
           pMeta->startInfo.restartCount += 1;
           tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
                   pMeta->startInfo.restartCount);
         } else {
-          pMeta->startInfo.taskStarting = 1;
+          pMeta->startInfo.startAllTasks = 1;
 
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
@@ -818,6 +818,16 @@ bool vnodeIsLeader(SVnode *pVnode) {
   }
 
   return true;
+}
+
+int64_t vnodeClusterId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].clusterId;
+}
+
+int32_t vnodeNodeId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].nodeId;
 }
 
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {

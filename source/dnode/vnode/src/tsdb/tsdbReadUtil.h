@@ -38,6 +38,15 @@ extern "C" {
     (_k)->ekey.ts = INT64_MIN; \
   } while (0);
 
+#define tRowGetKeyEx(_pRow, _pKey)                                \
+  do {                                                            \
+    if ((_pRow)->type == TSDBROW_ROW_FMT) {                       \
+      tRowGetKey((_pRow)->pTSRow, (_pKey));                       \
+    } else {                                                      \
+      tColRowGetKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
+    }                                                             \
+  } while (0)
+
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
@@ -186,7 +195,6 @@ typedef struct SSttBlockReader {
   SMergeTree         mergeTree;
   SRowKey            currentKey;
   int32_t            numOfPks;
-  __compar_fn_t      pkComparFn;
 } SSttBlockReader;
 
 typedef struct SFilesetIter {
@@ -290,7 +298,6 @@ struct STsdbReader {
   bool                 bFilesetDelimited;   // duration by duration output
   TsdReaderNotifyCbFn  notifyFn;
   void*                notifyParam;
-  __compar_fn_t        pkComparFn;
 };
 
 typedef struct SBrinRecordIter {
@@ -343,7 +350,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
                               const char* pstr);
 bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
 bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
-int32_t pkCompEx(__compar_fn_t comparFn, SRowKey* p1, SRowKey* p2);
+int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
 void    clearRowKey(SRowKey* pKey);
 
@@ -384,7 +391,6 @@ typedef struct SCacheRowsReader {
   char*                   idstr;
   int64_t                 lastTs;
   SArray*                 pFuncTypeList;
-  __compar_fn_t           pkComparFn;
   SRowKey                 rowKey;
   SColumnInfo             pkColumn;
 } SCacheRowsReader;

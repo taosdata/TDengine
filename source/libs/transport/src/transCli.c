@@ -1553,7 +1553,7 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
+      taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
     }
   }
   return;

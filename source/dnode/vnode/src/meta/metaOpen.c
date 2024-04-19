@@ -69,7 +69,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   taosMkDir(pMeta->path);
 
   // open env
-  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback);
+  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback, 
+                pVnode->config.tdbEncryptAlgorithm, pVnode->config.tdbEncryptKey);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;

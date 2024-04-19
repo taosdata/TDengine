@@ -475,3 +475,4 @@ int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmIn
   tDestroyTSchema(pSkmRow->pTSchema);
   return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, tbid->suid, tbid->uid, sver, &pSkmRow->pTSchema);
 }
+int32_t tsdbUpdateColCmprObj(STsdb *pTsdb, const TABLEID *tbid, SHashObj **ppColCmpr) { return 0; }

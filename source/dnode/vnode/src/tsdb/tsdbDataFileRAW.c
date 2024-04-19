@@ -29,15 +29,16 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   reader[0]->config[0] = config[0];
 
+  int32_t lcn = config->file.lcn;
   if (fname) {
     if (fname) {
-      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
     tsdbTFileName(config->tsdb, &config->file, fname1);
-    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -72,7 +73,9 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.maxVer = reader->config->file.maxVer;
   pBlock->file.stt->level = reader->config->file.stt->level;
 
-  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0);
+  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -113,8 +116,8 @@ static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
 static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return 0; }
 
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
   ASSERT(writer->ctx->offset <= writer->file.size);
   ASSERT(writer->config->fid == writer->file.fid);
 
@@ -126,8 +129,11 @@ static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFil
   code = TARRAY2_APPEND(opArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+
   if (writer->fd) {
-    code = tsdbFsyncFile(writer->fd);
+    code = tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
     tsdbCloseFile(&writer->fd);
   }
@@ -151,7 +157,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   }
 
   tsdbTFileName(writer->config->tsdb, &writer->file, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd);
+  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -205,11 +211,13 @@ _exit:
   return code;
 }
 
-int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock) {
+int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock, 
+                                      int32_t encryptAlgorithm, char* encryptKey) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data, pDataBlock->dataLength);
+  code = tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data, pDataBlock->dataLength,
+                        encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->ctx->offset += pDataBlock->dataLength;
