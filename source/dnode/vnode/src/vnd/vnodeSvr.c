@@ -2025,7 +2025,8 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
     return -1;
   }
 
-  if (metaDropIndexFromSTable(pVnode->pMeta, ver, &req) < 0) {
+  // TODO: use other
+  if (metaAlterSuperTable(pVnode->pMeta, ver, (SVCreateStbReq *)&req) < 0) {
     pRsp->code = terrno;
     return -1;
   }
