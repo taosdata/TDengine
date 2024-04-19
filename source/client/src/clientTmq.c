@@ -2182,7 +2182,12 @@ const char* tmq_err2str(int32_t err) {
   } else if (err == -1) {
     return "fail";
   } else {
-    return tstrerror(err);
+    if(*(taosGetErrMsg()) == 0){
+      return tstrerror(err);
+    } else{
+      snprintf(taosGetErrMsgReturn(), ERR_MSG_LEN, "%s,detail:%s", tstrerror(err), taosGetErrMsg());
+      return (const char*)taosGetErrMsgReturn();
+    }
   }
 }
 
