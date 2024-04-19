@@ -21,6 +21,25 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum RawType {
+    Meta = 1,
+    Data = 2,
+    Both = 3,
+}
+
+impl From<u8> for RawType {
+    fn from(v: u8) -> Self {
+        match v {
+            1 => RawType::Meta,
+            2 => RawType::Data,
+            3 => RawType::Both,
+            _ => panic!("Invalid RawType: {}", v),
+        }
+    }
+}
+
 const Z_ZERO_VERSION: Version = Version(0, 0);
 
 const Z_CURRENT_VERSION: Version = Version(1, 0);

@@ -9,7 +9,10 @@ use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     tmq::tmq_metric::TmqMetrics,
 };
-use crate::{taoz::ZFile, tmq::*};
+use crate::{
+    taoz::{RawType, ZFile},
+    tmq::*,
+};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
@@ -134,11 +137,16 @@ impl ZFileMan {
         Ok((nrows, stop))
     }
 
-    async fn write_vgroup_with_raw(&self, vgroup: i32, raw: &RawData) -> Result<()> {
+    async fn write_vgroup_with_raw(
+        &self,
+        vgroup: i32,
+        raw: &RawData,
+        raw_type: RawType,
+    ) -> Result<()> {
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
-        writer.write_raw(raw).await?;
+        writer.write_raw(raw, raw_type).await?;
         Ok(())
     }
 
@@ -230,14 +238,14 @@ async fn backup(
                     match message {
                         MessageSet::Meta(meta) => {
                             let raw = meta.as_raw_meta().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw).await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Meta).await?;
                             man.flush_vgroup(vgroup).await?;
                             metrics.add_messages_of_meta(1);
                             consumer.commit(offset).await?;
                         }
                         MessageSet::Data(data) => {
                             let raw = data.as_raw_data().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw).await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Data).await?;
                             man.flush_vgroup(vgroup).await?;
                             metrics.add_messages_of_data(1);
 
@@ -250,7 +258,7 @@ async fn backup(
                         }
                         MessageSet::MetaData(meta, data) => {
                             let raw = data.as_raw_data().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw).await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
                             man.flush_vgroup(vgroup).await?;
                             metrics.add_messages_of_data(1);
 

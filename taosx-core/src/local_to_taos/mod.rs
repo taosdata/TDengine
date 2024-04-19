@@ -99,7 +99,7 @@ async fn restore(
                     tracing::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
-                ZMessage::Raw(raw) => {
+                ZMessage::Raw(_raw_type, raw) => {
                     let meta = raw.into();
                     if let Err(err) = taos.write_raw_meta(&meta).await {
                         let code: i32 = err.code().into();

@@ -102,8 +102,8 @@ impl ZFile {
         Ok(())
     }
 
-    pub async fn write_raw(&mut self, raw: &RawData) -> IoResult<()> {
-        self.current_size += self.file.write_raw_async(raw).await?;
+    pub async fn write_raw(&mut self, raw: &RawData, raw_type: RawType) -> IoResult<()> {
+        self.current_size += self.file.write_raw_async(raw, raw_type).await?;
         self.check_or_next().await?;
         Ok(())
     }
@@ -166,9 +166,14 @@ where
         self.0.write_inlinable(header).await
     }
 
-    pub async fn write_raw_async(&mut self, raw: &RawData) -> std::io::Result<usize> {
+    pub async fn write_raw_async(
+        &mut self,
+        raw: &RawData,
+        raw_type: RawType,
+    ) -> std::io::Result<usize> {
         self.0.write_all(&[DataType::IS_RAW.bits()]).await?;
-        Ok(self.0.write_inlinable(raw).await? + std::mem::size_of::<DataType>())
+        self.0.write_u8(raw_type as u8).await?;
+        Ok(self.0.write_inlinable(raw).await? + std::mem::size_of::<DataType>() + 1)
     }
 
     pub async fn write_meta_async(&mut self, meta: &RawMeta) -> std::io::Result<usize> {
@@ -192,7 +197,7 @@ where
 pub enum ZMessage {
     Meta(RawMeta),
     Data(Vec<RawBlock>),
-    Raw(RawData),
+    Raw(RawType, RawData),
 }
 
 impl<R> ZCodec<R>
@@ -227,11 +232,12 @@ where
             }
             Ok(ZMessage::Data(data))
         } else if data_type == DataType::IS_RAW {
+            let raw_type: RawType = self.0.read_u8().await?.into();
             let raw = <taos::taos_query::common::RawData as taos::AsyncInlinable>::read_inlined(
                 &mut self.0,
             )
             .await?;
-            Ok(ZMessage::Raw(raw))
+            Ok(ZMessage::Raw(raw_type, raw))
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -447,8 +453,8 @@ mod tests {
                         println!("rows: {}", rows);
                         // taos.write_raw_data(data[0]).await?
                     }
-                    ZMessage::Raw(raw) => {
-                        // dbg!(&raw);
+                    ZMessage::Raw(raw_type, raw) => {
+                        dbg!(&raw_type, &raw);
                         let meta = raw.into();
                         taos.write_raw_meta(&meta).await?
                     }
