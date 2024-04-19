@@ -263,15 +263,15 @@ function run_taosd() {
     pid=$!
     wait $pid
     local ret=$?
-    logger "INFO" "taosd exit $ret"
+    logger "INFO" "taosd exit $ret $pid"
     if [ -d "/var/log" ]; then
-        logger "INFO" "taosd exit $ret"
+        logger "INFO" "taosd exit $ret $pid"
     fi
     if [ $ret -eq 0 ]; then
-        logger "INFO" "exit caused by sigterm"
+        logger "INFO" "$pid exit caused by sigterm"
         return
     fi
-    set_service_state "error" "taosd exit"
+    set_service_state "error" "taosd $pid exit"
     logger "ERROR" "set taosd state existed"
     # post error msg
     # check crash or OOM
@@ -347,7 +347,7 @@ taosd_start_time=`date +%s`
 taosadapter_start_time=$taosd_start_time
 while ((1))
 do
-    check_disk
+    # check_disk disable disk alert
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:outer loop: $a"
     output=`timeout $TAOS_TIMEOUT_SECOND taos -k | tail -n 1`
     if [ -z "${output}" ]; then
@@ -383,16 +383,15 @@ do
         if [ "$clustercheckneeded"x = "0"x ]; then
             td_cluster_check "no"
             if [ $? -eq 0 ]; then
-                status="6"
                 clustercheckneeded="1"
-                logger "INFO" "the cluster is ready to write/read in dnode $FQDN"
+                logger "INFO" "the cluster is ready to write/read in dnode $FQDN and set status to 6 and clustercheckneeded to 1"
             else 
                 logger "ERROR" "the cluster status check failed"
             fi 
         fi
     fi
             #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
-    if [ "$status"x = "6"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
+    if [ "$clustercheckneeded"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ] && [[ "$FQDN" = "$FIRST_EP_HOST" ]]; then
         logger "INFO" "begin to check test db existed or not"
         dbs=`taos -s "select name from information_schema.ins_databases where name='test';"`
         if [ $? -eq 0 ]; then
@@ -457,7 +456,7 @@ do
     fi
     # check taosadapter
     nc -z localhost 6041
-    if [ $? -ne 0 ] && [ "$status"x = "6"x ]; then
+    if [ $? -ne 0 ] && [ "$clustercheckneeded"x = "1"x ]; then
         logger "INFO" "start taosadapter count: ${start_taosadapter_count}"
         if [ ${start_taosadapter_count} -gt ${START_TAOSADAPTER_MAX_NUMBER} ]; then
             logger "ERROR" "exceed restart adapter max count: ${START_TAOSADAPTER_MAX_NUMBER}"
