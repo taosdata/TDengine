@@ -1,37 +1,37 @@
 ---
-id: mysql
-name: MySQL
+id: postgres
+name: PostgreSQL
 type: uri
 description: |
-  MySQL是最流行的关系型数据库管理系统之一，由于其体积小、速度快、总体拥有成本低，尤其是开放源码这一特点，一般中小型和大型网站的开发都选择 MySQL 作为网站数据库。
-  TDengine 可以高效地从 MySQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+  PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统， 有很多在大型商业RDBMS中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。
+  TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 strict: false
 
 options:
   host:
     display: 服务地址
-    description: MySQL 的服务器地址
+    description: PostgreSQL 的服务器地址
     placeholder: "127.0.0.1"
     required: true
   port:
     display: 服务端口
-    description: MySQL 的端口
-    placeholder: "3306"
+    description: PostgreSQL 的端口
+    placeholder: "5432"
     required: true
   subject:
     display: 数据库
-    description: MySQL 数据库名称
+    description: PostgreSQL 数据库名称
     placeholder: "示例: db1"
     required: true
 
 authentication:
   display: 认证
-  description: 使用用户名和密码访问 MySQL 数据库
+  description: 使用用户名和密码访问 PostgreSQL 数据库
   value: plain
   alternatives:
     - name: plain
       display: 用户名密码访问
-      description: 使用用户名和密码访问 MySQL 数据库
+      description: 使用用户名和密码访问 PostgreSQL 数据库
       username:
         display: 用户
         placeholder: username
@@ -47,33 +47,24 @@ groups:
     description: 其他数据库连接选项。
     connection_option: true
     params:
-      - name: charset
-        display: 字符集
-        description: 设置连接的字符集。默认字符集为 utf8mb4 。MySQL 5.5.3 支持此功能。如果需要连接到旧版本，建议改为 utf8 。
-        placeholder: "请选择数据库字符集"
-        value: "utf8"
+      - name: applicationName
+        display: 应用名称
+        description: 设置应用程序名称，用于标识连接的应用程序。
+        placeholder: "示例: TDengine"
         hint:
           type: str
-          choices:
-            - utf8
-            - utf8mb4
-            - utf16
-            - utf32
-            - gbk
-            - big5
-            - latin1
-            - ascii
       - name: ssl
         display: SSL 模式
         description: 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。
         placeholder: "请选择 SSL 模式"
-        value: "PREFERRED"
+        value: "PREFER"
         hint:
           type: str
           choices:
-            - DISABLED
-            - PREFERRED
-            - REQUIRED
+            - DISABLE
+            - ALLOW
+            - PREFER
+            - REQUIRE
   - name: SQL 查询
     display_order: 2
     description: 数据采集相关配置项。
@@ -84,7 +75,7 @@ groups:
         description: >
           用于查询的 SQL 语句。
         required: false
-        placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
+        placeholder: "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
         hint:
           type: str
       - name: start

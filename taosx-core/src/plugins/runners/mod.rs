@@ -18,6 +18,7 @@ pub mod mysql;
 pub mod opc;
 pub mod opentsdb;
 pub mod pi;
+pub mod postgres;
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_TAOSX_PLUGINS_HOME: &'static str = "TAOSX_PLUGINS_HOME";

@@ -1,40 +1,39 @@
 ---
-id: mysql
-name: MySQL
+id: postgres
+name: PostgreSQL
 type: uri
 description: |
-  MySQL is one of the most popular relational database management systems. Due to its small size, fast speed, low overall cost of ownership, especially open source, MySQL is generally chosen as the website database for the development of small and large websites.
-
-  TDengine can efficiently read the data in MySQL and write it to TDengine through the MySQL connector to achieve historical data migration or real-time data synchronization.
+  PostgreSQL is a very powerful, open-source client/server relational database management system that has many features found in large commercial RDBMSs, including transactions, subselects, triggers, views, referential integrity, and sophisticated locking functionality.
+  TDengine can efficiently read data from PostgreSQL and write it to TDengine to achieve historical data migration or real-time data synchronization.
 strict: false
 
 options:
   host:
     display: host
     description: |-
-      The access address of MySQL.
+      The access address of PostgreSQL.
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: "127.0.0.1"
     required: true
   port:
     display: port
-    description: The port of MySQL.
-    placeholder: "3306"
+    description: The port of PostgreSQL.
+    placeholder: "5432"
     required: true
   subject:
     display: Database
-    description: The name of the database to connect to.
+    description: The name of the PostgreSQL database to connect to.
     placeholder: "for example: db1"
     required: true
 
 authentication:
   display: Authentication
-  description: Authentication is the process of verifying the identity before granting access to MySQL.
+  description: Authentication is the process of verifying the identity before granting access to PostgreSQL.
   value: plain
   alternatives:
     - name: plain
       display: Username and Password
-      description: Use username and password of MySQL
+      description: Use username and password of PostgreSQL
       username:
         display: Username
         placeholder: username
@@ -50,33 +49,24 @@ groups:
     description: Other connection options.
     connection_option: true
     params:
-      - name: charset
-        display: Character Set
-        description: Set the character set for the connection. The default character set is utf8mb4. MySQL 5.5.3 supports this feature. If you need to connect to an older version, it is recommended to change to utf8.
-        placeholder: "Please select the database character set"
-        value: "utf8"
+      - name: applicationName
+        display: Application Name
+        description: Set the application name to identify the connecting application.
+        placeholder: "for example: TDengine"
         hint:
           type: str
-          choices:
-            - utf8
-            - utf8mb4
-            - utf16
-            - utf32
-            - gbk
-            - big5
-            - latin1
-            - ascii
       - name: ssl
         display: SSL Mode
-        description: Set whether to negotiate a secure SSL TCP/IP connection with the server or what priority to negotiate with.
+        description: Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority for negotiation.
         placeholder: "Please select the SSL mode"
-        value: "PREFERRED"
+        value: "PREFER"
         hint:
           type: str
           choices:
-            - DISABLED
-            - PREFERRED
-            - REQUIRED
+            - DISABLE
+            - ALLOW
+            - PREFER
+            - REQUIRE
   - name: Data Collection
     display_order: 2
     description: Data collection related configuration items.
@@ -85,9 +75,9 @@ groups:
       - name: sql
         display: SQL Template
         description: >
-          SQL statement used for querying.
+          The SQL statement used for querying.
         required: false
-        placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
+        placeholder: "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
         hint:
           type: str
       - name: start
@@ -107,9 +97,9 @@ groups:
         hint:
           type: time
       - name: interval
-        display: Query Interval
+        display: Time Interval
         description: >
-          Time interval used for segmented queries.
+          The time interval for querying data.
         required: false
         placeholder: 1h
         hint:
@@ -117,7 +107,7 @@ groups:
       - name: delay
         display: Delay
         description: >
-          Waiting time for synchronizing future data.
+          The waiting time for synchronizing future data.
         required: false
         placeholder: 0s
         hint:

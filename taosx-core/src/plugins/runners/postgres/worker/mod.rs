@@ -2,11 +2,11 @@ use std::cmp;
 
 use chrono::{DateTime, Utc};
 
-use crate::runners::mysql::appender::to_schema;
-use crate::runners::mysql::config::MySqlConfig;
-use crate::runners::mysql::query::MySqlQuery;
-use crate::runners::mysql::worker::consumer::Consumer;
-use crate::runners::mysql::worker::producer::Producer;
+use crate::runners::postgres::appender::to_schema;
+use crate::runners::postgres::config::PostgresConfig;
+use crate::runners::postgres::query::PostgresQuery;
+use crate::runners::postgres::worker::consumer::Consumer;
+use crate::runners::postgres::worker::producer::Producer;
 use crate::utils::breakpoints;
 
 mod consumer;
@@ -15,24 +15,26 @@ mod producer;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
-pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
+pub async fn migrate_history(mut config: PostgresConfig) -> anyhow::Result<()> {
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
     if breakpoint.is_some() {
         config.task.start = breakpoint.unwrap();
-        tracing::info!("migrate mysql from breakpoint: {}", config.task.start);
+        tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
     }
-    tracing::info!("migrate mysql start, config: {:?}", config);
+    tracing::info!("migrate postgres start, config: {:?}", config);
 
     // mark the current time
     let now = Utc::now();
 
     // schema
-    let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
+    let mut query = PostgresQuery::try_new(config.connect.clone())
+        .await
+        .unwrap();
 
     // generate sql
     let sql = config.task.generate_sql()?;
-    tracing::info!("migrate mysql start, sql: {}", sql);
+    tracing::info!("migrate postgres start, sql: {}", sql);
 
     let row = query.select_one_for_schema(&sql).await.unwrap();
     let schema = match row {
@@ -75,7 +77,7 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
                 // every 10 seconds
                 if real_end - real_start > chrono::Duration::seconds(10) {
                     tracing::trace!(
-                        "migrate mysql from live data, start: {}, end: {}",
+                        "migrate postgres from live data, start: {}, end: {}",
                         real_start,
                         real_end
                     );
@@ -106,12 +108,12 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
         consumer.await??;
     }
 
-    tracing::info!("migrate mysql finished");
+    tracing::info!("migrate postgres finished");
     Ok(())
 }
 
 pub async fn set_breakpoint(
-    config: &MySqlConfig,
+    config: &PostgresConfig,
     breakpoint: &DateTime<Utc>,
 ) -> anyhow::Result<()> {
     let task_id = format!("{}", config.task_id.unwrap_or(0));
@@ -161,9 +163,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_migrate_history() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();
-        let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
         config.ipc_port = Some(6666);
 
@@ -172,9 +174,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_breakpoint() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
-        let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
 
         config.task_id = Some(1);
         config.sub_task_id = Some("mig-1".to_string());

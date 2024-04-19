@@ -6,25 +6,25 @@ use futures::StreamExt;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::mysql::appender;
-use crate::runners::mysql::config::MySqlConfig;
-use crate::runners::mysql::query::MySqlQuery;
-use crate::runners::mysql::worker::set_breakpoint;
+use crate::runners::postgres::appender;
+use crate::runners::postgres::config::PostgresConfig;
+use crate::runners::postgres::query::PostgresQuery;
+use crate::runners::postgres::worker::set_breakpoint;
 use crate::runners::set_tcp_keepalive;
 
 pub struct Consumer {
-    config: MySqlConfig,
+    config: PostgresConfig,
     schema: Schema,
 }
 
 impl Consumer {
-    pub fn new(config: MySqlConfig, schema: Schema) -> Self {
+    pub fn new(config: PostgresConfig, schema: Schema) -> Self {
         Self { config, schema }
     }
 
-    pub async fn consume(&mut self, receiver: Receiver<MySqlConfig>) -> anyhow::Result<()> {
+    pub async fn consume(&mut self, receiver: Receiver<PostgresConfig>) -> anyhow::Result<()> {
         // connect to database
-        let mut query = MySqlQuery::try_new(self.config.connect.clone()).await?;
+        let mut query = PostgresQuery::try_new(self.config.connect.clone()).await?;
 
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
@@ -50,7 +50,7 @@ impl Consumer {
 
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
-                tracing::debug!("migrate mysql write {} rows to ipc", batch.num_rows());
+                tracing::debug!("migrate postgres write {} rows to ipc", batch.num_rows());
                 row_count += batch.num_rows();
                 batch_count += 1;
             }
@@ -70,13 +70,13 @@ impl Consumer {
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
                 if !ack.success() {
-                    tracing::error!("migrate mysql write records error: {ack:?}",);
+                    tracing::error!("migrate postgres write records error: {ack:?}",);
                     if let Some(message) = ack.message() {
                         anyhow::bail!("IPC writer error: {message}")
                     }
                 }
             }
-            tracing::info!("migrate mysql ACK reader finished");
+            tracing::info!("migrate postgres ACK reader finished");
             Ok(())
         });
 
@@ -91,7 +91,7 @@ impl Consumer {
             config.sub_task_id = self.config.sub_task_id.clone();
 
             tracing::debug!(
-                "migrate mysql batch:{}, config:{:?}, sql:{:?}",
+                "migrate postgres batch:{}, config:{:?}, sql:{:?}",
                 batch_count,
                 &config,
                 &sql
@@ -105,8 +105,8 @@ impl Consumer {
                         rows.push(row);
                     }
                     Err(e) => {
-                        tracing::error!("migrate mysql query error: {e:?}",);
-                        anyhow::bail!("migrate mysql query error: {e}")
+                        tracing::error!("migrate postgres query error: {e:?}",);
+                        anyhow::bail!("migrate postgres query error: {e}")
                     }
                 }
                 if rows.len() >= batch_size {
@@ -135,18 +135,18 @@ impl Consumer {
         }
         drop(tx);
 
-        tracing::debug!("migrate mysql query finished");
+        tracing::debug!("migrate postgres query finished");
         writer_handler.await??;
-        tracing::debug!("migrate mysql writer finished");
+        tracing::debug!("migrate postgres writer finished");
         ack.await??;
-        tracing::debug!("migrate mysql consumer finished");
+        tracing::debug!("migrate postgres consumer finished");
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::runners::mysql::worker::producer::Producer;
+    use crate::runners::postgres::worker::producer::Producer;
 
     use super::*;
     use std::str::FromStr;
@@ -156,17 +156,19 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_consumer() {
         // config
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
-        let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
         config.sub_task_id = Some(format!("mig-1"));
         config.ipc_port = Some(6666);
 
         // query for schema
-        let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
+        let mut query = PostgresQuery::try_new(config.connect.clone())
+            .await
+            .unwrap();
         let row = query
-            .select_one_for_schema("select * from t_metric")
+            .select_one_for_schema("select * from information_schema.tables")
             .await
             .unwrap();
         let schema = match row {

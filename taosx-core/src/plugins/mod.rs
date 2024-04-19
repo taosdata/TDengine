@@ -226,6 +226,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "csv" => crate::csv::is_csv_valid(&dsn).await,
                 "local" => crate::local_to_taos::is_local_valid(&dsn).await,
                 runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,
+                runners::postgres::POSTGRES_ID => runners::postgres::is_valid(&dsn).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }
@@ -239,6 +240,8 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
 
     match dsn.driver.as_str() {
         AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
+        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),

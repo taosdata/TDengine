@@ -3,20 +3,20 @@ use std::cmp::min;
 use chrono::{Days, Utc};
 use flume::Sender;
 
-use crate::runners::mysql::config::MySqlConfig;
+use crate::runners::postgres::config::PostgresConfig;
 
 pub struct Producer {
-    config: MySqlConfig,
+    config: PostgresConfig,
 }
 
 impl Producer {
-    pub fn new(config: &MySqlConfig) -> Self {
+    pub fn new(config: &PostgresConfig) -> Self {
         Producer {
             config: config.clone(),
         }
     }
 
-    pub async fn produce(&self, tx: Sender<MySqlConfig>) -> anyhow::Result<()> {
+    pub async fn produce(&self, tx: Sender<PostgresConfig>) -> anyhow::Result<()> {
         let start = self.config.task.start;
         let end = match self.config.task.end {
             Some(end) => end,
@@ -75,9 +75,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_produce() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("postgres://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
-        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
 
         let (tx, rx) = flume::bounded(4);
 

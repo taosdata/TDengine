@@ -319,6 +319,10 @@ pub struct GroupedParams {
     pub description: Option<String>,
     #[serde(default)]
     pub collapsible: bool,
+    // added by zachary, 2024-04-17,
+    // if the grouped params is connection option, this group will display before the connection check button.
+    #[serde(default)]
+    pub connection_option: bool,
 
     /// Dropdown collapsed or not.
     #[serde(skip_serializing_if = "Option::is_none")]

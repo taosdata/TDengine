@@ -3,18 +3,18 @@ use std::time::Duration;
 
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
-use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
+use sqlx_postgres::PgRow;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
-use crate::runners::mysql::appender::column_meta::ColumnMeta;
-use crate::runners::mysql::config::connect::ConnectConfig;
-use crate::runners::mysql::config::MySqlConfig;
-use crate::runners::mysql::query::MySqlQuery;
+use crate::runners::postgres::appender::column_meta::ColumnMeta;
+use crate::runners::postgres::config::connect::ConnectConfig;
+use crate::runners::postgres::config::PostgresConfig;
+use crate::runners::postgres::query::PostgresQuery;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -25,15 +25,15 @@ mod config;
 mod query;
 mod worker;
 
-pub const MYSQL_ID: &str = "mysql";
-pub const MYSQL_NAME: &str = "MySQL";
+pub const POSTGRES_ID: &str = "postgres";
+pub const POSTGRES_NAME: &str = "Postgres";
 
 /// check historian dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
-            MYSQL_ID.to_string(),
+            POSTGRES_ID.to_string(),
             format!(
                 "invalid dsn: {}, cause: {}",
                 dsn.to_string(),
@@ -41,25 +41,25 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let result = MySqlQuery::try_new(c).await;
+            let result = PostgresQuery::try_new(c).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
-                    MYSQL_ID.to_string(),
+                    POSTGRES_ID.to_string(),
                     format!(
                         "failed to connect to dsn: {}, cause: {}",
                         dsn.to_string(),
                         err.to_string()
                     ),
                 ),
-                Ok(_cli) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
+                Ok(_cli) => DataSourceValidation::valid(POSTGRES_ID.to_string(), None),
             }
         }
     }
 }
 
-/// get sample data from mysql
+/// get sample data from postgres
 /// # Arguments
-/// * `dsn` - mysql dsn
+/// * `dsn` - postgres dsn
 /// # Returns
 /// * `DsSampleIn` - {
 ///     "input": [{ "col_name": "xxx", ... }],
@@ -68,9 +68,9 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 ///     }}
 /// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
-    // create mysql query
-    let config = MySqlConfig::from_dsn(dsn)?;
-    let mut query = MySqlQuery::try_new(config.connect).await?;
+    // create postgres query
+    let config = PostgresConfig::from_dsn(dsn)?;
+    let mut query = PostgresQuery::try_new(config.connect).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
@@ -129,7 +129,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 }
 
 /// migrate or synchronize data from historian to taos
-pub async fn mysql_to_taos(
+pub async fn postgres_to_taos(
     from: Dsn,
     parser: Option<Parser>,
     _transform: Vec<Action>,
@@ -143,12 +143,12 @@ pub async fn mysql_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let mut config = MySqlConfig::from_dsn(&from)?;
+    let mut config = PostgresConfig::from_dsn(&from)?;
 
     // set task_id
     config.task_id = task_id;
     tracing::info!(
-        "{MYSQL_NAME} task start, id: {:?}, configuration: {:?}",
+        "{POSTGRES_NAME} task start, id: {:?}, configuration: {:?}",
         task_id,
         config
     );
@@ -166,7 +166,7 @@ pub async fn mysql_to_taos(
         &socket,
         parser,
         &to,
-        Some(MYSQL_ID),
+        Some(POSTGRES_ID),
         None,
         &cancel,
         with_agent,
@@ -192,17 +192,17 @@ pub async fn mysql_to_taos(
                         match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
-                                anyhow::bail!("{MYSQL_NAME} exit with IPC error: {res}");
+                                anyhow::bail!("{POSTGRES_NAME} exit with IPC error: {res}");
                             }
                             Err(_) => {
-                                tracing::info!("{MYSQL_NAME} done successfully");
+                                tracing::info!("{POSTGRES_NAME} done successfully");
                                 let _ = ipc.send(());
                             }
                         }
                     }
                     Err(err) => {
                         let _ = ipc.send(());
-                        anyhow::bail!("{MYSQL_NAME} exit with error: {:#}", err);
+                        anyhow::bail!("{POSTGRES_NAME} exit with error: {:#}", err);
                     }
                 }
             },
@@ -213,18 +213,18 @@ pub async fn mysql_to_taos(
                     let _ = ipc.send(());
                     let _ = ipc.close().await;
                     abort_handle.abort();
-                    anyhow::bail!("{MYSQL_NAME} writer error: {err:#}");
+                    anyhow::bail!("{POSTGRES_NAME} writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{MYSQL_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{POSTGRES_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{MYSQL_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{POSTGRES_NAME} task done, id: {}", task_id.unwrap_or(-1));
         ipc.close().await?;
         // put ipc port back to port pool.
         port_pool.put(port).await;
@@ -237,84 +237,65 @@ pub async fn mysql_to_taos(
 }
 
 fn generate_json_value(
-    row: &MySqlRow,
+    row: &PgRow,
     col_type: &str,
     cidx: usize,
 ) -> anyhow::Result<serde_json::Value> {
     match col_type {
-        // 整型数
-        "TINYINT" => {
+        // 布尔值
+        "BOOL" => {
+            let val = row.try_get::<Option<bool>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(val)),
+            }
+        }
+        // 字符
+        "CHAR" => {
             let val = row.try_get::<Option<i8>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "TINYINT UNSIGNED" => {
-            let val = row.try_get::<Option<u8>, _>(cidx)?;
-            match val {
-                None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
-            }
-        }
-        "SMALLINT" => {
+        // 整型数
+        "SMALLINT" | "SMALLSERIAL" | "INT2" => {
             let val = row.try_get::<Option<i16>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "SMALLINT UNSIGNED" => {
-            let val = row.try_get::<Option<u16>, _>(cidx)?;
-            match val {
-                None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
-            }
-        }
-        "MEDIUMINT" | "INT" => {
+        "INT" | "SERIAL" | "INT4" => {
             let val = row.try_get::<Option<i32>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "MEDIUMINT UNSIGNED" | "INT UNSIGNED" => {
-            let val = row.try_get::<Option<u32>, _>(cidx)?;
-            match val {
-                None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
-            }
-        }
-        "BIGINT" => {
+        "BIGINT" | "BIGSERIAL" | "INT8" => {
             let val = row.try_get::<Option<i64>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "BIGINT UNSIGNED" => {
-            let val = row.try_get::<Option<u64>, _>(cidx)?;
-            match val {
-                None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
-            }
-        }
         // 浮点数
-        "FLOAT" => {
+        "REAL" | "FLOAT4" => {
             let val = row.try_get::<Option<f32>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "DOUBLE" => {
+        "DOUBLE PRECISION" | "FLOAT8" => {
             let val = row.try_get::<Option<f64>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "DECIMAL" => {
+        "NUMERIC" => {
             let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
@@ -322,14 +303,14 @@ fn generate_json_value(
             }
         }
         // 字符串
-        "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
+        "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => {
             let val = row.try_get::<Option<String>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        "BINARY" | "VARBINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
+        "BYTEA" => {
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
@@ -351,7 +332,14 @@ fn generate_json_value(
                 Some(val) => Ok(json!(val)),
             }
         }
-        "DATETIME" | "TIMESTAMP" => {
+        "TIMESTAMP" => {
+            let val = row.try_get::<Option<sqlx::types::chrono::NaiveDateTime>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(val)),
+            }
+        }
+        "TIMESTAMPTZ" => {
             let val = row
                 .try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(
                     cidx,
@@ -361,20 +349,59 @@ fn generate_json_value(
                 Some(val) => Ok(json!(val)),
             }
         }
-        "YEAR" => {
-            let val = row.try_get::<Option<u16>, _>(cidx)?;
+        // uuid
+        "UUID" => {
+            // TODO
+            Ok(json!(""))
+        }
+        // 二进制数组
+        "BIT" | "VARBIT" => {
+            // TODO
+            Ok(json!(""))
+        }
+        // json
+        "JSON" | "JSONB" => {
+            let val = row.try_get::<Option<serde_json::Value>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
             }
         }
-        // 二进制
-        "BIT" => {
-            let val = row.try_get::<Option<u8>, _>(cidx)?;
+        // Others
+        "INTERVAL" => {
+            let val = row.try_get::<Option<sqlx_postgres::types::PgInterval>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(val.microseconds.to_string())),
             }
+        }
+        "INT8RANGE" | "INT4RANGE" | "TSRANGE" | "TSTZRANGE" | "DATERANGE" | "NUMRANGE" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "MONEY" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "LTREE" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "LQUERY" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "TIMETZ" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "INET" | "CIDR" => {
+            // TODO
+            Ok(json!(""))
+        }
+        "MACADDR" => {
+            // TODO
+            Ok(json!(""))
         }
         _ => {
             let val = row.try_get::<Option<String>, _>(cidx)?;
@@ -394,26 +421,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_connector").unwrap();
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
-        assert_eq!("mysql", res.data_source);
+        assert_eq!("postgres", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://root:tbase125%21@192.168.1.40:3305/test_connector, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
-        assert_eq!("mysql", res.data_source);
+        assert_eq!("postgres", res.data_source);
     }
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_full_columns where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -423,8 +452,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mysql_to_taos() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
+    async fn test_postgres_to_taos() {
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
@@ -434,11 +463,11 @@ mod tests {
         let cancel = CancellationToken::new();
         let with_agent = None;
         let transferred = None;
-        let span = tracing::info_span!("test_mysql_to_taos");
+        let span = tracing::info_span!("test_postgres_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
 
-        let _ = mysql_to_taos(
+        let _ = postgres_to_taos(
             from,
             parser,
             transform,
@@ -457,18 +486,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_json_value() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config).await.unwrap();
 
         let row = query
-            .select_one_for_schema("select * from t_full_columns")
+            .select_one_for_schema("select * from information_schema.tables")
             .await
             .unwrap();
 
         match row {
             Some(row) => {
-                for idx in 0..31 {
+                for idx in 0..11 {
                     let res = generate_json_value(&row, row.column(idx).type_info().name(), idx);
                     dbg!(&res);
                 }
