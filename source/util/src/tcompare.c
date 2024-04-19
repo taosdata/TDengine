@@ -1204,7 +1204,7 @@ int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
 }
 
 static threadlocal regex_t pRegex;
-static threadlocal char    *pOldPattern;
+static threadlocal char    *pOldPattern = NULL;
 static regex_t *threadGetRegComp(const char *pPattern) {
   if (NULL != pOldPattern) {
     if( strcmp(pOldPattern, pPattern) == 0) {
