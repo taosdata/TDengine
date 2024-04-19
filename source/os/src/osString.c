@@ -121,7 +121,6 @@ typedef struct {
   int8_t  inUse;
 } SConv;
 
-typedef enum { M2C = 0, C2M } ConvType;
 
 // 0: Mbs --> Ucs4
 // 1: Ucs4--> Mbs
@@ -261,6 +260,22 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
   return (int32_t)(ucs4_max_len - outLen);
 #endif
 }
+
+int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv) {
+#ifdef DISALLOW_NCHAR_WITHOUT_ICONV
+  printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
+  return -1;
+#else
+
+  size_t ucs4_input_len = ucs4_max_len;
+  size_t outLen = ucs4_max_len;
+  if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
+    return -1;
+  }
+  return (int32_t)(ucs4_max_len - outLen);
+#endif
+}
+
 bool taosValidateEncodec(const char *encodec) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile.\n");
