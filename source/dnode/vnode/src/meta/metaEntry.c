@@ -164,6 +164,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow);
     }
+    TABLE_SET_COL_COMPRESSED(pME->flags);
   }
 
   tEndDecode(pCoder);
