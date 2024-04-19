@@ -829,7 +829,7 @@ _exit:
   return code;
 }
 
-static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropTtlTableReq ttlReq = {0};
   if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -845,7 +845,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   int ret = 0;
   if (ttlReq.nUids > 0) {
-    metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    metaDropTables(pVnode->pMeta, version, ttlReq.pTbUids);
     tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
   }
 
@@ -1762,14 +1762,14 @@ int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
   return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
 
-static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
+static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t version) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   vInfo("vgId:%d, trim meta of tables per hash range [%" PRIu32 ", %" PRIu32 "]. apply-index:%" PRId64, TD_VID(pVnode),
-        pVnode->config.hashBegin, pVnode->config.hashEnd, ver);
+        pVnode->config.hashBegin, pVnode->config.hashEnd, version);
 
   // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
-  code = metaTrimTables(pVnode->pMeta);
+  code = metaTrimTables(pVnode->pMeta, version);
 
   return code;
 }
