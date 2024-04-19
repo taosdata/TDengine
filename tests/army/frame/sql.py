@@ -658,6 +658,7 @@ class TDSql:
     def checkAgg(self, sql, expectCnt):
         self.query(sql)
         self.checkData(0, 0, expectCnt)
+        tdLog.info(f"{sql} expect {expectCnt} ok.")
     
     # expect first value
     def checkFirstValue(self, sql, expect):
