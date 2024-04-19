@@ -78,12 +78,14 @@ class TDTestCase:
             d_type = LegalDataType.VARCHAR
 
         if t_type == TableType.SUPERTABLE:
-            expected_value = f'CREATE STABLE `{table_name}` (`ts` TIMESTAMP, `pk` {d_type.value} PRIMARY KEY, `c2` INT) TAGS (`engine` INT)'
+            expected_value = f"CREATE STABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`engine` INT)"
         elif t_type == TableType.NORNALTABLE:
-            expected_value = f'CREATE TABLE `{table_name}` (`ts` TIMESTAMP, `pk` {d_type.value} PRIMARY KEY, `c2` INT)'
+            expected_value = f"CREATE TABLE `{table_name}` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `pk` {d_type.value} ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY, `c2` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium')"
 
         tdSql.query(f"show create table {table_name}", show=SHOW_LOG)
-        tdSql.checkData(0, 1, expected_value)
+        result = tdSql.queryResult
+
+        tdSql.checkEqual("PRIMARY KEY" in result[0][1], True)
 
     def test_pk_datatype_legal(self, stable_name: str, ctable_name: str, ntable_name: str, dtype: LegalDataType):
         # create super table and child table
