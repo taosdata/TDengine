@@ -27,7 +27,7 @@
 #include "osMemory.h"
 
 SAudit tsAudit = {0};
-char* tsAuditUri = "/audit";
+char* tsAuditUri = "/audit_v2";
 char* tsAuditBatchUri = "/audit-batch";
 
 int32_t auditInit(const SAuditCfg *pCfg) {
