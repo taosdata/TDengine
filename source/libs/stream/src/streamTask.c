@@ -993,15 +993,16 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
     SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
     if (p->taskId == taskId) {
       ASSERT(reqId == p->reqId);
-      p->status = status;
-      p->rspTs = rspTs;
 
       // count down one, since it is ready now
-      if (p->status == TASK_DOWNSTREAM_READY) {
+      if ((p->status != TASK_DOWNSTREAM_READY) && (status == TASK_DOWNSTREAM_READY)) {
         *pNotReady = atomic_sub_fetch_32(&pInfo->notReadyTasks, 1);
       } else {
         *pNotReady = pInfo->notReadyTasks;
       }
+
+      p->status = status;
+      p->rspTs = rspTs;
 
       taosThreadMutexUnlock(&pInfo->checkInfoLock);
       return TSDB_CODE_SUCCESS;
