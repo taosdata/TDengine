@@ -102,7 +102,16 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
     return -1;
   }
-  if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
+      if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
+    }
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    if (TABLE_IS_COL_COMPRESSED(pME->flags) && pME->colCmpr.nCols > 0) {
+      if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
+    }
+  }
+  // if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
