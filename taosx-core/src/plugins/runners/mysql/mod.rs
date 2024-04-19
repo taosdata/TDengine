@@ -51,7 +51,20 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                         err.to_string()
                     ),
                 ),
-                Ok(_cli) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
+                Ok(mut _cli) => {
+                    let rs: Result<Vec<String>, anyhow::Error> = _cli.show_tables().await;
+                    match rs {
+                        Err(err) => DataSourceValidation::invalid(
+                            MYSQL_ID.to_string(),
+                            format!(
+                                "failed to connect to dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(_) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
+                    }
+                }
             }
         }
     }
@@ -400,7 +413,18 @@ mod tests {
         assert_eq!(false, res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://root:tbase125%21@192.168.1.40:3305/test_connector, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_connector, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            res.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_connector")
+            .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mysql", res.data_source);
+        assert_eq!(
+            "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_connector, cause: failed to connect to mysql, cause: error returned from database: 1044 (42000): Access denied for user 'test_ssl_only'@'%' to database 'test_connector'",
             res.message.unwrap()
         );
 

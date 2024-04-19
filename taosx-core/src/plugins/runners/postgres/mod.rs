@@ -51,7 +51,20 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                         err.to_string()
                     ),
                 ),
-                Ok(_cli) => DataSourceValidation::valid(POSTGRES_ID.to_string(), None),
+                Ok(mut _cli) => {
+                    let rs = _cli.select_one_for_schema("select 1 from pg_tables;").await;
+                    match rs {
+                        Err(err) => DataSourceValidation::invalid(
+                            POSTGRES_ID.to_string(),
+                            format!(
+                                "failed to connect to dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(_) => DataSourceValidation::valid(POSTGRES_ID.to_string(), None),
+                    }
+                }
             }
         }
     }
@@ -421,19 +434,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/postgres").unwrap();
+        let dsn = Dsn::from_str("postgres://postgres:123456@192.168.1.40:5433/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: postgres://postgres:123456@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+        // let dsn = Dsn::from_str(
+        //     "postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=DISABLE",
+        // )
+        // .unwrap();
+        // let res = is_valid(&dsn).await;
+        // assert_eq!(false, res.valid);
+        // assert_eq!(false, res.support);
+        // assert_eq!("postgres", res.data_source);
+        // assert_eq!(
+        //     "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
+        //     res.message.unwrap()
+        // );
+
+        let dsn = Dsn::from_str("postgres://postgres:123456@192.168.1.40:5432/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
