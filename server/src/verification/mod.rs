@@ -1,5 +1,5 @@
 use captcha::filters::{Dots, Noise, Wave};
-use captcha::Captcha;
+use captcha::{Captcha, Geometry};
 use lazy_static::lazy_static;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -143,8 +143,8 @@ pub fn generate_captcha(key: String) -> Option<Vec<u8>> {
         .apply_filter(Noise::new(0.1))
         .apply_filter(Wave::new(2.0, 20.0).horizontal())
         .apply_filter(Wave::new(2.0, 20.0).vertical())
-        .view(200, 80)
-        .apply_filter(Dots::new(10));
+        .apply_filter(Dots::new(10))
+        .extract(Geometry::new(40, 280, 130, 190));
 
     save_to_cache(key, &captcha.chars_as_string());
 
