@@ -21,6 +21,7 @@
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
 ,,n,army,python3 ./test.py -f community/query/show.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
 
 #
 # system test
@@ -47,6 +48,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_varchar.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
@@ -108,6 +110,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -947,6 +958,7 @@
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
+,,y,script,./test.sh -f tsim/join/join.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
 ,,y,script,./test.sh -f tsim/parser/join_manyblocks.sim
@@ -1352,6 +1364,7 @@
 ,,y,script,./test.sh -f tsim/compress/commitlog.sim
 ,,y,script,./test.sh -f tsim/compress/compress2.sim
 ,,y,script,./test.sh -f tsim/compress/compress.sim
+,,y,script,./test.sh -f tsim/compress/compress_col.sim
 ,,y,script,./test.sh -f tsim/compress/uncompress.sim
 ,,y,script,./test.sh -f tsim/compute/avg.sim
 ,,y,script,./test.sh -f tsim/compute/block_dist.sim

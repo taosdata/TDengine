@@ -120,6 +120,7 @@ void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
+int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
@@ -133,6 +134,8 @@ int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
+int64_t vnodeClusterId(SVnode* pVnode);
+int32_t vnodeNodeId(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path, int32_t vnodeVersion);
 int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);

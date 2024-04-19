@@ -130,6 +130,8 @@ class TDTestCase:
         sql = "select count(*) from sta"
         # loop wait max 60s to check count is ok
         tdLog.info("loop wait result ...")
+        time.sleep(5)
+
         tdSql.checkDataLoop(0, 0, 100000, sql, loopCount=120, waitTime=0.5)
 
         time.sleep(5)

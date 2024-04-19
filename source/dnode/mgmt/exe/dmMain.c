@@ -27,15 +27,15 @@
 #include "cus_name.h"
 #else
 #ifndef CUS_NAME
-    #define CUS_NAME      "TDengine"
+#define CUS_NAME "TDengine"
 #endif
 
 #ifndef CUS_PROMPT
-    #define CUS_PROMPT    "taos"
+#define CUS_PROMPT "taos"
 #endif
 
 #ifndef CUS_EMAIL
-    #define CUS_EMAIL     "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 #endif
 // clang-format off
@@ -58,6 +58,7 @@ static struct {
   bool         dumpSdb;
   bool         generateGrant;
   bool         memDbg;
+  bool         checkS3;
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -169,7 +170,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("apollo url overflow");
           return -1;
@@ -182,7 +183,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("env file path overflow");
           return -1;
@@ -207,6 +208,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
+    } else if (strcmp(argv[i], "--checks3") == 0) {
+      global.checkS3 = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
@@ -267,8 +270,21 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
+static int32_t dmCheckS3() {
+  int32_t  code = 0;
+  SConfig *pCfg = taosGetCfg();
+  cfgDumpCfgS3(pCfg, 0, true);
+#if defined(USE_S3)
+  extern int32_t s3CheckCfg();
+
+  code = s3CheckCfg();
+#endif
+  return code;
+}
+
 static int32_t dmInitLog() {
-  return taosCreateLog(CUS_PROMPT"dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
+  return taosCreateLog(CUS_PROMPT "dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
+                       0);
 }
 
 static void taosCleanupArgs() {
@@ -353,6 +369,15 @@ int mainWindows(int argc, char **argv) {
     taosCloseLog();
     taosCleanupArgs();
     return -1;
+  }
+
+  if (global.checkS3) {
+    int32_t code = dmCheckS3();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return code;
   }
 
   if (global.dumpConfig) {

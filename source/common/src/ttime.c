@@ -581,7 +581,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
+int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
   switch (unit) {
     case 's':
       if (val > INT64_MAX / MILLISECOND_PER_SECOND) {
@@ -663,12 +663,12 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
   return getDuration(timestamp, *unit, duration, timePrecision);
 }
 
-int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision) {
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow) {
   errno = 0;
 
   /* get the basic numeric value */
   *duration = taosStr2Int64(token, NULL, 10);
-  if (*duration < 0 || errno != 0) {
+  if ((*duration < 0 && !negativeAllow) || errno != 0) {
     return -1;
   }
 
