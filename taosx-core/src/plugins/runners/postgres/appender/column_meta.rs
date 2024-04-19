@@ -22,7 +22,7 @@ impl ColumnMeta {
             // 布尔值
             "BOOL" => Ok(IpcDataType::NChar(50)),
             // 字符
-            "CHAR" => Ok(IpcDataType::Int8),
+            "CHAR" => Ok(IpcDataType::NChar(50)),
             // 整型数
             "SMALLINT" | "SMALLSERIAL" | "INT2" => Ok(IpcDataType::Int16),
             "INT" | "SERIAL" | "INT4" => Ok(IpcDataType::Int32),
@@ -67,7 +67,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 布尔值
         "BOOL" => Ok(DataType::Boolean),
         // 字符
-        "CHAR" => Ok(DataType::Int8),
+        "CHAR" => Ok(DataType::Utf8),
         // 整型数
         "SMALLINT" | "SMALLSERIAL" | "INT2" => Ok(DataType::Int16),
         "INT" | "SERIAL" | "INT4" => Ok(DataType::Int32),

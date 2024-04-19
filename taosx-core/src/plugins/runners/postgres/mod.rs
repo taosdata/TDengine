@@ -28,7 +28,7 @@ mod worker;
 pub const POSTGRES_ID: &str = "postgres";
 pub const POSTGRES_NAME: &str = "Postgres";
 
-/// check historian dsn is valid
+/// check postgres dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
@@ -128,7 +128,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     Ok(ds_sample_in)
 }
 
-/// migrate or synchronize data from historian to taos
+/// migrate or synchronize data from postgres to taos
 pub async fn postgres_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -252,7 +252,7 @@ fn generate_json_value(
         }
         // 字符
         "CHAR" => {
-            let val = row.try_get::<Option<i8>, _>(cidx)?;
+            let val = row.try_get::<Option<String>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(val)),
@@ -442,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test?sql=select * from public.pg_test2 where ttimezone >= ${start} and ttimezone < ${end}&start=2024-01-01T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;

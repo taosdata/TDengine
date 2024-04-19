@@ -103,19 +103,19 @@ pub async fn to_record_batches(
                 }
                 // 字符
                 "CHAR" => {
-                    let val = row.try_get::<Option<i8>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
                     match val {
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Int8Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Int8Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }
