@@ -3942,6 +3942,7 @@ int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
 void    tDeleteMqMetaRsp(SMqMetaRsp *pRsp);
 
 #define MQ_DATA_RSP_VERSION 100
+
 typedef struct {
   SMqRspHead   head;
   STqOffsetVal reqOffset;
@@ -3953,33 +3954,27 @@ typedef struct {
   SArray*      blockData;
   SArray*      blockTbName;
   SArray*      blockSchema;
-  int64_t      sleepTime;
+} SMqDataRspCommon;
+
+typedef struct {
+  SMqDataRspCommon common;
+  int64_t          sleepTime;
 } SMqDataRsp;
 
-int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
-int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp, int8_t dataVersion);
-void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
+int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const void* pRsp);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, void* pRsp);
+void    tDeleteMqDataRsp(void* pRsp);
 
 typedef struct {
-  SMqRspHead   head;
-  STqOffsetVal reqOffset;
-  STqOffsetVal rspOffset;
-  int32_t      blockNum;
-  int8_t       withTbName;
-  int8_t       withSchema;
-  SArray*      blockDataLen;
-  SArray*      blockData;
-  SArray*      blockTbName;
-  SArray*      blockSchema;
-  // the following attributes are extended from SMqDataRsp
-  int32_t createTableNum;
-  SArray* createTableLen;
-  SArray* createTableReq;
+  SMqDataRspCommon common;
+  int32_t          createTableNum;
+  SArray*          createTableLen;
+  SArray*          createTableReq;
 } STaosxRsp;
 
-int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
-int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp, int8_t dateVersion);
-void    tDeleteSTaosxRsp(STaosxRsp* pRsp);
+int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const void* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
+void    tDeleteSTaosxRsp(void* pRsp);
 
 typedef struct {
   SMqRspHead head;
