@@ -760,16 +760,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
-
-  // checkpoint ver is the kept version, handled data should be the next version.
-  if (pChkInfo->checkpointId != 0) {
-    pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
-    pChkInfo->processedVer = pChkInfo->checkpointVer;
-    pTask->execInfo.startCheckpointVer = pChkInfo->nextProcessVer;
-    pTask->execInfo.startCheckpointId = pChkInfo->checkpointId;
-    tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
-           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
-  }
+  tqSetRestoreVersionInfo(pTask);
 
   char* p = streamTaskGetStatus(pTask)->name;
   const char* pNext = streamTaskGetStatusStr(pTask->status.taskStatus);
