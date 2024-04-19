@@ -104,6 +104,13 @@ typedef struct {
   int64_t timeseriesAllowed;
 } SGrantInfo;
 
+typedef struct {
+  int8_t  encrypting;
+  int16_t nEncrypt;
+  int16_t nSuccess;
+  int16_t nFailed;
+} SEncryptMgmt;
+
 typedef struct SMnode {
   int32_t        selfDnodeId;
   int64_t        clusterId;
@@ -127,6 +134,7 @@ typedef struct SMnode {
   SProfileMgmt   profileMgmt;
   STelemMgmt     telemMgmt;
   SSyncMgmt      syncMgmt;
+  SEncryptMgmt   encryptMgmt;
   SGrantInfo     grant;
   MndMsgFp       msgFp[TDMT_MAX];
   SMsgCb         msgCb;

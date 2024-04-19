@@ -67,7 +67,8 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_S3_CHUNKSIZE,
   DB_OPTION_S3_KEEPLOCAL,
   DB_OPTION_S3_COMPACT,
-  DB_OPTION_KEEP_TIME_OFFSET
+  DB_OPTION_KEEP_TIME_OFFSET,
+  DB_OPTION_ENCRYPT_ALGORITHM,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -232,6 +233,7 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
 SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe);
 SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const SToken* pConfig, const SToken* pValue);
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions);
