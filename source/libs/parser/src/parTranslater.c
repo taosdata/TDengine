@@ -305,7 +305,15 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_MACHINES,
-  },    
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_ENCRYPTIONS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
   { .showType = QUERY_NODE_SHOW_TSMAS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TSMAS,
@@ -6501,6 +6509,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->s3Compact = pStmt->pOptions->s3Compact;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
+  pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -6642,6 +6651,21 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
                                      pOptions->cacheModelStr);
     }
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if ('\0' != pOptions->encryptAlgorithmStr[0]) {
+    if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
+      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
+    } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
+      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_SM4;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option encrypt_algorithm: %s", pOptions->encryptAlgorithmStr);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6839,6 +6863,9 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbCacheModelOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbEncryptAlgorithmOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code =
         checkDbRangeOption(pCxt, "cacheSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_SIZE, TSDB_MAX_DB_CACHE_SIZE);
   }
@@ -6923,6 +6950,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "withArbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR,
                              TSDB_MAX_DB_WITH_ARBITRATOR);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
+                             TSDB_MAX_ENCRYPT_ALGO);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
@@ -7070,6 +7101,11 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgClusterReq, pReq);
       break;
     }
+    case TDMT_MND_CREATE_ENCRYPT_KEY: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
+      break;
+    }
+
     default: {
       break;
     }
@@ -7154,6 +7190,11 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
   int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (pStmt->pOptions->encryptAlgorithm != -1) {
+    code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
     return code;
   }
 
@@ -8378,7 +8419,20 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   strcpy(cfgReq.config, pStmt->config);
   strcpy(cfgReq.value, pStmt->value);
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  int32_t code = 0;
+  if (0 == strncasecmp(cfgReq.config, "encrypt_key", 12)) {
+    int32_t klen = strlen(cfgReq.value);
+    if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN,
+                                     "Invalid encryption key length: %d, valid range [%d,%d]", klen,
+                                     ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    }
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  } else {
+    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  }
+
   tFreeSMCfgDnodeReq(&cfgReq);
   return code;
 }
@@ -13117,6 +13171,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;

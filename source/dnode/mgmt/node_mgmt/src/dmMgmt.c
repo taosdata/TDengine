@@ -161,6 +161,46 @@ int32_t dmInitVars(SDnode *pDnode) {
     return -1;
   }
 
+#if defined(TD_ENTERPRISE)
+  tsiEncryptAlgorithm = pData->encryptAlgorigthm;
+  tsiEncryptScope = pData->encryptScope;
+  /*
+  if(tsiEncryptAlgorithm != 0) {
+    if(pData->machineId != NULL && strlen(pData->machineId) > 0){
+      dInfo("get crypt key at startup, machineId:%s", pData->machineId);
+      int32_t code = 0;
+
+      //code = taosGetCryptKey(tsAuthCode, pData->machineId, tsCryptKey);
+      code = 0;
+      strncpy(tsEncryptKey, tsAuthCode, 16);
+
+      if(code != 0) {
+        if(code == -1){
+          terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
+          dError("machine code changed, can't get crypt key");
+        }
+        if(code == -2){
+          terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
+          dError("failed to get crypt key");
+        }
+        return -1;
+      }
+
+      if(strlen(tsEncryptKey) == 0){
+        terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
+        dError("failed to get crypt key at startup since key is null, machineId:%s", pData->machineId);
+        return -1;
+      }
+    }
+    else{
+      terrno = TSDB_CODE_DNODE_NO_MACHINE_CODE;
+      dError("failed to get crypt key at startup, machineId:%s", pData->machineId);
+      return -1;
+    }
+  }
+  */
+#endif
+
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");
     return -1;

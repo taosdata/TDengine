@@ -22,6 +22,7 @@
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
+#include "dmUtil.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -49,6 +50,8 @@
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
+#define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
+
 // clang-format on
 static struct {
 #ifdef WINDOWS
@@ -67,6 +70,8 @@ static struct {
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
   int64_t      startTime;
+  bool         generateCode;
+  char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetGlobalDebugFlag(143); }
@@ -195,6 +200,23 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-y") == 0) {
+      global.generateCode = true;
+      if(i < argc - 1) {
+        int32_t len = strlen(argv[++i]);
+        if (len < ENCRYPT_KEY_LEN_MIN) {
+          printf("encrypt key is too short, it should be great or equal to %d\n", ENCRYPT_KEY_LEN_MIN);
+          return -1;
+        }
+        if (len > ENCRYPT_KEY_LEN) {
+          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPT_KEY_LEN);
+          return -1;
+        }
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+      } else {
+        printf("'-y' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -259,6 +281,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+  printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
@@ -363,6 +386,24 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return -1;
   }
+
+  if(global.generateCode) {
+    if(dmCheckRunning(tsDataDir) == NULL) {
+      dError("failed to generate encrypt code since taosd is running, please stop it first");
+      return -1;
+    }
+    int ret = dmUpdateEncryptKey(global.encryptKey);
+    taosCloseLog();
+    taosCleanupArgs();
+    return ret;
+  }
+
+  if(dmGetEncryptKey() != 0){
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return -1;
+  };
 
   if (taosConvInit() != 0) {
     dError("failed to init conv");

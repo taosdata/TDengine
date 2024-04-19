@@ -281,6 +281,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowGrantsLogsStmt";
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return "ShowClusterMachinesStmt";
+    case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+      return "ShowEncryptionsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -7047,9 +7049,13 @@ static int32_t showGrantsLogsStmtToJson(const void* pObj, SJson* pJson) { return
 
 static int32_t showClusterMachinesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
+static int32_t showEncryptionsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
 static int32_t jsonToShowGrantsLogsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static int32_t jsonToShowClusterMachinesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t jsonToShowEncryptionsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
@@ -7651,6 +7657,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showGrantsLogsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return showClusterMachinesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+      return showEncryptionsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return showDnodeVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
@@ -7996,6 +8004,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowGrantsLogsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return jsonToShowClusterMachinesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+      return jsonToShowEncryptionsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return jsonToShowDnodeVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:

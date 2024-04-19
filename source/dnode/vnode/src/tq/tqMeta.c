@@ -76,7 +76,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
 }
 
 int32_t tqMetaOpen(STQ* pTq) {
-  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, 0, NULL) < 0) {
     return -1;
   }
 

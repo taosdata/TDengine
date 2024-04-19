@@ -42,11 +42,13 @@ static const char *offlineReason[] = {
     "version not match",
     "dnodeId not match",
     "clusterId not match",
-    "interval not match",
+    "statusInterval not match",
     "timezone not match",
     "locale not match",
     "charset not match",
     "ttlChangeOnWrite not match",
+    "enableWhiteList not match",
+    "encryptionKey not match",
     "unknown",
 };
 
@@ -78,6 +80,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
+static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
@@ -114,6 +118,8 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -372,7 +378,7 @@ int32_t mndGetDbSize(SMnode *pMnode) {
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * (int64_t)tsStatusInterval) {
-    if (pDnode->rebootTime > 0) {
+    if (pDnode->rebootTime > 0 && pDnode->offlineReason == DND_REASON_ONLINE) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
     return false;
@@ -436,37 +442,51 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   if (pCfg->statusInterval != tsStatusInterval) {
     mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusInterval,
            tsStatusInterval);
+    terrno = TSDB_CODE_DNODE_INVALID_STATUS_INTERVAL;
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
   if ((0 != strcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
     mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
            pCfg->timezone, pCfg->checkTime, tsTimezoneStr, pMnode->checkTime);
+    terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
   if (0 != strcasecmp(pCfg->locale, tsLocale)) {
     mError("dnode:%d, locale:%s inconsistent with cluster:%s", pDnode->id, pCfg->locale, tsLocale);
+    terrno = TSDB_CODE_DNODE_INVALID_LOCALE;
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
   if (0 != strcasecmp(pCfg->charset, tsCharset)) {
     mError("dnode:%d, charset:%s inconsistent with cluster:%s", pDnode->id, pCfg->charset, tsCharset);
+    terrno = TSDB_CODE_DNODE_INVALID_CHARSET;
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
   if (pCfg->ttlChangeOnWrite != tsTtlChangeOnWrite) {
     mError("dnode:%d, ttlChangeOnWrite:%d inconsistent with cluster:%d", pDnode->id, pCfg->ttlChangeOnWrite,
            tsTtlChangeOnWrite);
+    terrno = TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR;
     return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
   }
   int8_t enable = tsEnableWhiteList ? 1 : 0;
   if (pCfg->enableWhiteList != enable) {
-    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    mError("dnode:%d, enableWhiteList:%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    terrno = TSDB_CODE_DNODE_INVALID_EN_WHITELIST;
     return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
   }
 
-  return 0;
+  if (!atomic_load_8(&pMnode->encryptMgmt.encrypting) &&
+      (pCfg->encryptionKeyStat != tsEncryptionKeyStat || pCfg->encryptionKeyChksum != tsEncryptionKeyChksum)) {
+    mError("dnode:%d, encryptionKey:%" PRIi8 "-%u inconsistent with cluster:%" PRIi8 "-%u", pDnode->id,
+           pCfg->encryptionKeyStat, pCfg->encryptionKeyChksum, tsEncryptionKeyStat, tsEncryptionKeyChksum);
+    terrno = pCfg->encryptionKeyChksum ? TSDB_CODE_DNODE_INVALID_ENCRYPTKEY : TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
+    return DND_REASON_ENCRYPTION_KEY_NOT_MATCH;
+  }
+
+  return DND_REASON_ONLINE;
 }
 
 static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
@@ -795,8 +815,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck =
-      !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != statusReq.ipWhiteVer;
+  bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -891,7 +912,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
     if (pDnode->offlineReason != 0) {
       mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
-      terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
+      if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
       goto _OVER;
     }
 
@@ -909,6 +930,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfDiskCfg = statusReq.numOfDiskCfg;
     pDnode->memAvail = statusReq.memAvail;
     pDnode->memTotal = statusReq.memTotal;
+    pDnode->encryptionKeyStat = statusReq.clusterCfg.encryptionKeyStat;
+    pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
       mndUpdateDnodeObj(pMnode, pDnode);
@@ -1494,6 +1517,136 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
+static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int8_t  encrypting = 0;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  int32_t klen = strlen(pDcfgReq->value);
+  if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+    code = TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN;
+    mGError("msg:%p, failed to create encrypt_key since invalid key length:%d, valid range:[%d, %d]", pReq, klen,
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    goto _exit;
+  }
+
+  if (0 != (encrypting = atomic_val_compare_exchange_8(&pMnode->encryptMgmt.encrypting, 0, 1))) {
+    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    mGWarn("msg:%p, failed to create encrypt key since %s, encrypting:%" PRIi8, pReq, tstrerror(code), encrypting);
+    goto _exit;
+  }
+
+  if (tsEncryptionKeyStat == ENCRYPT_KEY_STAT_SET || tsEncryptionKeyStat == ENCRYPT_KEY_STAT_LOADED) {
+    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+    code = TSDB_CODE_QRY_DUPLICATED_OPERATION;
+    mGWarn("msg:%p, failed to create encrypt key since %s, stat:%" PRIi8 ", checksum:%u", pReq, tstrerror(code),
+           tsEncryptionKeyStat, tsEncryptionKeyChksum);
+    goto _exit;
+  }
+
+  atomic_store_16(&pMnode->encryptMgmt.nEncrypt, 0);
+  atomic_store_16(&pMnode->encryptMgmt.nSuccess, 0);
+  atomic_store_16(&pMnode->encryptMgmt.nFailed, 0);
+
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send create encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+
+    if (dnodeId == -1 || pDnode->id == dnodeId || dnodeId == 0) {
+      SEpSet  epSet = mndGetDnodeEpset(pDnode);
+      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
+      void   *pBuf = rpcMallocCont(bufLen);
+
+      if (pBuf != NULL) {
+        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+        if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
+          atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
+        }
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (atomic_load_16(&pMnode->encryptMgmt.nEncrypt) <= 0) {
+    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+  }
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
+#ifdef TD_ENTERPRISE
+  SMnode       *pMnode = pReq->info.node;
+  SMCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return -1;
+  }
+  const STraceId *trace = &pReq->info.traceId;
+  SDCfgDnodeReq   dcfgReq = {0};
+  if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
+    strcpy(dcfgReq.config, cfgReq.config);
+    strcpy(dcfgReq.value, cfgReq.value);
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
+  } else {
+    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
+    tFreeSMCfgDnodeReq(&cfgReq);
+    return -1;
+  }
+
+#else
+  return 0;
+#endif
+}
+
+static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
+  SMnode *pMnode = pRsp->info.node;
+  int16_t nSuccess = 0;
+  int16_t nFailed = 0;
+
+  if (0 == pRsp->code) {
+    nSuccess = atomic_add_fetch_16(&pMnode->encryptMgmt.nSuccess, 1);
+  } else {
+    nFailed = atomic_add_fetch_16(&pMnode->encryptMgmt.nFailed, 1);
+  }
+
+  int16_t nReq = atomic_load_16(&pMnode->encryptMgmt.nEncrypt);
+  bool    finished = nSuccess + nFailed >= nReq;
+
+  if (finished) {
+    atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+  }
+
+  const STraceId *trace = &pRsp->info.traceId;
+  mGInfo("msg:%p, create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", pRsp, nReq,
+         nSuccess, nFailed, finished ? "encrypt done" : "in encrypting");
+
+  return 0;
+}
+
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t totalRows = 0;
@@ -1550,7 +1703,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
-  char       buf[TSDB_CONN_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE];  // make sure TSDB_CONN_ACTIVE_KEY_LEN >= TSDB_EP_LEN
+  char       buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);

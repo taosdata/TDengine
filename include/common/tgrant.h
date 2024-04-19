@@ -58,9 +58,11 @@ typedef enum {
   TSDB_GRANT_BACKUP_RESTORE,
 } EGrantType;
 
+int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
+int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 int32_t grantCheck(EGrantType grant);
 int32_t grantCheckExpire(EGrantType grant);
-char*   tGetMachineId();
+char   *tGetMachineId();
 
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
