@@ -102,9 +102,9 @@ uint16_t getDefaultCompress(uint8_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_MAX:
-      return TSDB_COLVAL_COMPRESS_ZSTD;
+      return TSDB_COLVAL_COMPRESS_DISABLED;
     default:
-      return TSDB_COLVAL_COMPRESS_ZSTD;
+      return TSDB_COLVAL_COMPRESS_DISABLED;
   }
 }
 const char* getDefaultCompressStr(uint8_t type) { return columnCompressStr(getDefaultCompress(type)); }
