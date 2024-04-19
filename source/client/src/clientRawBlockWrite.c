@@ -1623,11 +1623,16 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
   uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
-  rspObj.resIter = -1;
-  rspObj.resType = RES_TYPE__TMQ;
+  rspObj.common.resIter = -1;
+  rspObj.common.resType = RES_TYPE__TMQ;
 
+  int8_t dataVersion = *(int8_t*)data;
+  if (dataVersion >= MQ_DATA_RSP_VERSION){
+    data += sizeof(int8_t) + sizeof(int32_t);
+    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+  }
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
+  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;
@@ -1656,13 +1661,13 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  while (++rspObj.resIter < rspObj.rsp.blockNum) {
-    void* pRetrieve = taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
-    if (!rspObj.rsp.withSchema) {
+  while (++rspObj.common.resIter < rspObj.rsp.common.blockNum) {
+    void* pRetrieve = taosArrayGetP(rspObj.rsp.common.blockData, rspObj.common.resIter);
+    if (!rspObj.rsp.common.withSchema) {
       goto end;
     }
 
-    const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.blockTbName, rspObj.resIter);
+    const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.common.blockTbName, rspObj.common.resIter);
     if (!tbName) {
       code = TSDB_CODE_TMQ_INVALID_MSG;
       goto end;
@@ -1693,7 +1698,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
     }
 
-    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
+    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.common.blockSchema, rspObj.common.resIter);
     TAOS_FIELD*     fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
     if (fields == NULL) {
       goto end;
@@ -1752,11 +1757,17 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   }
   uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
-  rspObj.resIter = -1;
-  rspObj.resType = RES_TYPE__TMQ_METADATA;
+  rspObj.common.resIter = -1;
+  rspObj.common.resType = RES_TYPE__TMQ_METADATA;
+
+  int8_t dataVersion = *(int8_t*)data;
+  if (dataVersion >= MQ_DATA_RSP_VERSION){
+    data += sizeof(int8_t) + sizeof(int32_t);
+    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+  }
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp, *(int8_t*)data);
+  code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp);
   if (code != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto end;
@@ -1786,14 +1797,14 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
-  uDebug(LOG_ID_TAG " write raw metadata block num:%d", LOG_ID_VALUE, rspObj.rsp.blockNum);
-  while (++rspObj.resIter < rspObj.rsp.blockNum) {
-    void* pRetrieve = taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
-    if (!rspObj.rsp.withSchema) {
+  uDebug(LOG_ID_TAG " write raw metadata block num:%d", LOG_ID_VALUE, rspObj.rsp.common.blockNum);
+  while (++rspObj.common.resIter < rspObj.rsp.common.blockNum) {
+    void* pRetrieve = taosArrayGetP(rspObj.rsp.common.blockData, rspObj.common.resIter);
+    if (!rspObj.rsp.common.withSchema) {
       goto end;
     }
 
-    const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.blockTbName, rspObj.resIter);
+    const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.common.blockTbName, rspObj.common.resIter);
     if (!tbName) {
       code = TSDB_CODE_TMQ_INVALID_MSG;
       goto end;
@@ -1865,7 +1876,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
     }
 
-    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
+    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.common.blockSchema, rspObj.common.resIter);
     TAOS_FIELD*     fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
     if (fields == NULL) {
       goto end;
@@ -1944,6 +1955,64 @@ char* tmq_get_json_meta(TAOS_RES* res) {
 
 void tmq_free_json_meta(char* jsonMeta) { taosMemoryFreeClear(jsonMeta); }
 
+static int32_t getOffSetLen(const void *rsp){
+  const SMqDataRspCommon *pRsp = rsp;
+  SEncoder coder = {0};
+  tEncoderInit(&coder, NULL, 0);
+  if (tEncodeSTqOffsetVal(&coder, &pRsp->reqOffset) < 0) return -1;
+  if (tEncodeSTqOffsetVal(&coder, &pRsp->rspOffset) < 0) return -1;
+  int32_t pos = coder.pos;
+  tEncoderClear(&coder);
+  return pos;
+}
+
+typedef int32_t __encode_func__(SEncoder *pEncoder, const void *pRsp);
+
+static int32_t encodeMqDataRsp(__encode_func__* encodeFunc, void* rspObj, tmq_raw_data* raw){
+  int32_t  len  = 0;
+  int32_t  code = 0;
+  SEncoder encoder = {0};
+  void*    buf  = NULL;
+  tEncodeSize(encodeFunc, rspObj, len, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
+  }
+  len += sizeof(int8_t) + sizeof(int32_t);
+  buf = taosMemoryCalloc(1, len);
+  if(buf == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAILED;
+  }
+  tEncoderInit(&encoder, buf, len);
+  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+      terrno = TSDB_CODE_INVALID_MSG;
+      goto FAILED;
+  }
+  int32_t offsetLen = getOffSetLen(rspObj);
+  if(offsetLen <= 0){
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
+  }
+  if (tEncodeI32(&encoder, offsetLen) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
+  }
+  if(encodeFunc(&encoder, rspObj) < 0){
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto FAILED;
+  }
+  tEncoderClear(&encoder);
+
+  raw->raw = buf;
+  raw->raw_len = len;
+  return 0;
+FAILED:
+  tEncoderClear(&encoder);
+  taosMemoryFree(buf);
+  return terrno;
+}
+
 int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
   if (!raw || !res) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -1957,42 +2026,19 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     uDebug("tmq get raw type meta:%p", raw);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj* rspObj = ((SMqRspObj*)res);
-
-    int32_t len = 0;
-    int32_t code = 0;
-    tEncodeSize(tEncodeMqDataRsp, &rspObj->rsp, len, code);
-    if (code < 0) {
-      return -1;
+    if(encodeMqDataRsp(tEncodeMqDataRsp, &rspObj->rsp, raw) != 0){
+      uError("tmq get raw type error:%d", terrno);
+      return terrno;
     }
-
-    void*    buf = taosMemoryCalloc(1, len);
-    SEncoder encoder = {0};
-    tEncoderInit(&encoder, buf, len);
-    tEncodeMqDataRsp(&encoder, &rspObj->rsp);
-    tEncoderClear(&encoder);
-
-    raw->raw = buf;
-    raw->raw_len = len;
     raw->raw_type = RES_TYPE__TMQ;
     uDebug("tmq get raw type data:%p", raw);
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* rspObj = ((SMqTaosxRspObj*)res);
 
-    int32_t len = 0;
-    int32_t code = 0;
-    tEncodeSize(tEncodeSTaosxRsp, &rspObj->rsp, len, code);
-    if (code < 0) {
-      return -1;
+    if(encodeMqDataRsp(tEncodeSTaosxRsp, &rspObj->rsp, raw) != 0){
+      uError("tmq get raw type error:%d", terrno);
+      return terrno;
     }
-
-    void*    buf = taosMemoryCalloc(1, len);
-    SEncoder encoder = {0};
-    tEncoderInit(&encoder, buf, len);
-    tEncodeSTaosxRsp(&encoder, &rspObj->rsp);
-    tEncoderClear(&encoder);
-
-    raw->raw = buf;
-    raw->raw_len = len;
     raw->raw_type = RES_TYPE__TMQ_METADATA;
     uDebug("tmq get raw type metadata:%p", raw);
   } else {
