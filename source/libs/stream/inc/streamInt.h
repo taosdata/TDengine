@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define CHECK_DOWNSTREAM_INTERVAL      100
+#define CHECK_RSP_INTERVAL             300
 #define LAUNCH_HTASK_INTERVAL          100
 #define WAIT_FOR_MINIMAL_INTERVAL      100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK  40

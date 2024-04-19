@@ -200,6 +200,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
+  streamTaskCompleteCheck(&pTask->taskCheckInfo, pTask->id.idStr);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -213,6 +214,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     } else {
       tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
       streamTaskUpdateEpsetInfo(*ppHTask, req.pNodeList);
+      streamTaskResetStatus(*ppHTask);
+      streamTaskCompleteCheck(&(*ppHTask)->taskCheckInfo, (*ppHTask)->id.idStr);
     }
   }
 
@@ -455,8 +458,8 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
 }
 
-static void setParam(SStreamTask* pTask, int64_t* initTs, bool* hasHTask, STaskId* pId) {
-  *initTs = pTask->execInfo.init;
+static void setParam(SStreamTask* pTask, int64_t* startCheckTs, bool* hasHTask, STaskId* pId) {
+  *startCheckTs = pTask->execInfo.checkTs;
 
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     *hasHTask = true;
@@ -525,6 +528,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   if (pTask == NULL) {
     streamMetaRLock(pMeta);
 
+    // let's try to find this task in hashmap
     SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask != NULL) {
       setParam(*ppTask, &initTs, &hasHistoryTask, &fId);
@@ -533,7 +537,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
       if (hasHistoryTask) {
         streamMetaAddTaskLaunchResult(pMeta, fId.streamId, fId.taskId, initTs, now, false);
       }
-    } else {
+    } else {  // not exist even in the hash map of meta, forget it
       streamMetaRUnLock(pMeta);
     }
 
@@ -552,7 +556,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
 
 typedef struct SMStreamCheckpointReadyRspMsg {
   SMsgHead head;
-}SMStreamCheckpointReadyRspMsg;
+} SMStreamCheckpointReadyRspMsg;
 
 int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   int32_t vgId = pMeta->vgId;
@@ -675,6 +679,17 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
+void tqStreamRmTaskBackend(SStreamMeta* pMeta, STaskId* id) {
+  char taskKey[128] = {0};
+  sprintf(taskKey, "0x%" PRIx64 "-0x%x", id->streamId, (int32_t)id->taskId);
+
+  char* path = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
+  sprintf(path, "%s%s%s", pMeta->path, TD_DIRSEP, taskKey);
+  taosRemoveDir(path);
+  taosMemoryFree(path);
+  // do nothing
+}
+
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   int32_t              vgId = pMeta->vgId;
@@ -720,6 +735,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
+
+  tqStreamRmTaskBackend(pMeta, &id);
   return 0;
 }
 
@@ -749,7 +766,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int64_t st = taosGetTimestampMs();
 
   streamMetaWLock(pMeta);
-  if (pMeta->startInfo.taskStarting == 1) {
+  if (pMeta->startInfo.startAllTasks == 1) {
     pMeta->startInfo.restartCount += 1;
     tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
             pMeta->startInfo.restartCount);
@@ -757,7 +774,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pMeta->startInfo.taskStarting = 1;
+  pMeta->startInfo.startAllTasks = 1;
   streamMetaWUnLock(pMeta);
 
   terrno = 0;
@@ -823,7 +840,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_STOP_ALL_TASKS) {
     streamMetaStopAllTasks(pMeta);
     return 0;
-  } else if (type == STREAM_EXEC_T_RESUME_TASK) { // task resume to run after idle for a while
+  } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
 
     if (pTask != NULL) {
@@ -849,8 +866,8 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   if (pTask != NULL) {  // even in halt status, the data in inputQ must be processed
     char* p = NULL;
     if (streamTaskReadyToRun(pTask, &p)) {
-      tqDebug("vgId:%d s-task:%s status:%s start to process block from inputQ, next checked ver:%" PRId64, vgId, pTask->id.idStr,
-              p, pTask->chkInfo.nextProcessVer);
+      tqDebug("vgId:%d s-task:%s status:%s start to process block from inputQ, next checked ver:%" PRId64, vgId,
+              pTask->id.idStr, p, pTask->chkInfo.nextProcessVer);
       streamExecTask(pTask);
     } else {
       int8_t status = streamTaskSetSchedStatusInactive(pTask);
@@ -873,7 +890,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   bool            scanWal = false;
 
   streamMetaWLock(pMeta);
-  if (pStartInfo->taskStarting == 1) {
+  if (pStartInfo->startAllTasks == 1) {
     tqDebug("vgId:%d already in start tasks procedure in other thread, restartCounter:%d, do nothing", vgId,
             pMeta->startInfo.restartCount);
   } else {  // not in starting procedure
@@ -923,13 +940,20 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   taosThreadMutexLock(&pTask->lock);
+  streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+  SStreamTaskState *pState = streamTaskGetStatus(pTask);
+  if (pState->state == TASK_STATUS__CK) {
     tqDebug("s-task:%s reset task status from checkpoint, current checkpointingId:%" PRId64 ", transId:%d",
             pTask->id.idStr, pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
-    streamTaskClearCheckInfo(pTask, true);
     streamTaskSetStatusReady(pTask);
+  } else if (pState->state == TASK_STATUS__UNINIT) {
+    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
+    ASSERT(pTask->status.downstreamReady == 0);
+    /*int32_t ret = */ streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+  } else {
+    tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
   }
 
   taosThreadMutexUnlock(&pTask->lock);
@@ -938,7 +962,7 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
+int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg) {
   SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg;
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
@@ -975,9 +999,10 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t sversion, int8_t igUntreated, bool fromVnode) {
-  SStreamMeta *pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
-  int32_t vgId = pMeta->vgId;
+static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t sversion, int8_t igUntreated,
+                                       bool fromVnode) {
+  SStreamMeta* pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+  int32_t      vgId = pMeta->vgId;
   if (pTask == NULL) {
     return -1;
   }
@@ -999,7 +1024,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
       // discard all the data  when the stream task is suspended.
       walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
-                  ", schedStatus:%d",
+              ", schedStatus:%d",
               vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
     } else {  // from the previous paused version and go on
       tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
@@ -1025,11 +1050,11 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   return 0;
 }
 
-int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* msg, bool fromVnode){
+int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* msg, bool fromVnode) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-  SStreamMeta *pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  int32_t      code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
+  SStreamMeta*           pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+  SStreamTask*           pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  int32_t                code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     return code;
   }
@@ -1043,9 +1068,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   return code;
 }
 
-int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
-  return taosArrayGetSize(pMeta->pTaskList);
-}
+int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) { return taosArrayGetSize(pMeta->pTaskList); }
 
 static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   rpcFreeCont(pMsg->pCont);

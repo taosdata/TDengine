@@ -67,6 +67,8 @@ uint8_t getDefaultEncode(uint8_t type) {
       return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
+      return TSDB_COLVAL_ENCODE_DISABLED;
+
     case TSDB_DATA_TYPE_MAX:
       return TSDB_COLVAL_ENCODE_SIMPLE8B;
 
@@ -365,7 +367,7 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
   } else if (type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) {
     return TSDB_COLVAL_ENCODE_DELTAD == l1 ? 1 : 0;
   } else if ((type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR) || type == TSDB_DATA_TYPE_JSON ||
-             type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY) {
+             type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     return l1 == TSDB_COLVAL_ENCODE_DISABLED ? 1 : 0;
     // if (l1 >= TSDB_COLVAL_ENCODE_NOCHANGE || l1 <= TSDB_COLVAL_ENCODE_DELTAD) {
     //   return 1;

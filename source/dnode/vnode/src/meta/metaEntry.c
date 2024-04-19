@@ -149,17 +149,22 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     metaError("meta/entry: invalide table type: %" PRId8 " decode failed.", pME->type);
     return -1;
   }
-  if (!tDecodeIsEnd(pCoder)) {
-    uDebug("set type: %d, tableName:%s", pME->type, pME->name);
-    if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
-    TABLE_SET_COL_COMPRESSED(pME->flags);
-  } else {
-    uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
-    if (pME->type == TSDB_SUPER_TABLE) {
+  if (pME->type == TSDB_SUPER_TABLE) {
+    if (TABLE_IS_COL_COMPRESSED(pME->flags)) {
+      if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
+    } else {
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->stbEntry.schemaRow);
-    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      TABLE_SET_COL_COMPRESSED(pME->flags);
+    }
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      uDebug("set type: %d, tableName:%s", pME->type, pME->name);
+      if (meteDecodeColCmprEntry(pCoder, pME) < 0) return -1;
+    } else {
+      uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
       metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow);
     }
+    TABLE_SET_COL_COMPRESSED(pME->flags);
   }
 
   tEndDecode(pCoder);

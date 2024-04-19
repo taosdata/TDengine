@@ -309,11 +309,10 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
 
   pRec->numOfSubmit += 1;
   if ((pRec->numOfSubmit % 1000) == 0) {
-    double el = (taosGetTimestampMs() - pTask->execInfo.start) / 1000.0;
+    double el = (taosGetTimestampMs() - pTask->execInfo.readyTs) / 1000.0;
     tqInfo("s-task:%s vgId:%d write %" PRId64 " blocks (%" PRId64 " rows) in %" PRId64
            " submit into dst table, %.2fMiB duration:%.2f Sec.",
-           pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MiB(pRec->dataSize),
-           el);
+           id, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MiB(pRec->dataSize), el);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -604,7 +603,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           dataIndex++;
         } else {
           void* colData = colDataGetData(pColData, j);
-          if (IS_STR_DATA_TYPE(pCol->type)) {
+          if (IS_VAR_DATA_TYPE(pCol->type)) {
             // address copy, no value
             SValue sv =
                 (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};

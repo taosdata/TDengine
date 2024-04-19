@@ -121,6 +121,7 @@ if (${BUILD_CONTRIB})
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
         PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
@@ -130,6 +131,7 @@ else()
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
     if (${TD_LINUX})
@@ -162,6 +164,7 @@ target_link_libraries(
     PUBLIC scheduler
     PUBLIC tdb
     PUBLIC audit
+    PUBLIC crypt
 
     # PUBLIC bdb
     # PUBLIC scalar
