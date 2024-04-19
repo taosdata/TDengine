@@ -102,14 +102,14 @@ uint16_t getDefaultCompress(uint8_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_MAX:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_XZ;
     default:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_XZ;
   }
 }
 const char* getDefaultCompressStr(uint8_t type) { return columnCompressStr(getDefaultCompress(type)); }
 
-uint8_t     getDefaultLevel(uint8_t type) { return TSDB_COLVAL_LEVEL_MEDIUM; }
+uint8_t     getDefaultLevel(uint8_t type) { return TSDB_COLVAL_LEVEL_HIGH; }
 const char* getDefaultLevelStr(uint8_t type) { return columnLevelStr(getDefaultLevel(type)); }
 
 const char* columnEncodeStr(uint8_t type) {
