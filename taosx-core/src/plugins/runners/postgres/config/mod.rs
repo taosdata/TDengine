@@ -200,11 +200,11 @@ impl TaskConfig {
 
         if sql.contains("${start}") && sql.contains("${end}") {
             let query_start = format!(
-                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
                 start.format("%Y-%m-%d %H:%M:%S")
             );
             let query_end = format!(
-                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
                 end.format("%Y-%m-%d %H:%M:%S")
             );
             sql = sql
@@ -212,25 +212,25 @@ impl TaskConfig {
                 .replace("${end}", &query_end);
         } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
             let query_start = format!(
-                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
                 start.format("%Y-%m-%d %H:%M:%S")
             );
             let query_end = format!(
-                "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
+                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
                 end.format("%Y-%m-%d %H:%M:%S")
             );
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);
         } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
-            let query_start = format!("STR_TO_DATE('{}','%Y-%m-%d')", start.format("%Y-%m-%d"));
-            let query_end = format!("STR_TO_DATE('{}','%Y-%m-%d')", end.format("%Y-%m-%d"));
+            let query_start = format!("TO_DATE('{}','YYYY-MM-DD')", start.format("%Y-%m-%d"));
+            let query_end = format!("TO_DATE('{}','YYYY-MM-DD')", end.format("%Y-%m-%d"));
             sql = sql
                 .replace("${start_date}", &query_start)
                 .replace("${end_date}", &query_end);
         } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
-            let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start.format("%H:%M:%S"));
-            let query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            let query_start = format!("'{}'", start.format("%H:%M:%S"));
+            let query_end = format!("'{}'", end.format("%H:%M:%S"));
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
@@ -302,7 +302,31 @@ mod tests {
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
-        assert!(sql.contains("STR_TO_DATE('2021-01-02 00:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("TO_TIMESTAMP('2021-01-01 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+        assert!(sql.contains("TO_TIMESTAMP('2021-01-02 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_no_tz} and ts<${end_no_tz}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+            .unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("TO_TIMESTAMP('2021-01-01 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+        assert!(sql.contains("TO_TIMESTAMP('2021-01-02 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+            .unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("TO_DATE('2021-01-01','YYYY-MM-DD')"));
+        assert!(sql.contains("TO_DATE('2021-01-02','YYYY-MM-DD')"));
+
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+            .unwrap();
+        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("'00:00:00'"));
+        assert!(sql.contains("'00:00:00'"));
     }
 }
