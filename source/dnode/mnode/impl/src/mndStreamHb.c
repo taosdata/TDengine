@@ -258,7 +258,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
-    mDebug("%d stream node(s) need updated from report of hbMsg(vgId:%d)", numOfUpdated, req.vgId);
+    mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
     setNodeEpsetExpiredFlag(req.pUpdateNodes);
   }
 
