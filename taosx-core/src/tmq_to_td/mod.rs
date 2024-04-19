@@ -6,6 +6,7 @@ use crate::{
     sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
     Action,
+    utils::constants::VERSION_3_3_0,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use linked_hash_map::LinkedHashMap;
@@ -351,13 +352,33 @@ async fn write_meta(
     with_meta_drop: bool,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
-    let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
+    let mut json_meta = match meta.as_json_meta().await.context("Fetch json meta error") {
+        Ok(json_meta) => json_meta,
+        Err(err) => {
+            // Without fallback.
+            tracing::debug!("Can't get json meta: {err}");
+
+            if actions.is_empty() {
+                if target_is_v3 {
+                    let raw_meta = meta.as_raw_meta().await?;
+                    taos.write_raw_meta(&raw_meta)
+                        .await
+                        .context("Write raw meta without fallback error")?;
+                } else {
+                    tracing::warn!("v2 target does not support raw meta");
+                }
+            } else {
+                tracing::warn!("Can't get json meta, skip the meta transform");
+            }
+            return Ok(());
+        }
+    };
     tracing::debug!(meta.sql = %json_meta, meta.idx = cur, "Start writing meta");
     match &json_meta {
         JsonMeta::Delete(meta) => {
             tracing::debug!("Start writing meta: {meta}");
             if !with_meta_delete {
-                tracing::debug!("Ignor meta with type delete");
+                tracing::debug!("Ignore meta with type delete");
                 return anyhow::Ok(());
             }
         }
@@ -582,7 +603,7 @@ pub async fn tmq_to_td(
 ) -> Result<()> {
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
-    tracing::info!("Source version: {version}");
+    tracing::debug!("Source version: {version}");
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
@@ -605,6 +626,15 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
+    let target_version = target_builder.server_version().await?.to_owned();
+    {
+        let source_version = semver::Version::parse(&version.split('.').take(3).join("."))?;
+        let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
+
     let source_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let target_pool = target_builder.pool()?;
 
@@ -654,6 +684,7 @@ pub async fn tmq_to_td(
     let target_taos = target_pool.get().await?;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
+    let jobs = 1;
     for topic in topics {
         let target_database = if let Some(target) = target_database.as_ref() {
             if let Some(sql) = topic.database_sql.as_deref() {
