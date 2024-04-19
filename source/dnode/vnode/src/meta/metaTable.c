@@ -21,8 +21,7 @@ extern int32_t metaGetTableEntryByUidImpl(SMeta *meta, int64_t uid, SMetaEntry *
 extern int32_t metaGetTableEntryByNameImpl(SMeta *meta, const char *name, SMetaEntry **entry);
 extern int32_t metaEntryCloneDestroy(SMetaEntry *entry);
 
-static int  metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
-static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
+static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
 
 static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
