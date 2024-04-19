@@ -47,7 +47,7 @@ class IllegalSpell(Enum):
     CASE4      = 'primary ky'
     CASE5      = 'primarykey'
     CASE6      = 'key primary'
-    CASE6      = 'primay key primay key'
+    CASE7      = 'primay key primay key'
 
 
 class TableType(Enum):  
