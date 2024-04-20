@@ -274,8 +274,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.name = pReq->name;
   me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
-  // me.stbEntry.colCmpr = pReq->colCmpr;
-  //  me.stbEntry.colCmpr = pReq->
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(me.flags);
     me.stbEntry.rsmaParam = pReq->rsmaParam;
