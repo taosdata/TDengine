@@ -570,13 +570,14 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }
-  int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 
+  int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
     pScan->pFuncTypes = taosArrayInit(taosArrayGetSize(pScanLogicNode->pFuncTypes), sizeof(int32_t));
     if (NULL == pScan->pFuncTypes) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+
     SNode* pTargetNode = NULL;
     int funcTypeIndex = 0;
     FOREACH(pTargetNode, ((SScanPhysiNode*)pScan)->pScanCols) {

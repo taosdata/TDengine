@@ -108,6 +108,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     goto _error;
   }
 
+  // todd: the pk information should comes from the physical plan
   for(int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
     SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
     if (pItem->isPk) {
@@ -223,8 +224,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       blockDataCleanup(pInfo->pBufferedRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pBufferedRes, pInfo->pSlotIds,
-                                           pInfo->pDstSlotIds, pInfo->pUidList);
+      int32_t code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pBufferedRes,
+                                                                pInfo->pSlotIds, pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -293,9 +294,11 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
 
       if (NULL == pInfo->pLastrowReader) {
-        code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                                       taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
-                                       pTaskInfo->id.str, pInfo->pFuncTypeList, &pInfo->pkCol, pInfo->numOfPks);
+        code = pInfo->readHandle.api.cacheFn.openReader(
+            pInfo->readHandle.vnode, pInfo->retrieveType, pList, num, taosArrayGetSize(pInfo->matchInfo.pList),
+            pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader, pTaskInfo->id.str, pInfo->pFuncTypeList,
+            &pInfo->pkCol, pInfo->numOfPks);
+
         if (code != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
           taosArrayClear(pInfo->pUidList);
