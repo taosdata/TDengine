@@ -38,9 +38,9 @@ sql alter table $tb modify column b level 'm'
 sql_error alter table $tb modify column b level 'l' # already exist 
 
 
-sql_error alter table $tb modify column b compress 'lz4'
+sql_error alter table $tb modify column b compress 'ZSTD'
 sql alter table $tb modify column b compress 'xz'
-sql alter table $tb modify column b compress 'zstd'
+sql alter table $tb modify column b compress 'LZ4'
 sql_error alter table $tb modify column b compress 'tsz'
 
 $count = 0
@@ -147,23 +147,23 @@ sql alter table $stb modify column b level 'm'
 sql_error alter table $stb modify column b level 'l' # already exist 
 sql desc $stb
 
-sql_error alter table $stb modify column b compress 'lz4'
+sql_error alter table $stb modify column b compress 'ZSTD'
 sql alter table $stb modify column b compress 'xz'
-sql alter table $stb modify column b compress 'zstd'
+sql alter table $stb modify column b compress 'LZ4'
 sql_error alter table $stb modify column b compress 'tsz'
 sql alter table $stb modify column b compress 'zlib'
 sql desc $stb
 
-sql_error alter table $stb modify column f compress 'lz4'
+sql_error alter table $stb modify column f compress 'ZSTD'
 sql alter table $stb modify column f compress 'disabled'
 sql desc $stb
 sql alter table $stb modify column f compress 'tsz'
 sql desc $stb
 sql alter table $stb modify column f compress 'zlib'
 sql desc $stb
-sql alter table $stb modify column f compress 'zstd'
+sql alter table $stb modify column f compress 'LZ4'
 
-sql_error alter table $stb modify column d compress 'lz4' # same with init
+sql_error alter table $stb modify column d compress 'ZSTD' # same with init
 sql alter table $stb modify column d compress 'disabled'
 sql desc $stb
 sql alter table $stb modify column d compress 'tsz'

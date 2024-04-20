@@ -33,15 +33,15 @@ class TDTestCase(TBase):
         "compressMsgSize" : "100",
     }
     # compress
-    compresses = ["lz4","tsz","zlib","zstd","disabled","xz"]
+    compresses = ["zstd","tsz","zlib","lz4","disabled","xz"]
 
     # level
     levels = ["high","medium","low"]
 
     # default compress
-    defCompress = "lz4"
+    defCompress = "zstd"
     # default level
-    defLevel    = "medium"
+    defLevel    = "high"
 
     # datatype 17
     dtypes = [ "tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned",
