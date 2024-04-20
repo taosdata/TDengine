@@ -82,11 +82,12 @@ class TDTestCase(TBase):
             cols = line.split()
             fileSize = int(cols[4])
             fileName = cols[8]
+            #print(f" filesize={fileSize} fileName={fileName}  line={line}")
             if fileSize > maxFileSize:
-                tdLog.info(f"error, over maxFileSize({maxFileSize}), {line} ")
+                tdLog.info(f"error, over maxFileSize({maxFileSize}), {line} \n")
                 overCnt += 1
             else:
-                tdLog.info(f"file = {fileName} size = {fileSize} ok")
+                tdLog.info(f"{fileName}({fileSize}) check size passed.")
                 
         return overCnt
 
@@ -101,7 +102,7 @@ class TDTestCase(TBase):
             time.sleep(3)
 
             # check upload to s3
-            cnt = eos.runRetList(cmd)
+            rets = eos.runRetList(cmd)
             cnt = len(rets)
             if cnt == 0:
                 overCnt = 0
@@ -326,6 +327,7 @@ class TDTestCase(TBase):
             self.checkAggCorrect()
             self.checkInsertCorrect(difCnt=self.childtable_count*999999)
             self.checkDelete()
+            self.doAction()
 
             # drop database and free s3 file
             #self.dropDb()
