@@ -62,7 +62,7 @@ class TDTestCase(TBase):
 
         tdSql.execute(f"use {self.db}")
         # come from s3_basic.json
-        self.childtable_count = 20
+        self.childtable_count = 10
         self.insert_rows = 2000000
         self.timestamp_step = 1000
 
@@ -243,9 +243,40 @@ class TDTestCase(TBase):
         etool.benchMark(json=json)
 
         # come from s3_basic.json
-        self.childtable_count = 20
-        self.insert_rows = 2000000 + 2000000/2
+        self.insert_rows += self.insert_rows/2
         self.timestamp_step = 500
+
+    # delete
+    def checkDelete(self):
+        # del 1000 rows
+        start = 1600000000000
+        drows = 1000
+        for i in range(1, drows, 2):
+            sql = f"from {self.db}.{self.stb} where ts = {start + i*500}"
+            tdSql.execute("delete " + sql, show=True)
+            tdSql.query("select * " + sql)
+            tdSql.checkRows(0)
+        
+        # delete all 500 step
+        self.flushDb()
+        self.compactDb()
+        self.insert_rows   -= drows/2
+        sql = f"select count(*) from {self.db}.{self.stb}"
+        tdSql.checkAgg(sql, self.insert_rows * self.childtable_count)
+
+        # delete 10W rows from 10000
+        drows = 100000
+        sdel = start + 1000000 * self.timestamp_step
+        edel = start + 1000000 * self.timestamp_step + drows * self.timestamp_step
+        sql = f"from {self.db}.{self.stb} where ts >= {sdel} and ts < {edel}"
+        tdSql.execute("delete " + sql, show=True)
+        tdSql.query("select * " + sql)
+        tdSql.checkRows(0)
+
+        self.insert_rows   -= drows
+        sql = f"select count(*) from {self.db}.{self.stb}"
+        tdSql.checkAgg(sql, self.insert_rows * self.childtable_count)
+        
 
     # run
     def run(self):
@@ -279,7 +310,7 @@ class TDTestCase(TBase):
             self.checkInsertCorrect()
 
             # checkBasic
-            #self.checkBasic()
+            self.checkBasic()
 
             # check stream correct and drop stream
             #self.checkStreamCorrect()
@@ -293,7 +324,8 @@ class TDTestCase(TBase):
             self.snapshotAgg()
             self.doAction()
             self.checkAggCorrect()
-            self.checkInsertCorrect(difCnt=20*999999)
+            self.checkInsertCorrect(difCnt=self.childtable_count*999999)
+            self.checkDelete()
 
             # drop database and free s3 file
             #self.dropDb()
