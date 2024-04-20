@@ -232,7 +232,7 @@ class TDTestCase(TBase):
 
     #
     def preDb(self, vgroups):
-        vg = random.randint(1, vgroups)
+        vg = int(time.time()*1000)%10 + 1
         sql = f"create database predb vgroups {vg}"
         tdSql.execute(sql, show=True)
 
