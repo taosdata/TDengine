@@ -42,13 +42,10 @@ int meteDecodeColCmprEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColCmpr *p = &pWrapper->pColCmpr[i];
-    if (tDecodeI16v(pDecoder, &p->id) < 0) goto END;
-    if (tDecodeU32(pDecoder, &p->alg) < 0) goto END;
+    if (tDecodeI16v(pDecoder, &p->id) < 0) return -1;
+    if (tDecodeU32(pDecoder, &p->alg) < 0) return -1;
   }
   return 0;
-END:
-  // taosMemoryFree(pWrapper->pColCmpr);
-  return -1;
 }
 static FORCE_INLINE void metatInitDefaultSColCmprWrapper(SDecoder *pDecoder, SColCmprWrapper *pCmpr,
                                                          SSchemaWrapper *pSchema) {
