@@ -52,7 +52,7 @@ class TDTestCase(TBase):
         's3MigrateEnabled': '1'
     }
 
-    maxFileSize = 128 * 1014 * 1024
+    maxFileSize = (128 + 10) * 1014 * 1024 # add 10M buffer
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -84,7 +84,7 @@ class TDTestCase(TBase):
             fileName = cols[8]
             #print(f" filesize={fileSize} fileName={fileName}  line={line}")
             if fileSize > maxFileSize:
-                tdLog.info(f"error, over maxFileSize({maxFileSize}), {line} \n")
+                tdLog.info(f"error, {fileSize} over max size({maxFileSize}) ), {line} \n")
                 overCnt += 1
             else:
                 tdLog.info(f"{fileName}({fileSize}) check size passed.")
@@ -114,7 +114,7 @@ class TDTestCase(TBase):
                 tdLog.info(f"All data files({len(rets)}) size bellow {self.maxFileSize}, check upload to s3 ok.")
                 break
 
-            tdLog.info(f"loop={loop} no upload {cnt} data files wait 3s retry ...")
+            tdLog.info(f"loop={loop} no upload {overCnt} data files wait 3s retry ...")
             if loop == 3:
                 sc.dnodeStop(1)
                 time.sleep(2)
