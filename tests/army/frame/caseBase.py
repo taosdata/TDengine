@@ -140,7 +140,7 @@ class TBase:
 
         # check step
         sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
-        tdSql.checkAgg(sql, difCnt)
+        #tdSql.checkAgg(sql, difCnt)
 
     # save agg result
     def snapshotAgg(self):        

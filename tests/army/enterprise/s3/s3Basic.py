@@ -84,7 +84,7 @@ class TDTestCase(TBase):
             fileName = cols[8]
             #print(f" filesize={fileSize} fileName={fileName}  line={line}")
             if fileSize > maxFileSize:
-                tdLog.info(f"error, {fileSize} over max size({maxFileSize}) ), {line} \n")
+                tdLog.info(f"error, {fileSize} over max size({maxFileSize})\n")
                 overCnt += 1
             else:
                 tdLog.info(f"{fileName}({fileSize}) check size passed.")
