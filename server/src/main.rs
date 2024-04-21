@@ -311,13 +311,19 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     let server = args.profile.cluster.as_deref().unwrap();
     let check_result = verification::check_phone_email_verified(&binding_record_file, server);
     match check_result {
-        Ok(_) => HttpResponse::Ok().json(R::success(true)),
+        Ok(_) => {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            HttpResponse::Ok().json(R::success(ts))
+        }
         Err(err) => {
             error!(
                 "check {} in file {:?}, Failed to check binding: {}",
                 server, binding_record_file, err
             );
-            HttpResponse::Ok().json(R::success(false))
+            HttpResponse::Ok().json(R::success(0_u8))
         }
     }
 }
@@ -376,19 +382,13 @@ async fn send_verification_code(
     let str_phone_email = params.phone_email.as_ref().unwrap();
     let str_captcha = params.captcha.as_ref().unwrap();
     if str_phone_email.is_empty() || str_captcha.is_empty() {
-        return HttpResponse::BadRequest().json(RestErrResponse {
-            code: Code::FAILED,
-            desc: "phone_email and captcha is required".to_string(),
-        });
+        return HttpResponse::Ok().json(R::<()>::fail(400, "captchaInputError".to_string()));
     }
 
     let captcha_key = format!("captcha-{}", str_phone_email);
     let captcha_check_result = verification::check_security_code(&captcha_key, str_captcha);
     if captcha_check_result != "pass" {
-        return HttpResponse::BadRequest().json(RestErrResponse {
-            code: Code::FAILED,
-            desc: "captcha is invalid".to_string(),
-        });
+        return HttpResponse::Ok().json(R::<()>::fail(400, "captchaInputError".to_string()));
     }
 
     let cloud_open_api_send_verification_code = format!(
@@ -418,19 +418,15 @@ async fn check_verification_code(
     body: web::Json<VerificationReqBody>,
 ) -> impl Responder {
     if body.phone_email.is_none() || body.verification_code.is_none() {
-        return HttpResponse::BadRequest().json(RestErrResponse {
-            code: Code::FAILED,
-            desc: "phone_email and verification_code is required".to_string(),
-        });
+        return HttpResponse::Ok()
+            .json(R::<()>::fail(400, "verificationCodeInputError".to_string()));
     }
 
     let str_phone_email = body.phone_email.as_ref().unwrap();
     let str_verification_code = body.verification_code.as_ref().unwrap();
     if str_phone_email.is_empty() || str_verification_code.is_empty() {
-        return HttpResponse::BadRequest().json(RestErrResponse {
-            code: Code::FAILED,
-            desc: "phone_email and captcha is required".to_string(),
-        });
+        return HttpResponse::Ok()
+            .json(R::<()>::fail(400, "verificationCodeInputError".to_string()));
     }
 
     let result = verification::check_security_code(str_phone_email, str_verification_code);
