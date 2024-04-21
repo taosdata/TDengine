@@ -1006,10 +1006,19 @@ export default {
     email: 'Email address',
     verificationCode: 'Verification code',
     getVerificationCode: 'Get verification code',
+    regetVerificationCode: 'Resend verification code',
     signin: 'Submit',
+    imageVerificationCode: 'Image Verification code',
     phoneTips: "Please enter your phone number",
     emailTips: "Please enter email",
     verificationCodeTips: "Please enter the verification code",
+    errors: {
+      "verificationCodeNone": "You have not yet obtained the verification code. Please obtain the verification code again",
+      "verificationCodeError": "Verification code error, please re-enter",
+    },
+    success: {
+      "verificationCodeSend": "The verification code has been sent to your phone, please check",
+    }
   },
   cluster: {
     title: "Starting the TDengine  Service ...",

@@ -886,10 +886,18 @@ export default {
     email: '邮箱',
     verificationCode: '验证码',
     getVerificationCode: '获取验证码',
+    imageVerificationCode: '图形验证码',
     signin: '提交',
     phoneTips: "请输入手机号",
     emailTips: "请输入邮箱",
     verificationCodeTips: "请输入验证码",
+    errors: {
+      "verificationCodeNone": "您还未获取验证码，请重新获取验证码",
+      "verificationCodeError": "验证码错误，请重新输入",
+    },
+    success: {
+      "verificationCodeSend": "验证码发送成功"
+    }
   },
   cluster: {
     title: "正在准备 TDengine  服务，请稍候...",
