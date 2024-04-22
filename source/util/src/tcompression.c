@@ -281,6 +281,11 @@ TCmprL1FnSet compressL1Dict[] = {{"PLAIN", NULL, tsCompressPlain2, tsDecompressP
                                  {"BIT-PACKING", NULL, tsCompressBoolImp2, tsDecompressBoolImp2},
                                  {"DELTAD", NULL, tsCompressDoubleImp2, tsDecompressDoubleImp2}};
 
+TCmprLvlSet compressL2LevelDict[] = {
+    {"unknown", .lvl = {1, 2, 3}}, {"lz4", .lvl = {1, 2, 3}}, {"zlib", .lvl = {1, 6, 9}},
+    {"zstd", .lvl = {1, 11, 22}},  {"tsz", .lvl = {1, 2, 3}}, {"xz", .lvl = {1, 6, 9}},
+};
+
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
 TCmprL2FnSet compressL2Dict[] = {
     {"unknown", l2ComressInitImpl_disabled, l2CompressImpl_disabled, l2DecompressImpl_disabled},
@@ -298,10 +303,6 @@ TCmprL2FnSet compressL2Dict[] = {
     {"tsz", l2ComressInitImpl_tsz, l2CompressImpl_tsz, l2DecompressImpl_tsz},
     {"xz", l2ComressInitImpl_xz, l2CompressImpl_xz, l2DecompressImpl_xz}};
 
-TCmprLvlSet compressL2LevelDict[] = {
-    {"unknown", .lvl = {1, 2, 3}}, {"lz4", .lvl = {1, 2, 3}}, {"zlib", .lvl = {1, 6, 9}},
-    {"zstd", .lvl = {1, 11, 22}},  {"tsz", .lvl = {1, 2, 3}}, {"xz", .lvl = {1, 6, 9}},
-};
 #endif
 
 int8_t tsGetCompressL2Level(uint8_t alg, uint8_t lvl) {
