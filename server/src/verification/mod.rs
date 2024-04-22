@@ -166,6 +166,13 @@ fn save_to_cache(key: String, code: &String) {
         .unwrap()
         .as_secs()
         + 60 * 5;
+    log::debug!(
+        "save_to_cache: key: {}, code: {}, expire_time: {}",
+        key,
+        code,
+        expire_time
+    );
+
     VERIFICATION_CODES.lock().unwrap().insert(
         key,
         VerificationCode {
@@ -177,7 +184,9 @@ fn save_to_cache(key: String, code: &String) {
 
 pub fn check_security_code(key: &str, code: &str) -> String {
     let mut codes = VERIFICATION_CODES.lock().unwrap();
+    log::debug!("check_security_code: key: {}, code: {}", key, code);
     if let Some(verification_code) = codes.get(key) {
+        log::debug!("find the code in cache: {:?}", verification_code);
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -194,6 +203,7 @@ pub fn check_security_code(key: &str, code: &str) -> String {
             return "error".to_string();
         }
     }
+    log::debug!("not find the code in cache");
 
     "none".to_string()
 }
