@@ -648,7 +648,6 @@ static SMqConsumerObj* buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscri
 _over:
   mndReleaseConsumer(pMnode, pExistedConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
-  taosArrayDestroyP(subscribe->topicNames, (FDelete)taosMemoryFree);
   return NULL;
 }
 
