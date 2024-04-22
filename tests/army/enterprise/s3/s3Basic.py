@@ -237,9 +237,14 @@ class TDTestCase(TBase):
 
     #
     def preDb(self, vgroups):
-        vg = int(time.time()*1000)%990 + 1
-        sql = f"create database predb vgroups {vg}"
-        tdSql.execute(sql, show=True)
+
+        cnt = int(time.time())%10 + 1
+        for i in range(cnt):
+             vg = int(time.time()*1000)%10 + 1
+             sql = f"create database predb vgroups {vg}"
+             tdSql.execute(sql, show=True)
+             sql = "drop database predb"
+             tdSql.execute(sql, show=True)
 
     # history
     def insertHistory(self):
