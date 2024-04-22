@@ -41,18 +41,6 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   return 0;
 }
 
-static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
-#ifdef TD_ENTERPRISE
-  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
-  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
-  if (deltaTS > tsTimeSeriesThreshold) {
-    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
-      tsem_post(&dmNotifyHdl.sem);
-    }
-  }
-#endif
-}
-
 static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
   int32_t code = 0;
   // 1, tranverse table's
@@ -278,8 +266,8 @@ static int32_t metaValidateCreateTableRequest(SMeta *meta, SVCreateTbReq *reques
 
     if (tdbTbGet(meta->pNameIdx, request->ctb.stbName, strlen(request->ctb.stbName) + 1, &value, &valueSize) != 0 ||
         *(int64_t *)value != request->ctb.suid) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_PAR_TABLE_NOT_EXIST, lino, _exit);
     }
-    TSDB_CHECK_CODE(code = TSDB_CODE_PAR_TABLE_NOT_EXIST, lino, _exit);
   }
 
   code = metaGetTableEntryByNameImpl(meta, request->name, &entry);

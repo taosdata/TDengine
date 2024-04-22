@@ -114,6 +114,18 @@ int metaDecodeEntry(SDecoder *decoder, SMetaEntry *entry) {
   return 0;
 }
 
+static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
+#ifdef TD_ENTERPRISE
+  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
+  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
+  if (deltaTS > tsTimeSeriesThreshold) {
+    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+      tsem_post(&dmNotifyHdl.sem);
+    }
+  }
+#endif
+}
+
 static int32_t tSchemaWrapperClone(const SSchemaWrapper *from, SSchemaWrapper *to) {
   to->nCols = from->nCols;
   to->version = from->version;
@@ -1292,17 +1304,19 @@ _exit:
 }
 
 static int32_t metaCreateIndexOnTag(SMeta *meta, const SMetaEntry *superTableEntry, int32_t columnIndex) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SMetaEntry *childTableEntry = NULL;
+  SArray     *childTableUids = NULL;
 
-  SArray *childTableUids = NULL;
   code = metaGetChildTableUidList(meta, superTableEntry->uid, &childTableUids);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   for (int32_t i = 0; i < taosArrayGetSize(childTableUids); i++) {
-    int64_t uid = *(int64_t *)taosArrayGet(childTableUids, i);
+    metaEntryCloneDestroy(childTableEntry);
+    childTableEntry = NULL;
 
-    SMetaEntry *childTableEntry = NULL;
+    int64_t uid = *(int64_t *)taosArrayGet(childTableUids, i);
     code = metaGetTableEntryByUidImpl(meta, uid, &childTableEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1318,6 +1332,7 @@ _exit:
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
   taosArrayDestroy(childTableUids);
+  metaEntryCloneDestroy(childTableEntry);
   return code;
 }
 
@@ -1351,78 +1366,133 @@ _exit:
   return code;
 }
 
-static int32_t metaHandleSuperTableEntryUpdate(SMeta *meta, const SMetaEntry *entry, const SMetaEntry *oldEntry) {
+static int32_t metaAlterSuperTableSchema(SMeta *meta, const SMetaEntry *newEntry, const SMetaEntry *oldEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  const SSchemaWrapper *newSchema = &newEntry->stbEntry.schemaRow;
+  const SSchemaWrapper *oldSchema = &oldEntry->stbEntry.schemaRow;
+
+  ASSERT(newSchema->version == oldSchema->version + 1);
+
+  /* schema.db */
+  code = metaUpsertSchema(meta, newEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (newSchema->nCols != oldSchema->nCols) {
+    ASSERT(TABS(newSchema->nCols - oldSchema->nCols) == 1);
+
+    int32_t iNew = 0, iOld = 0;
+    while (iNew < newSchema->nCols && iOld < oldSchema->nCols) {
+      if (newSchema->pSchema[iNew].colId == oldSchema->pSchema[iOld].colId) {
+        iNew++;
+        iOld++;
+      } else if (newSchema->pSchema[iNew].colId < oldSchema->pSchema[iOld].colId) {  // TODO: add a column
+        iNew++;
+      } else {  // delete a column
+        iOld++;
+      }
+    }
+
+    while (iNew < newSchema->nCols) {  // TODO: add a column
+      iNew++;
+    }
+
+    while (iOld < oldSchema->nCols) {  // TODO: delete a column
+      iOld++;
+    }
+
+    // time-series statistics
+    if (!metaTbInFilterCache(meta, newEntry->name, 1)) {
+      int64_t numOfChildTables;
+      metaUpdateStbStats(meta, newEntry->uid, 0, newSchema->nCols - oldSchema->nCols);
+      metaGetStbStats(meta->pVnode, newEntry->uid, &numOfChildTables, NULL);
+      meta->pVnode->config.vndStats.numOfTimeSeries += (numOfChildTables * (newSchema->nCols - oldSchema->nCols));
+      metaTimeSeriesNotifyCheck(meta);
+    }
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaAlterSuperTableTagSchema(SMeta *meta, const SMetaEntry *newSuperTableEntry,
+                                            const SMetaEntry *oldSuperTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  const SSchemaWrapper *newTagSchema = &newSuperTableEntry->stbEntry.schemaTag;
+  const SSchemaWrapper *oldTagSchema = &oldSuperTableEntry->stbEntry.schemaTag;
+
+  ASSERT(newTagSchema->version == oldTagSchema->version + 1);
+
+  int32_t iNew = 0, iOld = 0;
+  while (iNew < newTagSchema->nCols && iOld < oldTagSchema->nCols) {
+    if (newTagSchema->pSchema[iNew].colId == oldTagSchema->pSchema[iOld].colId) {
+      if (IS_IDX_ON(&newTagSchema->pSchema[iNew]) && !IS_IDX_ON(&oldTagSchema->pSchema[iOld])) {
+        code = metaCreateIndexOnTag(meta, newSuperTableEntry, iNew);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else if (!IS_IDX_ON(&newTagSchema->pSchema[iNew]) && IS_IDX_ON(&oldTagSchema->pSchema[iOld])) {
+        code = metaDropIndexOnTag(meta, oldSuperTableEntry, iOld);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      iNew++;
+      iOld++;
+    } else if (newTagSchema->pSchema[iNew].colId < oldTagSchema->pSchema[iOld].colId) {
+      if (IS_IDX_ON(&newTagSchema->pSchema[iNew])) {
+        code = metaCreateIndexOnTag(meta, newSuperTableEntry, iNew);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      iNew++;
+    } else {
+      if (IS_IDX_ON(&oldTagSchema->pSchema[iOld])) {
+        code = metaDropIndexOnTag(meta, oldSuperTableEntry, iOld);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      iOld++;
+    }
+  }
+
+  while (iNew < newTagSchema->nCols) {
+    if (IS_IDX_ON(&newTagSchema->pSchema[iNew])) {
+      code = metaCreateIndexOnTag(meta, newSuperTableEntry, iNew);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    iNew++;
+  }
+
+  while (iOld < oldTagSchema->nCols) {
+    if (IS_IDX_ON(&oldTagSchema->pSchema[iOld])) {
+      code = metaDropIndexOnTag(meta, oldSuperTableEntry, iOld);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    iOld++;
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleSuperTableEntryUpdate(SMeta *meta, const SMetaEntry *newEntry, const SMetaEntry *oldEntry) {
   int32_t code = 0;
   int32_t lino = 0;
 
   // change schema
-  if (entry->stbEntry.schemaRow.version != oldEntry->stbEntry.schemaRow.version) {
-    ASSERT(entry->stbEntry.schemaRow.version == oldEntry->stbEntry.schemaRow.version + 1);
-
-    /* schema.db */
-    code = metaUpsertSchema(meta, entry);
+  if (newEntry->stbEntry.schemaRow.version != oldEntry->stbEntry.schemaRow.version) {
+    code = metaAlterSuperTableSchema(meta, newEntry, oldEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    // TODO
-
-#if 0
-    if (entry->stbEntry.schemaRow.nCols < oldEntry->stbEntry.schemaRow.nCols) {  // delete a column
-      ASSERT(entry->stbEntry.schemaRow.nCols + 1 == oldEntry->stbEntry.schemaRow.nCols);
-      // TODO: deal with cache
-    } else if (entry->stbEntry.schemaRow.nCols > oldEntry->stbEntry.schemaRow.nCols) {  // add a column
-      ASSERT(entry->stbEntry.schemaRow.nCols == oldEntry->stbEntry.schemaRow.nCols + 1);
-      // TODO: deal with cache
-    }
-#endif
   }
 
   // change tag schema
-  if (entry->stbEntry.schemaTag.version != oldEntry->stbEntry.schemaRow.version) {
-    ASSERT(entry->stbEntry.schemaTag.version == oldEntry->stbEntry.schemaRow.version + 1);
-
-    const SSchemaWrapper *tagSchema = &entry->stbEntry.schemaTag;
-    const SSchemaWrapper *tagSchemaOld = &oldEntry->stbEntry.schemaTag;
-
-    int32_t i = 0, j = 0;
-    while (i < tagSchema->nCols && j < tagSchemaOld->nCols) {
-      if (tagSchema->pSchema[i].colId == tagSchemaOld->pSchema[j].colId) {  // may update the column
-        if (IS_IDX_ON(&tagSchema->pSchema[i]) && !IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaCreateIndexOnTag(meta, entry, i);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else if (!IS_IDX_ON(&tagSchema->pSchema[i]) && IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaDropIndexOnTag(meta, oldEntry, j);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        i++;
-        j++;
-      } else if (tagSchema->pSchema[i].colId < tagSchemaOld->pSchema[j].colId) {  // add a column
-        if (IS_IDX_ON(&tagSchema->pSchema[i])) {
-          code = metaCreateIndexOnTag(meta, entry, i);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        i++;
-      } else {  // delete a tag column
-        if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-          code = metaDropIndexOnTag(meta, oldEntry, j);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        j++;
-      }
-    }
-
-    for (; i < tagSchema->nCols; i++) {
-      if (IS_IDX_ON(&tagSchema->pSchema[i])) {
-        code = metaCreateIndexOnTag(meta, entry, i);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
-
-    for (; j < tagSchemaOld->nCols; j++) {
-      if (IS_IDX_ON(&tagSchemaOld->pSchema[j])) {
-        code = metaDropIndexOnTag(meta, oldEntry, j);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
+  if (newEntry->stbEntry.schemaTag.version != oldEntry->stbEntry.schemaTag.version) {
+    code = metaAlterSuperTableTagSchema(meta, newEntry, oldEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -1516,33 +1586,33 @@ _exit:
   return code;
 }
 
-static int32_t metaHandleEntryUpdate(SMeta *meta, const SMetaEntry *entry) {
+static int32_t metaHandleEntryUpdate(SMeta *meta, const SMetaEntry *newEntry) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SMetaEntry *oldEntry = NULL;
 
-  code = metaGetTableEntryByUidImpl(meta, entry->uid, &oldEntry);
+  code = metaGetTableEntryByUidImpl(meta, newEntry->uid, &oldEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  ASSERT(oldEntry->type == entry->type);
-  ASSERT(oldEntry->version < entry->version);
+  ASSERT(oldEntry->type == newEntry->type);
+  ASSERT(oldEntry->version < newEntry->version);
 
-  if (entry->type == TSDB_SUPER_TABLE) {
-    code = metaHandleSuperTableEntryUpdate(meta, entry, oldEntry);
+  if (newEntry->type == TSDB_SUPER_TABLE) {
+    code = metaHandleSuperTableEntryUpdate(meta, newEntry, oldEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
-  } else if (entry->type == TSDB_CHILD_TABLE) {
-    code = metaHandleChildTableEntryUpdate(meta, entry, oldEntry);
+  } else if (newEntry->type == TSDB_CHILD_TABLE) {
+    code = metaHandleChildTableEntryUpdate(meta, newEntry, oldEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
-  } else if (entry->type == TSDB_NORMAL_TABLE) {
-    code = metaHandleNormalTableEntryUpdate(meta, entry, oldEntry);
+  } else if (newEntry->type == TSDB_NORMAL_TABLE) {
+    code = metaHandleNormalTableEntryUpdate(meta, newEntry, oldEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     ASSERT(0);
   }
 
   /* uid.idx */
-  code = metaUpsertUidIdx(meta, entry);
+  code = metaUpsertUidIdx(meta, newEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
