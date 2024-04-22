@@ -380,6 +380,7 @@ export default {
     signin: "登录",
     taosxtip: `请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username: "用户名",
+    usernamePlaceholder: "请输入数据库用户名，默认是root",
     password: "密码",
     loginTitle: `登录 Explorer`,
     login: "登陆",
@@ -886,17 +887,22 @@ export default {
     email: '邮箱',
     verificationCode: '验证码',
     getVerificationCode: '获取验证码',
+    regetVerificationCode: '重新获取验证码',
     imageVerificationCode: '图形验证码',
     signin: '提交',
-    phoneTips: "请输入手机号",
+    phoneTips: "请输入手机号，只支持中国大陆手机号码",
     emailTips: "请输入邮箱",
     verificationCodeTips: "请输入验证码",
+    requirement: "首次使用，需使用手机号注册。注册过程必须保证 explorer 可连接互联网，否则无法注册成功。注册成功后，可内网使用，无需再连接互联网。后续登录，请使用数据库用户名密码登录。",
     errors: {
       "verificationCodeNone": "您还未获取验证码，请重新获取验证码",
       "verificationCodeError": "验证码错误，请重新输入",
+      "captchaInputError": "图形验证码错误，请重新输入",
+      "verificationCodeInputError": "验证码错误，请重新输入",
     },
     success: {
-      "verificationCodeSend": "验证码发送成功"
+      "verificationCodeSend": "验证码发送成功",
+      "registerSuccess": "注册成功，请使用数据库用户名密码登录",
     }
   },
   cluster: {

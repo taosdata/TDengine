@@ -33,8 +33,10 @@
     },
     computed: {},
     created() {
-      // this.$store.dispatch("console/getFavorites");
-      // this.$store.dispatch("console/getSharedFavorites");
+      if (this.$COMMUNITY) {
+        this.$store.commit('app/SET_SHOW_SYSTEM_MES', true)
+      }
+      
       // 获取当前用户的控制台执行记录
       this.$store.state.console.history = localStorage.getItem("record_history") //+ this.$store.getters.appId)
         ? JSON.parse(localStorage.getItem("record_history"))// + this.$store.getters.appId))

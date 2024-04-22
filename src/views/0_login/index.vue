@@ -1,5 +1,5 @@
 <template>
-  <div class="login">
+  <div class="login" v-loading="pageLoading">
 
     <section class="content">
       <div class="article">
@@ -29,7 +29,7 @@
               <span>{{ $t("login.username") }}</span>
             </p>
             <el-form-item prop="username" label>
-              <el-input ref="username" v-model="dynamicValidateForm.username"></el-input>
+              <el-input ref="username" :placeholder="$t('login.usernamePlaceholder')" v-model="dynamicValidateForm.username"></el-input>
             </el-form-item>
           </div>
           <div>
@@ -47,7 +47,7 @@
           </el-form-item>
         </el-form>
       </div>
-      <div class="login-content" v-else>
+      <div class="login-content reginster-box" v-else>
         <div class="login-title">
           <span class="dynamic-title">{{ $t("register.title") }}</span>
         </div>
@@ -58,7 +58,7 @@
               <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
             </p>
             <el-form-item prop="phone_email" label>
-              <el-input ref="phone_email" v-model="registerValidateForm.phone_email"></el-input>
+              <el-input ref="phone_email" :placeholder="$t('register.phoneTips')" v-model="registerValidateForm.phone_email"></el-input>
             </el-form-item>
           </div>
           <div>
@@ -69,7 +69,7 @@
               <el-input v-model="registerValidateForm.verification_code" @keyup.enter.native="submitRegisterForm('registerValidateForm')" >
                 <el-button type="primary" slot="append"
                   :disabled="disableGetVerificationCode"
-                  style="width: 180px;" 
+                  style="min-width: 180px;" 
                   @click="handlerCaptcha">
                   {{ buttonTextOfGetVerificationCode }}
                 </el-button>
@@ -82,7 +82,14 @@
               $t("register.signin") }}</el-button>
           </el-form-item>
         </el-form>
+        
+        <el-alert
+          :title="$t('register.requirement')"
+          type="warning">
+        </el-alert>
+
       </div>
+      
     </section>
 
     <div class="copyright" v-if="!oemName">
@@ -136,10 +143,23 @@ export default {
           callback(new Error(this.$t("register.phoneTips")));
         }
       } else {
-        // if (!this.isLocaleLanguageEn) {
-        //   // 校验手机号
-        //   if (!/^1[3456789]\d{9}$/.test(value)) {
-        //     callback(new Error(this.$t("register.phoneTips")));
+
+        if (!(/^1[3456789]\d{9}$/.test(value) || /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(value))) {
+          callback(new Error(this.$t("register.phoneTips")));
+          return;
+        }
+
+        if (!this.isLocaleLanguageEn) {
+          // 校验手机号
+          if (!/^1[3456789]\d{9}$/.test(value)) {
+            callback(new Error(this.$t("register.phoneTips")));
+            return;
+          }
+        } 
+        // else {
+        //   // 校验邮箱
+        //   if (!/^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(value)) {
+        //     callback(new Error(this.$t("register.emailTips")));
         //     return;
         //   }
         // }
@@ -159,6 +179,7 @@ export default {
         password: "",
         username: "",
       },
+      pageLoading: false,
       formRules: {
         cluster: [
           {
@@ -378,7 +399,7 @@ export default {
       try {
         const result = await fetchIsbinding();
         if (result && result.code == 0) {
-          this.registered = result.data;
+          this.registered = (result.data > 0);
         }
         if (this.registered) {
           this.$refs.phone_email.focus();
@@ -388,6 +409,15 @@ export default {
       }
     },
     async handlerCaptcha() {
+
+      if (!this.isLocaleLanguageEn) {
+        // 校验手机号
+        if (!/^1[3456789]\d{9}$/.test(this.registerValidateForm.phone_email)) {
+          this.$error(this.$t('register.phoneTips'));
+          return;
+        }
+      } 
+
       // 弹出获取图形验证码的弹框
       this.captchaForm.captchaCode = '';
       this.visible = true;
@@ -410,7 +440,7 @@ export default {
       // 图形验证码必须填才能调用
       this.$refs.captchaForm.validate(async (valid) => {
         if (!valid) return;
-        const result = await fetchVerificationCode(this.registerValidateForm.phone_email,this.captchaForm.captchaCode,this.ts)
+        const result = await fetchVerificationCode(this.registerValidateForm.phone_email,this.captchaForm.captchaCode,this.ts, this.$i18n.locale)
         if (result && result.code == 0) {
           this.$message.success(this.$t('register.success.verificationCodeSend'));
           this.visible = false;
@@ -425,15 +455,18 @@ export default {
               clearInterval(this.timer);
               this.timer = null;
               this.disableGetVerificationCode = false;
+              this.buttonTextOfGetVerificationCode = this.$t('register.regetVerificationCode');
             }
           }, 1000)
+        } else if (result && result.code == 400) {
+          this.$error(this.$t('register.errors.' + result.msg));
         }
       })
     },
     submitRegisterForm(formName) {
       this.$refs[formName].validate(async (valid) => {
         if (valid) {
-          this.loading = true;
+          this.pageLoading = true;
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
           const result = await getVerificationResult(this.registerValidateForm)
@@ -442,16 +475,22 @@ export default {
               case 'pass':
                 // 如果校验通过，则注册成功 切换到登陆框
                 this.registered = true;
+                setTimeout(() => {
+                  this.pageLoading = false;
+                  this.$message.success(this.$t('register.success.registerSuccess'));
+                }, 1000)
+                
                 break;
               case 'none':
                 this.$error(this.$t('register.errors.verificationCodeNone'));
+                this.pageLoading = false;
                 break;
               case 'error':
                 this.$error(this.$t('register.errors.verificationCodeError'));
+                this.pageLoading = false;
                 break;
             } 
           }
-          this.loading = false;
         } else {
           return false;
         }
@@ -599,7 +638,7 @@ export default {
         word-spacing: 4px;
       }
     }
-
+    
     .login-content {
       width: 600px;
       height: 500px;
@@ -623,6 +662,9 @@ export default {
           font-size: 28px;
         }
       }
+    }
+    .reginster-box {
+      height: 550px;
     }
   }
 

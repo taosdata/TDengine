@@ -1,6 +1,6 @@
 
 <template>
-  <div class="custom-modal">
+  <div class="custom-modal" v-if="showme">
     <div class="title">
       {{ $t('systemPrompt') }}
     </div>
@@ -19,33 +19,34 @@
 export default {
   data() {
     return {
-      checked: false
+      checked: false,
+      showme: false,
     }
   },
-  watch: {
-    "$store.state.app.showSystemMes": {
-      handler(val) {
-        console.log('000-------');
-        if (val) {
-          clearTimeout(this.timer)
-        }
-      }
+  created() {
+    let ts = localStorage.getItem('modalLastCheckedTime');
+    if (!ts) {
+      this.showme = true
+      return;
+    }
+
+    ts = parseInt(ts);
+    let now = new Date().getTime();
+    if (now < ts && (now + 7 * 24 * 3600 * 1000) > ts) {
+      this.showme = false
+    } else {
+      this.showme = true
     }
   },
   methods: {
     handleAfterLeave() {
-      this.$store.commit('app/SET_SHOW_SYSTEM_MES',false)
+      let now = new Date().getTime();
       if (this.checked) {
-        this.timer = setTimeout(() => {
-          console.log('777777');
-          this.$store.commit('app/SET_SHOW_SYSTEM_MES',true)
-        }, 604800000);
+        localStorage.setItem('modalLastCheckedTime', now + 7 * 24 * 3600 * 1000);
       } else {
-        localStorage.setItem('modalLastCheckedTime',86400000)
-        this.timer = setTimeout(() => {
-          console.log('888888');
-        }, 86400000);
+        localStorage.setItem('modalLastCheckedTime', now + 24 * 3600 * 1000);
       }
+      this.showme = false
     },
     refresh() {
       this.handleAfterLeave();
@@ -64,7 +65,7 @@ export default {
   max-width: 340px;
   min-width: 250px;
   width: 50%;
-  background-color: #fff;
+  background-color: #fafafa;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   border-radius: 5px;
   padding: 10px 20px;
