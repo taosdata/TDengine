@@ -117,44 +117,7 @@ namespace TDPIConnector.Core
                 log.Info("No TemplateForAFElement or Element found.");
                 return null;
             }
-            if (AppSettings.TaosXEnabled)
-            {
-                return await CreateAFElementTablesV2(tdDatabaseName, afDatabaseName);
-            }
-
-            IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, AppSettings.tomlConfig.TemplateForAFElement).ToList();
-
-            //get all AF Templates based on settings
-            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
-
-            List<TDTable> tables = new List<TDTable>();
-
-            foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
-            {
-                //check for associated supertable, create if needed
-                var superTable = TemplateSTableConverter.Convert(elementTemplate);
-                if (!superTable.HasValidColumn()) continue;
-                await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
-
-                //get all elements based on template
-                IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
-                log.Info($"Found {elements.Count()} elements.");
-
-                var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
-
-             
-                foreach (var element in elements)
-                {
-                    TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
-                    log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                    if (!elementsCollection.ContainsKey(table.Name)) {
-                        tables.Add(table);
-                        elementsCollection.Add(table.Name, element);
-                    }
-                };
-            }
-            await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
-            return elementsCollection;
+            return await CreateAFElementTablesV2(tdDatabaseName, afDatabaseName);
         }
         public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
         {

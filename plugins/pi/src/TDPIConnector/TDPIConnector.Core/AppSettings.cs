@@ -104,42 +104,6 @@ namespace TDPIConnector.Core
             {
                 tomlConfig.PIServerDomain = null;
             }
-            if (tomlConfigFile == null || tomlConfigFile == "")
-            {
-                TaosXEnabled = false;
-                tomlConfig.UpdateInterval = GetIntegerFromAppSettings("UpdateInterval");
-                tomlConfig.PISystemName = GetStringFromAppSettings("PISystemName");
-                tomlConfig.PIServerName = GetStringFromAppSettings("PIServerName");
-                tomlConfig.PIServerUser = GetStringFromAppSettings("PIServerUser");
-                tomlConfig.PIServerDomain = GetStringFromAppSettings("PIServerDomain");
-                if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
-                {
-                    tomlConfig.PIServerDomain = null;
-                }
-                tomlConfig.PIServerPassword = GetStringFromAppSettings("PIServerPassword");
-                tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
-                tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
-                tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays", 1);
-                tomlConfig.TDDataBase = GetStringFromAppSettings("TDEnginePIDatabase");
-
-                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
-                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
-                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
-                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
-                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
-
-                try
-                {
-                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
-                    tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
-                    tomlConfig.TemplateForAFElement = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates2.csv").Distinct().ToList();
-                }
-                catch (Exception)
-                {
-                    //throw;
-                }
-            } 
 
             TDEnginePITablesPrefix = GetStringFromAppSettings("TDEnginePITablesPrefix");
             if (TDEnginePITablesPrefix == null)
@@ -181,8 +145,6 @@ namespace TDPIConnector.Core
         public static bool WebMonitoringEventsEnabled { get; private set; }
         public static int BackfillQuitWait { get; internal set; }
         public static int MaxEventCountObserverFetchOnce { get; internal set; }
-
-        public static bool TaosXEnabled { get; private set; } = true;
         public static TomlConfig tomlConfig { get; private set; }
 
         private static string GetStringFromAppSettings(string propertyName)

@@ -133,24 +133,11 @@ namespace TDBackfill
                 }
 
                 TDEngineProxy tdEngineProxy;
-                if (!AppSettings.TaosXEnabled)
-                {
-                    tdEngineProxy = TDEngineProxyBuild.NewTDEngineClient(AppSettings.TDEngineHost,
-                        AppSettings.TDEnginePort,
-                        AppSettings.TDEngineUsername,
-                        AppSettings.TDEnginePassword,
-                        AppSettings.TDEngineToken,
-                        AppSettings.TDEnginePITablesPrefix
-                        );
-                }
-                else
-                {
-                    tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
-                        AppSettings.tomlConfig.SQLAPI,
-                        AppSettings.TDEnginePITablesPrefix,
-                        AppSettings.tomlConfig.MaxWaitLen
-                        );
-                }
+                tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
+                    AppSettings.tomlConfig.SQLAPI,
+                    AppSettings.TDEnginePITablesPrefix,
+                    AppSettings.tomlConfig.MaxWaitLen
+                    );
 
                 try
                 {
