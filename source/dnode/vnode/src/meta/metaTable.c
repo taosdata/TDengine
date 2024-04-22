@@ -117,21 +117,6 @@ int metaTtlFindExpired(SMeta *pMeta, int64_t timePointMs, SArray *tbUids, int32_
   return ret;
 }
 
-static int metaBuildBtimeIdxKey(SBtimeIdxKey *btimeKey, const SMetaEntry *pME) {
-  int64_t btime;
-  if (pME->type == TSDB_CHILD_TABLE) {
-    btime = pME->ctbEntry.btime;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    btime = pME->ntbEntry.btime;
-  } else {
-    return -1;
-  }
-
-  btimeKey->btime = btime;
-  btimeKey->uid = pME->uid;
-  return 0;
-}
-
 static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
   if (pME->type == TSDB_NORMAL_TABLE) {
     ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
@@ -272,32 +257,56 @@ void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
 void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
 
 static int32_t metaValidateCreateTableRequest(SMeta *meta, SVCreateTbReq *request) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  void   *value = NULL;
-  int32_t valueSize = 0;
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  void       *value = NULL;
+  int32_t     valueSize = 0;
+  SMetaEntry *entry = NULL;
 
   if (request->type != TSDB_CHILD_TABLE && request->type != TSDB_NORMAL_TABLE) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
   }
 
+  if (request->name == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+  }
+
   if (request->type == TSDB_CHILD_TABLE) {
+    if (request->ctb.stbName == NULL || request->ctb.pTag == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+    }
+
     if (tdbTbGet(meta->pNameIdx, request->ctb.stbName, strlen(request->ctb.stbName) + 1, &value, &valueSize) != 0 ||
         *(int64_t *)value != request->ctb.suid) {
     }
     TSDB_CHECK_CODE(code = TSDB_CODE_PAR_TABLE_NOT_EXIST, lino, _exit);
   }
 
-  if (tdbTbGet(meta->pNameIdx, request->name, strlen(request->name) + 1, &value, &valueSize) == 0) {
-    // TODO
+  code = metaGetTableEntryByNameImpl(meta, request->name, &entry);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    code = 0;
+  } else if (code == 0) {
+    if (request->type != entry->type) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+    }
+    if (request->type == TSDB_CHILD_TABLE && request->ctb.suid != entry->ctbEntry.suid) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE, lino, _exit);
+    }
+    request->uid = entry->uid;
+    if (request->type == TSDB_CHILD_TABLE) {
+      request->ctb.suid = entry->ctbEntry.suid;
+    }
     TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST, lino, _exit);
+  } else {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
-  if (code) {
+  if (code && code != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
   tdbFree(value);
+  metaEntryCloneDestroy(entry);
   return code;
 }
 
@@ -389,6 +398,8 @@ static int32_t metaValidateCreateSuperTableRequest(SMeta *meta, SVCreateStbReq *
     } else {
       TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST, lino, _exit);
     }
+  } else if (metaGetInfo(meta, request->suid, &info, NULL) != TSDB_CODE_NOT_FOUND) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_STB_ALREADY_EXIST, lino, _exit);
   }
 
 _exit:
@@ -418,10 +429,6 @@ int32_t metaCreateSuperTable(SMeta *meta, int64_t version, SVCreateStbReq *reque
       .stbEntry.schemaRow = request->schemaRow,
       .stbEntry.schemaTag = request->schemaTag,
   };
-  if (request->rollup) {
-    TABLE_SET_ROLLUP(entry.flags);
-    entry.stbEntry.rsmaParam = request->rsmaParam;
-  }
   code = metaHandleEntry(meta, &entry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -455,9 +462,9 @@ int32_t metaCreateTable(SMeta *meta, int64_t version, SVCreateTbReq *request, ST
   }
 
 _exit:
-  if (code) {
-    metaInfo("vgId:%d create table failed at line %d since %s, name:%s uid:%" PRId64 " version:%" PRId64 " type:%d",
-             TD_VID(meta->pVnode), lino, tstrerror(code), request->name, request->uid, version, request->type);
+  if (code && code != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+    metaError("vgId:%d create table failed at line %d since %s, name:%s uid:%" PRId64 " version:%" PRId64 " type:%d",
+              TD_VID(meta->pVnode), lino, tstrerror(code), request->name, request->uid, version, request->type);
   } else {
     metaInfo("vgId:%d create table success, name:%s uid:%" PRId64 " version:%" PRId64 " type:%d", TD_VID(meta->pVnode),
              request->name, request->uid, version, request->type);
@@ -508,18 +515,21 @@ _exit:
   return (terrno = code);
 }
 
-static int32_t metaValidateDropSuperTableReq(SMeta *meta, SVDropStbReq *request, SMetaEntry *entry) {
+static int32_t metaValidateDropSuperTableReq(SMeta *meta, SVDropStbReq *request, int64_t *uid) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *value = NULL;
   int32_t valueSize = 0;
 
   if (tdbTbGet(meta->pNameIdx, request->name, strlen(request->name) + 1, &value, &valueSize) != 0 ||
-      *(tb_uid_t *)value != request->suid) {
+      *(int64_t *)value != request->suid) {
     TSDB_CHECK_CODE(code = TSDB_CODE_TDB_STB_NOT_EXIST, lino, _exit);
   }
 
+  *uid = *(int64_t *)value;
+
 _exit:
+  tdbFree(value);
   return code;
 }
 
@@ -528,13 +538,11 @@ int32_t metaDropSuperTable(SMeta *meta, int64_t verison, SVDropStbReq *request, 
   int32_t    lino = 0;
   SMetaEntry entry = {
       .version = verison,
+      .type = -TSDB_SUPER_TABLE,
   };
 
   // validate
-  code = metaValidateDropSuperTableReq(meta, request, &entry);
-  if (code == TSDB_CODE_TDB_STB_NOT_EXIST) {
-    return (terrno = code);
-  }
+  code = metaValidateDropSuperTableReq(meta, request, &entry.uid);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // handle

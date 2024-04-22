@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
 #include "vnodeInt.h"
+#include "meta.h"
+
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME);
