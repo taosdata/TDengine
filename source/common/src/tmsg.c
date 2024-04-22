@@ -3019,6 +3019,11 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       }
     } else {
       pRsp->pSchemaExt = NULL;
+      if (useCompress(pRsp->tableType) && pRsp->numOfColumns > 0) {
+        terrno = TSDB_CODE_COMPRESS_ERROR;
+        ASSERT(0);
+        return -1;
+      }
     }
   }
   tEndDecode(&decoder);
