@@ -90,7 +90,8 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
         | runners::historian::AVEVA_HISTORIAN_ID
         | "csv"
         | runners::mysql::MYSQL_ID
-        | runners::postgres::POSTGRES_ID => try_get_metrics::<IpcMetrics>(task_id),
+        | runners::postgres::POSTGRES_ID
+        | runners::oracle::ORACLE_ID => try_get_metrics::<IpcMetrics>(task_id),
         _ => None,
     }
 }
