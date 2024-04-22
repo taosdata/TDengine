@@ -184,15 +184,10 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
   ASSERT(pTask->status.downstreamReady == 0);
 
-  int32_t code = streamTaskStartCheckDownstream(&pTask->taskCheckInfo, pTask->id.idStr);
-  if (code != TSDB_CODE_SUCCESS) {
-    return;
-  }
-
-  streamTaskInitTaskCheckInfo(&pTask->taskCheckInfo, &pTask->outputInfo, taosGetTimestampMs());
-
   // serialize streamProcessScanHistoryFinishRsp
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->outputInfo.fixedDispatcher.nodeId;
     req.downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
@@ -206,8 +201,9 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
     streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId, &pTask->outputInfo.fixedDispatcher.epSet);
 
-    streamTaskStartMonitorCheckRsp(pTask);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
@@ -226,11 +222,9 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
               pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-
-    streamTaskStartMonitorCheckRsp(pTask);
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
-    streamTaskCompleteCheck(&pTask->taskCheckInfo, pTask->id.idStr);
+    streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
     doProcessDownstreamReadyRsp(pTask);
   }
 }
@@ -405,7 +399,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 
     if (left == 0) {
       doProcessDownstreamReadyRsp(pTask);  // all downstream tasks are ready, set the complete check downstream flag
-      streamTaskCompleteCheck(pInfo, id);
+      streamTaskStopMonitorCheckRsp(pInfo, id);
     } else {
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
               pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
