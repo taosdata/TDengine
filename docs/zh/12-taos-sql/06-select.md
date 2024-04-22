@@ -39,7 +39,7 @@ select_expr: {
 
 from_clause: {
     table_reference [, table_reference] ...
-  | join_clause [, join_clause] ...
+  | table_reference join_clause [, join_clause] ...
 }
 
 table_reference:
@@ -52,7 +52,7 @@ table_expr: {
 }
 
 join_clause:
-    table_reference [INNER] JOIN table_reference ON condition
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -410,7 +410,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制，其它连接条件与主键间必须是 AND 操作。
+在 3.3.0.0 版本之前 TDengine 只支持内查询，自 3.3.0.0 版本起 TDengine 支持了更为广泛的 JOIN 类型，这其中即包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
+
+### 示例
 
 普通表与普通表之间的 JOIN 操作：
 
@@ -420,23 +422,23 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-超级表与超级表之间的 JOIN 操作：
+超级表与超级表之间的 LEFT JOIN 操作：
 
 ```sql
 SELECT *
-FROM temp_stable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-子表与超级表之间的 JOIN 操作：
+子表与超级表之间的 LEFT ASOF JOIN 操作：
 
 ```sql
 SELECT *
-FROM temp_ctable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
+更多 JOIN 操作相关介绍参见页面 [TDengine 关联查询](../join)
 
 ## 嵌套查询
 
