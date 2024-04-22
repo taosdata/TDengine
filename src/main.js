@@ -47,7 +47,7 @@ Vue.prototype.$error = function (msg) {
     duration: 30000
   });
 }
-
+Vue.prototype.$COMMUNITY = (process.env.VUE_APP_COMMUNITY && process.env.VUE_APP_COMMUNITY === "community") ? true : false;
 export function getBrowserLang() {
   const nav = window.navigator;
   const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();

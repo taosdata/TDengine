@@ -13,14 +13,16 @@
         v-bind="dialogParams"
       ></component>
     </el-dialog>
+    <systemMes v-if="$COMMUNITY && showSystemMes"/>
   </div>
 </template>
 
 <script>
 import { mapState } from "vuex";
+import systemMes from './components/communityMes'
 export default {
   name: "App",
-  components: {},
+  components: {systemMes},
   computed: {
     key() {
       return this.$store.state.app.current_cluster?.id || "";
@@ -30,6 +32,7 @@ export default {
       dialogParams: (state) => state.dialogParams,
       dialogListenter: (state) => state.dialogListenters,
       dialogComponent: (state) => state.dialogComponent,
+      showSystemMes: (state) => state.app.showSystemMes
     }),
     dialogVisible: {
       get() {
@@ -55,7 +58,6 @@ export default {
         link.remove();
       }
     });
-
   },
  
 

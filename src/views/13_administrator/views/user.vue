@@ -119,7 +119,7 @@ export default {
   },
   data() {
     return {
-      isDisable:localStorage.getItem('username')==='root',
+      isDisable:localStorage.getItem('username')==='root' && !this.$COMMUNITY,
       pageSize: 10,
       currentPage: 1,
       total: 10,

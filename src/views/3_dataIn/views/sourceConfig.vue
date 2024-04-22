@@ -120,7 +120,7 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button v-else type="primary" @click="save" size="small" :loading="loading">{{
+        <el-button v-else type="primary" @click="save" size="small" :loading="loading" :disabled="$COMMUNITY">{{
           isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
         }}</el-button>
          <el-button @click="cancel" class="cancel-btn" size="small">{{
