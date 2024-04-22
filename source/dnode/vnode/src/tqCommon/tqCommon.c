@@ -86,6 +86,22 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
   return TSDB_CODE_SUCCESS;
 }
 
+void tqSetRestoreVersionInfo(SStreamTask* pTask) {
+  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
+
+  // checkpoint ver is the kept version, handled data should be the next version.
+  if (pChkInfo->checkpointId != 0) {
+    pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
+    pChkInfo->processedVer = pChkInfo->checkpointVer;
+    pTask->execInfo.startCheckpointId = pChkInfo->checkpointId;
+
+    tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
+           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
+  }
+
+  pTask->execInfo.startCheckpointVer = pChkInfo->nextProcessVer;
+}
+
 int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   int32_t vgId = pMeta->vgId;
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);

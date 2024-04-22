@@ -221,7 +221,11 @@ typedef struct {
   SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
-  SMqDataRsp     rsp;
+} SMqRspObjCommon;
+
+typedef struct {
+  SMqRspObjCommon common;
+  SMqDataRsp      rsp;
 } SMqRspObj;
 
 typedef struct {
@@ -233,14 +237,8 @@ typedef struct {
 } SMqMetaRspObj;
 
 typedef struct {
-  int8_t         resType;
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  int32_t        vgId;
-  SSchemaWrapper schema;
-  int32_t        resIter;
-  SReqResultInfo resInfo;
-  STaosxRsp      rsp;
+  SMqRspObjCommon common;
+  STaosxRsp       rsp;
 } SMqTaosxRspObj;
 
 typedef struct SReqRelInfo {
@@ -320,7 +318,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
-  return (SReqResultInfo*)&msg->resInfo;
+  return (SReqResultInfo*)&msg->common.resInfo;
 }
 
 SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
