@@ -154,7 +154,7 @@ impl PointConfig {
     }
 }
 
-fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<String> {
+fn parse_tbname(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
     let point_id = parse_point_id(header, &row)?;
 
     let column = header
@@ -184,10 +184,7 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
     }
 }
 
-fn parse_type(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> anyhow::Result<Option<IpcDataType>> {
+fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<IpcDataType>> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
@@ -196,10 +193,9 @@ fn parse_type(
             if val.is_empty() {
                 return Ok(None);
             }
-
             let value_type = IpcDataType::from_str(val);
             if value_type.is_err() {
-                bail!("invalid column data type: [{}]", val)
+                bail!("invalid column data type: {}", val)
             } else {
                 Ok(Some(value_type.unwrap()))
             }
@@ -207,35 +203,39 @@ fn parse_type(
         .unwrap_or(Ok(None))
 }
 
-fn get_raw_type(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
+fn get_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
         .flatten()
-        .map(|val| match val.find("(") {
-            Some(index) => val[..index].to_string(),
-            None => val.to_string(),
+        .map(|val| {
+            if val.is_empty() {
+                return None;
+            }
+
+            match val.find("(") {
+                Some(index) => val[..index].to_string(),
+                None => val.to_string(),
+            }
         })
 }
 
-fn parse_stable(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
+fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("stable")
         .map(|col| row.get(col.index))
         .flatten()
         .map(|val| {
-            let val_type = get_raw_type(header, row);
-            if val.contains("{type}") && val_type.is_none() {
-                tracing::warn!("stable contains '{{type}}' but type is None, use None");
+            if val.is_empty() {
                 return None;
             }
-
-            let stable_name = if val_type.is_some() {
-                Some(val.replace("{type}", &val_type.unwrap()))
-            } else {
-                Some(val.to_string())
+            let val = val.replace(".", "_");
+            let val_type = get_raw_type(header, row);
+            let stable_name = match (val.contains("{type}"), val_type) {
+                (true, Some(val_type)) => val.replace("{type}", &val_type),
+                _ => val,
             };
-            stable_name
+            Some(stable_name)
         })
         .flatten()
 }
@@ -290,10 +290,9 @@ impl TableConfig {
 
     pub fn from_csv(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Self> {
         let stable = parse_stable(header, row);
-        let stable_prefix = if stable.is_none() {
-            Some(String::from(DEFAULT_STABLE_PREFIX))
-        } else {
-            None
+        let stable_prefix = match stable {
+            None => Some(String::from(DEFAULT_STABLE_PREFIX)),
+            Some(_stable) => None,
         };
         let enabled = parse_enabled(header, row)?;
         let column_configs = parse_columns(header, row)?;

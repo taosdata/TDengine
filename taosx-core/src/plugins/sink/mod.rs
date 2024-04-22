@@ -1190,25 +1190,25 @@ fn stable_name(
     prefix: &Option<String>,
     raw_type: &IpcDataType,
 ) -> Option<String> {
-    if stable_name.is_some() {
-        return Some(stable_name.clone().unwrap());
+    if let Some(stable_name) = stable_name {
+        if stable_name.contains("{type}") {
+            let stable = match raw_type {
+                IpcDataType::VarChar(_len) => stable_name.replace("{type}", "varchar"),
+                IpcDataType::NChar(_len) => stable_name.replace("{type}", "nchar"),
+                _ => stable_name.replace("{type}", &raw_type.sql_repr().replace(" ", "_")),
+            };
+            return Some(stable);
+        } else {
+            return Some(stable_name.clone());
+        }
     }
 
-    if prefix.is_some() {
-        let prefix = prefix.clone().unwrap();
-
+    if let Some(prefix) = prefix {
         let stable_name = match raw_type {
-            IpcDataType::VarChar(_len) => {
-                format!("{}_varchar", prefix)
-            }
-            IpcDataType::NChar(_len) => {
-                format!("{}_nchar", prefix)
-            }
-            _ => {
-                format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_"))
-            }
+            IpcDataType::VarChar(_len) => format!("{}_varchar", prefix),
+            IpcDataType::NChar(_len) => format!("{}_nchar", prefix),
+            _ => format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_")),
         };
-
         return Some(stable_name);
     }
 
@@ -1362,12 +1362,12 @@ async fn consume_point_record(
                 .unwrap();
 
             // point_config
-            let code = point_config_map.get(&point_id);
-            if code.is_none() {
+            let point_config = point_config_map.get(&point_id);
+            if point_config.is_none() {
                 tracing::warn!("cannot get point_config with point_id: {}", point_id);
                 continue;
             }
-            let point_config = code.unwrap();
+            let point_config = point_config.unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);
