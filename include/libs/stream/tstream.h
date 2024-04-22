@@ -444,6 +444,7 @@ typedef struct STaskCheckInfo {
   int64_t       startTs;
   int32_t       notReadyTasks;
   int32_t       inCheckProcess;
+  int32_t       stopCheckProcess;
   tmr_h         checkRspTmr;
   TdThreadMutex checkInfoLock;
 } STaskCheckInfo;
@@ -844,14 +845,12 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs);
 int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id);
 int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
                                   int32_t* pNotReady, const char* id);
 void    streamTaskCleanCheckInfo(STaskCheckInfo* pInfo);
-int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id);
-int32_t streamTaskCompleteCheck(STaskCheckInfo* pInfo, const char* id);
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
+int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
