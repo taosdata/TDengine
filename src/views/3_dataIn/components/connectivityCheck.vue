@@ -1,7 +1,15 @@
 <template>
-  <section class="box-check-connectivity">
+<div class="box-check-connectivity">
+  <el-tooltip
+    placement="top" effect="light" :open-delay="0"
+  >
+    <template slot="content">
+      <div>{{ $t('dataIn.communityCheckTip') }}</div>
+      <a :href="`http://docs.${urlPart}.com/enterprise`" target="_blank">{{ `http://docs.${urlPart}.com/enterprise`}}</a>
+    </template>
     <el-button
       :loading="checkLoading"
+      :disabled="$COMMUNITY"
       class="btn-check-connectivity"
       type="primary"
       size="small"
@@ -9,11 +17,12 @@
       @click.capture.stop="clickCheckBtn"
       >{{ $t("dataIn.check") }}
     </el-button>
-    <Result
-      v-show="JSON.stringify(checkResult) !== '{}'"
-      :result="checkResult"
-    /> 
-  </section>
+  </el-tooltip>
+  <Result
+    v-show="JSON.stringify(checkResult) !== '{}'"
+    :result="checkResult"
+  /> 
+</div>
 </template>
 <script>
 import Result from "./result.vue";
@@ -42,6 +51,9 @@ export default {
     },
     isEdit() {
       return this.sourceParent.isEditable;
+    },
+    urlPart() {
+      return this.$i18n.locale.includes('en') ? "tdengine" : "taosdata";
     },
   },
   watch: {

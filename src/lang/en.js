@@ -208,6 +208,8 @@ export default {
   minutes: 'm ',
   seconds: 's ',
   milliseconds: 'ms',
+  systemPrompt: 'System Prompt',
+  communityContent: 'At present, the open source version of TDengine is being used, without database backup and recovery function, real-time database synchronization function, inability to use multi-level storage, zero code access to various data sources, and no permission management. And TDengine Enterprise Edition solves these problems and also provides more features. Welcome to contact the TDengine team to inquire about TDengine Enterprise Edition.',
   statuses: {
     created: "Created",
     queued: "Queued",
@@ -351,6 +353,7 @@ export default {
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: "Log in Explorer",
     username: "User Name",
+    usernamePlaceholder: "Please enter the User Name, default is root",
     password: "Password",
     loginLeftMessage: {
       title:
@@ -708,6 +711,7 @@ export default {
     updateTime: "Updated at:",
     refresh: "Refresh",
     check: "Check Connection",
+    communityCheckTip: "仅企业版可用,了解更多请访问",
     resume: "Scheduling strategy",
     resumeTip:
       "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted.",
@@ -1000,6 +1004,28 @@ export default {
     nameError: "No special characters are allowed",
     demoData: "Demo Data",
     demoDataText: "a database with 1 million data points is created",
+    title: 'Register For Use',
+    phone: 'Mobile phone number',
+    email: 'Email address',
+    verificationCode: 'Verification code',
+    getVerificationCode: 'Get verification code',
+    regetVerificationCode: 'Resend verification code',
+    signin: 'Submit',
+    imageVerificationCode: 'Image Verification code',
+    phoneTips: "Please enter your phone number",
+    emailTips: "Please enter email",
+    verificationCodeTips: "Please enter the verification code",
+    requirement: "For first use, you need to register using your phone number. The explorer must be able to connect to the Internet when you register, otherwise it will fail. After successful registration, the explorer can be used on the intranet without connecting to the Internet. For subsequent login, please use the database username and password to log in.",
+    errors: {
+      "verificationCodeNone": "You have not yet obtained the verification code. Please obtain the verification code again",
+      "verificationCodeError": "Verification code error, please re-enter",
+      "captchaInputError": "captcha input error, please re-enter",
+      "verificationCodeInputError": "Verification code error, please re-enter",
+    },
+    success: {
+      "verificationCodeSend": "The verification code has been sent to your phone, please check",
+      "registerSuccess": "Registration successful, please log in using the database account",
+    }
   },
   cluster: {
     title: "Starting the TDengine  Service ...",

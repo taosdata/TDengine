@@ -7,7 +7,7 @@
           @click="refresh"
           size="small"
           icon="el-icon-refresh"
-          :disabled="requestIng"
+          :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
         <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
@@ -231,6 +231,7 @@
                     size="mini"
                     @click="start(scope.row)"
                     icon="el-icon-qidong"
+                    :disabled="$COMMUNITY"
                   ></el-button>
                 </el-tooltip>
               </template>
@@ -250,6 +251,7 @@
                     size="mini"
                     @click="stop(scope.row)"
                     icon="el-icon-tingzhi"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -264,6 +266,7 @@
                     size="mini"
                     @click="refreshCurrentTask(scope.row)"
                     icon="el-icon-refresh"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -292,6 +295,7 @@
                 type="primay"
                 size="mini"
                 :disabled="
+                  $COMMUNITY ? $COMMUNITY :
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
@@ -327,6 +331,7 @@
                 size="mini"
                 @click="del(scope.row)"
                 icon="el-icon-delete"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
             <el-tooltip
@@ -339,6 +344,7 @@
                 size="mini"
                 @click="copyTask(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-copy-document"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
           </template>
@@ -381,6 +387,7 @@ import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
 import Metrics from "../components/metrics.vue";
 import { deepClone, parsinginZone } from "@/utils";
+import { dataInMockData } from "@/const";
 export default {
   name: "DataSource",
   components: { AddDialog, Agents },
@@ -801,14 +808,16 @@ export default {
       this.$refs.agents.add();
     },
     async expandChange(row, expandedRows) { 
-      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-      let activitList = await this.getCurrentActivities(row.taskid)
-      this.topicList = this.topicList.map(item => {
-        if (item.id == row.taskid) {
-          item.taskActivities = deepClone(activitList) 
-        }
-        return item
-      })
+      if (!this.$COMMUNITY) {
+        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+        let activitList = await this.getCurrentActivities(row.taskid)
+        this.topicList = this.topicList.map(item => {
+          if (item.id == row.taskid) {
+            item.taskActivities = deepClone(activitList) 
+          }
+          return item
+        })
+      }
     },
     getLevelStyle(level) {
       let style = "";
@@ -890,13 +899,17 @@ export default {
   },
   mounted() {
     this.clearTransformerStore()
-    if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh().then(() => {
-        this.typeList = this.sourceList;
-      });
-      this.$nextTick(() => {
-        this.handleSetInterval()
-      })
+    if (this.$COMMUNITY) {
+      this.topicList = dataInMockData;
+    } else {
+      if (this.$parent.$parent.$parent.currentName == "datasource") {
+        this.refresh().then(() => {
+          this.typeList = this.sourceList;
+        });
+        this.$nextTick(() => {
+          this.handleSetInterval()
+        })
+      }
     }
   },
   beforeDestroy() {

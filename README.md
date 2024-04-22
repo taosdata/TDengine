@@ -14,6 +14,9 @@ yarn
 
 # develop
 yarn dev
+
+# develop community
+COMMUNITY=community yarn dev
 ```
 
 ### Build
