@@ -238,7 +238,7 @@ class TDTestCase(TBase):
     #
     def preDb(self, vgroups):
 
-        cnt = int(time.time())%10 + 1
+        cnt = int(time.time())%3 + 1
         for i in range(cnt):
              vg = int(time.time()*1000)%10 + 1
              sql = f"create database predb vgroups {vg}"
