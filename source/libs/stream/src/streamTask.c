@@ -24,8 +24,8 @@
 #define CHECK_NOT_RSP_DURATION 10*1000 // 10 sec
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
-static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
-static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
+static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
+static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -34,10 +34,14 @@ static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
+static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet, bool* pUpdated) {
   char buf[512] = {0};
 
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
+    if (!(*pUpdated)) {
+      *pUpdated = isEpsetEqual(&pTask->info.epSet, pEpSet);
+    }
+
     epsetAssign(&pTask->info.epSet, pEpSet);
     epsetToStr(pEpSet, buf, tListLen(buf));
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
@@ -46,12 +50,12 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
   // check for the dispatch info and the upstream task info
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   } else if (level == TASK_LEVEL__AGG) {
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet, pUpdated);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   } else {  // TASK_LEVEL__SINK
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   }
 
   return 0;
@@ -608,7 +612,7 @@ int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstre
   return TSDB_CODE_SUCCESS;
 }
 
-void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated) {
   char buf[512] = {0};
   epsetToStr(pEpSet, buf, tListLen(buf));
 
@@ -616,6 +620,10 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
   for (int32_t i = 0; i < numOfUpstream; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->nodeId == nodeId) {
+      if (!(*pUpdated)) {
+        *pUpdated = isEpsetEqual(&pInfo->epSet, pEpSet);
+      }
+
       epsetAssign(&pInfo->epSet, pEpSet);
       stDebug("s-task:0x%x update the upstreamInfo taskId:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId, pInfo->taskId,
               nodeId, buf);
@@ -642,12 +650,14 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
   pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
-void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool *pUpdated) {
   char buf[512] = {0};
   epsetToStr(pEpSet, buf, tListLen(buf));
-  int32_t id = pTask->id.taskId;
+  *pUpdated = false;
 
-  int8_t type = pTask->outputInfo.type;
+  int32_t id = pTask->id.taskId;
+  int8_t  type = pTask->outputInfo.type;
+
   if (type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* pVgs = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
@@ -656,18 +666,24 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
       SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
 
       if (pVgInfo->vgId == nodeId) {
+        if (!(*pUpdated)) {
+          (*pUpdated) = isEpsetEqual(&pVgInfo->epSet, pEpSet);
+        }
+
         epsetAssign(&pVgInfo->epSet, pEpSet);
-        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId,
-                buf);
+        stDebug("s-task:0x%x update dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId, buf);
         break;
       }
     }
   } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
     STaskDispatcherFixed* pDispatcher = &pTask->outputInfo.fixedDispatcher;
     if (pDispatcher->nodeId == nodeId) {
+      if (!(*pUpdated)) {
+        *pUpdated = isEpsetEqual(&pDispatcher->epSet, pEpSet);
+      }
+
       epsetAssign(&pDispatcher->epSet, pEpSet);
-      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId,
-              buf);
+      stDebug("s-task:0x%x update dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId, buf);
     }
   }
 }
@@ -690,7 +706,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
+bool streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   STaskExecStatisInfo* p = &pTask->execInfo;
 
   int32_t numOfNodes = taosArrayGetSize(pNodeList);
@@ -701,11 +717,13 @@ int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   stDebug("s-task:0x%x update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.taskId,
           numOfNodes, p->updateCount, prevTs);
 
+  bool updated = false;
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
-    doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp);
+    doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp, &updated);
   }
-  return 0;
+
+  return updated;
 }
 
 void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
@@ -1033,7 +1051,7 @@ static int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, const char* id)
     stWarn("s-task:%s already not in-check-procedure", id);
   }
 
-  int64_t el = taosGetTimestampMs() - pInfo->startTs;
+  int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
   stDebug("s-task:%s clear the in-check-procedure flag, not in-check-procedure elapsed time:%" PRId64 " ms", id, el);
 
   pInfo->startTs = 0;
@@ -1075,7 +1093,7 @@ static void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
         req.downstreamNodeId = pVgInfo->vgId;
         req.downstreamTaskId = pVgInfo->taskId;
 
-        stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
+        stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%d",
                 pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
         streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
         break;
