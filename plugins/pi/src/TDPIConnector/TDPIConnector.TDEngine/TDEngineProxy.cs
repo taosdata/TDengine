@@ -79,9 +79,9 @@ namespace TDPIConnector.TDEngine
         {
             return null;
         }
-        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
         {
-            return taosxCommonClient.ChangeTagValueForAFElements(db, elementName, attriName, value);
+            return taosxCommonClient.ChangeTagValueForAFElements(db, tbName, attriName, value);
         }
         public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
@@ -185,7 +185,7 @@ namespace TDPIConnector.TDEngine
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
-                string tdEngineTableName = GetFullTableName(element.Name).ToTDEngineNamingPattern();
+                string tdEngineTableName = element.Name;
                 string stableName = element.STableName.ToTDEngineNamingPattern();
                 
                 var taosxClient = getTaosxClient(stableName);
@@ -219,12 +219,16 @@ namespace TDPIConnector.TDEngine
                 {
                     if (column.IsTDengineTag())
                     {
+                        if (column.TagValue.Length > 100) {
+                            log.Error($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
+                            column.TagValue = column.TagValue.Substring(0, 99);
+                        }
                         tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
                     }
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
-                string tdEngineTableName = GetFullTableName(element.Name).ToTDEngineNamingPattern();
+                string tdEngineTableName = element.Name;
                 taosxClient.AddAFElementTableTag(tdEngineTableName, tags);
             }
             taosxClient.InitTables();
@@ -251,9 +255,9 @@ namespace TDPIConnector.TDEngine
             return Task.CompletedTask;
         }
 
-        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string elementName, string startTime, string endTime)
+        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string tbName, string startTime, string endTime)
         {
-            return taosxCommonClient.DeleteByTimeRange(database, elementName, startTime, endTime);
+            return taosxCommonClient.DeleteByTimeRange(database, tbName, startTime, endTime);
         }
 
         private void initPointModeTables()

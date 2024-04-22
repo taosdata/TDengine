@@ -656,11 +656,11 @@ namespace TDPIConnector.TDEngine
             sqlCommand.Append(";");
             return sqlCommand.ToString();
         }
-        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
         {
             try
             {
-                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{tbName} " +
                     $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
                 return await MakeHttpRequest(sqlCommand);
             }
@@ -686,14 +686,14 @@ namespace TDPIConnector.TDEngine
             }
         }
 
-        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string elementName, string startTime, string endTime)
+        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string tbName, string startTime, string endTime)
         {
 #if ONLY_PI_TEST
             return null;
 #endif
             try
             {
-                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{tbName} " +
                     $"WHERE ts >= \'{startTime}\' AND ts <= \'{endTime}\';";
                 return await MakeHttpRequest(sqlCommand);
             }

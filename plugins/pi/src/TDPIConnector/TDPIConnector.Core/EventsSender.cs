@@ -79,7 +79,7 @@ namespace TDPIConnector.Core
                 else {
                     stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
                 }
-                var elementName = dpEvent.Value.Attribute.Element.Name;
+                var elementTbName = ElemenetTableConverter.GetTDTableNameForElement(dpEvent.Value.Attribute.Element);
                 var tdValue = dpEvent.Value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
@@ -90,7 +90,7 @@ namespace TDPIConnector.Core
                     var startTime = rangeDeleteEvent.StartTime;
                     var endTime = rangeDeleteEvent.EndTime;
                     deleteSender.AddDeleteRange(dpEvent.Value.Attribute.Element, startTime, endTime);
-                    log.Debug($"element range delete event {elementName}:{attributeName} {startTime.LocalTime}-{endTime.LocalTime}");
+                    log.Debug($"element range delete event {elementTbName}:{attributeName} {startTime.LocalTime}-{endTime.LocalTime}");
                     continue;
                 }
                 if (dpEvent.Value.Attribute.IsTDengineTag())
@@ -99,8 +99,8 @@ namespace TDPIConnector.Core
                         dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Add)
                     {
                         var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
-                        log.Info($"element tag change {elementName}:{attributeName}:{valueString}");
-                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementName, attributeName, valueString).Wait();
+                        log.Info($"element tag change {elementTbName}:{attributeName}:{valueString}");
+                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, attributeName, valueString).Wait();
                     }
                     continue;
                 }
@@ -108,7 +108,7 @@ namespace TDPIConnector.Core
                 if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete &&
                     !dpEvent.Value.Attribute.Unsupported())
                 {
-                    log.Debug($"element event delete {elementName}:{attributeName}:{timestamp}");
+                    log.Debug($"element event delete {elementTbName}:{attributeName}:{timestamp}");
                     tdValue.SetTDDeleted();
                 }
                 if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh && !dpEvent.Value.Attribute.Unsupported())
@@ -125,9 +125,9 @@ namespace TDPIConnector.Core
 
                 if (stables.ContainsKey(stableName))
                 {
-                    if (stables[stableName].ContainsKey(elementName))
+                    if (stables[stableName].ContainsKey(elementTbName))
                     {
-                        var table = stables[stableName][elementName];
+                        var table = stables[stableName][elementTbName];
                         if (table.ContainsKey(timestamp))
                         {
                             table[timestamp].Add(tdValue);
@@ -139,12 +139,12 @@ namespace TDPIConnector.Core
                     }
                     else
                     {
-                        stables[stableName].Add(elementName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                        stables[stableName].Add(elementTbName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     }
                 }
                 else {
                     var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
-                    tables.Add(elementName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tables.Add(elementTbName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     stables.Add(stableName, tables);
                 }
             }
@@ -267,17 +267,18 @@ namespace TDPIConnector.Core
         }
         public void AddDeleteRange(AFElementWrapper element, AFTimeWrapper startTime, AFTimeWrapper endTime) {
             lock (stLock) {
-                if (deleteElements.ContainsKey(element.Name))
+                var tbName = ElemenetTableConverter.GetTDTableNameForElement(element);
+                if (deleteElements.ContainsKey(tbName))
                 {
-                    deleteElements[element.Name].EndTime =
-                        deleteElements[element.Name].EndTime > endTime ? deleteElements[element.Name].EndTime : endTime;
-                    deleteElements[element.Name].StartTime =
-                        deleteElements[element.Name].StartTime < startTime ? deleteElements[element.Name].StartTime : startTime;
+                    deleteElements[tbName].EndTime =
+                        deleteElements[tbName].EndTime > endTime ? deleteElements[tbName].EndTime : endTime;
+                    deleteElements[tbName].StartTime =
+                        deleteElements[tbName].StartTime < startTime ? deleteElements[tbName].StartTime : startTime;
                 }
                 else
                 {
                     var range = new RangeDelete(element, startTime, endTime);
-                    deleteElements.Add(element.Name, range);
+                    deleteElements.Add(tbName, range);
                 }
                 LastUpdataTime = DateTime.Now;
                 if (!startBackfill) {

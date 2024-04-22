@@ -235,7 +235,7 @@ namespace TDPIConnector.Core
             tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
             columnNames = new List<string>();
 
-            var elementName = attribute.Element.Name;
+            var elementName = ElemenetTableConverter.GetTDTableNameForElement(attribute.Element);
             if (!columnNames.Contains(attribute.Name))
             {
                 columnNames.Add(attribute.Name);

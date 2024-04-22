@@ -2,6 +2,7 @@
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Helper;
+using TDPIConnector.TDEngine;
 
 namespace TDPIConnector.Core.Conversions
 {
@@ -38,6 +39,9 @@ namespace TDPIConnector.Core.Conversions
     }
     internal class ElemenetTableConverter
     {
+        internal static string GetTDTableNameForElement(AFElementWrapper element) {
+            return TDEngineProxy.GetFullTableName(element.Name).ToTDEngineNamingPattern() + "_" + element.ID.ToString();
+        }
         internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
@@ -63,13 +67,14 @@ namespace TDPIConnector.Core.Conversions
                     column.TagValue = tags[column.Name];
                 }
             }
-            var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
+            var table = new TDTable(GetTDTableNameForElement(element), element.ID.ToString(), sTableName)
             {
                 Columns = elementColumns,
                 Location = location
             };
             return table;
         }
+
         static string getLocation(string path)
         {
             // "\\\\WIN-2OA23UM12TN\\Meters\\California\\San Francisco\\Meter_10001"

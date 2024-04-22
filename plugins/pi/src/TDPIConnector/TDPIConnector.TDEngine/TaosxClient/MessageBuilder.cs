@@ -235,13 +235,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
             foreach (var tag in tagNames)
             {
                 string tagType = "NCHAR(100)";
-                if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
+                // if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
                 ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tagType));
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
             }
 
             if (mode == PIDataMode.AFElementMode) {
-                ipcTagField.Add(new IpcField(StaticConfig.Default.AFTreeTagName, true, StringType.Default, "NCHAR(100)"));
+                ipcTagField.Add(new IpcField(StaticConfig.Default.AFTreeTagName, true, StringType.Default, "NCHAR(256)"));
                 tagField.Add(new Field(StaticConfig.Default.AFTreeTagName, StringType.Default, true));
             }
             GenerateMetadata(stableName, colIpcField, ipcTagField);

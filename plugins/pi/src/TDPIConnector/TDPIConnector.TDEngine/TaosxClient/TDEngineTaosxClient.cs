@@ -182,7 +182,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                 statusDic.Add($"{columnName}_status", value.Quality);
                             }
                         }
-                        builder.tableNameArrowArray.Append(TDEngineProxy.GetFullTableName(table.Key).ToTDEngineNamingPattern());
+                        builder.tableNameArrowArray.Append(table.Key);
                         builder.tsArrowArray.Append(ts);
                         foreach (var objRow in builder.valArrowArrayList)
                         {
