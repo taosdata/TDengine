@@ -43,6 +43,7 @@ s3UploadDelaySec 60
 
 class TDTestCase(TBase):
     updatecfgDict = {
+        "supportVnodes":"1000",
         's3EndPoint': 'http://192.168.1.52:9000', 
         's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
         's3BucketName': 'ci-bucket',
@@ -236,7 +237,7 @@ class TDTestCase(TBase):
 
     #
     def preDb(self, vgroups):
-        vg = int(time.time()*1000)%10 + 1
+        vg = int(time.time()*1000)%990 + 1
         sql = f"create database predb vgroups {vg}"
         tdSql.execute(sql, show=True)
 
