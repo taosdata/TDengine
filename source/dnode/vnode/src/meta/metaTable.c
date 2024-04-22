@@ -15,8 +15,6 @@
 
 #include "meta.h"
 
-extern SDmNotifyHandle dmNotifyHdl;
-
 extern int32_t metaGetTableEntryByUidImpl(SMeta *meta, int64_t uid, SMetaEntry **entry);
 extern int32_t metaGetTableEntryByNameImpl(SMeta *meta, const char *name, SMetaEntry **entry);
 extern int32_t metaEntryCloneDestroy(SMetaEntry *entry);

@@ -15,6 +15,8 @@
 
 #include "meta.h"
 
+extern SDmNotifyHandle dmNotifyHdl;
+
 int metaEncodeEntry(SEncoder *encoder, const SMetaEntry *entry) {
   if (tStartEncode(encoder) < 0) return -1;
 
