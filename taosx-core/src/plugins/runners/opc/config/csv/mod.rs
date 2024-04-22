@@ -160,10 +160,16 @@ impl CsvParser {
 
     pub fn get_point_ids(&self) -> Vec<String> {
         let point_config_map = &self.model_config.point_config_map;
-
+        let table_config_map = &self.model_config.table_config_map;
         let mut node_config = Vec::new();
 
         for point_id in point_config_map.keys() {
+            if let Some(table_config) = table_config_map.get(point_id) {
+                if table_config.enabled == Some(0i8) {
+                    continue;
+                }
+            }
+
             let tbname = point_config_map.get(point_id).unwrap().code.clone();
             node_config.push(format!("{}::{}", point_id, tbname));
         }

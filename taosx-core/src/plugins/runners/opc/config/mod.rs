@@ -80,11 +80,22 @@ impl OPCConfig {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
                 taos.exec(drop_sql).await.map_err(|err| {
-                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                    anyhow::anyhow!(
+                        "failed to drop table: {}, cause: {}",
+                        child_table_name,
+                        err.to_string()
+                    )
                 })?;
             }
 
-            Some(parser.get_model_config())
+            let mut model_config = parser.get_model_config();
+            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
+                if table_config.enabled == Some(0i8) {
+                    model_config.point_config_map.remove(point_id);
+                }
+            }
+
+            Some(model_config)
         } else {
             // 如果没有 csv_config_file 参数，那么, 从 dsn 中解析 point_config_map 和 table_config_map
             let point_config_map = Self::build_point_config_map(dsn)?;

@@ -325,6 +325,12 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
         .map(|val| if val.is_empty() { None } else { Some(val) })
         .flatten()
         .map(|v| {
+            if v != "0" && v != "1" {
+                return Err(anyhow::anyhow!(
+                    "invalid enabled: {} in csv row, must be 0 or 1",
+                    v
+                ));
+            }
             v.parse::<i8>()
                 .map_err(|_| anyhow::anyhow!("invalid enabled: {} in csv row, must be 0 or 1", v))
         })
