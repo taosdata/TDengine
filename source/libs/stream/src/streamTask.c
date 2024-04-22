@@ -1138,7 +1138,8 @@ static void rspMonitorFn(void* param, void* tmrId) {
       if (p->status == TASK_DOWNSTREAM_READY) {
         numOfReady += 1;
       } else if (p->status == TASK_UPSTREAM_NEW_STAGE || p->status == TASK_DOWNSTREAM_NOT_LEADER) {
-        stDebug("s-task:%s recv status from downstream, task:0x%x, quit from check downstream tasks", id, p->taskId);
+        stDebug("s-task:%s recv status:NEW_STAGE/NOT_LEADER from downstream, task:0x%x, quit from check downstream", id,
+                p->taskId);
         numOfFault += 1;
       } else {                // TASK_DOWNSTREAM_NOT_READY
         if (p->rspTs == 0) {  // not response yet
