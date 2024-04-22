@@ -4,7 +4,7 @@
       <section class="msg_sec">
         <div
           class="block-title"
-          v-if="$store.state.app.currentDBType == 'avevaHistorian'"
+          v-if="$store.state.app.supportSQL"
         >
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
@@ -21,8 +21,7 @@
                   prop="msgbody"
                   >
                   <el-input
-                    :disabled="
-                      $store.state.app.currentDBType == 'avevaHistorian'"
+                    :disabled="!!$store.state.app.supportSQL"
                     class="msgbody"
                     v-model="msgForm.msgbody"
                     :placeholder="$t('datasource.transformer.msgbodytip')"
@@ -44,14 +43,14 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" size="small" @click="getMsgBody" :disabled="$store.state.app.currentDBType !== 'avevaHistorian'">{{
+              <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL" @click="getMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button>
             </el-col>
             <el-col
               name="third"
               :class="['mt5','msg-right']"
-              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+              v-if="!$store.state.app.supportSQL"
             >
               <el-upload
                 class="upload-demo"
@@ -65,7 +64,7 @@
                 :file-list="fileList"
                 :show-file-list="false"
               >
-                <el-button size="small" type="primary" :loading="request">{{
+                <el-button size="small" type="primary" plain :loading="request">{{
                   $t("datasource.transformer.msgbodytypes.type3")
                 }}</el-button>
               </el-upload>
@@ -73,7 +72,7 @@
             <el-col
               name="first"
               :class="['mt5','msg-right']"
-              v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+              v-if="!$store.state.app.supportSQL"
             >
             <el-button size="small" @click="clearMsgBody">{{
                 $t("datasource.transformer.msgbodytypes.type1")
@@ -86,12 +85,11 @@
       <section class="extract">
         <div class="block-title top">
           <span>{{
-            $store.state.app.currentDBType == "csv" ||
-            $store.state.app.currentDBType == "avevaHistorian"
+            $store.state.app.currentDBType == "csv" || $store.state.app.supportSQL
               ? $t("datasource.transformer.identified")
               : $t("datasource.transformer.parse")
           }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop1">
+          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop1">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('1')"></i>
               <DocsContent
@@ -101,20 +99,14 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              v-if="
-                $store.state.app.currentDBType !== 'avevaHistorian' &&
-                $store.state.app.currentDBType !== 'csv'
-              "
+              v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
               ><i class="el-icon-info" @click="handleClickPop('1')"></i>
             </span>
           </el-popover>
         </div>
         <div
           class="extrac-parse"
-          v-if="
-            $store.state.app.currentDBType !== 'csv' &&
-            $store.state.app.currentDBType !== 'avevaHistorian'
-          "
+          v-if="$store.state.app.currentDBType !== 'csv' && !$store.state.app.supportSQL"
         >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
@@ -136,7 +128,7 @@
                 <SplitExpression ref="splitExpression"></SplitExpression>
               </template>
               <el-input
-                v-else
+                v-else-if="parseruleForm.type == 'regex'"
                 v-model="parseruleForm.expression"
                 :placeholder="
                   parseruleForm.type == 'json'
@@ -147,13 +139,39 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
+              <!-- <el-select v-else
+                multiple
+                size="small"
+                v-model="parseruleForm.expression"
+                @visible-change="handleChange"
+              >
+                <el-option
+                  v-for="item in allProperties"
+                  :key="item.defaultValue"
+                  :value="item.defaultValue"
+                >
+                <template #default>
+                  <el-checkbox class="my-checkbox" v-model="item.checked">
+                    <span style="float: left">{{ item.defaultValue }}</span>
+                    <el-input style="margin-left: 4px; width: 100px; float: right" size="mini" v-model="item.rename" @focus="focus" @mousedown.native="handleInput" ref="inputRef"></el-input>
+                  </el-checkbox>
+                </template>
+                </el-option>
+              </el-select> -->
+              <cusSelect
+                v-else
+                v-model="parseruleForm.expression"
+                :allProperties="allProperties"
+                :selectJson="selectJson"
+                @updateData="updateData"
+              />
             </el-form-item>
-            <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
+            <!-- <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
               <Icon
                 :name="'json'"
                 class="transform-json-icon"
               ></Icon>
-            </el-button>
+            </el-button> -->
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
@@ -192,12 +210,9 @@
         </ul>
       </section>
       <section class="extract">
-        <div
-          class="block-title top"
-          style="justify-content: flex-start; align-items: baseline"
-        >
+        <div class="block-title top">
           <span>{{ $t("datasource.transformer.extract") }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop2">
+          <el-popover placement="top" trigger="hover" width="520" v-model="visiblePop2">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('2')"></i>
               <DocsContent
@@ -225,21 +240,22 @@
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
-        <div class="extract-btns">
-          <el-button
-            type="primary"
-            size="small"
-            @click="addNewExtract"
-            :disabled="columnsArr.length == 0"
-          >
-            {{ $t("datasource.transformer.addExtract") }}
-          </el-button>
-        </div>
+        <el-button 
+          type="primary"
+          icon="el-icon-plus" 
+          size="small" 
+          class="btn-icon-small"
+          plain
+          @click="addNewExtract" 
+          :disabled="columnsArr.length == 0"
+        >
+          {{ $t("datasource.transformer.addExtract") }}
+        </el-button>
       </section>
       <section class="filter">
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
-          <el-popover placement="top" effect="light" trigger="manual" width="520" v-model="visiblePop3">
+          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop3">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('3')"></i>
               <DocsContent
@@ -267,12 +283,15 @@
           ></FilterExpression>
         </template>
         <el-button
-          type="primary"
-          size="small"
-          @click="addNewFilter"
-          :disabled="filterArr.length >= 1 || columnsArr.length == 0"
-        >
-          {{ $t("datasource.transformer.addfilter") }}
+            type="primary"
+            icon="el-icon-plus"
+            size="small"
+            class="btn-icon-small"
+            plain
+            @click="addNewFilter"
+            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
+          >
+            {{ $t("datasource.transformer.addfilter") }}
         </el-button>
       </section>
       <section>
@@ -308,9 +327,10 @@
             </div>
             <el-button
               type="primary"
-              class="btn-create-stable"
+              class="btn-icon-small"
               size="small"
               icon="el-icon-plus"
+              plain
               @click="createStable"
               :disabled="$store.state.app.currentDBName == ''"
             >
@@ -567,6 +587,7 @@ import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, deepClone } from "@/utils"
+import cusSelect from "./cusSelect.vue"
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -575,7 +596,8 @@ export default {
     FilterExpression,
     CreateSTB,
     SplitExpression,
-    DocsContent
+    DocsContent,
+    cusSelect
   },
   props: {
     parent: {
@@ -593,7 +615,6 @@ export default {
   },
   data() {
     return {
-      activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       parseTypes: ["regex", "json"],
@@ -730,11 +751,6 @@ export default {
     },
   },
   async mounted() {
-    if (this.$store.state.app.currentDBType == "avevaHistorian") {
-      this.activeName = "second";
-    } else {
-      this.activeName = "first";
-    }
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
@@ -767,6 +783,20 @@ export default {
     this.statisticCol();
   },
   methods: {
+    // handleChange(visible) {
+    //   if (visible) {
+    //     setTimeout(() => {
+    //       this.$refs.inputRef.focus();
+    //     }, 100);
+    //   }
+    // },
+    // handleInput(data) {
+    //   this.$refs.inputRef.focus();
+    //   console.log('Input value:', data.inputValue);
+    // },
+    // focus() {
+
+    // },
     handleClickPop(key) {
       switch (key) {
         case '1':
@@ -932,7 +962,7 @@ export default {
         }
         let topparser = null;
 
-        if (this.$store.state.app.currentDBType == "avevaHistorian") {
+        if (this.$store.state.app.supportSQL) {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
           topparser = {
@@ -1031,9 +1061,7 @@ export default {
                   !this.kafkaDefaultCols.includes(item.name)
                 ) {
                   return item;
-                } else if (
-                  this.$store.state.app.currentDBType == "avevaHistorian"
-                ) {
+                } else if (this.$store.state.app.supportSQL) {
                   return item;
                 }
               })
@@ -1138,7 +1166,7 @@ export default {
 
     //编辑回显数据--编辑状态不自动显示result table
     async echoParser(value) {
-      if (this.$store.state.app.currentDBType == "avevaHistorian") {
+      if (this.$store.state.app.supportSQL) {
         let dsn = this.$store.state.app.historiandsn;
         dsn += `&sample_data_limit=${this.limitOffset}`
         let result = await getHistorianMsgbody(
@@ -1189,7 +1217,7 @@ export default {
             ? Object.values(value.parser.parse[tagKey]).toString()
             : Object.values(value.parser.parse[tagKey])
                 .toString()
-                .replace(",", ";");
+                // .replace(",", ";");
       }
 
       await this.submitParse();
@@ -1284,6 +1312,7 @@ export default {
         // this.subrule.subname = value.parser.model.name;
         await this.getSTbaleList();
         await this.echoFetchMap();
+        await this.selectJson();
         this.$store.commit("app/SET_RESULTTB_SHOW", false);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
@@ -1481,7 +1510,7 @@ export default {
         },
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : this.$store.state.app.currentDBType == "avevaHistorian"
+          : this.$store.state.app.supportSQL
           ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
@@ -1543,7 +1572,7 @@ export default {
 
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : this.$store.state.app.currentDBType == "avevaHistorian"
+          : this.$store.state.app.supportSQL
           ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
@@ -1871,7 +1900,7 @@ export default {
                 ) {
                   return val;
                 } else if (
-                  this.$store.state.app.currentDBType == "avevaHistorian"
+                  this.$store.state.app.supportSQL
                 ) {
                   return val;
                 } else {
@@ -2043,9 +2072,12 @@ export default {
     handleLimit(val) {
       this.$store.commit("app/SET_LIMIT_OFFSET", val);
     },
+    updateData(data) {
+      this.parseruleForm.expression = data
+    },
     selectJson() {
-      this.dialogVisible = true;
-      if (this.parseruleForm.expression) {
+      // this.dialogVisible = true;
+      if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
         this.allProperties = extractAllProperties(this.msgForm.msgbody)
         let firstSplitArr = this.parseruleForm.expression.split(',')
@@ -2089,10 +2121,15 @@ export default {
     handleRename(value) {
       let inputString = value
       inputString = inputString.replace(/\$./g, '');
+      // 判断不是嵌套属性 
+      if (!inputString.includes('.')) {
+        inputString = "";
+      }
       inputString = inputString.replace(/\./g, '_');
       // 替换所有的中括号为下划线
       inputString = inputString.replace(/\[/g, '_');
       inputString = inputString.replace(/\]/g, '');
+      
 
       return inputString;
     }
@@ -2164,16 +2201,11 @@ export default {
         }
       },
     },
-    "$store.state.app.currentDBType": {
-      deep: true,
-      handler(val) {
-        if (val == "avevaHistorian") {
-          this.activeName = "second";
-        } else {
-          this.activeName = "first";
-        }
-      },
-    },
+    "parseruleForm.type": {
+      handler() {
+        this.parseruleForm.expression = ""
+      }
+    }
   },
 };
 </script>
@@ -2195,7 +2227,7 @@ export default {
 ::v-deep i {
   font-size: 16px;
 }
-::v-deep .btn-create-stable i {
+::v-deep .btn-icon-small i {
   font-size: 12px;
 }
 
@@ -2219,12 +2251,6 @@ export default {
     }
   }
 }
-.extract {
-  .el-button {
-    width: 100%;
-    margin-top: 15px;
-  }
-}
 .col-list {
   margin-top: 15px;
   margin-bottom: 20px;
@@ -2246,7 +2272,8 @@ export default {
     color: #fff;
   }
 }
-.filter {
+
+.extract, .filter {
   .el-button {
     width: 100%;
   }
@@ -2385,6 +2412,7 @@ export default {
     .el-form {
       display: flex !important;
       flex: 1;
+      align-items: center;
       .el-form-item {
         margin-bottom: 0px;
         margin-right: 15px;
@@ -2402,7 +2430,7 @@ export default {
       align-items: center;
       border-radius: 6px;
       padding: 12px 20px;
-      margin-top: 5px;
+      margin-top: 2px;
     }
     .split-expression {
       margin-top: 5px;

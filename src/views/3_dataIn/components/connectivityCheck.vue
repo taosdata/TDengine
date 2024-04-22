@@ -1,32 +1,26 @@
 <template>
-  <section>
-    <el-collapse v-model="activeCollapse" accordion class="connection">
-      <el-collapse-item name='one'>
-        <template slot="title">
-          <el-tooltip
-            placement="top" effect="light" :open-delay="0"
-          >
-            <template slot="content">
-              <div>{{ $t('dataIn.communityCheckTip') }}</div>
-              <a :href="`http://docs.${urlPart}.com/enterprise`" target="_blank">{{ `http://docs.${urlPart}.com/enterprise`}}</a>
-            </template>
-            <el-button
-              :loading="checkLoading"
-              :disabled="$COMMUNITY"
-              type="primary"
-              size="small"
-              @click.capture.stop="clickCheckBtn"
-              >{{ $t("dataIn.check") }}
-            </el-button>
-          </el-tooltip>
-        </template>
-        <Result
-          v-show="JSON.stringify(checkResult) !== '{}'"
-          :result="checkResult"
-        /> 
-      </el-collapse-item>
-    </el-collapse>
-  </section>
+  <el-tooltip
+    placement="top" effect="light" :open-delay="0"
+  >
+    <template slot="content">
+      <div>{{ $t('dataIn.communityCheckTip') }}</div>
+      <a :href="`http://docs.${urlPart}.com/enterprise`" target="_blank">{{ `http://docs.${urlPart}.com/enterprise`}}</a>
+    </template>
+    <el-button
+      :loading="checkLoading"
+      :disabled="$COMMUNITY"
+      class="btn-check-connectivity"
+      type="primary"
+      size="small"
+      plain
+      @click.capture.stop="clickCheckBtn"
+      >{{ $t("dataIn.check") }}
+    </el-button>
+  </el-tooltip>
+  <Result
+    v-show="JSON.stringify(checkResult) !== '{}'"
+    :result="checkResult"
+  /> 
 </template>
 <script>
 import Result from "./result.vue";
@@ -122,7 +116,7 @@ export default {
 }
 
 </script>
-<style scoped>
+<style lang="scss" scoped>
   .connection {
     border-top: 0;
     border-bottom: 0;
@@ -134,6 +128,12 @@ export default {
     } 
     :deep(.el-collapse-item__content) {
       padding-bottom: 0,
+    }
+  }
+  .box-check-connectivity {
+    margin-bottom: 30px;
+    .btn-check-connectivity {
+      width: 100%;
     }
   }
 </style>

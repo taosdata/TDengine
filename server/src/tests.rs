@@ -1,4 +1,6 @@
 use actix_web::{http::Method, test, web, App};
+use reqwest::Client;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use super::*;
 

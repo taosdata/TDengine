@@ -4,6 +4,7 @@
       v-if="isOpcDataset && !isOpcDsn"
       slot="trigger"
       size="mini"
+      plain
       type="primary"
       @click="handleBeforeUpload"
       >{{ $t('support.selectFile') }}</el-button

@@ -304,7 +304,7 @@ export default {
                     !this.kafkaDefaultCols.includes(val)
                   ) {
                     return val;
-                  }else if(this.$store.state.app.currentDBType == "avevaHistorian"){
+                  } else if(this.$store.state.app.supportSQL){
                     return val
                   }
                 });
@@ -343,7 +343,6 @@ export default {
             let newItem = {...addObj, ...item};
             resultData.push(newItem)
           });
-          console.log('resulet',resultData);
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
@@ -543,11 +542,7 @@ export default {
      
       let parser = {
         parser: {
-          parse:
-          // this.$store.state.app.currentDBType == "avevaHistorian" ? isall?this.$store.state.app.topParse.parser.parse:{
-          //   [`${this.itemData.columnname}`]:this.$store.state.app.topParse.parser.parse[this.itemData.columnname]
-          // }: 
-          this.$store.state.app.topParse.parser.parse,
+          parse: this.$store.state.app.topParse.parser.parse,
           mutate: topparse["parser"]["mutate"],
         },
 
@@ -564,7 +559,7 @@ export default {
                   }
                 }
               )
-          :this.$store.state.app.currentDBType == "avevaHistorian"?isall?this.$store.state.app.topParse.input:[].concat({
+          :this.$store.state.app.supportSQL?isall?this.$store.state.app.topParse.input:[].concat({
             [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
           }): inputList,
       };

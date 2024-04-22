@@ -280,7 +280,7 @@ async fn main() -> anyhow::Result<()> {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct R<T> {
-    pub code: i32,
+    pub code: u32,
     pub data: Option<T>,
     pub msg: Option<String>,
 }
@@ -293,20 +293,28 @@ impl<T> R<T> {
             msg: None,
         }
     }
+    fn fail(code: u32, msg: String) -> Self {
+        Self {
+            code,
+            data: None,
+            msg: Some(msg),
+        }
+    }
 }
 
 /**
  * 检查当前 TDengine 是否已经绑定了手机号或邮箱。
  */
 async fn check_binding(args: web::Data<Args>) -> impl Responder {
-    let binding_record_file = format!("{}\\explorer-register.cfg", args.cfg_path.as_ref().unwrap());
+    let binding_record_file =
+        PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
     let server = args.profile.cluster.as_deref().unwrap();
     let check_result = verification::check_phone_email_verified(&binding_record_file, server);
     match check_result {
         Ok(_) => HttpResponse::Ok().json(R::success(true)),
         Err(err) => {
             error!(
-                "check {} in file {}, Failed to check binding: {}",
+                "check {} in file {:?}, Failed to check binding: {}",
                 server, binding_record_file, err
             );
             HttpResponse::Ok().json(R::success(false))
@@ -341,15 +349,11 @@ struct VerificationReqBody {
     phone_email: Option<String>,
     verification_code: Option<String>,
     captcha: Option<String>,
-    ts: Option<u64>,
+    lang: Option<String>,
 }
 
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
-    let captcha_key = format!(
-        "captcha-{}-{}",
-        params.phone_email.as_ref().unwrap(),
-        params.ts.unwrap_or(0)
-    );
+    let captcha_key = format!("captcha-{}", params.phone_email.as_ref().unwrap());
     let img = verification::generate_captcha(captcha_key);
 
     HttpResponse::Ok()
@@ -358,7 +362,10 @@ async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl
 }
 
 // phone_email=18600000000&captcha=1234
-async fn send_verification_code(params: web::Query<VerificationReqBody>) -> impl Responder {
+async fn send_verification_code(
+    args: web::Data<Args>,
+    params: web::Query<VerificationReqBody>,
+) -> impl Responder {
     if params.phone_email.is_none() || params.captcha.is_none() {
         return HttpResponse::BadRequest().json(RestErrResponse {
             code: Code::FAILED,
@@ -375,7 +382,7 @@ async fn send_verification_code(params: web::Query<VerificationReqBody>) -> impl
         });
     }
 
-    let captcha_key = format!("captcha-{}-{}", str_phone_email, params.ts.unwrap_or(0));
+    let captcha_key = format!("captcha-{}", str_phone_email);
     let captcha_check_result = verification::check_security_code(&captcha_key, str_captcha);
     if captcha_check_result != "pass" {
         return HttpResponse::BadRequest().json(RestErrResponse {
@@ -384,22 +391,26 @@ async fn send_verification_code(params: web::Query<VerificationReqBody>) -> impl
         });
     }
 
-    let verification_key = format!(
-        "verification-{}-{}",
+    let cloud_open_api_send_verification_code = format!(
+        "{}/trial/verification-code",
+        args.cloud_open_api.as_ref().unwrap()
+    );
+
+    let result = verification::send_verification_code_with_cloud_open_api(
+        &cloud_open_api_send_verification_code,
         str_phone_email,
-        params.ts.unwrap_or(0)
-    );
-    let verification_code = verification::generate_verification_code(verification_key);
+        params.lang.as_deref(),
+    )
+    .await;
 
-    // 调用云服务发送验证码
-    // TODO
-    info!(
-        "send verification code {} to phone_email {} with the cloud ",
-        verification_code, str_phone_email
-    );
-
-    // TODO 和云服务联调后，需要去掉这个返回值
-    HttpResponse::Ok().json(R::success(verification_code))
+    match result {
+        Ok(200) => HttpResponse::Ok().json(R::success("")),
+        Ok(code) => HttpResponse::Ok().json(R::<Option<()>>::fail(
+            code,
+            "post cloud api error".to_string(),
+        )),
+        Err(err) => HttpResponse::Ok().json(R::<Option<()>>::fail(501, err.to_string())),
+    }
 }
 
 async fn check_verification_code(
@@ -422,11 +433,10 @@ async fn check_verification_code(
         });
     }
 
-    let verification_key = format!("verification-{}-{}", str_phone_email, body.ts.unwrap_or(0));
-    let result = verification::check_security_code(&verification_key, str_verification_code);
+    let result = verification::check_security_code(str_phone_email, str_verification_code);
     if result == "pass" {
         let binding_record_file =
-            format!("{}\\explorer-register.cfg", args.cfg_path.as_ref().unwrap());
+            PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
         let server = args.profile.cluster.as_deref().unwrap();
         verification::record_binding_phone_email(server, str_phone_email, &binding_record_file);
     }
@@ -782,6 +792,9 @@ struct Args {
     log_level: Option<LevelFilter>,
 
     cfg_path: Option<String>,
+
+    #[clap(long, global = true)]
+    cloud_open_api: Option<String>,
 
     #[clap(flatten)]
     #[serde(flatten)]
