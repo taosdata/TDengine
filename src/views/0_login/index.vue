@@ -142,30 +142,20 @@ export default {
         } else {
           callback(new Error(this.$t("register.phoneTips")));
         }
-      } else {
-
-        if (!(/^1[3456789]\d{9}$/.test(value) || /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(value))) {
+      } else if (!this.isLocaleLanguageEn) {
+        // 校验手机号
+        if (!this.checkPhone(value)) {
           callback(new Error(this.$t("register.phoneTips")));
           return;
         }
-
-        if (!this.isLocaleLanguageEn) {
-          // 校验手机号
-          if (!/^1[3456789]\d{9}$/.test(value)) {
-            callback(new Error(this.$t("register.phoneTips")));
-            return;
-          }
-        } 
-        // else {
-        //   // 校验邮箱
-        //   if (!/^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(value)) {
-        //     callback(new Error(this.$t("register.emailTips")));
-        //     return;
-        //   }
-        // }
-
-        callback();
+      } else {
+        if (!(this.checkPhone(value) || this.checkEmail(value))) {
+          callback(new Error(this.$t("register.emailTips")));
+          return;
+        }
       }
+
+      callback();
     };
     return {
       taosxStatus: true,
@@ -407,15 +397,28 @@ export default {
         console.log('error',error);
       }
     },
+    checkPhone(val) {
+      return /^1[3456789]\d{9}$/.test(val)
+    },
+    checkEmail(val) {
+      return /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val)
+    },
+
     async handlerCaptcha() {
 
       if (!this.isLocaleLanguageEn) {
         // 校验手机号
-        if (!/^1[3456789]\d{9}$/.test(this.registerValidateForm.phone_email)) {
+        if (!this.checkPhone(this.registerValidateForm.phone_email)) {
           this.$error(this.$t('register.phoneTips'));
           return;
         }
-      } 
+      } else {
+        // 校验邮箱
+        if (!(this.checkPhone(this.registerValidateForm.phone_email) || this.checkEmail(this.registerValidateForm.phone_email))) {
+          this.$error(this.$t('register.emailTips'));
+          return;
+        }
+      }
 
       // 弹出获取图形验证码的弹框
       this.captchaForm.captchaCode = '';

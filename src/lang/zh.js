@@ -225,6 +225,7 @@ export default {
   contact: '联系',
   close: '关闭',
   communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版。',
+  dontDisturbMe: '7天内不再提醒',
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",

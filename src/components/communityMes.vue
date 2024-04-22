@@ -7,7 +7,7 @@
     <div class="custom-content">
       {{ $t('communityContent')}} <br/>
     </div>
-    <el-checkbox v-model="checked">7天内不再提醒</el-checkbox>
+    <el-checkbox v-model="checked">{{ $t('dontDisturbMe')}}</el-checkbox>
     <div class="actions">
       <el-button size="small" @click="handleAfterLeave">{{ $t('close')}}</el-button>
       <el-button size="small" type='primary' @click="refresh">{{ $t('contact')}}</el-button>
@@ -62,7 +62,7 @@ export default {
   position: fixed;
   right: 18px;
   bottom: 20px;
-  max-width: 340px;
+  max-width: 500px;
   min-width: 250px;
   width: 50%;
   background-color: #fafafa;
