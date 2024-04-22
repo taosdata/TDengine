@@ -311,9 +311,7 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     let server = args.profile.cluster.as_deref().unwrap();
     let check_result = verification::check_phone_email_verified(&binding_record_file, server);
     match check_result {
-        Ok(_) => {
-            HttpResponse::Ok().json(R::success(true))
-        }
+        Ok(_) => HttpResponse::Ok().json(R::success(true)),
         Err(err) => {
             error!(
                 "check {} in file {:?}, Failed to check binding: {}",
