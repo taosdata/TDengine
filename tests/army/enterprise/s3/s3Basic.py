@@ -212,9 +212,12 @@ class TDTestCase(TBase):
         taosd = sc.taosdFile(idx)
         cfg   = sc.dnodeCfgPath(idx)
         cmd = f"{taosd} -c {cfg} --checks3"
-        output, error = eos.run(cmd)
+
+        eos.exe(cmd)
+        #output, error = eos.run(cmd)
         #print(lines)
 
+        '''
         tips = [
             "put object s3test.txt: success",
             "listing bucket ci-bucket: success",
@@ -226,6 +229,7 @@ class TDTestCase(TBase):
             pos = output.find(tip, pos)
             #if pos == -1:
             #    tdLog.exit(f"checks3 failed not found {tip}. cmd={cmd} output={output}")
+        '''
         
         # except
         self.checkExcept()
