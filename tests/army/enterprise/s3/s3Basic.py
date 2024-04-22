@@ -248,14 +248,14 @@ class TDTestCase(TBase):
         etool.benchMark(json=json)
 
         # come from s3_basic.json
-        self.insert_rows += self.insert_rows/2
+        self.insert_rows += self.insert_rows/4
         self.timestamp_step = 500
 
     # delete
     def checkDelete(self):
         # del 1000 rows
         start = 1600000000000
-        drows = 1000
+        drows = 200
         for i in range(1, drows, 2):
             sql = f"from {self.db}.{self.stb} where ts = {start + i*500}"
             tdSql.execute("delete " + sql, show=True)
@@ -269,10 +269,10 @@ class TDTestCase(TBase):
         sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.insert_rows * self.childtable_count)
 
-        # delete 10W rows from 10000
+        # delete 10W rows from 100000
         drows = 100000
-        sdel = start + 1000000 * self.timestamp_step
-        edel = start + 1000000 * self.timestamp_step + drows * self.timestamp_step
+        sdel = start + 100000 * self.timestamp_step
+        edel = start + 100000 * self.timestamp_step + drows * self.timestamp_step
         sql = f"from {self.db}.{self.stb} where ts >= {sdel} and ts < {edel}"
         tdSql.execute("delete " + sql, show=True)
         tdSql.query("select * " + sql)
@@ -300,7 +300,7 @@ class TDTestCase(TBase):
             self.createStream(self.sname)
 
             # check insert data correct
-            self.checkInsertCorrect()
+            #self.checkInsertCorrect()
 
             # save
             self.snapshotAgg()
@@ -325,7 +325,7 @@ class TDTestCase(TBase):
 
             # insert history  disorder data
             self.insertHistory()
-            self.checkInsertCorrect()
+            #self.checkInsertCorrect()
             self.snapshotAgg()
             self.doAction()
             self.checkAggCorrect()

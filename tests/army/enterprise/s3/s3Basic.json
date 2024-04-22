@@ -7,7 +7,7 @@
     "password": "taosdata",
     "connection_pool_size": 8,
     "num_of_records_per_req": 4000,
-    "prepared_rand": 1000,
+    "prepared_rand": 500,
     "thread_count": 4,
     "create_table_thread_count": 1,
     "confirm_parameter_prompt": "no",
@@ -16,7 +16,7 @@
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-                "vgroups": 4,
+                "vgroups": 2,
                 "replica": 1,
                 "duration":"10d",
                 "s3_keeplocal":"30d", 
