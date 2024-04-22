@@ -3,6 +3,7 @@ use std::{ops::Deref, time::Duration};
 use anyhow::{anyhow, bail, Context, Result};
 use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+
 use taosx_core::{
     utils::{constants::VERSION_3_3_0, get_main_version_from_server_version, get_server_version},
     ConnectorLicense,
@@ -207,13 +208,15 @@ async fn validate_connector_license(
     to: &Dsn,
     pool: Option<&sqlx::SqlitePool>,
 ) -> Result<LicenseKind> {
-    let source_builder = TaosBuilder::from_dsn(from)?;
-    let source_version = source_builder.server_version().await?;
     let builder = TaosBuilder::from_dsn(to)?;
-    let target_version = builder.server_version().await?;
-    {
+
+    if let Ok(source_builder) = TaosBuilder::from_dsn(from) {
+        let source_version = source_builder.server_version().await?;
         let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+
+        let target_version = builder.server_version().await?;
         let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+
         if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
