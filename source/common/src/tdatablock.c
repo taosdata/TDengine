@@ -1321,14 +1321,9 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
     pInfo->compFn = getKeyComparFunc(pInfo->pColData->info.type, pInfo->order);
   }
 
-  /*
   terrno = 0;
   taosqsort(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
   if (terrno) return terrno;
-  */
-  extern void qsort_r(void* base, size_t nmemb, size_t size, int (*compar)(const void*, const void*, void*), void* arg);
-  typedef int (*__compar_d_fn_t)(const void*, const void*, void*);
-  qsort_r(index, rows, sizeof(int32_t), (__compar_d_fn_t)dataBlockCompar, &helper);
 
   int64_t p1 = taosGetTimestampUs();
 
