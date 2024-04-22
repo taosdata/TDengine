@@ -95,7 +95,7 @@
     <div class="copyright" v-if="!oemName">
       <span>{{ $t("copyright") }}</span>
     </div>
-    <el-dialog :title="$t('register.imageVerificationCode')" :visible.sync="visible" width="400px" center>
+    <el-dialog :title="$t('register.imageVerificationCode')" :visible.sync="visible" width="400px" center :close-on-click-modal="false">
       <el-form ref="captchaForm" :model="captchaForm" :rules="captchaRulus">
         <el-form-item label="">
           <el-input v-model="captchaForm.captchaCode" ref="captcha" class="captcha-input" @keyup.enter.prevent="handlerVerificationCode" autocomplete="off">
@@ -391,7 +391,6 @@ export default {
           this.$error(this.$t("login.servTaosdTip"));
           return;
         }
-        console.log(err,'登陆错误提示')
         this.$error(err?.desc);
       }
     },
@@ -399,7 +398,7 @@ export default {
       try {
         const result = await fetchIsbinding();
         if (result && result.code == 0) {
-          this.registered = (result.data > 0);
+          this.registered = result.data;
         }
         if (this.registered) {
           this.$refs.phone_email.focus();

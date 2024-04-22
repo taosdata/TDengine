@@ -27,7 +27,7 @@ export function fetchApiByCluster(url, token, data) {
 export function fetchIsbinding() {
     return request({
         baseURL:process.env.VUE_APP_EXPLORER_API,
-        url: `/api/-/isbinding`,
+        url: `/isbinding`,
         method: "get",
         headers: {
             noAuth: true
@@ -38,7 +38,7 @@ export function fetchIsbinding() {
 export function fetchCaptcha(phone_email,ts) {
     return request({
         baseURL:process.env.VUE_APP_EXPLORER_API,
-        url: `/api/-/captcha?phone_email=${phone_email}&ts=${ts}`,
+        url: `/captcha?phone_email=${phone_email}&ts=${ts}`,
         method: "get",
         headers: {
             noAuth: true
@@ -47,10 +47,10 @@ export function fetchCaptcha(phone_email,ts) {
     });
 }
 // 发送验证码
-export function fetchVerificationCode(phone_email,captcha,ts) {
+export function fetchVerificationCode(phone_email,captcha,ts, lang) {
     return request({
         baseURL:process.env.VUE_APP_EXPLORER_API,
-        url: `/api/-/verification-code?phone_email=${phone_email}&captcha=${captcha}&ts=${ts}`,
+        url: `/verification-code?phone_email=${phone_email}&captcha=${captcha}&ts=${ts}&lang=${lang}`,
         method: "get",
         headers: {
             noAuth: true
@@ -61,7 +61,7 @@ export function fetchVerificationCode(phone_email,captcha,ts) {
 export function getVerificationResult(data) {
     return request({
         baseURL:process.env.VUE_APP_EXPLORER_API,
-        url: `api/-/verification-code`,
+        url: `/verification-code`,
         method: "post",
         data,
         headers: {

@@ -312,18 +312,14 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     let check_result = verification::check_phone_email_verified(&binding_record_file, server);
     match check_result {
         Ok(_) => {
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis();
-            HttpResponse::Ok().json(R::success(ts))
+            HttpResponse::Ok().json(R::success(true))
         }
         Err(err) => {
             error!(
                 "check {} in file {:?}, Failed to check binding: {}",
                 server, binding_record_file, err
             );
-            HttpResponse::Ok().json(R::success(0_u8))
+            HttpResponse::Ok().json(R::success(false))
         }
     }
 }
