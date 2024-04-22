@@ -1,4 +1,5 @@
 <template>
+<div class="box-check-connectivity">
   <el-tooltip
     placement="top" effect="light" :open-delay="0"
   >
@@ -21,6 +22,7 @@
     v-show="JSON.stringify(checkResult) !== '{}'"
     :result="checkResult"
   /> 
+</div>
 </template>
 <script>
 import Result from "./result.vue";
