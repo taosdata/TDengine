@@ -1034,7 +1034,7 @@ static int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, const char* id)
   pInfo->startTs = 0;
   pInfo->notReadyTasks = 0;
   pInfo->inCheckProcess = 0;
-  pInfo->stopCheckProcess = 1;
+  pInfo->stopCheckProcess = 0;
   taosArrayClear(pInfo->pList);
 
   return 0;
