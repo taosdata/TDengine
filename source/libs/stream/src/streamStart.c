@@ -186,6 +186,8 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
   // serialize streamProcessScanHistoryFinishRsp
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->outputInfo.fixedDispatcher.nodeId;
     req.downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
@@ -199,8 +201,9 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
     streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId, &pTask->outputInfo.fixedDispatcher.epSet);
 
-    streamTaskStartMonitorCheckRsp(pTask);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
@@ -219,8 +222,6 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
               pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-
-    streamTaskStartMonitorCheckRsp(pTask);
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
     streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
