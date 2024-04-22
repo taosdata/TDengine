@@ -64,6 +64,14 @@ class TDTestCase:
             tdSql.error(f'alter database db pages {pages}')
         tdSql.execute('drop database db')
 
+    def alter_encrypt_alrogithm(self):
+        tdSql.execute('create database db')
+        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'sM4\''))
+        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'noNe\''))
+        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'\''))
+        tdSql.checkEqual("Invalid option encrypt_algorithm: none ", tdSql.error('alter database db encrypt_algorithm \'none \''))
+        tdSql.execute('drop database db')
+
     def alter_same_options(self):
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db')
@@ -92,6 +100,7 @@ class TDTestCase:
         
         self.alter_buffer()
         self.alter_pages()
+        self.alter_encrypt_alrogithm()
         self.alter_same_options()
 
     def stop(self):

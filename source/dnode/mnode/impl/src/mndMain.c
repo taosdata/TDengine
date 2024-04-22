@@ -485,7 +485,22 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .retentionPeriod = 0,
       .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
+      .encryptAlgorithm = 0,
+      .encryptKey = {0}
   };
+
+#if defined(TD_ENTERPRISE)
+  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
+    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
+    if(tsEncryptKey[0] == '\0'){
+      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      return -1;
+    }
+    else{
+      strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    }
+  }
+#endif
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {

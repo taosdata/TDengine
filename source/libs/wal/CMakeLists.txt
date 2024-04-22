@@ -12,6 +12,7 @@ target_link_libraries(
     PUBLIC os
     PUBLIC util
     PUBLIC common
+    PUBLIC crypt
 )
 
 if(${BUILD_TEST})

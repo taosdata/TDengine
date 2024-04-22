@@ -81,6 +81,8 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
+
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)
@@ -190,6 +192,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)
@@ -298,6 +301,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)
@@ -406,6 +410,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)

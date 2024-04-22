@@ -153,7 +153,11 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // validate body
-      recordLen = walCkHeadSz + logContent->head.bodyLen;
+      int32_t cryptedBodyLen = logContent->head.bodyLen;
+      if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
+        cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
+      }
+      recordLen = walCkHeadSz + cryptedBodyLen;
       if (len < recordLen) {
         int64_t extraSize = recordLen - len;
         if (capacity < readSize + extraSize + sizeof(magic)) {
@@ -181,6 +185,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       logContent = (SWalCkHead*)(buf + pos);
+      decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__);
       if (walValidBodyCksum(logContent) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
@@ -618,7 +623,13 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     /*A(idxEntry.ver == ckHead.head.version);*/
 
     idxEntry.ver += 1;
-    idxEntry.offset += sizeof(SWalCkHead) + ckHead.head.bodyLen;
+
+    int32_t plainBodyLen = ckHead.head.bodyLen;
+    int32_t cryptedBodyLen = plainBodyLen;
+    if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
+      cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
+    }
+    idxEntry.offset += sizeof(SWalCkHead) + cryptedBodyLen;
 
     if (walReadLogHead(pLogFile, idxEntry.offset, &ckHead) < 0) {
       wError("vgId:%d, failed to read wal log head since %s. index:%" PRId64 ", offset:%" PRId64 ", file:%s",

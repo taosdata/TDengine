@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "systable.h"
+#include "tchecksum.h"
 
 extern SConfig *tsCfg;
 
@@ -113,6 +114,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
+  req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
+  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -219,6 +222,32 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD);
   taosCfgDynamicOptions(pCfg, cfgReq.config, true);
   return 0;
+}
+
+int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#ifdef TD_ENTERPRISE
+  int32_t       code = 0;
+  SDCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = dmUpdateEncryptKey(cfgReq.value);
+  if (code == 0) {
+    tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
+    tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
+    tstrncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
+  }
+
+_exit:
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  return 0;
+#endif
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
@@ -421,6 +450,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
