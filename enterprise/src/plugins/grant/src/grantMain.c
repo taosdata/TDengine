@@ -189,7 +189,7 @@ static const char *tGetConnDisplay(const char *name) {
       return gConnDisplay[i];
     }
   }
-  return "";
+  return name;
 }
 
 static const char *tGetGrantDisplay(const char *name) {
@@ -198,7 +198,7 @@ static const char *tGetGrantDisplay(const char *name) {
       return gGrantDisplay[i];
     }
   }
-  return "";
+  return name;
 }
 
 SGrantStatus gStatus = {
