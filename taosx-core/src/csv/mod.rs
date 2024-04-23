@@ -11,6 +11,7 @@ use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
+use bytes::Bytes;
 use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use futures_util::stream::FuturesUnordered;
 use futures_util::TryStreamExt;
@@ -242,6 +243,7 @@ struct CsvSource {
     concurrent: usize,
     batch_size: usize,
     skip_error: bool,
+    null_pattern: Option<Arc<Vec<Bytes>>>,
     port: u16,
 }
 unsafe impl Send for CsvSource {}
@@ -367,6 +369,15 @@ impl CsvSource {
             })
             .unwrap_or(false);
 
+        let null_pattern = dsn.remove("null_pattern").map(|v| {
+            Arc::new(
+                v.trim()
+                    .split(',')
+                    .map(|s| Bytes::copy_from_slice(s.as_bytes()))
+                    .collect_vec(),
+            )
+        });
+
         // if !has_header && headers.len() == 0 {
         //     return Err(anyhow!("csv header is null"));
         // }
@@ -395,6 +406,7 @@ impl CsvSource {
             concurrent,
             batch_size,
             skip_error,
+            null_pattern,
             port,
         })
     }
@@ -514,11 +526,11 @@ impl CsvSource {
 
         while let Some(reader) = self.readers.pop() {
             let permit = semaphore.clone().acquire_owned().await?;
-
+            let null_pattern = self.null_pattern.clone();
             let future = tokio::spawn(
                 async move {
                     info!("Deal with csv reader");
-                    let res = CsvSource::deal_file(reader, port, batch_size, skip_error).await?;
+                    let res = CsvSource::deal_file(reader, port, batch_size, skip_error, null_pattern).await?;
 
                     drop(permit);
                     Ok(res)
@@ -537,6 +549,7 @@ impl CsvSource {
         port: u16,
         batch_size: usize,
         skip_error: bool,
+        null_pattern: Option<Arc<Vec<Bytes>>>,
     ) -> Result<()> {
         debug!("Deal with file by IPC port: {port}");
         let stream = std::net::TcpStream::connect(format!("localhost:{}", port));
@@ -604,6 +617,12 @@ impl CsvSource {
                 for i in 0..headers.len() {
                     match record.get(i) {
                         Some(s) => {
+                            if let Some(null_pattern) = &null_pattern {
+                                if null_pattern.iter().any(|p| p == s) {
+                                    records[i].push(None);
+                                    continue;
+                                }
+                            }
                             let s = String::from_utf8_lossy(s);
                             let s = s.trim();
                             records[i].push(if !s.is_empty() {

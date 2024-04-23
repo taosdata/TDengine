@@ -17,6 +17,7 @@ fn message_to_sql(
     messages: &[MessageArrowRecords],
     precision: taos::Precision,
     with_meta: bool,
+    with_field_names: bool,
 ) -> Vec<Records> {
     debug_assert!(
         messages
@@ -43,7 +44,7 @@ fn message_to_sql(
             return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
         }
         let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
-        if len < MAX_SQL_LENGTH {
+        if len < MAX_SQL_LENGTH - 12 {
             let mut sql = String::with_capacity(len + 12);
             sql.push_str("INSERT INTO ");
             let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
@@ -77,14 +78,7 @@ fn message_to_sql(
         .map(|(key, group)| {
             let values = group
                 .into_iter()
-                .flat_map(|m| {
-                    m.sql_insert_part(precision, with_meta).map(|sql| {
-                        (
-                            sql,                  // SQL to insert into.
-                            m.records.num_rows(), // number of records
-                        )
-                    })
-                })
+                .flat_map(|m| m.sql_insert_part(precision, with_meta, with_field_names))
                 .collect_vec();
             let stable_name_iter = std::iter::repeat(key);
 
@@ -332,7 +326,7 @@ pub async fn flat_write_with_sql(
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
     for (stable, messages) in groups.into_iter() {
-        let sqls = message_to_sql(&messages, target_precision, true);
+        let sqls = message_to_sql(&messages, target_precision, true, false);
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
@@ -756,5 +750,65 @@ mod tests {
         .await?;
 
         Ok(())
+    }
+
+    #[test]
+    fn flat_sql_builder() {
+        const MAX_SQL_LENGTH: usize = 1_000_000;
+
+        fn valid_sql_or_none(
+            slice: &[(
+                String, // One table values SQL
+                usize,  // One table records
+            )],
+        ) -> Option<(
+            String, // SQL to insert into.
+            usize,  // number of tables
+            usize,  // number of records
+        )> {
+            if slice.len() == 1 {
+                return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
+            }
+            let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
+            if len < MAX_SQL_LENGTH - 12 {
+                let mut sql = String::with_capacity(len + 12);
+                sql.push_str("INSERT INTO ");
+                let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
+                    sql.push_str(s);
+                    (sql, records + n)
+                });
+                Some((sql, slice.len(), records))
+            } else {
+                None
+            }
+        }
+
+        fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
+            if slice.len() == 0 {
+                return vec![];
+            }
+            if let Some(sql) = valid_sql_or_none(slice) {
+                return vec![sql];
+            }
+            let p = (slice.len() + 1) / 2;
+            let (left, right) = slice.split_at(p);
+            let mut sqls = values_to_sqls(left);
+            sqls.extend(values_to_sqls(right));
+            sqls
+        }
+
+        let value_items = 1000;
+        let mut values = Vec::with_capacity(value_items);
+        for i in 0..value_items {
+            let s = (0..4096).map(|_| "NULL").join(","); // NULL * 4096
+            values.push((s, i));
+        }
+
+        let sqls = values_to_sqls(&values);
+        assert_eq!(sqls.len(), 32);
+
+        for (sql, _, _) in sqls {
+            assert!(sql.len() < MAX_SQL_LENGTH);
+        }
     }
 }

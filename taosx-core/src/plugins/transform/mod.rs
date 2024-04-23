@@ -1589,10 +1589,15 @@ impl MessageArrowRecords {
         }
     }
 
-    pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
+    pub fn sql_insert_part(
+        &self,
+        precision: taos::Precision,
+        with_meta: bool,
+        with_field_names: bool,
+    ) -> Vec<(String, usize)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
-            return None;
+            return vec![];
         }
         if primary_key_null_count > 0 {
             tracing::warn!(
@@ -1604,38 +1609,71 @@ impl MessageArrowRecords {
             // self.records
             tracing::warn!(records = ?self.records,  "Null indices in records: {:?} ", indices);
         }
-        let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
-            .expect("Sql values should be recognizable")?;
+        let col_values = crate::utils::sql::sql_values_from_record_batch(
+            &self.records,
+            precision,
+            with_field_names,
+        )
+        .expect("Sql values should be recognizable");
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
-        if !with_meta || self.table.using.is_none() {
-            return Some(format!("`{}` {}", tbname, col_values));
-        }
-        let using = self.table.using.as_ref().unwrap();
-        let names = self
-            .table
-            .tags
-            .as_ref()
-            .unwrap()
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| format!("`{}`", f.name()))
-            .join(",");
 
-        let tag_values = self
-            .table
-            .tags
-            .as_ref()
-            .unwrap()
-            .columns()
-            .iter()
-            .map(|c| c.taos_value(0).to_sql_value())
-            .join(",");
+        col_values
+            .into_iter()
+            .map(|(col_values, rows)| {
+                if !with_meta || self.table.using.is_none() {
+                    return (format!("`{}` {}", tbname, col_values), rows);
+                }
+                let using = self.table.using.as_ref().unwrap();
 
-        Some(format!(
-            "`{}` using `{}` ({}) tags({}) {}",
-            tbname, using, names, tag_values, col_values
-        ))
+                if with_field_names {
+                    let names = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .schema()
+                        .fields()
+                        .iter()
+                        .map(|f| format!("`{}`", f.name()))
+                        .join(",");
+
+                    let tag_values = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+
+                    (
+                        format!(
+                            "`{}` using `{}` ({}) tags({}) {}",
+                            tbname, using, names, tag_values, col_values
+                        ),
+                        rows,
+                    )
+                } else {
+                    let tag_values = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+                    (
+                        format!(
+                            "`{}` using `{}` tags ({}) {}",
+                            tbname, using, tag_values, col_values
+                        ),
+                        rows,
+                    )
+                }
+            })
+            .collect()
     }
 
     pub fn stable_name(&self) -> Option<&str> {
