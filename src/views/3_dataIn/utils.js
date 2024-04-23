@@ -131,11 +131,12 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
-    handleDatasets(datasets, paramsConfig);
+    
     handleGroups(groups, paramsConfig, true);
     if (id != 'csv') {
       handleConnectivityCheck(paramsConfig)
     }
+    handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig, false);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
