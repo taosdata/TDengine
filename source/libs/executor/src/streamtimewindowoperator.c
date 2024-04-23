@@ -388,15 +388,20 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   }
 }
 
+void destroyFlusedPos(void* pRes) {
+  SRowBuffPos* pPos = (SRowBuffPos*) pRes;
+  if (!pPos->needFree && !pPos->pRowBuff) {
+    taosMemoryFreeClear(pPos->pKey);
+    taosMemoryFree(pPos);
+  }
+}
+
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->freeItem) {
     int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
     for (int32_t i = pGroupResInfo->index; i < size; i++) {
-      SRowBuffPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
-      if (!pPos->needFree && !pPos->pRowBuff) {
-        taosMemoryFreeClear(pPos->pKey);
-        taosMemoryFree(pPos);
-      }
+      void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+      destroyFlusedPos(pPos);
     }
     pGroupResInfo->freeItem = false;
   }
@@ -409,6 +414,8 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  pInfo->pUpdated = NULL;
 
   // it should be empty.
   void* pIte = NULL;
@@ -437,7 +444,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSupp);
   tSimpleHashCleanup(pInfo->pUpdatedMap);
   pInfo->pUpdatedMap = NULL;
-  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   tSimpleHashCleanup(pInfo->pDeletedMap);
 
   blockDataDestroy(pInfo->pCheckpointRes);
@@ -1664,6 +1670,8 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  pInfo->pUpdated = NULL;
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -1679,7 +1687,6 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pWinBlock);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
-  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
@@ -3250,6 +3257,9 @@ void destroyStreamStateOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  pInfo->pUpdated = NULL;
+
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -3263,7 +3273,6 @@ void destroyStreamStateOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pSeUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
-  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
