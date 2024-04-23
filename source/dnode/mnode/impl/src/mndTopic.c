@@ -625,10 +625,10 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
+  if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum) {
     terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
     mError("topic num out of range");
-    return code;
+    goto _OVER;
   }
 
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user);
