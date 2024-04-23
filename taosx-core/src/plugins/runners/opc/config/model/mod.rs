@@ -203,7 +203,7 @@ fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<I
         .unwrap_or(Ok(None))
 }
 
-fn get_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
+fn parse_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
@@ -212,12 +212,12 @@ fn get_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
             if val.is_empty() {
                 return None;
             }
-
             match val.find("(") {
-                Some(index) => val[..index].to_string(),
-                None => val.to_string(),
+                Some(index) => Some(val[..index].to_string().replace(" ", "_")),
+                None => Some(val.replace(" ", "_")),
             }
         })
+        .flatten()
 }
 
 fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
@@ -230,7 +230,7 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
                 return None;
             }
             let val = val.replace(".", "_");
-            let val_type = get_raw_type(header, row);
+            let val_type = parse_raw_type(header, row);
             let stable_name = match (val.contains("{type}"), val_type) {
                 (true, Some(val_type)) => val.replace("{type}", &val_type),
                 _ => val,
@@ -265,6 +265,63 @@ fn parse_tag_values(
         None
     } else {
         Some(map)
+    }
+}
+
+#[cfg(test)]
+mod point_config_tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_parse_stable() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", "stable1"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, None);
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "stable1_{type}", "varchar(200)"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1_varchar".to_string()));
     }
 }
 
@@ -346,7 +403,7 @@ fn parse_columns(
     // value => value_col
     let value = parse_value_col(header, row);
     let value_name = value.alias.as_ref().unwrap();
-    validate_table_column_name("column name", value_name)?;
+    validate_table_column_name("value column name", value_name)?;
 
     if value.transform.is_some() {
         // 校验表达式

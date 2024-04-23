@@ -225,18 +225,26 @@ lazy_static::lazy_static! {
 pub fn validate_table_column_name(name_type: &str, name: &str) -> anyhow::Result<()> {
     if name.len() > 192 {
         bail!(
-            "The {}:[{}] is too long, the max length is 192.",
+            "The {}: {} is too long, the max length is 192.",
             name_type,
             name
         );
     }
-    if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
+
+    if name.contains(".") {
         bail!(
-            "The {}:[{}] is invalid, contains illegal characters.",
+            "The {}: {} is invalid, contains `.` character",
             name_type,
             name
         );
     }
+    // if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
+    //     bail!(
+    //         "The {}: {} is invalid, contains illegal characters.",
+    //         name_type,
+    //         name
+    //     );
+    // }
     Ok(())
 }
 
