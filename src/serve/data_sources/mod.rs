@@ -631,7 +631,7 @@ pub(super) async fn download_pi_default_config(
 
     match create_pi_default_config(controller, params).await {
         Ok(file_name) => {
-            let named_file = NamedFile::open(file_name)?;
+            let named_file = NamedFile::open(file_name).unwrap();
             Ok(named_file.into_response(&req))
         }
         Err(err) => Err(Failed {
