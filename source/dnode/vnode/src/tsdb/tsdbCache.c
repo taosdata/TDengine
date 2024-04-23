@@ -1637,8 +1637,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
       SLastCol lastCol = *pLastCol;
-      for (int8_t i = 0; i < lastCol.rowKey.numOfPKs; i++) {
-        reallocVarDataVal(&lastCol.rowKey.pks[i]);
+      for (int8_t j = 0; j < lastCol.rowKey.numOfPKs; j++) {
+        reallocVarDataVal(&lastCol.rowKey.pks[j]);
       }
       reallocVarData(&lastCol.colVal);
       taosArrayPush(pLastArray, &lastCol);
@@ -1667,8 +1667,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
         SLastCol lastCol = *pLastCol;
-        for (int8_t i = 0; i < lastCol.rowKey.numOfPKs; i++) {
-          reallocVarDataVal(&lastCol.rowKey.pks[i]);
+        for (int8_t j = 0; j < lastCol.rowKey.numOfPKs; j++) {
+          reallocVarDataVal(&lastCol.rowKey.pks[j]);
         }
         reallocVarData(&lastCol.colVal);
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
