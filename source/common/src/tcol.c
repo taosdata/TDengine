@@ -306,22 +306,22 @@ void setColLevel(uint32_t* compress, uint8_t level) {
   return;
 }
 
-int8_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
-                              uint32_t* compress) {
-  if (check && !validColEncode(type, encode)) return 0;
+int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
+                               uint32_t* compress) {
+  if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 
   if (compressType == TSDB_COLVAL_COMPRESS_DISABLED) {
     setColCompress(compress, compressType);
     setColLevel(compress, TSDB_COLVAL_LEVEL_DISABLED);
   } else {
-    if (check && !validColCompress(type, compressType)) return 0;
+    if (check && !validColCompress(type, compressType)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
     setColCompress(compress, compressType);
 
-    if (check && !validColCompressLevel(type, level)) return 0;
+    if (check && !validColCompressLevel(type, level)) return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
     setColLevel(compress, level);
   }
-  return 1;
+  return TSDB_CODE_SUCCESS;
 }
 
 bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
