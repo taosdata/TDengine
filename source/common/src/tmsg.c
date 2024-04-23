@@ -9624,6 +9624,8 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       taosArrayDestroy(pTbData->aRowP);
     }
   }
+
+  pTbData->aRowP = NULL;
 }
 
 void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
