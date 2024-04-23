@@ -1452,6 +1452,16 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
   return code;
 }
 
+static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+  int32_t code = 0;
+  taosThreadMutexLock(&pTrans->mutex);
+  if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf);
+  }
+  taosThreadMutexUnlock(&pTrans->mutex);
+  return code;
+}
+
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
   int32_t code = 0;
@@ -1568,13 +1578,22 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, boo
 
 static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
-  int32_t code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf);
+  int32_t code = 0;
+
+  if (pTrans->exec == TRN_EXEC_SERIAL) {
+    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf);
+  } else {
+    code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf);
+  }
+
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) return false;
+  terrno = code;
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_PRE_FINISH;
     mInfo("trans:%d, stage from undoAction to pre-finish", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS || code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mInfo("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
