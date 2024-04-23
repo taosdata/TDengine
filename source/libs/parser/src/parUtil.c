@@ -320,14 +320,14 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
 
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, cpSize);
+  memcpy(p, pTableMeta, schemaExtSize+size);
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + size);
-    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
+    // memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
   } else {
     p->schemaExt = NULL;
   }
-  memcpy(p->schema, pTableMeta->schema, numOfFields * sizeof(SSchema));
+  // memcpy(p->schema, pTableMeta->schema, numOfFields * sizeof(SSchema));
   return p;
 }
 
