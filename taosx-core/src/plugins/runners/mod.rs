@@ -17,9 +17,9 @@ pub mod mqtt;
 pub mod mysql;
 pub mod opc;
 pub mod opentsdb;
+pub mod oracle;
 pub mod pi;
 pub mod postgres;
-pub mod oracle;
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_TAOSX_PLUGINS_HOME: &'static str = "TAOSX_PLUGINS_HOME";
